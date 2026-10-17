@@ -21,6 +21,7 @@ from pathlib import Path
 from run_common import (
     BUCKETS,
     CACHE_SOURCES,
+    HOOK_TIME_SOURCE,
     ROOT,
     SPLIT_RULES,
     TIME_SOURCES,
@@ -1012,7 +1013,11 @@ def print_tool_summary(summary: ToolEventSummary) -> None:
         suffix = f" ({tools})" if tools else ""
         print(f"  {name}: {bucket['calls']} calls, {bucket['failures']} failed{suffix}")
     seconds = summary.tool_duration_ms / 1000
-    print(f"  Tool execution time: {seconds:.1f} s. This is not model time.")
+    print(f"  Tool execution time: {seconds:.1f} s summed, {summary.tool_busy_seconds} s with overlaps merged.")
+    if summary.model_time_seconds is not None:
+        print(f"  Wall clock minus tool time: {summary.model_time_seconds} s of {summary.wall_seconds} s.")
+    if summary.thinking_seconds is not None:
+        print(f"  Thinking: {summary.thinking_seconds} s over {summary.thought_blocks} blocks.")
     for note in summary.notes:
         print(f"  {note}")
 
@@ -1045,6 +1050,31 @@ def apply_tool_buckets(run: dict, summary: ToolEventSummary) -> None:
             "failures": bucket["failures"],
             "by_tool": bucket["by_tool"] if bucket["calls"] else {},
         }
+
+
+def apply_logged_time(run: dict, summary: ToolEventSummary, hints: dict) -> None:
+    """Store the hook timing in model_time.raw and offer it as the model time default.
+
+    A usage export with its own generation duration keeps priority.
+    """
+    if summary.wall_seconds is None:
+        return
+    run["model_time"].setdefault("raw", {})["tool_events"] = {
+        "wall_seconds": summary.wall_seconds,
+        "tool_seconds_merged": summary.tool_busy_seconds,
+        "tool_seconds_summed": round(summary.tool_duration_ms / 1000, 1),
+        "tools_without_duration": summary.tools_without_duration,
+        "wall_clock_minus_tool_seconds": summary.model_time_seconds,
+        "thinking_seconds": summary.thinking_seconds,
+        "thought_blocks": summary.thought_blocks,
+    }
+    if summary.model_time_seconds is None or hints.get("model_time_source"):
+        return
+    if run.get("rules_version") != 2:
+        print(f"  rules_version {run.get('rules_version')} has no {HOOK_TIME_SOURCE} source; model time stays as recorded.")
+        return
+    hints["model_time_source"] = HOOK_TIME_SOURCE
+    hints["generating_seconds"] = summary.model_time_seconds
 
 
 def observation_default(run: dict, summary: ToolEventSummary, *, include_other: bool) -> str:
@@ -1081,6 +1111,7 @@ def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bo
             use_log = prompt_yes_no("  Use these tool counts?", default=True)
     hints = prepare_hints(run, usage_paths, interactive=interactive)
     store_usage_raw(run, hints)
+    apply_logged_time(run, tool_summary, hints)
 
     tokens = run["tokens"]
     if interactive or tokens["reasoning_tokens"] is None:
@@ -1105,7 +1136,13 @@ def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bo
     if interactive or model_time["generating_seconds"] is None:
         print("\nModel time")
         source_default = str(hints.get("model_time_source", model_time["source"]))
-        model_time["source"] = prompt(f"  source ({', '.join(TIME_SOURCES)})", source_default)
+        sources = TIME_SOURCES if run.get("rules_version") == 2 else tuple(
+            source for source in TIME_SOURCES if source != HOOK_TIME_SOURCE
+        )
+        model_time["source"] = prompt(f"  source ({', '.join(sources)})", source_default)
+        while model_time["source"] not in sources:
+            print(f"  Choose one of: {', '.join(sources)}")
+            model_time["source"] = prompt(f"  source ({', '.join(sources)})", source_default)
         if model_time["source"] == "unavailable":
             model_time["generating_seconds"] = None
         else:

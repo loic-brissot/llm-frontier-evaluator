@@ -1,6 +1,6 @@
 # Tool buckets
 
-`rules_version` for this file is 1.
+`rules_version` for this file is 2. The buckets are the same as in version 1; version 2 changed model time only (`docs/metrics.md`).
 
 The gallery legend names four groups: shell, files, visual checks, and web. The web tooltip says “web and publishing”. The gallery does not publish the classifier that produced the counts.
 

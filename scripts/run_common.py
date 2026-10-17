@@ -28,7 +28,8 @@ def _schema_enum(name: str) -> tuple[str, ...]:
 # A prompt id is the stem of a file in prompt/: prompt/<prompt-id>.txt.
 DEFAULT_PROMPT_ID = "paris-3d-atlas"
 _PROMPT_ID_RE = re.compile(RUN_SCHEMA["properties"]["prompt_id"]["pattern"])
-RULES_VERSION = RUN_SCHEMA["properties"]["rules_version"]["const"]
+RULES_VERSION = RUN_SCHEMA["properties"]["rules_version"]["default"]
+HOOK_TIME_SOURCE = "wall_clock_minus_tool_time"
 
 BUCKETS: tuple[str, ...] = tuple(RUN_SCHEMA["properties"]["tool_calls"]["required"])
 # The four chart columns; `other` is printed under the table.
@@ -191,6 +192,9 @@ def default_series_id(harness: str, prompt_id: str | None = None) -> str:
         except (OSError, json.JSONDecodeError):
             continue
         if prompt_id is not None and run.get("prompt_id") != prompt_id:
+            continue
+        # A series shares one rules_version (docs/protocol.md).
+        if run.get("rules_version") != RULES_VERSION:
             continue
         if run.get("harness", {}).get("name") == harness and run.get("series_id"):
             return str(run["series_id"])

@@ -10,7 +10,7 @@ A run sends one model one frozen prompt from `prompt/` and records how that mode
 
 Rows compare only inside one series, so each series has its own table ([`docs/protocol.md`](docs/protocol.md)).
 
-**Reference series `lassence-2026-10`**: Claude Code and Codex app, transcribed from [bench.lassence.net](https://bench.lassence.net/) ([`reference/`](reference/README.md)).
+**Reference series `2026-10-11-lassence`**: Claude Code and Codex app, transcribed from [bench.lassence.net](https://bench.lassence.net/) ([`reference/`](reference/README.md)).
 
 | Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -23,7 +23,7 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 | `paris-3d-atlas` | GPT-6.1 Sol high | Codex app | 43k · 36% | 27.5 min | 109 11✗ | 11.8M |
 | `paris-3d-atlas` | GPT-6 Luna high | Codex app | 65k · 63% | 12.2 min | 77 8✗ | 11.0M |
 
-**Local series `local-2026-10-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
+**Local series `2026-10-17-init`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
 | Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Outcome |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -33,9 +33,9 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 ### Glossary
 1. Tokens generated: Reasoning tokens and visible tokens, in thousands. The percent is the reasoning share.
-1. Model time: Minutes spent generating. Tool time is excluded.
-1. Tool calls: Shell, files, visual checks, and web. Failures stay inside that total and are marked in red.
-1. Context re-read | Tokens read from the prompt cache, in millions.
+2. Model time: Minutes spent generating. Tool time is excluded.
+3. Tool calls: Shell, files, visual checks, and web. Failures stay inside that total and are marked in red.
+4. Context re-read: Tokens read from the prompt cache, in millions.
 
 ### Prompts
 
@@ -52,7 +52,7 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 `scripts/setup_run.py --prompt <prompt-id>` creates the run directory and its id, `YYYY-MM-DD-<harness>-<model>-<context>-<reasoning>`. The `<context>` segment appears only on Cursor runs that have a context set; it is optional even there, and when it is not filled `model.context` is null and the segment is omitted. The effort levels it proposes are harness-specific: `minimal`, `low`, `medium`, `high`, `xhigh`, `max` for Cursor, and `low`, `medium`, `high`, `ultra`, `max`, `ultracode` for Claude (`claude-code`). Reasoning is optional: when it is not filled, `model.reasoning` defaults to `unknown` (null is accepted as the same not-set value) and the run id ends in `-unknown`.
 
-`rules_version` is 1. A change to the metric rules or the tool buckets raises that version. Old runs keep the version they were recorded with.
+`rules_version` is 2. A change to the metric rules or the tool buckets raises that version. Old runs keep the version they were recorded with. Version 2 takes model time on Cursor runs from the hook log, as wall clock minus tool time ([`docs/metrics.md`](docs/metrics.md)).
 
 ## Repository layout
 

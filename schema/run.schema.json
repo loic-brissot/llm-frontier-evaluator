@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://local/llm-frontier-evaluator/run.schema.json",
   "title": "LLM frontier evaluator run",
-  "description": "One model attempt on one prompt in prompt/ (prompt_id is the file stem). Metric rules_version 1. scripts/compare_runs.py validates every run.json against this schema, and scripts/run_common.py reads its enums and defaults from $defs.",
+  "description": "One model attempt on one prompt in prompt/ (prompt_id is the file stem). Metric rules_version 2; records made under rules_version 1 still validate. scripts/compare_runs.py validates every run.json against this schema, and scripts/run_common.py reads its enums and defaults from $defs.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -24,7 +24,11 @@
     "observations"
   ],
   "properties": {
-    "rules_version": {"const": 1, "default": 1},
+    "rules_version": {
+      "enum": [1, 2],
+      "default": 2,
+      "description": "Version of docs/metrics.md and docs/tool-buckets.md the record follows. The default is the current version; older records keep theirs."
+    },
     "run_id": {"type": "string", "minLength": 1},
     "series_id": {"type": "string", "minLength": 1},
     "prompt_id": {
@@ -168,6 +172,18 @@
     },
     {
       "if": {
+        "required": ["model_time"],
+        "properties": {
+          "model_time": {
+            "required": ["source"],
+            "properties": {"source": {"const": "wall_clock_minus_tool_time"}}
+          }
+        }
+      },
+      "then": {"properties": {"rules_version": {"const": 2}}}
+    },
+    {
+      "if": {
         "required": ["harness"],
         "properties": {"harness": {"required": ["name"], "properties": {"name": {"const": "cursor"}}}}
       },
@@ -239,7 +255,13 @@
       "default": "unavailable"
     },
     "modelTimeSource": {
-      "enum": ["harness_model_time", "sum_of_llm_request_durations", "unavailable"],
+      "description": "wall_clock_minus_tool_time is rules_version 2 only.",
+      "enum": [
+        "harness_model_time",
+        "sum_of_llm_request_durations",
+        "wall_clock_minus_tool_time",
+        "unavailable"
+      ],
       "default": "unavailable"
     },
     "cacheSource": {

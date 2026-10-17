@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Print the LLM frontier process table and check the records.
 
-Reference rows use the published labels. Local rows use rules_version 1
-from docs/metrics.md: round half away from zero. Each local run.json is
-validated against schema/run.schema.json.
+Reference rows use the published labels. Local rows use the rounding in
+docs/metrics.md: round half away from zero. Each local run.json is
+validated against schema/run.schema.json, and each series must share one
+rules_version.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ from run_common import (
     run_schema_errors,
 )
 
-REFERENCE_PATH = ROOT / "reference" / "lassence-2026-10.json"
+REFERENCE_PATH = ROOT / "reference" / "2026-10-11-lassence.json"
 
 
 def round_half_up(value: Decimal, places: int) -> Decimal:
@@ -172,6 +173,17 @@ def check_local_run(run: dict, path: Path) -> list[str]:
     return errors
 
 
+def check_series_versions(runs: list[dict]) -> list[str]:
+    versions: dict[str, set[int]] = {}
+    for run in runs:
+        versions.setdefault(run["series_id"], set()).add(run["rules_version"])
+    return [
+        f"series {series_id!r} mixes rules_version {', '.join(str(v) for v in sorted(found))}"
+        for series_id, found in sorted(versions.items())
+        if len(found) > 1
+    ]
+
+
 def local_row(run: dict) -> tuple[list[str], list[str]]:
     """Return chart cells and incompleteness notes."""
     notes: list[str] = []
@@ -241,7 +253,7 @@ def reference_harness(run: dict) -> str:
 
 
 def print_reference(reference: dict) -> None:
-    print("Reference series: lassence-2026-10")
+    print("Reference series: 2026-10-11-lassence")
     print("Published chart from bench.lassence.net, transcribed on 2026-10-17.")
     print()
     headers = ["Model", "Harness", "Tokens generated", "Model time", "Tool calls", "Context re-read"]
@@ -295,6 +307,7 @@ def main() -> int:
     local_errors: list[str] = []
     incomplete: list[str] = []
     selected: list[dict] = []
+    valid: list[dict] = []
     run_paths = [run_dir / "run.json" for run_dir in sorted(discover_run_dirs(args.prompt_id))]
     for path in run_paths:
         try:
@@ -310,9 +323,11 @@ def main() -> int:
         if problems:
             local_errors.extend(problems)
             continue
+        valid.append(run)
         if run["shot"] == "follow-up" and not args.follow_ups:
             continue
         selected.append(run)
+    local_errors.extend(check_series_versions(valid))
 
     if reference is not None and not errors:
         print_reference(reference)

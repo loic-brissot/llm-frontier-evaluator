@@ -1,7 +1,7 @@
 {
   "rules_version": 1,
   "run_id": "2026-10-17-cursor-grok-4-7-500k-xhigh",
-  "series_id": "local-2026-10-cursor",
+  "series_id": "2026-10-17-init",
   "prompt_id": "paris-3d-atlas",
   "prompt_sha256": "19387b5a175db8f74b22515f1fce112c653d2286a5ab47fb46c4763176e64c1d",
   "shot": "primary",

@@ -1,5 +1,5 @@
 {
-  "series_id": "lassence-2026-10",
+  "series_id": "2026-10-11-lassence",
   "kind": "published-chart-transcription",
   "rules_version": 1,
   "prompt_id": "paris-3d-atlas",
@@ -43,7 +43,7 @@
   ],
   "runs": [
     {
-      "run_id": "lassence-2026-10-claude-fable-5-1-high",
+      "run_id": "2026-10-11-lassence-claude-fable-5-1-high",
       "model_name": "Claude Fable 5.1",
       "provider": "Anthropic",
       "reasoning": "high",
@@ -78,7 +78,7 @@
       }
     },
     {
-      "run_id": "lassence-2026-10-claude-opus-5-5-high",
+      "run_id": "2026-10-11-lassence-claude-opus-5-5-high",
       "model_name": "Claude Opus 5.5",
       "provider": "Anthropic",
       "reasoning": "high",
@@ -113,7 +113,7 @@
       }
     },
     {
-      "run_id": "lassence-2026-10-claude-opus-5-5-medium",
+      "run_id": "2026-10-11-lassence-claude-opus-5-5-medium",
       "model_name": "Claude Opus 5.5",
       "provider": "Anthropic",
       "reasoning": "medium",
@@ -148,7 +148,7 @@
       }
     },
     {
-      "run_id": "lassence-2026-10-claude-sonnet-5-5-high",
+      "run_id": "2026-10-11-lassence-claude-sonnet-5-5-high",
       "model_name": "Claude Sonnet 5.5",
       "provider": "Anthropic",
       "reasoning": "high",
@@ -183,7 +183,7 @@
       }
     },
     {
-      "run_id": "lassence-2026-10-claude-haiku-5-5-high",
+      "run_id": "2026-10-11-lassence-claude-haiku-5-5-high",
       "model_name": "Claude Haiku 5.5",
       "provider": "Anthropic",
       "reasoning": "high",
@@ -218,7 +218,7 @@
       }
     },
     {
-      "run_id": "lassence-2026-10-gpt-6-astra-high",
+      "run_id": "2026-10-11-lassence-gpt-6-astra-high",
       "model_name": "GPT-6 Astra",
       "provider": "OpenAI",
       "reasoning": "high",
@@ -253,7 +253,7 @@
       }
     },
     {
-      "run_id": "lassence-2026-10-gpt-6-1-sol-high",
+      "run_id": "2026-10-11-lassence-gpt-6-1-sol-high",
       "model_name": "GPT-6.1 Sol",
       "provider": "OpenAI",
       "reasoning": "high",
@@ -288,7 +288,7 @@
       }
     },
     {
-      "run_id": "lassence-2026-10-gpt-6-luna-high",
+      "run_id": "2026-10-11-lassence-gpt-6-luna-high",
       "model_name": "GPT-6 Luna",
       "provider": "OpenAI",
       "reasoning": "high",

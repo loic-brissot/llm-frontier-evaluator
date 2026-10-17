@@ -1,7 +1,8 @@
 """Read Cursor hook JSONL for one run and derive benchmark fields.
 
 Tool buckets follow docs/tool-buckets.md. Wall clock is the first prompt
-submission through the first stop. Tool durations are not model time.
+submission through the first stop. Model time is wall clock minus the union
+of tool intervals (docs/metrics.md, source wall_clock_minus_tool_time).
 """
 
 from __future__ import annotations
@@ -9,12 +10,13 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from run_common import BUCKETS, DEFAULT_PROMPT_ID, prompt_path
 
 TOOL_HOOKS = {"postToolUse", "postToolUseFailure"}
+THOUGHT_HOOK = "afterAgentThought"
 
 NAME_BUCKETS = {
     "shell": "shell",
@@ -49,6 +51,12 @@ class ToolEventSummary:
     cursor_version: str | None = None
     effort: str | None = None
     tool_duration_ms: int = 0
+    wall_seconds: float | None = None
+    tool_busy_seconds: float | None = None
+    tools_without_duration: int = 0
+    model_time_seconds: float | None = None
+    thinking_seconds: float | None = None
+    thought_blocks: int = 0
     notes: list[str] = field(default_factory=list)
     other_tools: list[str] = field(default_factory=list)
 
@@ -154,6 +162,46 @@ def _dedupe_tools(records: list[dict]) -> list[dict]:
     return [by_id[tool_id] for tool_id in order] + loose
 
 
+def _duration(value: object) -> float | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0:
+        return float(value)
+    return None
+
+
+def _merged_seconds(intervals: list[tuple[datetime, datetime]]) -> float:
+    total = timedelta()
+    current: tuple[datetime, datetime] | None = None
+    for begin, finish in sorted(intervals):
+        if current is not None and begin <= current[1]:
+            current = (current[0], max(current[1], finish))
+            continue
+        if current is not None:
+            total += current[1] - current[0]
+        current = (begin, finish)
+    if current is not None:
+        total += current[1] - current[0]
+    return total.total_seconds()
+
+
+def _tool_intervals(
+    tools: list[dict], start: datetime, end: datetime
+) -> tuple[list[tuple[datetime, datetime]], int]:
+    """Each postToolUse is logged when the tool returns, so it spans logged_at minus duration."""
+    intervals: list[tuple[datetime, datetime]] = []
+    missing = 0
+    for record in tools:
+        finish = parse_time(record.get("logged_at"))
+        duration = _duration(record.get("duration"))
+        if finish is None or duration is None:
+            missing += 1
+            continue
+        begin = max(finish - timedelta(milliseconds=duration), start)
+        finish = min(finish, end)
+        if finish > begin:
+            intervals.append((begin, finish))
+    return intervals, missing
+
+
 def _empty_buckets() -> dict[str, dict]:
     return {
         name: {"calls": 0, "failures": 0, "by_tool": {}}
@@ -215,8 +263,10 @@ def summarize_records(
                 summary.notes.append(f"The logged prompt bytes differ from prompt/{expected_path.name}.")
 
     selected: list[dict] = []
+    thoughts: list[dict] = []
     for record in records:
-        if record.get("hook_event_name") not in TOOL_HOOKS:
+        hook = record.get("hook_event_name")
+        if hook not in TOOL_HOOKS and hook != THOUGHT_HOOK:
             continue
         stamped = parse_time(record.get("logged_at"))
         if start is not None and (stamped is None or stamped < start):
@@ -225,7 +275,10 @@ def summarize_records(
             continue
         if end_exclusive is not None and (stamped is None or stamped >= end_exclusive):
             continue
-        selected.append(record)
+        if hook == THOUGHT_HOOK:
+            thoughts.append(record)
+        else:
+            selected.append(record)
 
     tools = _dedupe_tools(selected)
     buckets = _empty_buckets()
@@ -273,7 +326,35 @@ def summarize_records(
     summary.buckets = buckets
     summary.tool_duration_ms = duration_ms
     summary.other_tools = sorted(buckets["other"]["by_tool"])
+    if start is not None and end is not None:
+        _apply_timing(summary, tools, thoughts, start, end)
     return summary
+
+
+def _apply_timing(
+    summary: ToolEventSummary,
+    tools: list[dict],
+    thoughts: list[dict],
+    start: datetime,
+    end: datetime,
+) -> None:
+    wall = (end - start).total_seconds()
+    intervals, missing = _tool_intervals(tools, start, end)
+    busy = _merged_seconds(intervals)
+    summary.wall_seconds = round(wall, 1)
+    summary.tool_busy_seconds = round(busy, 1)
+    summary.tools_without_duration = missing
+    if missing:
+        summary.notes.append(
+            f"{missing} tool events had no duration, so model time was not taken from the log."
+        )
+    else:
+        summary.model_time_seconds = round(wall - busy, 1)
+    durations = [_duration(record.get("duration_ms")) for record in thoughts]
+    timed = [value for value in durations if value is not None]
+    summary.thought_blocks = len(thoughts)
+    if timed:
+        summary.thinking_seconds = round(sum(timed) / 1000, 1)
 
 
 def summarize_run(run_dir: Path) -> ToolEventSummary:

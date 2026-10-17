@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Append one JSONL record per Cursor hook event.
 
-Handles beforeSubmitPrompt, postToolUse, postToolUseFailure, and stop.
+Handles beforeSubmitPrompt, postToolUse, postToolUseFailure, afterAgentThought,
+and stop.
 Stdout is empty for the agent: a prompt submission gets {"continue": true},
 and every other event gets {}. No additional_context and no follow-up message.
 """
@@ -97,6 +98,7 @@ def record_from(event: dict) -> dict:
         "tool_use_id": event.get("tool_use_id"),
         "cwd": event.get("cwd"),
         "duration": event.get("duration"),
+        "duration_ms": event.get("duration_ms"),
         "exit_code": code,
         "failure_type": event.get("failure_type"),
         "error_message": event.get("error_message"),

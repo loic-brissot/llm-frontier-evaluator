@@ -2,7 +2,7 @@
 
 A run is one model, one harness, and one delivery of one prompt, `prompt/<prompt-id>.txt`. The prompt id is the file name without `.txt` (for example `paris-3d-atlas`).
 
-A series is the set of runs that share the prompt, the harness family, and the same `rules_version`. Compare rows inside one series. The October 2026 chart is the reference series `lassence-2026-10`. It used Claude Code and the Codex app. A Cursor series is a different series. Show both tables, and keep the series name on each table.
+A series is the set of runs that share the prompt, the harness family, and the same `rules_version`. Compare rows inside one series. The October 2026 chart is the reference series `2026-10-11-lassence`. It used Claude Code and the Codex app. A Cursor series is a different series. Show both tables, and keep the series name on each table.
 
 ## What stays fixed
 
@@ -42,7 +42,7 @@ Add `-2`, `-3`, and so on when the id is already used. A follow-up uses the same
 
 ## During the run
 
-1. Open the harness with `workspace/` as its working directory. A Cursor run writes one JSONL file per conversation to `runs/<prompt-id>/<run-id>/tool-events/`.
+1. Open the harness with `workspace/` as its working directory. A Cursor run writes one JSONL file per conversation to `runs/<prompt-id>/<run-id>/tool-events/`. That log gives tool counts, wall clock, and model time (`docs/metrics.md`).
 2. Paste the exact bytes of `prompt/<prompt-id>.txt`.
 3. Send that message.
 4. Wait until the model stops.
