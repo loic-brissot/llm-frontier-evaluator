@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from run_common import PROMPT_PATH
+from run_common import DEFAULT_PROMPT_ID, prompt_path
 
 BUCKETS = ("shell", "files", "visual_checks", "web", "other")
 TOOL_HOOKS = {"postToolUse", "postToolUseFailure"}
@@ -162,7 +162,12 @@ def _empty_buckets() -> dict[str, dict]:
     }
 
 
-def summarize_records(records: list[dict], notes: list[str] | None = None) -> ToolEventSummary:
+def summarize_records(
+    records: list[dict],
+    notes: list[str] | None = None,
+    *,
+    expected_prompt_path: Path | None = None,
+) -> ToolEventSummary:
     summary = ToolEventSummary(notes=list(notes or []))
     if not records:
         return summary
@@ -201,13 +206,14 @@ def summarize_records(records: list[dict], notes: list[str] | None = None) -> To
         summary.wall_ended_at = format_time(end)
 
     if prompts:
+        expected_path = expected_prompt_path or prompt_path(DEFAULT_PROMPT_ID)
         prompt_text = prompts[0].get("prompt")
         if prompts[0].get("prompt_truncated"):
-            summary.notes.append("The logged prompt was truncated, so it was not compared with prompt/PROMPT.txt.")
-        elif isinstance(prompt_text, str):
-            expected = PROMPT_PATH.read_text(encoding="utf-8")
+            summary.notes.append(f"The logged prompt was truncated, so it was not compared with prompt/{expected_path.name}.")
+        elif isinstance(prompt_text, str) and expected_path.is_file():
+            expected = expected_path.read_text(encoding="utf-8")
             if prompt_text != expected:
-                summary.notes.append("The logged prompt bytes differ from prompt/PROMPT.txt.")
+                summary.notes.append(f"The logged prompt bytes differ from prompt/{expected_path.name}.")
 
     selected: list[dict] = []
     for record in records:
@@ -273,4 +279,15 @@ def summarize_records(records: list[dict], notes: list[str] | None = None) -> To
 
 def summarize_run(run_dir: Path) -> ToolEventSummary:
     records, notes = load_records(run_dir)
-    return summarize_records(records, notes)
+    # The run lives in runs/<prompt-id>/<run-id>/; run.json records which
+    # prompt file its bytes must match. Fall back to the directory name.
+    prompt_id = run_dir.parent.name
+    run_json = run_dir / "run.json"
+    if run_json.is_file():
+        try:
+            recorded = json.loads(run_json.read_text(encoding="utf-8")).get("prompt_id")
+        except (OSError, json.JSONDecodeError):
+            recorded = None
+        if isinstance(recorded, str) and recorded:
+            prompt_id = recorded
+    return summarize_records(records, notes, expected_prompt_path=prompt_path(prompt_id))

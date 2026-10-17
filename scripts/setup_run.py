@@ -10,18 +10,22 @@ import sys
 from pathlib import Path
 
 from run_common import (
+    DEFAULT_PROMPT_ID,
     HARNESS_NAMES,
-    PROMPT_ID,
-    PROMPT_SHA256,
     REASONING_LEVELS,
     ROOT,
     RULES_VERSION,
     allocate_run_id,
+    available_prompt_ids,
     canonical_harness,
     default_series_id,
     infer_provider,
     is_cursor_harness,
+    prompt_path,
+    prompt_sha256,
     reasoning_levels_for_harness,
+    require_prompt_id,
+    run_dir_for,
     slugify,
     utc_now_iso,
     write_json,
@@ -88,6 +92,7 @@ def create_run_directory(
     model: str,
     reasoning: str,
     context: str | None = None,
+    prompt_id: str = DEFAULT_PROMPT_ID,
     series_id: str,
     provider: str,
     harness_version: str | None,
@@ -96,8 +101,9 @@ def create_run_directory(
     harness = normalize_harness(harness)
     reasoning = normalize_reasoning(reasoning, harness)
     context = normalize_context(context, harness)
-    run_id = allocate_run_id(harness, model, reasoning, context=context)
-    run_dir = RUNS_DIR / run_id
+    prompt_id = require_prompt_id(prompt_id)
+    run_id = allocate_run_id(harness, model, reasoning, context=context, prompt_id=prompt_id)
+    run_dir = run_dir_for(prompt_id, run_id)
     run_dir.mkdir(parents=True, exist_ok=False)
     workspace = run_dir / "workspace"
     workspace.mkdir()
@@ -111,8 +117,8 @@ def create_run_directory(
     run["rules_version"] = RULES_VERSION
     run["run_id"] = run_id
     run["series_id"] = series_id
-    run["prompt_id"] = PROMPT_ID
-    run["prompt_sha256"] = PROMPT_SHA256
+    run["prompt_id"] = prompt_id
+    run["prompt_sha256"] = prompt_sha256(prompt_id)
     run["shot"] = "primary"
     run["parent_run_id"] = None
     run["model"] = {
@@ -142,7 +148,8 @@ def install_cursor_hook(workspace: Path) -> None:
 
 def print_next_steps(run_dir: Path, *, harness: str) -> None:
     workspace = run_dir / "workspace"
-    prompt_file = ROOT / "prompt" / "PROMPT.txt"
+    prompt_id = run_dir.parent.name
+    prompt_file = prompt_path(prompt_id)
     print()
     print("Run directory ready:")
     print(f"  {run_dir}")
@@ -159,11 +166,17 @@ def print_next_steps(run_dir: Path, *, harness: str) -> None:
         print(f"Tool events are written to {run_dir / 'tool-events'}/.")
     print()
     print("After the model stops:")
-    print(f"  python3 scripts/finish_run.py --run-id {run_dir.name}")
+    print(f"  python3 scripts/finish_run.py --prompt {prompt_id} --run-id {run_dir.name}")
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Prepare a LLM frontier evaluator run directory.")
+    parser.add_argument(
+        "--prompt",
+        dest="prompt_id",
+        help="Prompt id: the stem of a file in prompt/, e.g. paris-3d-atlas "
+        f"for prompt/paris-3d-atlas.txt (default: {DEFAULT_PROMPT_ID}).",
+    )
     parser.add_argument("--harness", help="Harness name (default: cursor).")
     parser.add_argument("--model", help="Model name as you will record it in run.json.")
     parser.add_argument(
@@ -188,6 +201,15 @@ def main() -> int:
     args = build_parser().parse_args()
 
     try:
+        if args.prompt_id:
+            prompt_id = require_prompt_id(args.prompt_id.strip())
+        elif args.non_interactive:
+            prompt_id = require_prompt_id(DEFAULT_PROMPT_ID)
+        else:
+            known = ", ".join(available_prompt_ids())
+            print(f"Available prompts: {known}")
+            prompt_id = require_prompt_id(prompt("Prompt id", DEFAULT_PROMPT_ID))
+
         if args.harness:
             harness = normalize_harness(args.harness)
         elif args.non_interactive:
@@ -229,7 +251,7 @@ def main() -> int:
                 harness,
             )
 
-        series_default = default_series_id(harness)
+        series_default = default_series_id(harness, prompt_id)
         if args.series_id:
             series_id = args.series_id.strip()
         elif args.non_interactive:
@@ -267,6 +289,7 @@ def main() -> int:
             model=model,
             reasoning=reasoning,
             context=context,
+            prompt_id=prompt_id,
             series_id=series_id,
             provider=provider,
             harness_version=harness_version,

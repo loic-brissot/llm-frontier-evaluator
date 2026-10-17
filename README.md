@@ -2,7 +2,7 @@
 
 This repository is the measurement standard for LLM frontier evaluation.
 
-A run sends one model the frozen prompt and records how that model worked. The atlas build starts when a run is requested.
+A run sends one model one frozen prompt from `prompt/` and records how that model worked. The atlas build starts when a run is requested.
 
 The comparison is the four columns under **How each model worked** on the [October 2026 gallery](https://bench.lassence.net/):
 
@@ -25,12 +25,12 @@ The post says seven models ran in Claude Code or Codex. The gallery has eight ro
 ## Record a run
 
 1. Read [`docs/protocol.md`](docs/protocol.md).
-2. Send [`prompt/PROMPT.txt`](prompt/PROMPT.txt) as the only user message.
-3. Copy [`templates/run.json`](templates/run.json) to `runs/<run-id>/run.json`.
+2. Send `prompt/<prompt-id>.txt` as the only user message (e.g. [`prompt/paris-3d-atlas.txt`](prompt/paris-3d-atlas.txt)).
+3. Copy [`templates/run.json`](templates/run.json) to `runs/<prompt-id>/<run-id>/run.json`.
 4. Apply [`docs/metrics.md`](docs/metrics.md) and [`docs/tool-buckets.md`](docs/tool-buckets.md).
-5. Print the table with `python3 scripts/compare_runs.py`.
+5. Print the table with `python3 scripts/compare_runs.py` (add `--prompt <prompt-id>` for one prompt only).
 
-`scripts/setup_run.py` creates the run directory and its id, `YYYY-MM-DD-<harness>-<model>-<context>-<reasoning>`. The `<context>` segment appears only on Cursor runs. The effort levels it proposes are harness-specific: `minimal`, `low`, `medium`, `high`, `xhigh`, `max` for Cursor, and `low`, `medium`, `high`, `ultra`, `max`, `ultracode` for Claude (`claude-code`).
+`scripts/setup_run.py --prompt <prompt-id>` creates the run directory and its id, `YYYY-MM-DD-<harness>-<model>-<context>-<reasoning>`. The `<context>` segment appears only on Cursor runs. The effort levels it proposes are harness-specific: `minimal`, `low`, `medium`, `high`, `xhigh`, `max` for Cursor, and `low`, `medium`, `high`, `ultra`, `max`, `ultracode` for Claude (`claude-code`).
 
 `rules_version` is 1. A change to the metric rules or the tool buckets raises that version. Old runs keep the version they were recorded with.
 
@@ -38,10 +38,10 @@ The post says seven models ran in Claude Code or Codex. The gallery has eight ro
 
 | Path | Role |
 | --- | --- |
-| `prompt/PROMPT.txt` | Frozen prompt. The hash covers these exact bytes. |
+| `prompt/<prompt-id>.txt` | One frozen prompt per file. The file name without `.txt` is the prompt id, and the hash covers its exact bytes. |
 | `docs/` | Protocol, metric definitions, tool buckets. |
 | `reference/` | Transcription of the October 2026 chart. |
 | `schema/run.schema.json` | Shape of one local run record. |
 | `templates/` | Blank run record. |
-| `runs/` | One directory per future run. |
+| `runs/<prompt-id>/<run-id>/` | One directory per run, sorted by prompt id, then run id. |
 | `scripts/compare_runs.py` | Checks the records and prints the four columns. |

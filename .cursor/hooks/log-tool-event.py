@@ -20,7 +20,7 @@ FIELD_LIMIT = 32768
 def log_directory_for(script_path: Path) -> Path:
     """Return the JSONL directory for this hook installation.
 
-    A copy under runs/<run-id>/workspace/.cursor/ logs to runs/<run-id>/tool-events/.
+    A copy under runs/<prompt-id>/<run-id>/workspace/.cursor/ logs to runs/<prompt-id>/<run-id>/tool-events/.
     The repository copy logs to .cursor/tool-events/.
     """
     project_root = script_path.resolve().parents[2]

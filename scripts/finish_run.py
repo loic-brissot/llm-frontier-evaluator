@@ -23,6 +23,7 @@ from run_common import (
     reasoning_levels_for_harness,
     discover_run_dirs,
     copy_usage_export,
+    find_run_dir,
     load_json,
     scrub_path,
     slugify,
@@ -84,23 +85,20 @@ def prompt_float(label: str, default: float | None = None) -> float | None:
             print("  Enter a number or press Enter to skip.")
 
 
-def select_run_id(explicit: str | None) -> Path:
+def select_run_id(explicit: str | None, prompt_id: str | None = None) -> Path:
     if explicit:
-        run_dir = ROOT / "runs" / explicit
-        if not (run_dir / "run.json").is_file():
-            raise FileNotFoundError(f"No run.json in {run_dir}")
-        return run_dir
+        return find_run_dir(explicit, prompt_id)
 
-    runs = discover_run_dirs()
+    runs = discover_run_dirs(prompt_id)
     if not runs:
-        raise FileNotFoundError("No runs found under runs/.")
+        raise FileNotFoundError("No runs found under runs/<prompt-id>/.")
     if len(runs) == 1:
-        print(f"Using run {runs[0].name}")
+        print(f"Using run {runs[0].parent.name}/{runs[0].name}")
         return runs[0]
 
     print("Select a run:")
     for index, run_dir in enumerate(runs, start=1):
-        print(f"  {index}. {run_dir.name}")
+        print(f"  {index}. {run_dir.parent.name}/{run_dir.name}")
     while True:
         choice = input("Run number: ").strip()
         if choice.isdigit() and 1 <= int(choice) <= len(runs):
@@ -1195,7 +1193,8 @@ def run_compare() -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Finish recording a LLM frontier evaluator run.")
-    parser.add_argument("--run-id", help="Run directory name under runs/.")
+    parser.add_argument("--prompt", dest="prompt_id", help="Prompt id (directory under runs/). Narrows --run-id lookup.")
+    parser.add_argument("--run-id", help="Run directory name under runs/<prompt-id>/, or <prompt-id>/<run-id>.")
     parser.add_argument("--usage-export", type=Path, help="Harness usage export file or directory.")
     parser.add_argument("--skip-usage-copy", action="store_true", help="Only scrub files already in usage/.")
     parser.add_argument("--skip-metrics", action="store_true", help="Skip run.json prompts.")
@@ -1207,8 +1206,8 @@ def main() -> int:
     args = build_parser().parse_args()
 
     try:
-        run_dir = select_run_id(args.run_id)
-    except FileNotFoundError as exc:
+        run_dir = select_run_id(args.run_id, args.prompt_id)
+    except (FileNotFoundError, ValueError) as exc:
         print(exc, file=sys.stderr)
         return 1
 

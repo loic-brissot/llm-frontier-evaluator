@@ -2,13 +2,14 @@
   "rules_version": 1,
   "run_id": "2026-10-17-cursor-grok-4-7-500k-xhigh",
   "series_id": "local-2026-10-cursor",
-  "prompt_id": "lassence-2026-10-11",
+  "prompt_id": "paris-3d-atlas",
   "prompt_sha256": "19387b5a175db8f74b22515f1fce112c653d2286a5ab47fb46c4763176e64c1d",
   "shot": "primary",
   "parent_run_id": null,
   "model": {
     "provider": "xai",
-    "name": "grok-4-7-500k",
+    "name": "grok-4-7",
+    "context": "500k",
     "reasoning": "xhigh"
   },
   "harness": {
@@ -28,7 +29,7 @@
       "usage_csv": {
         "events_in_file": 6,
         "events_selected": 6,
-        "selection": "6 events. No model name matches grok-4-7-500k. Inside the run window.",
+        "selection": "6 events. No model name matches grok-4-7. Inside the run window.",
         "files": [
           "team-usage-events-2026-10-17.csv"
         ],
@@ -101,7 +102,7 @@
     "cache_write_tokens": 0,
     "uncached_input_tokens": 2039231,
     "raw": {
-      "selection": "6 events. No model name matches grok-4-7-500k. Inside the run window.",
+      "selection": "6 events. No model name matches grok-4-7. Inside the run window.",
       "events_selected": 6,
       "fields": {
         "cache_write_tokens": "Input (w/ Cache Write)",

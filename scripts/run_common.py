@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -11,11 +12,78 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RUNS_DIR = ROOT / "runs"
 TEMPLATES_DIR = ROOT / "templates"
-PROMPT_PATH = ROOT / "prompt" / "PROMPT.txt"
+PROMPTS_DIR = ROOT / "prompt"
 
-PROMPT_ID = "lassence-2026-10-11"
-PROMPT_SHA256 = "19387b5a175db8f74b22515f1fce112c653d2286a5ab47fb46c4763176e64c1d"
+# A prompt id is the stem of a file in prompt/: prompt/<prompt-id>.txt.
+DEFAULT_PROMPT_ID = "paris-3d-atlas"
+_PROMPT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 RULES_VERSION = 1
+
+
+def prompt_path(prompt_id: str) -> Path:
+    return PROMPTS_DIR / f"{prompt_id}.txt"
+
+
+def is_valid_prompt_id(prompt_id: object) -> bool:
+    return isinstance(prompt_id, str) and bool(_PROMPT_ID_RE.match(prompt_id))
+
+
+def available_prompt_ids() -> list[str]:
+    if not PROMPTS_DIR.is_dir():
+        return []
+    return sorted(path.stem for path in PROMPTS_DIR.glob("*.txt") if path.is_file())
+
+
+def require_prompt_id(prompt_id: str) -> str:
+    """Validate that `prompt_id` names an existing prompt/<prompt-id>.txt."""
+    if not is_valid_prompt_id(prompt_id):
+        raise ValueError(
+            f"Prompt id {prompt_id!r} is invalid: use lowercase letters, digits, '-' or '_', "
+            "starting with a letter or digit (it is the file name without .txt)."
+        )
+    if not prompt_path(prompt_id).is_file():
+        known = ", ".join(available_prompt_ids()) or "(none)"
+        raise ValueError(f"Unknown prompt id {prompt_id!r}. Available prompts: {known}")
+    return prompt_id
+
+
+def prompt_sha256(prompt_id: str) -> str:
+    return hashlib.sha256(prompt_path(prompt_id).read_bytes()).hexdigest()
+
+
+def run_dir_for(prompt_id: str, run_id: str) -> Path:
+    return RUNS_DIR / prompt_id / run_id
+
+
+def find_run_dir(run_id: str, prompt_id: str | None = None) -> Path:
+    """Locate runs/<prompt-id>/<run-id>/, optionally scoped to one prompt.
+
+    `run_id` may also be given as `<prompt-id>/<run-id>`.
+    """
+    if prompt_id is None and "/" in run_id:
+        prompt_id, run_id = run_id.split("/", 1)
+    if prompt_id is not None:
+        candidate = run_dir_for(prompt_id, run_id)
+        if (candidate / "run.json").is_file():
+            return candidate
+        raise FileNotFoundError(f"No run.json in {candidate}")
+    matches = [
+        path.parent
+        for path in sorted(RUNS_DIR.glob(f"*/{run_id}/run.json"))
+        if path.is_file()
+    ]
+    if not matches:
+        raise FileNotFoundError(f"No run {run_id!r} found under runs/<prompt-id>/")
+    if len(matches) > 1:
+        listed = ", ".join(str(path.relative_to(ROOT)) for path in matches)
+        raise ValueError(f"Run id {run_id!r} exists for several prompts ({listed}); pass --prompt.")
+    return matches[0]
+
+
+# Convenience handle for the default prompt; prefer prompt_path(prompt_id)
+# whenever a run's own prompt is known.
+PROMPT_PATH = prompt_path(DEFAULT_PROMPT_ID)
+PROMPT_ID = DEFAULT_PROMPT_ID
 
 HARNESS_NAMES = {"cursor", "claude-code", "codex", "other"}
 
@@ -95,15 +163,17 @@ def infer_provider(model_name: str) -> str | None:
     return None
 
 
-def default_series_id(harness: str) -> str:
-    for path in sorted(RUNS_DIR.glob("*/run.json"), reverse=True):
+def default_series_id(harness: str, prompt_id: str | None = None) -> str:
+    for path in sorted(RUNS_DIR.glob("*/*/run.json"), reverse=True):
         try:
             run = load_json(path)
         except (OSError, json.JSONDecodeError):
             continue
+        if prompt_id is not None and run.get("prompt_id") != prompt_id:
+            continue
         if run.get("harness", {}).get("name") == harness and run.get("series_id"):
             return str(run["series_id"])
-    return f"lassence-2026-10-{harness}"
+    return f"{prompt_id or DEFAULT_PROMPT_ID}-{harness}"
 
 
 def load_json(path: Path) -> dict:
@@ -126,12 +196,15 @@ def allocate_run_id(
     reasoning: str,
     *,
     context: str | None = None,
+    prompt_id: str = DEFAULT_PROMPT_ID,
     on_date: datetime | None = None,
 ) -> str:
     """Build `YYYY-MM-DD-<harness>-<model>-[<context>-]<reasoning>`.
 
     The context segment appears only for a Cursor harness, however the
     harness name is capitalised; it is never emitted for other harnesses.
+    Uniqueness is checked inside runs/<prompt-id>/, so the same run id may
+    exist once per prompt.
     """
     when = on_date or datetime.now()
     date_part = when.strftime("%Y-%m-%d")
@@ -142,7 +215,7 @@ def allocate_run_id(
     base = "-".join(parts)
     candidate = base
     suffix = 2
-    while (RUNS_DIR / candidate).exists():
+    while run_dir_for(prompt_id, candidate).exists():
         candidate = f"{base}-{suffix}"
         suffix += 1
     return candidate
@@ -185,11 +258,12 @@ def copy_usage_export(source: Path, usage_dir: Path) -> list[Path]:
     raise FileNotFoundError(f"Usage export not found: {source}")
 
 
-def discover_run_dirs() -> list[Path]:
+def discover_run_dirs(prompt_id: str | None = None) -> list[Path]:
     if not RUNS_DIR.is_dir():
         return []
-    dirs = [path.parent for path in RUNS_DIR.glob("*/run.json") if path.is_file()]
-    return sorted(dirs, key=lambda path: path.name, reverse=True)
+    pattern = f"{prompt_id}/*/run.json" if prompt_id else "*/*/run.json"
+    dirs = [path.parent for path in RUNS_DIR.glob(pattern) if path.is_file()]
+    return sorted(dirs, key=lambda path: (path.name, path.parent.name), reverse=True)
 
 
 def utc_now_iso() -> str:
