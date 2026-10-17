@@ -12,9 +12,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from run_common import DEFAULT_PROMPT_ID, prompt_path
+from run_common import BUCKETS, DEFAULT_PROMPT_ID, prompt_path
 
-BUCKETS = ("shell", "files", "visual_checks", "web", "other")
 TOOL_HOOKS = {"postToolUse", "postToolUseFailure"}
 
 NAME_BUCKETS = {

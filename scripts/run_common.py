@@ -7,17 +7,35 @@ import json
 import re
 import shutil
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNS_DIR = ROOT / "runs"
 TEMPLATES_DIR = ROOT / "templates"
 PROMPTS_DIR = ROOT / "prompt"
+SCHEMA_PATH = ROOT / "schema" / "run.schema.json"
+
+# The run schema is the single source for enums and defaults below.
+RUN_SCHEMA: dict = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+_SCHEMA_DEFS: dict = RUN_SCHEMA["$defs"]
+
+
+def _schema_enum(name: str) -> tuple[str, ...]:
+    return tuple(value for value in _SCHEMA_DEFS[name]["enum"] if value is not None)
+
 
 # A prompt id is the stem of a file in prompt/: prompt/<prompt-id>.txt.
 DEFAULT_PROMPT_ID = "paris-3d-atlas"
-_PROMPT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
-RULES_VERSION = 1
+_PROMPT_ID_RE = re.compile(RUN_SCHEMA["properties"]["prompt_id"]["pattern"])
+RULES_VERSION = RUN_SCHEMA["properties"]["rules_version"]["const"]
+
+BUCKETS: tuple[str, ...] = tuple(RUN_SCHEMA["properties"]["tool_calls"]["required"])
+# The four chart columns; `other` is printed under the table.
+CHART_BUCKETS: tuple[str, ...] = tuple(name for name in BUCKETS if name != "other")
+SPLIT_RULES = _schema_enum("splitRule")
+TIME_SOURCES = _schema_enum("modelTimeSource")
+CACHE_SOURCES = _schema_enum("cacheSource")
 
 
 def prompt_path(prompt_id: str) -> Path:
@@ -85,15 +103,15 @@ def find_run_dir(run_id: str, prompt_id: str | None = None) -> Path:
 PROMPT_PATH = prompt_path(DEFAULT_PROMPT_ID)
 PROMPT_ID = DEFAULT_PROMPT_ID
 
-HARNESS_NAMES = {"cursor", "claude-code", "codex", "other"}
+HARNESS_NAMES = set(_schema_enum("harnessName"))
 
 # Effort (reasoning) levels proposed for each harness, in the order the
 # harness presents them. "Claude" is the `claude-code` harness.
-CURSOR_REASONING_LEVELS = ("minimal", "low", "medium", "high", "xhigh", "max")
-CLAUDE_REASONING_LEVELS = ("low", "medium", "high", "ultra", "max", "ultracode")
+CURSOR_REASONING_LEVELS = _schema_enum("cursorReasoning")
+CLAUDE_REASONING_LEVELS = _schema_enum("claudeCodeReasoning")
 # Harnesses without their own list keep the levels recorded before the
 # per-harness lists existed, so older runs still validate.
-DEFAULT_REASONING_LEVELS = ("low", "medium", "high", "xhigh", "none", "unknown")
+DEFAULT_REASONING_LEVELS = _schema_enum("defaultReasoning")
 REASONING_LEVELS_BY_HARNESS = {
     "cursor": CURSOR_REASONING_LEVELS,
     "claude-code": CLAUDE_REASONING_LEVELS,
@@ -101,14 +119,10 @@ REASONING_LEVELS_BY_HARNESS = {
 # Reasoning is optional: it cannot be tuned or reported in every
 # configuration. An unfilled reasoning level is recorded as this default;
 # `None`/null is accepted as the same "not set" value.
-UNKNOWN_REASONING = "unknown"
+UNKNOWN_REASONING: str = _SCHEMA_DEFS["reasoningLevel"]["default"]
 
 # Every level a recorded run may hold, across all harnesses and older runs.
-REASONING_LEVELS = {
-    *CURSOR_REASONING_LEVELS,
-    *CLAUDE_REASONING_LEVELS,
-    *DEFAULT_REASONING_LEVELS,
-}
+REASONING_LEVELS = set(_schema_enum("reasoningLevel"))
 
 _HARNESS_ALIASES = {
     "claude": "claude-code",
@@ -157,6 +171,8 @@ def slugify(value: str) -> str:
 
 def infer_provider(model_name: str) -> str | None:
     lower = model_name.lower()
+    if "composer" in lower:
+        return "cursor"
     if any(token in lower for token in ("claude", "opus", "sonnet", "haiku")):
         return "anthropic"
     if any(token in lower for token in ("gpt", "codex", "o1", "o3", "o4")):
@@ -187,6 +203,31 @@ def load_json(path: Path) -> dict:
     if not isinstance(data, dict):
         raise ValueError(f"{path} must contain a JSON object")
     return data
+
+
+@lru_cache(maxsize=1)
+def _run_validator():
+    try:
+        from jsonschema import Draft202012Validator
+    except ImportError as exc:
+        raise RuntimeError(
+            "Validating run.json needs the jsonschema package: "
+            "python3 -m pip install -r requirements.txt"
+        ) from exc
+    Draft202012Validator.check_schema(RUN_SCHEMA)
+    return Draft202012Validator(RUN_SCHEMA)
+
+
+def run_schema_errors(run: object) -> list[str]:
+    """Validate one run record against schema/run.schema.json."""
+    errors = sorted(
+        _run_validator().iter_errors(run),
+        key=lambda error: [str(part) for part in error.absolute_path],
+    )
+    return [
+        f"{'.'.join(str(part) for part in error.absolute_path) or '(root)'}: {error.message}"
+        for error in errors
+    ]
 
 
 def write_json(path: Path, data: dict) -> None:

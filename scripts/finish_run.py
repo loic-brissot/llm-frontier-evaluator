@@ -19,7 +19,12 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from run_common import (
+    BUCKETS,
+    CACHE_SOURCES,
     ROOT,
+    SPLIT_RULES,
+    TIME_SOURCES,
+    UNKNOWN_REASONING,
     reasoning_levels_for_harness,
     discover_run_dirs,
     copy_usage_export,
@@ -30,10 +35,7 @@ from run_common import (
     utc_now_iso,
     write_json,
 )
-from tool_events import BUCKETS as TOOL_BUCKETS
 from tool_events import ToolEventSummary, summarize_run
-
-BUCKETS = TOOL_BUCKETS
 
 
 def prompt(label: str, default: str | None = None) -> str:
@@ -1063,7 +1065,7 @@ def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bo
         # Runs set up before model.context existed have no key; keep it null.
         run["model"].setdefault("context", None)
         # Reasoning is optional and defaults to unknown when not set.
-        run["model"].setdefault("reasoning", "unknown")
+        run["model"].setdefault("reasoning", UNKNOWN_REASONING)
     tool_summary = summarize_run(run_dir)
     apply_logged_identity(run, tool_summary)
     wall_from_log = False
@@ -1084,11 +1086,7 @@ def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bo
     if interactive or tokens["reasoning_tokens"] is None:
         print("\nTokens generated (see docs/metrics.md)")
         split_default = str(hints.get("split_rule") or tokens["split_rule"])
-        split_rule = prompt(
-            "  split_rule (output_includes_reasoning, output_excludes_reasoning, "
-            "harness_pre_split, unavailable)",
-            split_default,
-        )
+        split_rule = prompt(f"  split_rule ({', '.join(SPLIT_RULES)})", split_default)
         tokens["split_rule"] = split_rule
         if split_rule == "unavailable":
             tokens["reasoning_tokens"] = None
@@ -1107,10 +1105,7 @@ def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bo
     if interactive or model_time["generating_seconds"] is None:
         print("\nModel time")
         source_default = str(hints.get("model_time_source", model_time["source"]))
-        model_time["source"] = prompt(
-            "  source (harness_model_time, sum_of_llm_request_durations, unavailable)",
-            source_default,
-        )
+        model_time["source"] = prompt(f"  source ({', '.join(TIME_SOURCES)})", source_default)
         if model_time["source"] == "unavailable":
             model_time["generating_seconds"] = None
         else:
@@ -1122,7 +1117,7 @@ def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bo
     if interactive or cache["cache_read_tokens"] is None:
         print("\nContext re-read")
         cache_default = str(hints.get("cache_source", cache["source"]))
-        cache["source"] = prompt("  source (provider_cache_read, unavailable)", cache_default)
+        cache["source"] = prompt(f"  source ({', '.join(CACHE_SOURCES)})", cache_default)
         if cache["source"] == "unavailable":
             cache["cache_read_tokens"] = None
         else:
