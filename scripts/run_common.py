@@ -18,7 +18,48 @@ PROMPT_SHA256 = "19387b5a175db8f74b22515f1fce112c653d2286a5ab47fb46c4763176e64c1
 RULES_VERSION = 1
 
 HARNESS_NAMES = {"cursor", "claude-code", "codex", "other"}
-REASONING_LEVELS = {"xhigh", "high", "medium", "low", "none", "unknown"}
+
+# Effort (reasoning) levels proposed for each harness, in the order the
+# harness presents them. "Claude" is the `claude-code` harness.
+CURSOR_REASONING_LEVELS = ("minimal", "low", "medium", "high", "xhigh", "max")
+CLAUDE_REASONING_LEVELS = ("low", "medium", "high", "ultra", "max", "ultracode")
+# Harnesses without their own list keep the levels recorded before the
+# per-harness lists existed, so older runs still validate.
+DEFAULT_REASONING_LEVELS = ("low", "medium", "high", "xhigh", "none", "unknown")
+REASONING_LEVELS_BY_HARNESS = {
+    "cursor": CURSOR_REASONING_LEVELS,
+    "claude-code": CLAUDE_REASONING_LEVELS,
+}
+# Every level a recorded run may hold, across all harnesses and older runs.
+REASONING_LEVELS = {
+    *CURSOR_REASONING_LEVELS,
+    *CLAUDE_REASONING_LEVELS,
+    *DEFAULT_REASONING_LEVELS,
+}
+
+_HARNESS_ALIASES = {
+    "claude": "claude-code",
+    "claude code": "claude-code",
+    "claude-code": "claude-code",
+    "codex app": "codex",
+}
+
+
+def canonical_harness(harness: str) -> str:
+    """Return the lowercase canonical harness name (``Cursor`` -> ``cursor``)."""
+    value = harness.strip().lower()
+    return _HARNESS_ALIASES.get(value, value)
+
+
+def is_cursor_harness(harness: str) -> bool:
+    return canonical_harness(harness) == "cursor"
+
+
+def reasoning_levels_for_harness(harness: str) -> tuple[str, ...]:
+    """Effort levels proposed for a harness, matched case-insensitively."""
+    return REASONING_LEVELS_BY_HARNESS.get(
+        canonical_harness(harness), DEFAULT_REASONING_LEVELS
+    )
 
 SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"sk-[A-Za-z0-9_-]{20,}"), "sk-[REDACTED]"),
@@ -79,10 +120,26 @@ def write_json(path: Path, data: dict) -> None:
         handle.write("\n")
 
 
-def allocate_run_id(harness: str, model: str, reasoning: str, *, on_date: datetime | None = None) -> str:
+def allocate_run_id(
+    harness: str,
+    model: str,
+    reasoning: str,
+    *,
+    context: str | None = None,
+    on_date: datetime | None = None,
+) -> str:
+    """Build `YYYY-MM-DD-<harness>-<model>-[<context>-]<reasoning>`.
+
+    The context segment appears only for a Cursor harness, however the
+    harness name is capitalised; it is never emitted for other harnesses.
+    """
     when = on_date or datetime.now()
     date_part = when.strftime("%Y-%m-%d")
-    base = f"{date_part}-{harness}-{slugify(model)}-{slugify(reasoning)}"
+    parts = [date_part, slugify(canonical_harness(harness)), slugify(model)]
+    if is_cursor_harness(harness) and context and slugify(context):
+        parts.append(slugify(context))
+    parts.append(slugify(reasoning))
+    base = "-".join(parts)
     candidate = base
     suffix = 2
     while (RUNS_DIR / candidate).exists():

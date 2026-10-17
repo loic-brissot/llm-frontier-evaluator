@@ -9,6 +9,7 @@
   "model": {
     "provider": "",
     "name": "",
+    "context": null,
     "reasoning": "unknown"
   },
   "harness": {

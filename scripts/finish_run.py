@@ -19,8 +19,8 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from run_common import (
-    REASONING_LEVELS,
     ROOT,
+    reasoning_levels_for_harness,
     discover_run_dirs,
     copy_usage_export,
     load_json,
@@ -1026,10 +1026,14 @@ def apply_logged_identity(run: dict, summary: ToolEventSummary) -> None:
         print(f"Harness version from the tool log: {summary.cursor_version}")
     effort = summary.effort
     recorded = run["model"].get("reasoning")
-    if effort in REASONING_LEVELS and recorded == "unknown":
+    # Tool-event logs are a Cursor artefact, so an unknown harness falls back
+    # to the Cursor effort levels; a named harness uses its own list.
+    harness_name = str((run.get("harness") or {}).get("name") or "cursor")
+    levels = reasoning_levels_for_harness(harness_name)
+    if effort in levels and recorded == "unknown":
         run["model"]["reasoning"] = effort
         print(f"Reasoning from the tool log: {effort}")
-    elif effort in REASONING_LEVELS and effort != recorded:
+    elif effort in levels and effort != recorded:
         summary.notes.append(f"The log effort is {effort}; run.json keeps {recorded}.")
 
 
@@ -1057,6 +1061,9 @@ def observation_default(run: dict, summary: ToolEventSummary, *, include_other: 
 def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bool) -> None:
     run_path = run_dir / "run.json"
     run = load_json(run_path)
+    if isinstance(run.get("model"), dict):
+        # Runs set up before model.context existed have no key; keep it null.
+        run["model"].setdefault("context", None)
     tool_summary = summarize_run(run_dir)
     apply_logged_identity(run, tool_summary)
     wall_from_log = False

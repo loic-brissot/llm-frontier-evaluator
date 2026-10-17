@@ -30,6 +30,8 @@ The post says seven models ran in Claude Code or Codex. The gallery has eight ro
 4. Apply [`docs/metrics.md`](docs/metrics.md) and [`docs/tool-buckets.md`](docs/tool-buckets.md).
 5. Print the table with `python3 scripts/compare_runs.py`.
 
+`scripts/setup_run.py` creates the run directory and its id, `YYYY-MM-DD-<harness>-<model>-<context>-<reasoning>`. The `<context>` segment appears only on Cursor runs. The effort levels it proposes are harness-specific: `minimal`, `low`, `medium`, `high`, `xhigh`, `max` for Cursor, and `low`, `medium`, `high`, `ultra`, `max`, `ultracode` for Claude (`claude-code`).
+
 `rules_version` is 1. A change to the metric rules or the tool buckets raises that version. Old runs keep the version they were recorded with.
 
 ## Layout

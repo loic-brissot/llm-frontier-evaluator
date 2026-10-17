@@ -38,7 +38,12 @@ TIME_SOURCES = {
 }
 CACHE_SOURCES = {"provider_cache_read", "unavailable"}
 HARNESS_NAMES = {"cursor", "claude-code", "codex", "other"}
-REASONING = {"xhigh", "high", "medium", "low", "none", "unknown"}
+# Per-harness effort levels (docs/protocol.md), plus the legacy none/unknown
+# values on runs recorded before those lists existed.
+CURSOR_REASONING = {"minimal", "low", "medium", "high", "xhigh", "max"}
+CLAUDE_REASONING = {"low", "medium", "high", "ultra", "max", "ultracode"}
+REASONING_BY_HARNESS = {"cursor": CURSOR_REASONING, "claude-code": CLAUDE_REASONING}
+REASONING = CURSOR_REASONING | CLAUDE_REASONING | {"none", "unknown"}
 
 
 def round_half_up(value: Decimal, places: int) -> Decimal:
@@ -239,6 +244,25 @@ def check_local_run(run: dict, path: Path) -> list[str]:
         require(isinstance(model.get("provider"), str) and model.get("provider"), errors, f"{path}: model.provider is empty")
         require(isinstance(model.get("name"), str) and model.get("name"), errors, f"{path}: model.name is empty")
         require(model.get("reasoning") in REASONING, errors, f"{path}: model.reasoning is invalid")
+        context = model.get("context")
+        require(
+            context is None or (isinstance(context, str) and context),
+            errors,
+            f"{path}: model.context must be a non-empty string or null",
+        )
+        harness_name = (run.get("harness") or {}).get("name")
+        # Context is a Cursor-only segment of the run id (any capitalisation
+        # of the harness name counts); older Cursor runs recorded without it
+        # keep a null or absent context.
+        if isinstance(harness_name, str) and harness_name.lower() != "cursor":
+            require(context is None, errors, f"{path}: model.context only applies to Cursor runs")
+        allowed = REASONING_BY_HARNESS.get(harness_name) if isinstance(harness_name, str) else None
+        if allowed is not None:
+            require(
+                model.get("reasoning") in allowed | {"none", "unknown"},
+                errors,
+                f"{path}: model.reasoning is not an effort level for harness {harness_name}",
+            )
 
     harness = run.get("harness")
     require(isinstance(harness, dict), errors, f"{path}: harness must be an object")
@@ -341,6 +365,8 @@ def local_row(run: dict) -> tuple[list[str], list[str]]:
 
     model = run["model"]
     label = f"{model['name']} {model['reasoning']}"
+    if model.get("context"):
+        label = f"{model['name']} {model['context']} {model['reasoning']}"
     return [run["series_id"], run["harness"]["name"], label, token_cell, time_cell, tool_cell, cache_cell], notes
 
 

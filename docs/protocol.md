@@ -17,18 +17,26 @@ The post describes the task in five parts. Download the data. Prepare it. Build 
 
 ## Before you start
 
-Run `python3 scripts/setup_run.py`. It asks for the harness, the model, and the reasoning setting, then creates the directory below.
+Run `python3 scripts/setup_run.py`. It asks for the harness, the model, the context on a Cursor run, and the reasoning (effort) setting, then creates the directory below.
 
 1. Create `runs/<run-id>/`.
-2. Use a run id of the form `YYYY-MM-DD-<harness>-<model>-<reasoning>`.
+2. Use a run id of the form `YYYY-MM-DD-<harness>-<model>-<context>-<reasoning>` on a Cursor run, and `YYYY-MM-DD-<harness>-<model>-<reasoning>` on every other run. The `<context>` segment, such as `500k`, appears only when the harness is Cursor. Pass it with `--context`; `setup_run.py` rejects it for other harnesses.
 3. Copy `templates/run.json` to `runs/<run-id>/run.json`.
 4. Create an empty `runs/<run-id>/workspace/` directory.
-5. Record the model name, the reasoning setting, the harness name, and the harness version.
+5. Record the model name, the reasoning setting, the harness name, and the harness version. On a Cursor run, record the context in `model.context`; leave it null on other runs.
 6. Choose a `series_id`. Reuse it for every run that must share one table.
+
+The effort levels `setup_run.py` proposes depend on the harness:
+
+| Harness | Effort levels |
+| --- | --- |
+| Cursor (`cursor`) | `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
+| Claude (`claude-code`) | `low`, `medium`, `high`, `ultra`, `max`, `ultracode` |
+| Other harnesses | `low`, `medium`, `high`, `xhigh`, `none`, `unknown` |
 
 For a Cursor harness, `setup_run.py` copies `.cursor/hooks.json` and its script into `workspace/.cursor/`. Cursor loads project hooks from the folder you open. The repository copy does not run inside that window.
 
-Example run id: `2026-10-17-cursor-claude-opus-4-7-high`.
+Example run ids: `2026-10-17-cursor-claude-opus-4-7-500k-high` (Cursor, with context) and `2026-10-17-claude-code-claude-opus-4-7-ultra` (Claude, no context).
 
 Add `-2`, `-3`, and so on when the id is already used. A follow-up uses the same id plus `-follow-up`.
 

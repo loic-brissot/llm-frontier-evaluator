@@ -17,8 +17,12 @@ from run_common import (
     ROOT,
     RULES_VERSION,
     allocate_run_id,
+    canonical_harness,
     default_series_id,
     infer_provider,
+    is_cursor_harness,
+    reasoning_levels_for_harness,
+    slugify,
     utc_now_iso,
     write_json,
 )
@@ -46,25 +50,36 @@ def prompt_optional(label: str, default: str | None = None) -> str | None:
 
 
 def normalize_harness(raw: str) -> str:
-    value = raw.strip().lower()
-    aliases = {
-        "claude code": "claude-code",
-        "claude-code": "claude-code",
-        "codex app": "codex",
-    }
-    value = aliases.get(value, value)
+    value = canonical_harness(raw)
     if value not in HARNESS_NAMES:
         allowed = ", ".join(sorted(HARNESS_NAMES))
         raise ValueError(f"Harness must be one of: {allowed}")
     return value
 
 
-def normalize_reasoning(raw: str) -> str:
+def normalize_reasoning(raw: str, harness: str | None = None) -> str:
     value = raw.strip().lower()
-    if value not in REASONING_LEVELS:
-        allowed = ", ".join(sorted(REASONING_LEVELS))
-        raise ValueError(f"Reasoning must be one of: {allowed}")
+    levels: tuple[str, ...] = (
+        reasoning_levels_for_harness(harness)
+        if harness
+        else tuple(sorted(REASONING_LEVELS))
+    )
+    if value not in levels:
+        allowed = ", ".join(levels)
+        scope = f" for harness {canonical_harness(harness)}" if harness else ""
+        raise ValueError(f"Reasoning must be one of{scope}: {allowed}")
     return value
+
+
+def normalize_context(raw: str | None, harness: str) -> str | None:
+    """Context (e.g. `500k`) is recorded only for Cursor runs."""
+    if not is_cursor_harness(harness):
+        if raw and raw.strip():
+            raise ValueError("Context only applies to Cursor runs; omit it for other harnesses.")
+        return None
+    if not raw or not slugify(raw):
+        raise ValueError("Context is required for Cursor runs, e.g. 500k.")
+    return slugify(raw)
 
 
 def create_run_directory(
@@ -72,12 +87,16 @@ def create_run_directory(
     harness: str,
     model: str,
     reasoning: str,
+    context: str | None = None,
     series_id: str,
     provider: str,
     harness_version: str | None,
     harness_detail: str,
 ) -> Path:
-    run_id = allocate_run_id(harness, model, reasoning)
+    harness = normalize_harness(harness)
+    reasoning = normalize_reasoning(reasoning, harness)
+    context = normalize_context(context, harness)
+    run_id = allocate_run_id(harness, model, reasoning, context=context)
     run_dir = RUNS_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
     workspace = run_dir / "workspace"
@@ -96,7 +115,12 @@ def create_run_directory(
     run["prompt_sha256"] = PROMPT_SHA256
     run["shot"] = "primary"
     run["parent_run_id"] = None
-    run["model"] = {"provider": provider, "name": model, "reasoning": reasoning}
+    run["model"] = {
+        "provider": provider,
+        "name": model,
+        "context": context,
+        "reasoning": reasoning,
+    }
     run["harness"] = {"name": harness, "version": harness_version, "detail": harness_detail}
     run["wall_clock"]["started_at"] = utc_now_iso()
     write_json(run_dir / "run.json", run)
@@ -142,7 +166,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Prepare a LLM frontier evaluator run directory.")
     parser.add_argument("--harness", help="Harness name (default: cursor).")
     parser.add_argument("--model", help="Model name as you will record it in run.json.")
-    parser.add_argument("--reasoning", help="Reasoning level: xhigh, high, medium, low, none, unknown.")
+    parser.add_argument(
+        "--context",
+        help="Model context for Cursor runs only, e.g. 500k. "
+        "It becomes the <context> segment of the run id and model.context.",
+    )
+    parser.add_argument(
+        "--reasoning",
+        help="Reasoning (effort) level for the harness. Cursor: minimal, low, medium, "
+        "high, xhigh, max. Claude (claude-code): low, medium, high, ultra, max, ultracode.",
+    )
     parser.add_argument("--series-id", help="Series id for comparison tables.")
     parser.add_argument("--provider", help="Model provider slug, e.g. anthropic.")
     parser.add_argument("--harness-version", help="Harness version string.")
@@ -171,14 +204,29 @@ def main() -> int:
         else:
             model = prompt("Model")
 
+        if is_cursor_harness(harness):
+            if args.context:
+                context = normalize_context(args.context, harness)
+            elif args.non_interactive:
+                print("Missing --context (required for Cursor runs).", file=sys.stderr)
+                return 1
+            else:
+                context = normalize_context(prompt("Context (e.g. 500k)"), harness)
+        else:
+            # Raises when a context was supplied for a non-Cursor harness.
+            context = normalize_context(args.context, harness)
+
+        levels = reasoning_levels_for_harness(harness)
         if args.reasoning:
-            reasoning = normalize_reasoning(args.reasoning)
+            reasoning = normalize_reasoning(args.reasoning, harness)
         elif args.non_interactive:
             print("Missing --reasoning.", file=sys.stderr)
             return 1
         else:
+            default_reasoning = "medium" if "medium" in levels else levels[0]
             reasoning = normalize_reasoning(
-                prompt("Reasoning (xhigh, high, medium, low, none, unknown)", "unknown")
+                prompt(f"Reasoning ({', '.join(levels)})", default_reasoning),
+                harness,
             )
 
         series_default = default_series_id(harness)
@@ -218,6 +266,7 @@ def main() -> int:
             harness=harness,
             model=model,
             reasoning=reasoning,
+            context=context,
             series_id=series_id,
             provider=provider,
             harness_version=harness_version,
