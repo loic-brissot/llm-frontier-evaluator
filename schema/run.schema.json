@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local/llm-frontier-evaluator/run.schema.json",
+  "title": "LLM frontier evaluator run",
+  "description": "One model attempt on the frozen Paris atlas prompt. Metric rules_version 1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "rules_version",
+    "run_id",
+    "series_id",
+    "prompt_id",
+    "prompt_sha256",
+    "shot",
+    "parent_run_id",
+    "model",
+    "harness",
+    "wall_clock",
+    "tokens",
+    "model_time",
+    "tool_calls",
+    "context_reread",
+    "outcome",
+    "observations"
+  ],
+  "properties": {
+    "rules_version": {"const": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "series_id": {"type": "string", "minLength": 1},
+    "prompt_id": {"const": "lassence-2026-10-11"},
+    "prompt_sha256": {
+      "const": "19387b5a175db8f74b22515f1fce112c653d2286a5ab47fb46c4763176e64c1d"
+    },
+    "shot": {"enum": ["primary", "follow-up"]},
+    "parent_run_id": {"type": ["string", "null"]},
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "name", "reasoning"],
+      "properties": {
+        "provider": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "reasoning": {"enum": ["xhigh", "high", "medium", "low", "none", "unknown"]}
+      }
+    },
+    "harness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "detail"],
+      "properties": {
+        "name": {"enum": ["cursor", "claude-code", "codex", "other"]},
+        "version": {"type": ["string", "null"]},
+        "detail": {"type": "string"}
+      }
+    },
+    "wall_clock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["started_at", "ended_at"],
+      "properties": {
+        "started_at": {"type": ["string", "null"], "format": "date-time"},
+        "ended_at": {"type": ["string", "null"], "format": "date-time"}
+      }
+    },
+    "tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["split_rule", "reasoning_tokens", "visible_tokens", "raw"],
+      "properties": {
+        "split_rule": {
+          "enum": [
+            "output_includes_reasoning",
+            "output_excludes_reasoning",
+            "harness_pre_split",
+            "unavailable"
+          ]
+        },
+        "reasoning_tokens": {"type": ["integer", "null"], "minimum": 0},
+        "visible_tokens": {"type": ["integer", "null"], "minimum": 0},
+        "raw": {"type": "object"}
+      }
+    },
+    "model_time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "generating_seconds", "raw"],
+      "properties": {
+        "source": {
+          "enum": ["harness_model_time", "sum_of_llm_request_durations", "unavailable"]
+        },
+        "generating_seconds": {"type": ["number", "null"], "minimum": 0},
+        "raw": {"type": "object"}
+      }
+    },
+    "tool_calls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shell", "files", "visual_checks", "web", "other"],
+      "properties": {
+        "shell": {"$ref": "#/$defs/bucket"},
+        "files": {"$ref": "#/$defs/bucket"},
+        "visual_checks": {"$ref": "#/$defs/bucket"},
+        "web": {"$ref": "#/$defs/bucket"},
+        "other": {"$ref": "#/$defs/bucket"}
+      }
+    },
+    "context_reread": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "cache_read_tokens",
+        "cache_write_tokens",
+        "uncached_input_tokens",
+        "raw"
+      ],
+      "properties": {
+        "source": {"enum": ["provider_cache_read", "unavailable"]},
+        "cache_read_tokens": {"type": ["integer", "null"], "minimum": 0},
+        "cache_write_tokens": {"type": ["integer", "null"], "minimum": 0},
+        "uncached_input_tokens": {"type": ["integer", "null"], "minimum": 0},
+        "raw": {"type": "object"}
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_stopped", "operator_saw_a_page", "summary"],
+      "properties": {
+        "model_stopped": {"type": ["boolean", "null"]},
+        "operator_saw_a_page": {"type": ["boolean", "null"]},
+        "summary": {"type": "string"}
+      }
+    },
+    "observations": {"type": "string"}
+  },
+  "$defs": {
+    "bucket": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["calls", "failures", "by_tool"],
+      "properties": {
+        "calls": {"type": ["integer", "null"], "minimum": 0},
+        "failures": {"type": ["integer", "null"], "minimum": 0},
+        "by_tool": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/toolCount"}
+        }
+      }
+    },
+    "toolCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["calls", "failures"],
+      "properties": {
+        "calls": {"type": "integer", "minimum": 0},
+        "failures": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

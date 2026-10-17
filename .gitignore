@@ -1,0 +1,8 @@
+.DS_Store
+__pycache__/
+*.pyc
+
+# The atlas a model builds, and the open-data files it downloads.
+# Metrics and notes stay in git. The build does not.
+runs/*/workspace/
+tmp/*

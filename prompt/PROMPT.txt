@@ -1,0 +1,18 @@
+Build an interactive 3D map of Paris that shows every building in the city in volume, colored by its construction period.
+The goal is an exceptional visual result, as beautiful and impressive as possible: a piece worthy of a great atlas, not a mere technical demo.
+Expected result:
+
+* Every building rises to its real height and is colored by its construction period.
+* A legend lists each period with its share of the building stock. Clicking a period highlights it.
+* A slider lets the viewer travel back in time, year by year, starting from 1800.
+* The Seine, the canals and the parks are shown to give the city context.
+* Trees can be shown or hidden.
+* The map covers inner Paris (intra-muros), excluding the Bois de Boulogne and the Bois de Vincennes.
+
+Available data sources (ODbL license):
+
+* Apur, "Emprise bâtie Paris" (construction period, year and height of each building): https://carto2.apur.org/apur/rest/services/OPENDATA/EMPRISE_BATIE_PARIS/MapServer/0
+* Paris Open Data, "Arrondissements" (district boundaries): https://opendata.paris.fr/explore/dataset/arrondissements
+* Paris Open Data, "Plan de voirie – Voies d'eau" (waterways): https://opendata.paris.fr/explore/dataset/plan-de-voirie-voies-deau
+* Paris Open Data, "Espaces verts et assimilés" (green spaces): https://opendata.paris.fr/explore/dataset/espaces_verts
+* Paris Open Data, "Les arbres" (trees): https://opendata.paris.fr/explore/dataset/les-arbres

@@ -1,0 +1,125 @@
+{
+  "rules_version": 1,
+  "run_id": "2026-10-17-cursor-grok-4-7-500k-xhigh",
+  "series_id": "local-2026-10-cursor",
+  "prompt_id": "lassence-2026-10-11",
+  "prompt_sha256": "19387b5a175db8f74b22515f1fce112c653d2286a5ab47fb46c4763176e64c1d",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "xai",
+    "name": "grok-4-7-500k",
+    "reasoning": "xhigh"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": null,
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-16T23:39:46Z",
+    "ended_at": "2026-10-17T01:22:42Z"
+  },
+  "tokens": {
+    "split_rule": "unavailable",
+    "reasoning_tokens": null,
+    "visible_tokens": null,
+    "raw": {
+      "usage_csv": {
+        "events_in_file": 6,
+        "events_selected": 6,
+        "selection": "6 events. No model name matches grok-4-7-500k. Inside the run window.",
+        "files": [
+          "team-usage-events-2026-10-17.csv"
+        ],
+        "models": {
+          "grok-4.7-xhigh": 6
+        },
+        "kinds": {
+          "Included": 6
+        },
+        "users": 1,
+        "fields": {
+          "cache_write_tokens": "Input (w/ Cache Write)",
+          "uncached_input_tokens": "Input (w/o Cache Write)",
+          "cache_read_tokens": "Cache Read",
+          "output_tokens": "Output Tokens",
+          "total_tokens": "Total Tokens"
+        },
+        "max_mode": {
+          "No": 6
+        },
+        "first_event_at": "2026-10-17T00:42:36.039Z",
+        "last_event_at": "2026-10-17T01:44:57.751Z",
+        "cache_read_tokens": 39296383,
+        "cache_write_tokens": 0,
+        "uncached_input_tokens": 2039231,
+        "output_tokens": 352226,
+        "total_tokens": 41687840,
+        "total_tokens_checked": 6,
+        "total_tokens_mismatches": 0,
+        "total_tokens_check": "matches",
+        "cost": "38.57"
+      }
+    }
+  },
+  "model_time": {
+    "source": "harness_model_time",
+    "generating_seconds": 3743.0,
+    "raw": {}
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "files": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    }
+  },
+  "context_reread": {
+    "source": "provider_cache_read",
+    "cache_read_tokens": 39296383,
+    "cache_write_tokens": 0,
+    "uncached_input_tokens": 2039231,
+    "raw": {
+      "selection": "6 events. No model name matches grok-4-7-500k. Inside the run window.",
+      "events_selected": 6,
+      "fields": {
+        "cache_write_tokens": "Input (w/ Cache Write)",
+        "uncached_input_tokens": "Input (w/o Cache Write)",
+        "cache_read_tokens": "Cache Read",
+        "output_tokens": "Output Tokens",
+        "total_tokens": "Total Tokens"
+      },
+      "cache_read_tokens": 39296383,
+      "cache_write_tokens": 0,
+      "uncached_input_tokens": 2039231,
+      "total_tokens_check": "matches"
+    }
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": true,
+    "summary": "Working one-page visualization"
+  },
+  "observations": ""
+}
