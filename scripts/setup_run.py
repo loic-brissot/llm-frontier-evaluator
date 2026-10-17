@@ -80,8 +80,11 @@ def create_run_directory(
     run_id = allocate_run_id(harness, model, reasoning)
     run_dir = RUNS_DIR / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
-    (run_dir / "workspace").mkdir()
+    workspace = run_dir / "workspace"
+    workspace.mkdir()
     (run_dir / "usage").mkdir()
+    if harness == "cursor":
+        install_cursor_hook(workspace)
 
     shutil.copy2(ROOT / "templates" / "run.json", run_dir / "run.json")
 
@@ -100,7 +103,20 @@ def create_run_directory(
     return run_dir
 
 
-def print_next_steps(run_dir: Path) -> None:
+def install_cursor_hook(workspace: Path) -> None:
+    source_config = ROOT / ".cursor" / "hooks.json"
+    source_script = ROOT / ".cursor" / "hooks" / "log-tool-event.py"
+    if not source_config.is_file() or not source_script.is_file():
+        raise FileNotFoundError("Cursor hook files are missing from .cursor/.")
+    hook_dir = workspace / ".cursor" / "hooks"
+    hook_dir.mkdir(parents=True)
+    shutil.copy2(source_config, workspace / ".cursor" / "hooks.json")
+    script = hook_dir / "log-tool-event.py"
+    shutil.copy2(source_script, script)
+    script.chmod(script.stat().st_mode | 0o111)
+
+
+def print_next_steps(run_dir: Path, *, harness: str) -> None:
     workspace = run_dir / "workspace"
     prompt_file = ROOT / "prompt" / "PROMPT.txt"
     print()
@@ -113,6 +129,10 @@ def print_next_steps(run_dir: Path) -> None:
     print("  3. Send that message as the only user message.")
     print("  4. Wait until the model stops.")
     print("  5. Leave the workspace unchanged.")
+    if harness == "cursor":
+        print()
+        print("Cursor loads the hook copied into workspace/.cursor/.")
+        print(f"Tool events are written to {run_dir / 'tool-events'}/.")
     print()
     print("After the model stops:")
     print(f"  python3 scripts/finish_run.py --run-id {run_dir.name}")
@@ -210,7 +230,7 @@ def main() -> int:
         print("Run directory already exists. Try again.", file=sys.stderr)
         return 1
 
-    print_next_steps(run_dir)
+    print_next_steps(run_dir, harness=harness)
     return 0
 
 

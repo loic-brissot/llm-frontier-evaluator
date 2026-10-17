@@ -26,13 +26,15 @@ Run `python3 scripts/setup_run.py`. It asks for the harness, the model, and the 
 5. Record the model name, the reasoning setting, the harness name, and the harness version.
 6. Choose a `series_id`. Reuse it for every run that must share one table.
 
+For a Cursor harness, `setup_run.py` copies `.cursor/hooks.json` and its script into `workspace/.cursor/`. Cursor loads project hooks from the folder you open. The repository copy does not run inside that window.
+
 Example run id: `2026-10-17-cursor-claude-opus-4-7-high`.
 
 Add `-2`, `-3`, and so on when the id is already used. A follow-up uses the same id plus `-follow-up`.
 
 ## During the run
 
-1. Open the harness with `workspace/` as its working directory.
+1. Open the harness with `workspace/` as its working directory. A Cursor run writes one JSONL file per conversation to `runs/<run-id>/tool-events/`.
 2. Paste the exact bytes of `prompt/PROMPT.txt`.
 3. Send that message.
 4. Wait until the model stops.
@@ -47,11 +49,11 @@ Run `python3 scripts/finish_run.py --run-id <run-id>`. It copies the usage expor
 1. Save the harness usage export in `runs/<run-id>/usage/`.
 2. Remove credentials from that export before you commit it.
 3. Complete `run.json` from the export. Use `docs/metrics.md`.
-4. Classify each tool with `docs/tool-buckets.md`.
+4. Classify each tool with `docs/tool-buckets.md`. `finish_run.py` reads `tool-events/` when that directory has records.
 5. Run `python3 scripts/compare_runs.py`.
 6. Commit `run.json` and the usage export.
 
-`.gitignore` omits `workspace/`. Keep downloaded open data and generated geometry there. Keep the ODbL attribution with that data.
+`.gitignore` omits `workspace/` and `tool-events/`. Keep downloaded open data and generated geometry in `workspace/`. Keep the ODbL attribution with that data.
 
 ## Follow-up
 

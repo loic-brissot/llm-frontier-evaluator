@@ -72,6 +72,8 @@ The chart cell is the total. When the failure count is greater than zero, the ce
 
 For each bucket, `by_tool` names the harness tools and their counts. The sum of `by_tool` must equal the bucket.
 
+`scripts/finish_run.py` counts `runs/<run-id>/tool-events/*.jsonl` when those files exist. Each `postToolUse` or `postToolUseFailure` line is one call, classified with `docs/tool-buckets.md`. A missing log leaves the counts null. When the log contains the prompt submission and the agent stop, those two timestamps are `wall_clock`. The sum of tool durations is tool time. It is not model time, and it does not fill `model_time`. This reading does not change `rules_version`.
+
 ## 4. Context re-read
 
 Store `context_reread.cache_read_tokens`.
