@@ -48,8 +48,9 @@
         "name": {"type": "string", "minLength": 1},
         "context": {"type": ["string", "null"], "minLength": 1},
         "reasoning": {
-          "description": "Effort level. Cursor: minimal, low, medium, high, xhigh, max. Claude (claude-code): low, medium, high, ultra, max, ultracode. none/unknown are legacy values from runs recorded before the per-harness lists.",
-          "enum": ["minimal", "low", "medium", "high", "xhigh", "ultra", "max", "ultracode", "none", "unknown"]
+          "description": "Optional effort level. Cursor: minimal, low, medium, high, xhigh, max. Claude (claude-code): low, medium, high, ultra, max, ultracode. When the level is not set, it defaults to unknown; null is accepted as the same not-set value. none is a legacy value from runs recorded before the per-harness lists.",
+          "type": ["string", "null"],
+          "enum": ["minimal", "low", "medium", "high", "xhigh", "ultra", "max", "ultracode", "none", "unknown", null]
         }
       }
     },

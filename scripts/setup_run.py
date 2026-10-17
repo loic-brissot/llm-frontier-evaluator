@@ -15,6 +15,7 @@ from run_common import (
     REASONING_LEVELS,
     ROOT,
     RULES_VERSION,
+    UNKNOWN_REASONING,
     allocate_run_id,
     available_prompt_ids,
     canonical_harness,
@@ -61,8 +62,18 @@ def normalize_harness(raw: str) -> str:
     return value
 
 
-def normalize_reasoning(raw: str, harness: str | None = None) -> str:
+def normalize_reasoning(raw: str | None, harness: str | None = None) -> str:
+    """Reasoning (effort) is optional: unfilled becomes `unknown`.
+
+    `None`, blank, and the literal `null` all mean "not set", as does
+    `unknown` itself, which is accepted for every harness even though
+    it is not one of the tuned levels a harness proposes.
+    """
+    if raw is None or raw.strip().lower() in {"", "null"}:
+        return UNKNOWN_REASONING
     value = raw.strip().lower()
+    if value == UNKNOWN_REASONING:
+        return UNKNOWN_REASONING
     levels: tuple[str, ...] = (
         reasoning_levels_for_harness(harness)
         if harness
@@ -76,21 +87,24 @@ def normalize_reasoning(raw: str, harness: str | None = None) -> str:
 
 
 def normalize_context(raw: str | None, harness: str) -> str | None:
-    """Context (e.g. `500k`) is recorded only for Cursor runs."""
-    if not is_cursor_harness(harness):
-        if raw and raw.strip():
-            raise ValueError("Context only applies to Cursor runs; omit it for other harnesses.")
+    """Context (e.g. `500k`) is optional and recorded only for Cursor runs.
+
+    It cannot be tuned in every Cursor configuration, so an unfilled
+    context — `None`, blank, or the literal `null` — becomes `None`:
+    `model.context` is null and the run id has no `<context>` segment.
+    """
+    if raw is None or raw.strip().lower() in {"", "null"}:
         return None
-    if not raw or not slugify(raw):
-        raise ValueError("Context is required for Cursor runs, e.g. 500k.")
-    return slugify(raw)
+    if not is_cursor_harness(harness):
+        raise ValueError("Context only applies to Cursor runs; omit it for other harnesses.")
+    return slugify(raw) or None
 
 
 def create_run_directory(
     *,
     harness: str,
     model: str,
-    reasoning: str,
+    reasoning: str | None = None,
     context: str | None = None,
     prompt_id: str = DEFAULT_PROMPT_ID,
     series_id: str,
@@ -181,13 +195,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model", help="Model name as you will record it in run.json.")
     parser.add_argument(
         "--context",
-        help="Model context for Cursor runs only, e.g. 500k. "
-        "It becomes the <context> segment of the run id and model.context.",
+        help="Optional model context for Cursor runs only, e.g. 500k. When filled, "
+        "it becomes the <context> segment of the run id and model.context; when "
+        "omitted, model.context is null and the run id has no <context> segment.",
     )
     parser.add_argument(
         "--reasoning",
-        help="Reasoning (effort) level for the harness. Cursor: minimal, low, medium, "
-        "high, xhigh, max. Claude (claude-code): low, medium, high, ultra, max, ultracode.",
+        help="Optional reasoning (effort) level for the harness. Cursor: minimal, low, "
+        "medium, high, xhigh, max. Claude (claude-code): low, medium, high, ultra, max, "
+        "ultracode. When omitted or null, model.reasoning is unknown and the run id "
+        "ends in -unknown.",
     )
     parser.add_argument("--series-id", help="Series id for comparison tables.")
     parser.add_argument("--provider", help="Model provider slug, e.g. anthropic.")
@@ -230,10 +247,11 @@ def main() -> int:
             if args.context:
                 context = normalize_context(args.context, harness)
             elif args.non_interactive:
-                print("Missing --context (required for Cursor runs).", file=sys.stderr)
-                return 1
+                context = None
             else:
-                context = normalize_context(prompt("Context (e.g. 500k)"), harness)
+                context = normalize_context(
+                    prompt_optional("Context (e.g. 500k)"), harness
+                )
         else:
             # Raises when a context was supplied for a non-Cursor harness.
             context = normalize_context(args.context, harness)
@@ -242,12 +260,13 @@ def main() -> int:
         if args.reasoning:
             reasoning = normalize_reasoning(args.reasoning, harness)
         elif args.non_interactive:
-            print("Missing --reasoning.", file=sys.stderr)
-            return 1
+            reasoning = UNKNOWN_REASONING
         else:
-            default_reasoning = "medium" if "medium" in levels else levels[0]
             reasoning = normalize_reasoning(
-                prompt(f"Reasoning ({', '.join(levels)})", default_reasoning),
+                prompt(
+                    f"Reasoning ({', '.join(levels)}, {UNKNOWN_REASONING})",
+                    UNKNOWN_REASONING,
+                ),
                 harness,
             )
 

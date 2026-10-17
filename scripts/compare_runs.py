@@ -268,7 +268,11 @@ def check_local_run(run: dict, path: Path) -> list[str]:
     if isinstance(model, dict):
         require(isinstance(model.get("provider"), str) and model.get("provider"), errors, f"{path}: model.provider is empty")
         require(isinstance(model.get("name"), str) and model.get("name"), errors, f"{path}: model.name is empty")
-        require(model.get("reasoning") in REASONING, errors, f"{path}: model.reasoning is invalid")
+        require(
+            model.get("reasoning") is None or model.get("reasoning") in REASONING,
+            errors,
+            f"{path}: model.reasoning is invalid",
+        )
         context = model.get("context")
         require(
             context is None or (isinstance(context, str) and context),
@@ -284,7 +288,8 @@ def check_local_run(run: dict, path: Path) -> list[str]:
         allowed = REASONING_BY_HARNESS.get(harness_name) if isinstance(harness_name, str) else None
         if allowed is not None:
             require(
-                model.get("reasoning") in allowed | {"none", "unknown"},
+                model.get("reasoning") is None
+                or model.get("reasoning") in allowed | {"none", "unknown"},
                 errors,
                 f"{path}: model.reasoning is not an effort level for harness {harness_name}",
             )
@@ -389,9 +394,11 @@ def local_row(run: dict) -> tuple[list[str], list[str]]:
         cache_cell = format_millions(cache["cache_read_tokens"])
 
     model = run["model"]
-    label = f"{model['name']} {model['reasoning']}"
+    # Reasoning is optional: null (and the stored default) read as unknown.
+    reasoning = model.get("reasoning") or "unknown"
+    label = f"{model['name']} {reasoning}"
     if model.get("context"):
-        label = f"{model['name']} {model['context']} {model['reasoning']}"
+        label = f"{model['name']} {model['context']} {reasoning}"
     return [run["prompt_id"], run["series_id"], run["harness"]["name"], label, token_cell, time_cell, tool_cell, cache_cell], notes
 
 

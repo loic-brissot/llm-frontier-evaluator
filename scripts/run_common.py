@@ -98,6 +98,11 @@ REASONING_LEVELS_BY_HARNESS = {
     "cursor": CURSOR_REASONING_LEVELS,
     "claude-code": CLAUDE_REASONING_LEVELS,
 }
+# Reasoning is optional: it cannot be tuned or reported in every
+# configuration. An unfilled reasoning level is recorded as this default;
+# `None`/null is accepted as the same "not set" value.
+UNKNOWN_REASONING = "unknown"
+
 # Every level a recorded run may hold, across all harnesses and older runs.
 REASONING_LEVELS = {
     *CURSOR_REASONING_LEVELS,
@@ -193,7 +198,7 @@ def write_json(path: Path, data: dict) -> None:
 def allocate_run_id(
     harness: str,
     model: str,
-    reasoning: str,
+    reasoning: str | None,
     *,
     context: str | None = None,
     prompt_id: str = DEFAULT_PROMPT_ID,
@@ -203,15 +208,22 @@ def allocate_run_id(
 
     The context segment appears only for a Cursor harness, however the
     harness name is capitalised; it is never emitted for other harnesses.
-    Uniqueness is checked inside runs/<prompt-id>/, so the same run id may
-    exist once per prompt.
+    Context is optional even for Cursor: `None`, blank, or `null` emits
+    no segment. Reasoning is optional too: `None`, blank, or `null`
+    falls back to `unknown`, so the reasoning segment is always present.
+    Uniqueness is checked inside runs/<prompt-id>/, so the same run id
+    may exist once per prompt.
     """
     when = on_date or datetime.now()
     date_part = when.strftime("%Y-%m-%d")
     parts = [date_part, slugify(canonical_harness(harness)), slugify(model)]
-    if is_cursor_harness(harness) and context and slugify(context):
-        parts.append(slugify(context))
-    parts.append(slugify(reasoning))
+    context_value = context.strip() if context else ""
+    if is_cursor_harness(harness) and context_value and context_value.lower() != "null":
+        parts.append(slugify(context_value))
+    reasoning_value = reasoning.strip().lower() if reasoning else ""
+    if reasoning_value in {"", "null"}:
+        reasoning_value = UNKNOWN_REASONING
+    parts.append(slugify(reasoning_value))
     base = "-".join(parts)
     candidate = base
     suffix = 2

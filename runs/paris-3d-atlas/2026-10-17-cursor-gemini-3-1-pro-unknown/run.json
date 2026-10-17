@@ -1,0 +1,75 @@
+{
+  "rules_version": 1,
+  "run_id": "2026-10-17-cursor-gemini-3-1-pro-unknown",
+  "series_id": "local-2026-10-cursor",
+  "prompt_id": "paris-3d-atlas",
+  "prompt_sha256": "19387b5a175db8f74b22515f1fce112c653d2286a5ab47fb46c4763176e64c1d",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "google",
+    "name": "Gemini 3.1 Pro",
+    "context": null,
+    "reasoning": "unknown"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": null,
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-17T02:45:31Z",
+    "ended_at": null
+  },
+  "tokens": {
+    "split_rule": "unavailable",
+    "reasoning_tokens": null,
+    "visible_tokens": null,
+    "raw": {}
+  },
+  "model_time": {
+    "source": "unavailable",
+    "generating_seconds": null,
+    "raw": {}
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    },
+    "files": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    },
+    "visual_checks": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    }
+  },
+  "context_reread": {
+    "source": "unavailable",
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "uncached_input_tokens": null,
+    "raw": {}
+  },
+  "outcome": {
+    "model_stopped": null,
+    "operator_saw_a_page": null,
+    "summary": ""
+  },
+  "observations": ""
+}

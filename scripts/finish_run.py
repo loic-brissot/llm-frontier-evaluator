@@ -1028,7 +1028,7 @@ def apply_logged_identity(run: dict, summary: ToolEventSummary) -> None:
     # to the Cursor effort levels; a named harness uses its own list.
     harness_name = str((run.get("harness") or {}).get("name") or "cursor")
     levels = reasoning_levels_for_harness(harness_name)
-    if effort in levels and recorded == "unknown":
+    if effort in levels and recorded in {None, "unknown"}:
         run["model"]["reasoning"] = effort
         print(f"Reasoning from the tool log: {effort}")
     elif effort in levels and effort != recorded:
@@ -1062,6 +1062,8 @@ def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bo
     if isinstance(run.get("model"), dict):
         # Runs set up before model.context existed have no key; keep it null.
         run["model"].setdefault("context", None)
+        # Reasoning is optional and defaults to unknown when not set.
+        run["model"].setdefault("reasoning", "unknown")
     tool_summary = summarize_run(run_dir)
     apply_logged_identity(run, tool_summary)
     wall_from_log = False
