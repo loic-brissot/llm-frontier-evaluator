@@ -6,6 +6,11 @@
 - Create a feature branch from `main` for every change (for example, `feat/...`, `fix/...`, `docs/...`, or `run/...`).
 - Open a pull request against `main` for review.
 
+## Backlog
+
+- Track significant bugs and unresolved issues in [`backlog/`](backlog/) using Backlog.md tools (CLI/MCP).
+- Search existing tasks first, and include relevant run IDs, scripts, or PR references.
+
 ## Pull request format
 
 Every pull request description must contain the following three sections:
