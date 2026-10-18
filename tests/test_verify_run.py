@@ -119,9 +119,15 @@ class TestVerifyRun(unittest.TestCase):
                 json.dumps({"scripts": {"preview": "echo preview"}}), encoding="utf-8"
             )
 
-            # Mock subprocess popen and wait_for_server
-            with patch("verify_run.subprocess.Popen") as mock_popen, patch("verify_run.wait_for_server", return_value=True):
+            # Mock subprocess popen, wait_for_server, and os.killpg/getpgid so we never signal our own process group
+            with (
+                patch("verify_run.subprocess.Popen") as mock_popen,
+                patch("verify_run.wait_for_server", return_value=True),
+                patch("verify_run.os.getpgid", return_value=99999),
+                patch("verify_run.os.killpg") as mock_killpg,
+            ):
                 proc_mock = MagicMock()
+                proc_mock.pid = 99999
                 proc_mock.poll.return_value = None
                 mock_popen.return_value = proc_mock
 
@@ -131,6 +137,7 @@ class TestVerifyRun(unittest.TestCase):
                     self.assertEqual(url, "http://127.0.0.1:4173")
                 finally:
                     cleanup()
+                mock_killpg.assert_called()
 
     def test_telemetry_collection_when_no_server(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -83,13 +83,21 @@ def discover_and_start_server(
         )
 
         def cleanup_cmd() -> None:
-            if proc.poll() is None:
+            if proc.poll() is None and isinstance(proc.pid, int) and proc.pid > 0:
                 try:
-                    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                    pgid = os.getpgid(proc.pid)
+                    if pgid != os.getpgrp():
+                        os.killpg(pgid, signal.SIGTERM)
+                    else:
+                        proc.terminate()
                     proc.wait(timeout=2)
                 except Exception:
                     try:
-                        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                        pgid = os.getpgid(proc.pid)
+                        if pgid != os.getpgrp():
+                            os.killpg(pgid, signal.SIGKILL)
+                        else:
+                            proc.kill()
                     except Exception:
                         pass
 
@@ -146,13 +154,21 @@ def discover_and_start_server(
                 )
 
                 def cleanup_pkg() -> None:
-                    if proc.poll() is None:
+                    if proc.poll() is None and isinstance(proc.pid, int) and proc.pid > 0:
                         try:
-                            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                            pgid = os.getpgid(proc.pid)
+                            if pgid != os.getpgrp():
+                                os.killpg(pgid, signal.SIGTERM)
+                            else:
+                                proc.terminate()
                             proc.wait(timeout=2)
                         except Exception:
                             try:
-                                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                                pgid = os.getpgid(proc.pid)
+                                if pgid != os.getpgrp():
+                                    os.killpg(pgid, signal.SIGKILL)
+                                else:
+                                    proc.kill()
                             except Exception:
                                 pass
 
