@@ -1,7 +1,7 @@
 ---
 id: TASK-7
 title: Add automated unit test suite and GitHub Actions CI workflow
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-18 02:19'
 labels:
@@ -28,7 +28,7 @@ The repository implements nontrivial interval merging, JSON Schema validation, h
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Unit tests cover interval merging, tool deduplication, bucket classification, CSV parsing/windowing, secret redaction, cost estimation, and schema validation
-- [ ] #2 A GitHub Actions workflow runs pytest/unittest and python3 scripts/compare_runs.py on every push and pull request
-- [ ] #3 CI verifies that all prompt/*.txt files remain byte-identical to their recorded hashes
+- [x] #1 Unit tests cover interval merging, tool deduplication, bucket classification, CSV parsing/windowing, secret redaction, cost estimation, and schema validation
+- [x] #2 A GitHub Actions workflow runs pytest/unittest and python3 scripts/compare_runs.py on every push and pull request
+- [x] #3 CI verifies that all prompt/*.txt files remain byte-identical to their recorded hashes
 <!-- AC:END -->

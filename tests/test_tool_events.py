@@ -12,6 +12,10 @@ from tool_events import (
     effective_tool_name,
     _dedupe_thoughts,
     _are_thoughts_duplicate,
+    _dedupe_tools,
+    _merged_seconds,
+    _tool_intervals,
+    parse_time,
     ToolEventSummary,
     format_time,
 )
@@ -352,6 +356,127 @@ class TestToolEvents(unittest.TestCase):
         self.assertEqual(summary.buckets["web"]["by_tool"]["WebSearch"]["calls"], 1)
         self.assertEqual(summary.buckets["files"]["calls"], 1)
         self.assertEqual(summary.buckets["files"]["by_tool"]["Delete"]["calls"], 1)
+
+    def test_merged_seconds_disjoint(self):
+        t0 = datetime(2026, 10, 18, 0, 0, 0, tzinfo=timezone.utc)
+        t1 = datetime(2026, 10, 18, 0, 0, 10, tzinfo=timezone.utc)
+        t2 = datetime(2026, 10, 18, 0, 0, 20, tzinfo=timezone.utc)
+        t3 = datetime(2026, 10, 18, 0, 0, 35, tzinfo=timezone.utc)
+        intervals = [(t0, t1), (t2, t3)]
+        self.assertEqual(_merged_seconds(intervals), 25.0)
+
+    def test_merged_seconds_overlapping(self):
+        t0 = datetime(2026, 10, 18, 0, 0, 0, tzinfo=timezone.utc)
+        t1 = datetime(2026, 10, 18, 0, 0, 10, tzinfo=timezone.utc)
+        t2 = datetime(2026, 10, 18, 0, 0, 5, tzinfo=timezone.utc)
+        t3 = datetime(2026, 10, 18, 0, 0, 20, tzinfo=timezone.utc)
+        intervals = [(t0, t1), (t2, t3)]
+        self.assertEqual(_merged_seconds(intervals), 20.0)
+
+    def test_merged_seconds_nested(self):
+        t0 = datetime(2026, 10, 18, 0, 0, 0, tzinfo=timezone.utc)
+        t1 = datetime(2026, 10, 18, 0, 0, 5, tzinfo=timezone.utc)
+        t2 = datetime(2026, 10, 18, 0, 0, 15, tzinfo=timezone.utc)
+        t3 = datetime(2026, 10, 18, 0, 0, 20, tzinfo=timezone.utc)
+        intervals = [(t0, t3), (t1, t2)]
+        self.assertEqual(_merged_seconds(intervals), 20.0)
+
+    def test_merged_seconds_adjacent(self):
+        t0 = datetime(2026, 10, 18, 0, 0, 0, tzinfo=timezone.utc)
+        t1 = datetime(2026, 10, 18, 0, 0, 10, tzinfo=timezone.utc)
+        t2 = datetime(2026, 10, 18, 0, 0, 20, tzinfo=timezone.utc)
+        intervals = [(t0, t1), (t1, t2)]
+        self.assertEqual(_merged_seconds(intervals), 20.0)
+
+    def test_merged_seconds_empty(self):
+        self.assertEqual(_merged_seconds([]), 0.0)
+
+    def test_tool_intervals_clamping_and_missing_durations(self):
+        start = datetime(2026, 10, 18, 0, 0, 10, tzinfo=timezone.utc)
+        end = datetime(2026, 10, 18, 0, 0, 50, tzinfo=timezone.utc)
+
+        tools = [
+            # Normal interval inside start/end: [00:00:20, 00:00:30]
+            {"logged_at": "2026-10-18T00:00:30.000Z", "duration": 10000},
+            # Starts before start: logged at 00:00:15, duration 10s (start 00:00:05) -> clamped begin to 00:00:10
+            {"logged_at": "2026-10-18T00:00:15.000Z", "duration": 10000},
+            # Ends after end: logged at 00:00:55, duration 10s -> clamped finish to 00:00:50
+            {"logged_at": "2026-10-18T00:00:55.000Z", "duration": 10000},
+            # Missing duration
+            {"logged_at": "2026-10-18T00:00:25.000Z"},
+            # Missing logged_at
+            {"duration": 5000},
+        ]
+        intervals, missing = _tool_intervals(tools, start, end)
+        self.assertEqual(missing, 2)
+        self.assertEqual(len(intervals), 3)
+        self.assertEqual(intervals[0], (datetime(2026, 10, 18, 0, 0, 20, tzinfo=timezone.utc), datetime(2026, 10, 18, 0, 0, 30, tzinfo=timezone.utc)))
+        self.assertEqual(intervals[1], (start, datetime(2026, 10, 18, 0, 0, 15, tzinfo=timezone.utc)))
+        self.assertEqual(intervals[2], (datetime(2026, 10, 18, 0, 0, 45, tzinfo=timezone.utc), end))
+
+    def test_dedupe_tools_upgrades_to_failed(self):
+        records = [
+            # Call 1: success first
+            {"tool_use_id": "call-1", "tool_name": "Read", "failed": False},
+            # Call 2: loose record (no tool_use_id)
+            {"tool_name": "Shell"},
+            # Call 1 repeated: now failed with postToolUseFailure
+            {"tool_use_id": "call-1", "tool_name": "Read", "hook_event_name": "postToolUseFailure"},
+            # Call 3: success first
+            {"tool_use_id": "call-3", "tool_name": "Write", "failed": False},
+            # Call 3 repeated with nonzero exit code
+            {"tool_use_id": "call-3", "tool_name": "Write", "exit_code": 1},
+        ]
+        deduped = _dedupe_tools(records)
+        self.assertEqual(len(deduped), 3)
+        # Order of distinct IDs preserved: call-1, call-3, then loose
+        self.assertEqual(deduped[0]["tool_use_id"], "call-1")
+        self.assertEqual(deduped[0]["hook_event_name"], "postToolUseFailure")
+        self.assertEqual(deduped[1]["tool_use_id"], "call-3")
+        self.assertEqual(deduped[1]["exit_code"], 1)
+        self.assertEqual(deduped[2]["tool_name"], "Shell")
+
+    def test_bucket_for_comprehensive(self):
+        # Shell bucket
+        self.assertEqual(bucket_for("Shell"), "shell")
+        self.assertEqual(bucket_for("bash"), "shell")
+        self.assertEqual(bucket_for("LocalShell"), "shell")
+        self.assertEqual(bucket_for("AwaitShell"), "shell")
+        self.assertEqual(bucket_for("mcp:shell"), "shell")
+
+        # Files bucket
+        self.assertEqual(bucket_for("Read"), "files")
+        self.assertEqual(bucket_for("Write"), "files")
+        self.assertEqual(bucket_for("Edit"), "files")
+        self.assertEqual(bucket_for("StrReplace"), "files")
+        self.assertEqual(bucket_for("Delete"), "files")
+        self.assertEqual(bucket_for("EditNotebook"), "files")
+        self.assertEqual(bucket_for("Glob"), "files")
+        self.assertEqual(bucket_for("Grep"), "files")
+        self.assertEqual(bucket_for("mcp:read"), "files")
+
+        # Visual checks bucket
+        self.assertEqual(bucket_for("playwright_screenshot"), "visual_checks")
+        self.assertEqual(bucket_for("browser_navigate"), "visual_checks")
+        self.assertEqual(bucket_for("page_snapshot"), "visual_checks")
+        self.assertEqual(bucket_for("computer"), "visual_checks")
+        self.assertEqual(bucket_for("take_screenshot"), "visual_checks")
+
+        # Web bucket
+        self.assertEqual(bucket_for("WebSearch"), "web")
+        self.assertEqual(bucket_for("WebFetch"), "web")
+        self.assertEqual(bucket_for("deploy"), "web")
+        self.assertEqual(bucket_for("publish_app"), "web")
+
+        # Other bucket
+        self.assertEqual(bucket_for("TodoWrite"), "other")
+        self.assertEqual(bucket_for("Task"), "other")
+        self.assertEqual(bucket_for("SwitchMode"), "other")
+        self.assertEqual(bucket_for("AskQuestion"), "other")
+        self.assertEqual(bucket_for("GenerateImage"), "other")
+        self.assertEqual(bucket_for("ReadLints"), "other")
+        self.assertEqual(bucket_for("GetDynamicTools"), "other")
+        self.assertEqual(bucket_for("unknown_custom_tool"), "other")
 
 
 if __name__ == "__main__":

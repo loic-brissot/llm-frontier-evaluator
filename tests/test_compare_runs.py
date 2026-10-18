@@ -8,10 +8,20 @@ from pathlib import Path
 # Add scripts directory to module path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
+from decimal import Decimal
+
 from compare_runs import (
     format_tools,
     local_row,
     sync_readme,
+    round_half_up,
+    format_tokens,
+    format_minutes,
+    format_millions,
+    check_local_run,
+    check_bucket_counts,
+    check_series_versions,
+    check_reference,
     README_PATH,
     REFERENCE_PATH,
 )
@@ -148,6 +158,102 @@ class TestCompareRuns(unittest.TestCase):
             finally:
                 sys.stdout = sys.__stdout__
             self.assertTrue(pass_result)
+
+    def test_round_half_up_and_formatters(self):
+        # Rounding half-up away from zero
+        self.assertEqual(round_half_up(Decimal("2.5"), 0), Decimal("3"))
+        self.assertEqual(round_half_up(Decimal("1.5"), 0), Decimal("2"))
+        self.assertEqual(round_half_up(Decimal("1.25"), 1), Decimal("1.3"))
+        self.assertEqual(round_half_up(Decimal("1.24"), 1), Decimal("1.2"))
+
+        # format_tokens
+        self.assertEqual(format_tokens(0, 0), "0k · 0%")
+        self.assertEqual(format_tokens(1000, 3000), "4k · 25%")
+
+        # format_minutes
+        self.assertEqual(format_minutes(60), "1.0 min")
+        self.assertEqual(format_minutes(90), "1.5 min")
+
+        # format_millions
+        self.assertEqual(format_millions(1_000_000), "1.0M")
+        self.assertEqual(format_millions(1_500_000), "1.5M")
+
+    def test_check_bucket_counts(self):
+        errors = []
+        # Case 1: failures > calls at bucket level
+        bucket_fail = {"calls": 5, "failures": 10, "by_tool": {}}
+        check_bucket_counts("shell", bucket_fail, errors, prefix="test: ")
+        self.assertTrue(any("more failures than calls" in err for err in errors))
+
+        # Case 2: by_tool sum mismatch
+        errors = []
+        bucket_mismatch = {
+            "calls": 10,
+            "failures": 1,
+            "by_tool": {"Read": {"calls": 5, "failures": 0}},
+        }
+        check_bucket_counts("files", bucket_mismatch, errors, prefix="test: ")
+        self.assertTrue(any("by_tool sums to" in err for err in errors))
+
+        # Case 3: per-tool failures > calls
+        errors = []
+        bucket_tool_fail = {
+            "calls": 5,
+            "failures": 5,
+            "by_tool": {"Write": {"calls": 5, "failures": 10}},
+        }
+        check_bucket_counts("files", bucket_tool_fail, errors, prefix="test: ")
+        self.assertTrue(any("more failures than calls" in err for err in errors))
+
+    def test_check_series_versions_detects_mixed_versions(self):
+        runs = [
+            {"series_id": "series-1", "rules_version": 1},
+            {"series_id": "series-1", "rules_version": 2},
+            {"series_id": "series-2", "rules_version": 2},
+        ]
+        errors = check_series_versions(runs)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("series 'series-1' mixes rules_version 1, 2", errors[0])
+
+    def test_check_reference_detects_violations(self):
+        # Valid reference
+        valid_ref = {
+            "series_id": "ref-1",
+            "prompt_id": "paris-3d-atlas",
+            "runs": [
+                {
+                    "run_id": "r1",
+                    "model_name": "Claude Sonnet",
+                    "reasoning": "high",
+                    "harness": "claude-code",
+                    "tool_calls": {"shell": 10, "files": 5, "visual_checks": 0, "web": 0, "failures": 0, "display": "15"},
+                    "tokens_generated": {"reasoning_thousands_bar": "10", "visible_thousands_bar": "30", "display": "40k · 25%"},
+                    "context_reread": {"millions_bar": "1.0", "display": "1.0M"},
+                    "model_time": {"minutes_bar": "5.0", "display": "5.0 min", "label_differs_from_bar": False},
+                }
+            ],
+        }
+        self.assertEqual(check_reference(valid_ref), [])
+
+        # Reference with failures > calls
+        invalid_ref_tools = {
+            "series_id": "ref-1",
+            "prompt_id": "paris-3d-atlas",
+            "runs": [
+                {
+                    "run_id": "r1",
+                    "model_name": "Claude Sonnet",
+                    "reasoning": "high",
+                    "harness": "claude-code",
+                    "tool_calls": {"shell": 2, "files": 1, "visual_checks": 0, "web": 0, "failures": 10, "display": "3 10✗"},
+                    "tokens_generated": {"reasoning_thousands_bar": "10", "visible_thousands_bar": "30", "display": "40k · 25%"},
+                    "context_reread": {"millions_bar": "1.0", "display": "1.0M"},
+                    "model_time": {"minutes_bar": "5.0", "display": "5.0 min", "label_differs_from_bar": False},
+                }
+            ],
+        }
+        errors = check_reference(invalid_ref_tools)
+        self.assertTrue(any("more failures than tool calls" in err for err in errors))
 
 
 if __name__ == "__main__":

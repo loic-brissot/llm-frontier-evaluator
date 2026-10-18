@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt pytest
+
+      - name: Run unit tests (unittest)
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Run unit tests (pytest)
+        run: pytest
+
+      - name: Run compare_runs
+        run: python3 scripts/compare_runs.py
+
+      - name: Check README comparison tables
+        run: python3 scripts/compare_runs.py --check-readme
+
+      - name: Verify frozen prompt hashes
+        run: |
+          python3 -c '
+          import hashlib, os, sys
+
+          with open("prompt/README.md", encoding="utf-8") as f:
+              readme = f.read()
+
+          lines = [line.strip() for line in readme.splitlines() if line.strip().startswith("|")]
+          readme_prompts = {}
+          for l in lines:
+              parts = [p.strip() for p in l.split("|")[1:-1]]
+              if len(parts) == 5 and parts[0] != "Prompt id" and not parts[0].startswith("---"):
+                  pid = parts[0].strip("`")
+                  fname = parts[1].strip("`")
+                  sha = parts[2].strip("`")
+                  bcount = int(parts[3])
+                  newline_flag = parts[4]
+                  readme_prompts[pid] = (fname, sha, bcount, newline_flag)
+
+          errors = []
+          for pid, (fname, expected_sha, expected_bcount, expected_newline) in readme_prompts.items():
+              fpath = os.path.join("prompt", fname)
+              if not os.path.isfile(fpath):
+                  errors.append(f"Prompt file missing: {fpath}")
+                  continue
+              content = open(fpath, "rb").read()
+              calc_sha = hashlib.sha256(content).hexdigest()
+              calc_bcount = len(content)
+              has_newline = content.endswith(b"\n")
+              actual_newline = "Yes" if has_newline else "No"
+
+              if calc_sha != expected_sha:
+                  errors.append(f"{fname}: SHA-256 mismatch ({calc_sha} != {expected_sha})")
+              if calc_bcount != expected_bcount:
+                  errors.append(f"{fname}: Byte count mismatch ({calc_bcount} != {expected_bcount})")
+              if actual_newline != expected_newline:
+                  errors.append(f"{fname}: Final newline mismatch ({actual_newline} != {expected_newline})")
+
+          if errors:
+              print("Prompt verification errors:", file=sys.stderr)
+              for err in errors:
+                  print(f"  - {err}", file=sys.stderr)
+              sys.exit(1)
+
+          print("All prompt files verified successfully against prompt/README.md.")
+          '
