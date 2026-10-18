@@ -1,0 +1,19 @@
+Build an interactive 3D flood simulator of Paris that lets the viewer raise the level of the Seine centimeter by centimeter, from its normal level up to and beyond the historic 1910 centennial flood (+8.62 m at the Pont d'Austerlitz).
+The goal is an exceptional visual result, as dramatic, clear and impressive as a great interactive atlas or museum exhibit, not a mere technical demo.
+Expected result:
+
+* Every building in inner Paris rises from its real ground elevation to its real height along the Seine and across low-lying districts.
+* A continuous water-level slider (0 m to +10 m at the Pont d'Austerlitz gauge) with historical flood markers (2018 at +5.84 m, 2016 at +6.10 m, 1955 at +7.12 m, 1910 at +8.62 m) raises the 3D water surface and highlights flooded streets and buildings in real time.
+* Metro and rail stations are plotted on the map and switch state as rising waters reach their elevation.
+* Live impact counters track the flooded area in hectares, the number of affected buildings by arrondissement, and the number of flooded stations.
+* Regulatory flood risk zones (PPRI / PHEC) can be toggled as an overlay to compare with the 3D water level.
+* The map covers inner Paris (intra-muros), excluding the Bois de Boulogne and the Bois de Vincennes.
+
+Available data sources (ODbL / Open Licence):
+
+* Apur, "Emprise bâtie Paris" (footprint, height and median ground elevation of each building): https://carto2.apur.org/apur/rest/services/OPENDATA/EMPRISE_BATIE_PARIS/MapServer/0
+* Paris Open Data, "PLU bioclimatique – Secteurs de risque – Inondations" (PPRI flood risk zones): https://opendata.paris.fr/explore/dataset/plub_pprizone
+* Paris Open Data, "Plan de voirie – Repère de nivellement" (street elevation benchmarks): https://opendata.paris.fr/explore/dataset/plan-de-voirie-repere-de-nivellement
+* Paris Open Data, "Plan de voirie – Voies d'eau" (waterways): https://opendata.paris.fr/explore/dataset/plan-de-voirie-voies-deau
+* Paris Open Data, "Arrondissements" (district boundaries): https://opendata.paris.fr/explore/dataset/arrondissements
+* Île-de-France Mobilités, "Gares et stations du réseau ferré d'Île-de-France" (metro, RER and rail stations): https://data.iledefrance-mobilites.fr/explore/dataset/emplacement-des-gares-idf

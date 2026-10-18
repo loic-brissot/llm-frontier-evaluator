@@ -1,0 +1,16 @@
+Build an interactive map and collision observatory of road accidents in metropolitan France that reveals who hits whom, where, and under what conditions.
+The goal is an exceptional visual result, as clear, insightful and impressive as a flagship data-journalism piece or a great atlas, not a mere technical demo.
+Expected result:
+
+* Every geolocated corporeal accident in metropolitan France from the latest validated year (or last 3 years) is mapped and colored by worst injury severity (unharmed, slight injury, hospitalized, killed) or by victim transport mode, joining the four BAAC tables (`caracteristiques`, `lieux`, `vehicules`, `usagers`).
+* An interactive "who hits whom" collision matrix cross-tabulates the victim's mode of transport (pedestrian, bicycle, e-scooter/EDPM, motorized two-wheeler, passenger car, heavy vehicle) against the opposing vehicle category in the same accident, including single-vehicle crashes and pedestrians struck by a vehicle. Clicking a cell filters the map and all charts.
+* Interactive filters slice accidents by hour of day, day of week, lighting conditions, weather, road category, speed limit, and presence of cycling infrastructure.
+* A live summary panel updates with the current map viewport and active filters to show total accidents, fatality and hospitalization rates, victim age distribution, and top collision pairs.
+* Selecting an individual accident or local cluster inspects its full relational record: location and road profile, involved vehicles, and every user's role, age, sex, safety equipment, and injury outcome.
+* Department boundaries provide geographic context across metropolitan France, with national-to-street zoom and a department ranking by accident rate or severity.
+
+Available data sources (Open Licence / Etalab):
+
+* ONISR, "Bases de données annuelles des accidents corporels de la circulation routière (BAAC)" (`caracteristiques`, `lieux`, `vehicules`, `usagers` CSV tables and codebook): https://www.data.gouv.fr/datasets/bases-de-donnees-annuelles-des-accidents-corporels-de-la-circulation-routiere-annees-de-2005-a-2024
+* Etalab, "Contours administratifs" (department boundaries GeoJSON): https://etalab-datasets.geo.data.gouv.fr/contours-administratifs/latest/geojson/departements-100m.geojson
+* API Découpage administratif (departments and communes lookup): https://geo.api.gouv.fr/departements

@@ -1,0 +1,16 @@
+Build an interactive adaptive training planner and physiological simulator for four endurance disciplines: triathlon, running, cycling, and cross-training (cycling, running, and easy weight training).
+The goal is an exceptional visual and functional result, as polished and impressive as a flagship sports-science studio, not a mere technical demo.
+Expected result:
+
+* An athlete profile editor accepts physiological baselines—FTP (watts and W/kg), VO2max or recent race time, threshold heart rate, Critical Swim Speed (CSS) pace, weekly training hours, and sessions per week—and automatically computes individualized Coggan power zones, running pace zones, heart rate zones, and swim pace zones.
+* A multi-week periodized plan generator structures mesocycles (Base, Build, Peak, Taper, plus recovery weeks) from start date to race day, tailored to the chosen discipline (triathlon, running, cycling, or cross-training combining cycling, running, and foundational weight training) while respecting weekly session and hour budgets.
+* An interactive Performance Management Chart models daily Training Stress Score (TSS), Chronic Training Load (CTL, 42-day EWMA), Acute Training Load (ATL, 7-day EWMA), and Training Stress Balance (TSB = CTL - ATL) from start date to race day.
+* Every workout renders as a visual interval block profile (warm-up, work intervals at exact target watts, pace, or heart rate, recovery valleys, cool-down, or structured strength sets) with calendar (.ics) and structured workout (.zwo) export.
+* Live plan adaptation lets the athlete mark sessions as skipped, shortened, or over-reached, or simulate illness and changed weekly availability; the engine dynamically recalibrates the remaining plan to cap weekly ramp rate and peak on race day, overlaying the original and adapted CTL/ATL/TSB curves.
+
+Reference physiological models:
+
+* Banister impulse-response & Performance Management Chart: CTL_t = CTL_{t-1} + (TSS_t - CTL_{t-1}) / 42, ATL_t = ATL_{t-1} + (TSS_t - ATL_{t-1}) / 7, TSB_t = CTL_t - ATL_t
+* Coggan 7-zone cycling power & stress: IF = NP / FTP, TSS = (seconds * NP * IF) / (FTP * 3600) * 100
+* Daniels VDOT running zones & rTSS: Easy, Marathon, Threshold, Interval, and Repetition paces derived from VDOT / recent race performance, with running stress scaled against threshold pace
+* Critical Swim Speed (CSS): CSS (m/s) = (400 - 200) / (T_400 - T_200) and swim stress sTSS = IF^3 * hours * 100
