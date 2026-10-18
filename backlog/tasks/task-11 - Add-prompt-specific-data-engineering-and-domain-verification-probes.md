@@ -1,7 +1,7 @@
 ---
 id: TASK-11
 title: Add prompt-specific data engineering and domain verification probes
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-18 02:19'
 labels:
@@ -28,7 +28,7 @@ The benchmark prompts test complex data engineering tasks: fetching and joining 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Declarative per-prompt verification specs define expected data artifacts, minimum record/feature counts, and non-synthetic data checks for each of the 7 prompts
-- [ ] #2 A verification runner inspects runs/<prompt-id>/<run-id>/workspace/ and outputs a structured data-pipeline scorecard (real data vs. synthetic fallback, row counts, schema completeness)
-- [ ] #3 Unit tests validate the probe runner against fixture workspaces (both genuine open-data builds and mock-data fallbacks)
+- [x] #1 Declarative per-prompt verification specs define expected data artifacts, minimum record/feature counts, and non-synthetic data checks for each of the 7 prompts
+- [x] #2 A verification runner inspects runs/<prompt-id>/<run-id>/workspace/ and outputs a structured data-pipeline scorecard (real data vs. synthetic fallback, row counts, schema completeness)
+- [x] #3 Unit tests validate the probe runner against fixture workspaces (both genuine open-data builds and mock-data fallbacks)
 <!-- AC:END -->
