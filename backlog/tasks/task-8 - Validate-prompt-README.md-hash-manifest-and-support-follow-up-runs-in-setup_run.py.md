@@ -3,7 +3,7 @@ id: TASK-8
 title: >-
   Validate prompt/README.md hash manifest and support follow-up runs in
   setup_run.py
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-18 02:19'
 labels:
@@ -31,7 +31,7 @@ prompt/README.md lists the SHA-256 hash, byte count, and trailing-newline status
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 compare_runs.py verifies that every prompt/*.txt file is listed in prompt/README.md with its exact SHA-256 hash, byte length, and final-newline flag
-- [ ] #2 scripts/setup_run.py supports --follow-up / --parent-run-id to scaffold a follow-up run directory ending in -follow-up with shot='follow-up' and parent_run_id populated
-- [ ] #3 Unit tests cover follow-up run creation and prompt manifest validation
+- [x] #1 compare_runs.py verifies that every prompt/*.txt file is listed in prompt/README.md with its exact SHA-256 hash, byte length, and final-newline flag
+- [x] #2 scripts/setup_run.py supports --follow-up / --parent-run-id to scaffold a follow-up run directory ending in -follow-up with shot='follow-up' and parent_run_id populated
+- [x] #3 Unit tests cover follow-up run creation and prompt manifest validation
 <!-- AC:END -->

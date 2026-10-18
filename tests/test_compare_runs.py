@@ -22,6 +22,7 @@ from compare_runs import (
     check_bucket_counts,
     check_series_versions,
     check_reference,
+    check_prompt,
     README_PATH,
     REFERENCE_PATH,
 )
@@ -254,6 +255,79 @@ class TestCompareRuns(unittest.TestCase):
         }
         errors = check_reference(invalid_ref_tools)
         self.assertTrue(any("more failures than tool calls" in err for err in errors))
+
+    def test_check_prompt_passes_on_real_prompt_directory(self):
+        errors = check_prompt()
+        self.assertEqual(errors, [])
+
+    def test_check_prompt_fails_when_txt_file_missing_from_readme(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            prompts_dir = Path(tmp_dir)
+            readme = prompts_dir / "README.md"
+            readme.write_text(
+                "| Prompt id | File | SHA-256 | Bytes | Final newline |\n"
+                "| --- | --- | --- | --- | --- |\n"
+                "| `test-prompt` | `test-prompt.txt` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` | 0 | No |\n",
+                encoding="utf-8",
+            )
+            (prompts_dir / "test-prompt.txt").write_bytes(b"")
+            (prompts_dir / "unlisted-prompt.txt").write_bytes(b"hello")
+
+            errors = check_prompt(prompts_dir)
+            self.assertTrue(any("unlisted-prompt.txt is missing from" in err for err in errors))
+
+    def test_check_prompt_fails_when_readme_references_nonexistent_file(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            prompts_dir = Path(tmp_dir)
+            readme = prompts_dir / "README.md"
+            readme.write_text(
+                "| Prompt id | File | SHA-256 | Bytes | Final newline |\n"
+                "| --- | --- | --- | --- | --- |\n"
+                "| `test-prompt` | `test-prompt.txt` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` | 0 | No |\n"
+                "| `missing-prompt` | `missing-prompt.txt` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` | 0 | No |\n",
+                encoding="utf-8",
+            )
+            (prompts_dir / "test-prompt.txt").write_bytes(b"")
+
+            errors = check_prompt(prompts_dir)
+            self.assertTrue(any("references missing file missing-prompt.txt" in err for err in errors))
+
+    def test_check_prompt_fails_on_metadata_mismatches(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            prompts_dir = Path(tmp_dir)
+            readme = prompts_dir / "README.md"
+
+            # 1. SHA256 mismatch
+            readme.write_text(
+                "| Prompt id | File | SHA-256 | Bytes | Final newline |\n"
+                "| --- | --- | --- | --- | --- |\n"
+                "| `test-prompt` | `test-prompt.txt` | `0000000000000000000000000000000000000000000000000000000000000000` | 5 | No |\n",
+                encoding="utf-8",
+            )
+            (prompts_dir / "test-prompt.txt").write_bytes(b"hello")
+
+            errors = check_prompt(prompts_dir)
+            self.assertTrue(any("SHA-256 mismatch" in err for err in errors))
+
+            # 2. Byte length mismatch
+            readme.write_text(
+                "| Prompt id | File | SHA-256 | Bytes | Final newline |\n"
+                "| --- | --- | --- | --- | --- |\n"
+                "| `test-prompt` | `test-prompt.txt` | `2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824` | 999 | No |\n",
+                encoding="utf-8",
+            )
+            errors = check_prompt(prompts_dir)
+            self.assertTrue(any("Byte length mismatch" in err for err in errors))
+
+            # 3. Final newline mismatch
+            readme.write_text(
+                "| Prompt id | File | SHA-256 | Bytes | Final newline |\n"
+                "| --- | --- | --- | --- | --- |\n"
+                "| `test-prompt` | `test-prompt.txt` | `2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824` | 5 | Yes |\n",
+                encoding="utf-8",
+            )
+            errors = check_prompt(prompts_dir)
+            self.assertTrue(any("Final newline flag mismatch" in err for err in errors))
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ from run_common import (
     available_prompt_ids,
     canonical_harness,
     default_series_id,
+    find_run_dir,
     infer_provider,
     is_cursor_harness,
     prompt_path,
@@ -111,12 +112,29 @@ def create_run_directory(
     provider: str,
     harness_version: str | None,
     harness_detail: str,
+    shot: str = "primary",
+    parent_run_id: str | None = None,
 ) -> Path:
+    if shot not in {"primary", "follow-up"}:
+        raise ValueError(f"Invalid shot {shot!r}: must be 'primary' or 'follow-up'")
+    if shot == "follow-up" and not parent_run_id:
+        raise ValueError("shot='follow-up' requires a non-empty parent_run_id")
+    if shot == "primary" and parent_run_id is not None:
+        raise ValueError("shot='primary' cannot have parent_run_id")
+
     harness = normalize_harness(harness)
     reasoning = normalize_reasoning(reasoning, harness)
     context = normalize_context(context, harness)
     prompt_id = require_prompt_id(prompt_id)
-    run_id = allocate_run_id(harness, model, reasoning, context=context, prompt_id=prompt_id)
+    run_id = allocate_run_id(
+        harness,
+        model,
+        reasoning,
+        context=context,
+        prompt_id=prompt_id,
+        shot=shot,
+        parent_run_id=parent_run_id,
+    )
     run_dir = run_dir_for(prompt_id, run_id)
     run_dir.mkdir(parents=True, exist_ok=False)
     workspace = run_dir / "workspace"
@@ -133,8 +151,8 @@ def create_run_directory(
     run["series_id"] = series_id
     run["prompt_id"] = prompt_id
     run["prompt_sha256"] = prompt_sha256(prompt_id)
-    run["shot"] = "primary"
-    run["parent_run_id"] = None
+    run["shot"] = shot
+    run["parent_run_id"] = parent_run_id
     run["model"] = {
         "provider": provider,
         "name": model,
@@ -210,6 +228,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--provider", help="Model provider slug, e.g. anthropic.")
     parser.add_argument("--harness-version", help="Harness version string.")
     parser.add_argument("--harness-detail", default="", help="Free-form harness note.")
+    parser.add_argument(
+        "--follow-up",
+        nargs="?",
+        const=True,
+        default=False,
+        help="Scaffold a follow-up run. Can optionally be given a parent run id.",
+    )
+    parser.add_argument(
+        "--parent-run-id",
+        help="Parent run id for a follow-up run.",
+    )
     parser.add_argument("--non-interactive", action="store_true", help="Fail when a required value is missing.")
     return parser
 
@@ -218,8 +247,40 @@ def main() -> int:
     args = build_parser().parse_args()
 
     try:
+        is_follow_up = False
+        parent_run_id = None
+        if args.parent_run_id:
+            is_follow_up = True
+            parent_run_id = args.parent_run_id.strip()
+        elif args.follow_up:
+            if isinstance(args.follow_up, str):
+                is_follow_up = True
+                parent_run_id = args.follow_up.strip()
+            elif args.follow_up is True:
+                is_follow_up = True
+
+        if is_follow_up and not parent_run_id:
+            if args.non_interactive:
+                print("Missing --parent-run-id for follow-up run.", file=sys.stderr)
+                return 1
+            else:
+                parent_run_id = prompt("Parent run id")
+
+        parent_run_data: dict | None = None
+        if parent_run_id:
+            try:
+                parent_dir = find_run_dir(parent_run_id, prompt_id=args.prompt_id.strip() if args.prompt_id else None)
+                parent_run_data = json.loads((parent_dir / "run.json").read_text(encoding="utf-8"))
+            except (FileNotFoundError, ValueError):
+                parent_run_data = None
+
+        parent_model = (parent_run_data.get("model") or {}) if parent_run_data else {}
+        parent_harness = (parent_run_data.get("harness") or {}) if parent_run_data else {}
+
         if args.prompt_id:
             prompt_id = require_prompt_id(args.prompt_id.strip())
+        elif parent_run_data and parent_run_data.get("prompt_id"):
+            prompt_id = require_prompt_id(str(parent_run_data["prompt_id"]))
         elif args.non_interactive:
             prompt_id = require_prompt_id(DEFAULT_PROMPT_ID)
         else:
@@ -227,16 +288,21 @@ def main() -> int:
             print(f"Available prompts: {known}")
             prompt_id = require_prompt_id(prompt("Prompt id", DEFAULT_PROMPT_ID))
 
+        default_harness = str(parent_harness.get("name")) if parent_harness.get("name") else "cursor"
         if args.harness:
             harness = normalize_harness(args.harness)
+        elif parent_harness.get("name"):
+            harness = normalize_harness(str(parent_harness["name"]))
         elif args.non_interactive:
             print("Missing --harness.", file=sys.stderr)
             return 1
         else:
-            harness = normalize_harness(prompt("Harness", "cursor"))
+            harness = normalize_harness(prompt("Harness", default_harness))
 
         if args.model:
             model = args.model.strip()
+        elif parent_model.get("name"):
+            model = str(parent_model["name"])
         elif args.non_interactive:
             print("Missing --model.", file=sys.stderr)
             return 1
@@ -246,6 +312,8 @@ def main() -> int:
         if is_cursor_harness(harness):
             if args.context:
                 context = normalize_context(args.context, harness)
+            elif parent_model.get("context") is not None:
+                context = normalize_context(parent_model["context"], harness)
             elif args.non_interactive:
                 context = None
             else:
@@ -253,26 +321,30 @@ def main() -> int:
                     prompt_optional("Context (e.g. 500k)"), harness
                 )
         else:
-            # Raises when a context was supplied for a non-Cursor harness.
             context = normalize_context(args.context, harness)
 
         levels = reasoning_levels_for_harness(harness)
         if args.reasoning:
             reasoning = normalize_reasoning(args.reasoning, harness)
+        elif parent_model.get("reasoning"):
+            reasoning = normalize_reasoning(parent_model["reasoning"], harness)
         elif args.non_interactive:
             reasoning = UNKNOWN_REASONING
         else:
+            default_reasoning = parent_model.get("reasoning") or UNKNOWN_REASONING
             reasoning = normalize_reasoning(
                 prompt(
                     f"Reasoning ({', '.join(levels)}, {UNKNOWN_REASONING})",
-                    UNKNOWN_REASONING,
+                    default_reasoning,
                 ),
                 harness,
             )
 
-        series_default = default_series_id(harness, prompt_id)
+        series_default = parent_run_data.get("series_id") if (parent_run_data and parent_run_data.get("series_id")) else default_series_id(harness, prompt_id)
         if args.series_id:
             series_id = args.series_id.strip()
+        elif parent_run_data and parent_run_data.get("series_id"):
+            series_id = str(parent_run_data["series_id"])
         elif args.non_interactive:
             series_id = series_default
         else:
@@ -280,6 +352,8 @@ def main() -> int:
 
         if args.provider:
             provider = args.provider.strip()
+        elif parent_model.get("provider"):
+            provider = str(parent_model["provider"])
         else:
             inferred = infer_provider(model)
             if inferred and not args.non_interactive:
@@ -294,14 +368,21 @@ def main() -> int:
 
         if args.harness_version:
             harness_version = args.harness_version.strip()
+        elif parent_harness.get("version") is not None:
+            harness_version = parent_harness["version"]
         elif args.non_interactive:
             harness_version = None
         else:
             harness_version = prompt_optional("Harness version")
 
-        harness_detail = args.harness_detail or ""
-        if not args.non_interactive and not harness_detail:
+        if args.harness_detail:
+            harness_detail = args.harness_detail
+        elif parent_harness.get("detail") is not None:
+            harness_detail = str(parent_harness["detail"])
+        elif not args.non_interactive:
             harness_detail = prompt_optional("Harness detail") or ""
+        else:
+            harness_detail = ""
 
         run_dir = create_run_directory(
             harness=harness,
@@ -313,6 +394,8 @@ def main() -> int:
             provider=provider,
             harness_version=harness_version,
             harness_detail=harness_detail,
+            shot="follow-up" if is_follow_up else "primary",
+            parent_run_id=parent_run_id if is_follow_up else None,
         )
     except ValueError as exc:
         print(exc, file=sys.stderr)

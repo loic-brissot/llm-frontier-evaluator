@@ -279,6 +279,8 @@ def allocate_run_id(
     context: str | None = None,
     prompt_id: str = DEFAULT_PROMPT_ID,
     on_date: datetime | None = None,
+    shot: str = "primary",
+    parent_run_id: str | None = None,
 ) -> str:
     """Build `YYYY-MM-DD-<harness>-<model>-[<context>-]<reasoning>`.
 
@@ -289,7 +291,25 @@ def allocate_run_id(
     falls back to `unknown`, so the reasoning segment is always present.
     Uniqueness is checked inside runs/<prompt-id>/, so the same run id
     may exist once per prompt.
+
+    On a follow-up run (shot="follow-up" or parent_run_id provided),
+    the run id ends in `-follow-up` (e.g. `<parent_run_id>-follow-up`, or
+    `<parent_run_id>-2-follow-up` if `<parent_run_id>-follow-up` exists).
     """
+    if shot == "follow-up" or parent_run_id is not None:
+        if not parent_run_id:
+            raise ValueError("parent_run_id must be specified for follow-up runs")
+        base = parent_run_id if parent_run_id.endswith("-follow-up") else f"{parent_run_id}-follow-up"
+        candidate = base
+        suffix = 2
+        while run_dir_for(prompt_id, candidate).exists():
+            if base.endswith("-follow-up"):
+                candidate = f"{base[:-10]}-{suffix}-follow-up"
+            else:
+                candidate = f"{base}-{suffix}"
+            suffix += 1
+        return candidate
+
     when = on_date or datetime.now()
     date_part = when.strftime("%Y-%m-%d")
     parts = [date_part, slugify(canonical_harness(harness)), slugify(model)]
