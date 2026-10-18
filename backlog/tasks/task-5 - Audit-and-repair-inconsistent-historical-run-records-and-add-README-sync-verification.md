@@ -3,7 +3,7 @@ id: TASK-5
 title: >-
   Audit and repair inconsistent historical run records and add README sync
   verification
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-18 02:18'
 updated_date: '2026-10-18 02:20'
@@ -33,7 +33,7 @@ Existing records under runs/paris-3d-atlas/ contain several data-integrity misma
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 composer-2-5-unknown and grok-4-7-500k-xhigh store null (not 0) for unrecorded tool_calls buckets so compare_runs.py and README.md agree on n/a
-- [ ] #2 grok-4-7-500k-xhigh, gemini-3-1-pro-unknown, and gemini-4-argon-1m-medium run.json files have consistent wall_clock, CSV selection notes, pricing, and thinking_seconds
-- [ ] #3 compare_runs.py supports a --check-readme / --sync-readme flag that verifies or regenerates all local and reference comparison tables in README.md
+- [x] #1 composer-2-5-unknown and grok-4-7-500k-xhigh store null (not 0) for unrecorded tool_calls buckets so compare_runs.py and README.md agree on n/a
+- [x] #2 grok-4-7-500k-xhigh, gemini-3-1-pro-unknown, and gemini-4-argon-1m-medium run.json files have consistent wall_clock, CSV selection notes, pricing, and thinking_seconds
+- [x] #3 compare_runs.py supports a --check-readme / --sync-readme flag that verifies or regenerates all local and reference comparison tables in README.md
 <!-- AC:END -->
