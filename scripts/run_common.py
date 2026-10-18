@@ -6,11 +6,14 @@ import hashlib
 import json
 import re
 import shutil
+import site
+import sys
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+README_PATH = ROOT / "README.md"
 RUNS_DIR = ROOT / "runs"
 TEMPLATES_DIR = ROOT / "templates"
 PROMPTS_DIR = ROOT / "prompt"
@@ -209,15 +212,41 @@ def load_json(path: Path) -> dict:
     return data
 
 
+def preferred_python() -> str:
+    """Return the workspace .venv interpreter when present, else sys.executable."""
+    for rel in (Path(".venv/bin/python3"), Path(".venv/bin/python"), Path(".venv/Scripts/python.exe")):
+        candidate = ROOT / rel
+        if candidate.is_file():
+            return str(candidate)
+    return sys.executable
+
+
+def _add_venv_site_packages() -> None:
+    """Add workspace .venv site-packages to sys.path when running outside .venv."""
+    venv_dir = ROOT / ".venv"
+    if not venv_dir.is_dir():
+        return
+    for site_dir in sorted(venv_dir.glob("lib/python*/site-packages")):
+        if site_dir.is_dir():
+            site.addsitedir(str(site_dir))
+    win_site = venv_dir / "Lib" / "site-packages"
+    if win_site.is_dir():
+        site.addsitedir(str(win_site))
+
+
 @lru_cache(maxsize=1)
 def _run_validator():
     try:
         from jsonschema import Draft202012Validator
-    except ImportError as exc:
-        raise RuntimeError(
-            "Validating run.json needs the jsonschema package: "
-            "python3 -m pip install -r requirements.txt"
-        ) from exc
+    except ImportError:
+        _add_venv_site_packages()
+        try:
+            from jsonschema import Draft202012Validator
+        except ImportError as exc:
+            raise RuntimeError(
+                "Validating run.json needs the jsonschema package: "
+                "python3 -m pip install -r requirements.txt"
+            ) from exc
     Draft202012Validator.check_schema(RUN_SCHEMA)
     return Draft202012Validator(RUN_SCHEMA)
 

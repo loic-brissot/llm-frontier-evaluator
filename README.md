@@ -31,6 +31,12 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 | `paris-3d-atlas` | gemini-3.1-pro unknown | Cursor | n/a | n/a | 56 13✗ | 1.9M | Working one-page visualization |
 | `paris-3d-atlas` | grok-4.7 500k xhigh | Cursor | n/a | n/a | n/a | 39.3M | Working one-page visualization |
 
+**Local series `paris-3d-atlas-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
+
+| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Outcome |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `paris-3d-atlas` | Gemini 4 Argon 1m medium | Cursor | n/a | 22.8 min | 89 19✗ | 6.1M | Great visualization with the option to deep-dive on each borough |
+
 ### Glossary
 1. Tokens generated: Reasoning tokens and visible tokens, in thousands. The percent is the reasoning share.
 2. Model time: Minutes spent generating. Tool time is excluded.

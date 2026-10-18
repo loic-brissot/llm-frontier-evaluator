@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
+from compare_runs import check_local_run, update_readme_comparisons
 from run_common import (
     BUCKETS,
     CACHE_SOURCES,
@@ -26,6 +27,7 @@ from run_common import (
     SPLIT_RULES,
     TIME_SOURCES,
     UNKNOWN_REASONING,
+    preferred_python,
     reasoning_levels_for_harness,
     discover_run_dirs,
     copy_usage_export,
@@ -1219,9 +1221,19 @@ def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bo
     write_json(run_path, run)
 
 
+def sync_run_to_readme(run_dir: Path) -> None:
+    run_path = run_dir / "run.json"
+    run = load_json(run_path)
+    problems = check_local_run(run, run_path)
+    if problems:
+        return
+    if update_readme_comparisons(run):
+        print("Updated README.md under ## Comparisons.")
+
+
 def run_compare() -> int:
     script = ROOT / "scripts" / "compare_runs.py"
-    result = subprocess.run([sys.executable, str(script)], cwd=ROOT, check=False)
+    result = subprocess.run([preferred_python(), str(script)], cwd=ROOT, check=False)
     return result.returncode
 
 
@@ -1246,6 +1258,7 @@ def main() -> int:
         return 1
 
     if args.compare_only:
+        sync_run_to_readme(run_dir)
         return run_compare()
 
     try:
@@ -1262,6 +1275,8 @@ def main() -> int:
 
     if not args.skip_metrics:
         complete_run_json(run_dir, usage_paths, interactive=True)
+
+    sync_run_to_readme(run_dir)
 
     print("\nWhen run.json is ready, commit it and usage/.")
     print("workspace/ stays gitignored.")

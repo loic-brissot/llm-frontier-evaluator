@@ -18,9 +18,11 @@ from pathlib import Path
 from run_common import (
     BUCKETS,
     CHART_BUCKETS,
+    README_PATH,
     ROOT,
     UNKNOWN_REASONING,
     available_prompt_ids,
+    canonical_harness,
     discover_run_dirs,
     load_json,
     prompt_path,
@@ -29,6 +31,29 @@ from run_common import (
 )
 
 REFERENCE_PATH = ROOT / "reference" / "2026-10-11-lassence.json"
+HARNESS_LABELS = {
+    "cursor": "Cursor",
+    "claude-code": "Claude Code",
+    "codex": "Codex",
+    "other": "Other",
+}
+LOCAL_TABLE_HEADER = "| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Outcome |"
+LOCAL_TABLE_RULE = "| --- | --- | --- | --- | --- | --- | --- | --- |"
+
+
+def harness_label(harness_name: str) -> str:
+    canonical = canonical_harness(harness_name)
+    return HARNESS_LABELS.get(canonical, harness_name)
+
+
+def model_label(run: dict) -> str:
+    model = run["model"]
+    # Reasoning is optional: null (and the stored default) read as unknown.
+    reasoning = model.get("reasoning") or UNKNOWN_REASONING
+    label = f"{model['name']} {reasoning}"
+    if model.get("context"):
+        label = f"{model['name']} {model['context']} {reasoning}"
+    return label
 
 
 def round_half_up(value: Decimal, places: int) -> Decimal:
@@ -222,13 +247,99 @@ def local_row(run: dict) -> tuple[list[str], list[str]]:
     else:
         cache_cell = format_millions(cache["cache_read_tokens"])
 
-    model = run["model"]
-    # Reasoning is optional: null (and the stored default) read as unknown.
-    reasoning = model.get("reasoning") or UNKNOWN_REASONING
-    label = f"{model['name']} {reasoning}"
-    if model.get("context"):
-        label = f"{model['name']} {model['context']} {reasoning}"
+    label = model_label(run)
     return [run["prompt_id"], run["series_id"], run["harness"]["name"], label, token_cell, time_cell, tool_cell, cache_cell], notes
+
+
+def readme_row(run: dict) -> str:
+    """Format one local primary run as a Markdown table row for README.md."""
+    cells, _ = local_row(run)
+    prompt_id, _series_id, harness_name, label, token_cell, time_cell, tool_cell, cache_cell = cells
+    harness_display = harness_label(harness_name)
+    outcome_summary = ((run.get("outcome") or {}).get("summary") or "").strip() or "n/a"
+    outcome_cell = outcome_summary.replace("|", r"\|")
+    return f"| `{prompt_id}` | {label} | {harness_display} | {token_cell} | {time_cell} | {tool_cell} | {cache_cell} | {outcome_cell} |"
+
+
+def _row_key(markdown_row: str) -> tuple[str, str, str] | None:
+    stripped = markdown_row.strip()
+    if not (stripped.startswith("|") and stripped.endswith("|")):
+        return None
+    parts = [part.strip() for part in stripped.strip("|").split("|")]
+    if len(parts) < 3 or parts[0] in {"Prompt", "---"}:
+        return None
+    return parts[0], parts[1], parts[2]
+
+
+def update_readme_comparisons(run: dict, readme_path: Path = README_PATH) -> bool:
+    """Insert or update `run` under `## Comparisons` in README.md."""
+    if run.get("shot") == "follow-up" or not readme_path.is_file():
+        return False
+
+    series_id = run["series_id"]
+    harness_display = harness_label(run["harness"]["name"])
+    row_line = readme_row(run)
+    target_key = _row_key(row_line)
+    series_marker = f"**Local series `{series_id}`**:"
+
+    lines = readme_path.read_text(encoding="utf-8").splitlines()
+    try:
+        comp_idx = next(i for i, line in enumerate(lines) if line.strip() == "## Comparisons")
+    except StopIteration:
+        return False
+
+    # Bound of the comparisons tables section (before the first ### or ## heading).
+    section_end = len(lines)
+    for idx in range(comp_idx + 1, len(lines)):
+        if lines[idx].startswith("## ") or lines[idx].startswith("### "):
+            section_end = idx
+            break
+
+    series_idx = None
+    for idx in range(comp_idx + 1, section_end):
+        if lines[idx].strip().startswith(series_marker):
+            series_idx = idx
+            break
+
+    if series_idx is not None:
+        # Find the markdown table immediately following the series header.
+        table_start = None
+        for idx in range(series_idx + 1, section_end):
+            if lines[idx].strip().startswith("|"):
+                table_start = idx
+                break
+            if lines[idx].strip().startswith("**"):
+                break
+        if table_start is not None:
+            table_end = table_start
+            while table_end < section_end and lines[table_end].strip().startswith("|"):
+                if target_key is not None and _row_key(lines[table_end]) == target_key:
+                    if lines[table_end] == row_line:
+                        return False
+                    lines[table_end] = row_line
+                    readme_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                    return True
+                table_end += 1
+            lines.insert(table_end, row_line)
+            readme_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            return True
+
+    # Create a new Local series block before `section_end`.
+    insert_at = section_end
+    while insert_at > comp_idx + 1 and not lines[insert_at - 1].strip():
+        insert_at -= 1
+    new_block = [
+        "",
+        f"**Local series `{series_id}`**: {harness_display}, recorded with this repository ([`runs/`](runs/README.md)).",
+        "",
+        LOCAL_TABLE_HEADER,
+        LOCAL_TABLE_RULE,
+        row_line,
+        "",
+    ]
+    lines[insert_at:section_end] = new_block
+    readme_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return True
 
 
 def print_table(headers: list[str], rows: list[list[str]]) -> None:
