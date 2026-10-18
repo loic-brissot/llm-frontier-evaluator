@@ -50,7 +50,7 @@ class ToolEventSummary:
     stop_status: str | None = None
     cursor_version: str | None = None
     effort: str | None = None
-    tool_duration_ms: int = 0
+    tool_duration_ms: float = 0.0
     wall_seconds: float | None = None
     tool_busy_seconds: float | None = None
     tools_without_duration: int = 0
@@ -167,6 +167,71 @@ def _dedupe_tools(records: list[dict]) -> list[dict]:
         elif is_failed(record) and not is_failed(previous):
             by_id[tool_id] = record
     return [by_id[tool_id] for tool_id in order] + loose
+
+
+def _extract_base_gen_id(gen_id: object) -> str | None:
+    if not isinstance(gen_id, str) or not gen_id.strip():
+        return None
+    gen_id = gen_id.strip()
+    m = re.match(r"^(.*?)(?:-\d+-[a-zA-Z0-9]+)$", gen_id)
+    if m:
+        return m.group(1)
+    return gen_id
+
+
+def _are_thoughts_duplicate(r1: dict, r2: dict, max_time_delta_sec: float = 5.0) -> bool:
+    dur1 = _duration(r1.get("duration_ms")) if r1.get("duration_ms") is not None else _duration(r1.get("duration"))
+    dur2 = _duration(r2.get("duration_ms")) if r2.get("duration_ms") is not None else _duration(r2.get("duration"))
+    if dur1 != dur2:
+        return False
+
+    ts1 = parse_time(r1.get("logged_at"))
+    ts2 = parse_time(r2.get("logged_at"))
+    if ts1 is not None and ts2 is not None:
+        if abs((ts1 - ts2).total_seconds()) > max_time_delta_sec:
+            return False
+
+    g1 = r1.get("generation_id")
+    g2 = r2.get("generation_id")
+
+    if isinstance(g1, str) and isinstance(g2, str):
+        g1_str = g1.strip()
+        g2_str = g2.strip()
+        if g1_str == g2_str:
+            return True
+        b1 = _extract_base_gen_id(g1_str)
+        b2 = _extract_base_gen_id(g2_str)
+        if g1_str == b2 or g2_str == b1:
+            return True
+        return False
+
+    if (g1 is None or g1 == "") and (g2 is None or g2 == ""):
+        return True
+
+    return False
+
+
+def _dedupe_thoughts(records: list[dict]) -> list[dict]:
+    deduped: list[dict] = []
+    for record in records:
+        matched_idx = None
+        for idx, prev in enumerate(deduped):
+            if _are_thoughts_duplicate(record, prev):
+                matched_idx = idx
+                break
+        if matched_idx is None:
+            deduped.append(record)
+        else:
+            prev_gen = deduped[matched_idx].get("generation_id")
+            curr_gen = record.get("generation_id")
+            if (
+                isinstance(curr_gen, str)
+                and isinstance(prev_gen, str)
+                and _extract_base_gen_id(curr_gen) != curr_gen.strip()
+                and _extract_base_gen_id(prev_gen) == prev_gen.strip()
+            ):
+                deduped[matched_idx] = record
+    return deduped
 
 
 def _duration(value: object) -> float | None:
@@ -324,10 +389,11 @@ def summarize_records(
             selected.append(record)
 
     tools = _dedupe_tools(selected)
+    thoughts = _dedupe_thoughts(thoughts)
     buckets = _empty_buckets()
     versions: set[str] = set()
     efforts: set[str] = set()
-    duration_ms = 0
+    duration_ms = 0.0
     nameless = 0
     for record in tools:
         name = record.get("tool_name")
@@ -345,9 +411,9 @@ def summarize_records(
         tool_counts["calls"] += 1
         if failed:
             tool_counts["failures"] += 1
-        duration = record.get("duration")
-        if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration >= 0:
-            duration_ms += int(duration)
+        duration = _duration(record.get("duration"))
+        if duration is not None:
+            duration_ms += duration
         version = record.get("cursor_version")
         if isinstance(version, str) and version.strip():
             versions.add(version.strip())
