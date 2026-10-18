@@ -1,4 +1,4 @@
-# Reference series `lassence-2026-10`
+# Reference series `2026-10-11-lassence`
 
 This file is a transcription of the gallery chart, read on 17 October 2026. It is the external baseline. It is not a local run.
 
@@ -7,7 +7,7 @@ Sources:
 - [Building a 3D atlas of Paris as model benchmark](https://lassence.net/posts/personal-benchmark-3d-atlas-of-paris/), 11 October 2026
 - [bench.lassence.net](https://bench.lassence.net/)
 
-The machine copy is `lassence-2026-10.json`. `scripts/compare_runs.py` checks that the labels, the bar flex values, and the tool tooltips agree.
+The machine copy is `2026-10-11-lassence.json`. `scripts/compare_runs.py` checks that the labels, the bar flex values, and the tool tooltips agree.
 
 ## How each model worked
 

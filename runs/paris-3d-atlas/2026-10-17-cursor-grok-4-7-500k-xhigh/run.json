@@ -1,14 +1,14 @@
 {
   "rules_version": 1,
   "run_id": "2026-10-17-cursor-grok-4-7-500k-xhigh",
-  "series_id": "local-2026-10-cursor",
+  "series_id": "2026-10-17-init",
   "prompt_id": "paris-3d-atlas",
   "prompt_sha256": "19387b5a175db8f74b22515f1fce112c653d2286a5ab47fb46c4763176e64c1d",
   "shot": "primary",
   "parent_run_id": null,
   "model": {
     "provider": "xai",
-    "name": "grok-4-7",
+    "name": "grok-4.7",
     "context": "500k",
     "reasoning": "xhigh"
   },
@@ -65,9 +65,12 @@
     }
   },
   "model_time": {
-    "source": "harness_model_time",
-    "generating_seconds": 3743.0,
-    "raw": {}
+    "source": "unavailable",
+    "generating_seconds": null,
+    "raw": {
+      "operator_entered_seconds": 3743.0,
+      "note": "Entered by hand as harness_model_time with no named source field. The Cursor usage CSV has no generation duration, so this figure is not used."
+    }
   },
   "tool_calls": {
     "shell": {

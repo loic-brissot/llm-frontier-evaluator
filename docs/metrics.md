@@ -2,7 +2,7 @@
 
 These four columns match the gallery heading **How each model worked**. `scripts/compare_runs.py` prints local runs with the rounding rules below. The reference rows use the published labels, which `reference/README.md` transcribes.
 
-`rules_version` for this file is 1.
+`rules_version` for this file is 2. The changes from version 1 are listed under [Version history](#version-history).
 
 ## Where a number comes from
 
@@ -54,9 +54,27 @@ Store `model_time.generating_seconds`.
 | --- | --- |
 | `harness_model_time` | A harness field that already means model generation time, with tool time excluded. |
 | `sum_of_llm_request_durations` | The sum of LLM request durations. Exclude every tool duration. |
-| `unavailable` | Null. Use this when the only clock you have is wall clock. |
+| `wall_clock_minus_tool_time` | Wall clock minus the time inside tool calls, read from the Cursor hook log. `rules_version` 2 only. |
+| `unavailable` | Null. Use this when the only clock you have is wall clock and no tool log. |
 
 Wall clock goes in `wall_clock` only.
+
+Prefer the sources in table order. A harness or usage export that reports generation time directly wins over `wall_clock_minus_tool_time`.
+
+### Wall clock minus tool time
+
+`scripts/tool_events.py` reads `runs/<prompt-id>/<run-id>/tool-events/*.jsonl`:
+
+1. Wall clock runs from the first `beforeSubmitPrompt` to the first `stop` after it.
+2. Each `postToolUse` or `postToolUseFailure` is logged when the tool returns. Its interval is `logged_at` minus `duration` milliseconds, up to `logged_at`, clipped to the wall clock.
+3. Overlapping intervals are merged, so parallel tool calls count once. The merged length is tool time.
+4. `generating_seconds` is wall clock minus tool time, in seconds to one decimal.
+
+When any tool event has no `duration`, the figure is not taken from the log and the source stays a manual choice.
+
+This is an upper bound on generation. It also holds network and queue latency, time to first token, harness overhead, hook execution, and any approval wait, because Cursor does not report LLM request durations to hooks. It is not comparable with a `harness_model_time` or `sum_of_llm_request_durations` cell, including the reference series.
+
+The hook also logs `afterAgentThought`, whose `duration_ms` is the length of one thinking block. Their sum is a lower bound, because visible output is not in it. `finish_run.py` stores both figures, and the summed and merged tool time, under `model_time.raw.tool_events`. Thinking time is not a score.
 
 The chart cell is the number of minutes, to one decimal, with the suffix ` min`. Round half away from zero.
 
@@ -72,7 +90,7 @@ The chart cell is the total. When the failure count is greater than zero, the ce
 
 For each bucket, `by_tool` names the harness tools and their counts. The sum of `by_tool` must equal the bucket.
 
-`scripts/finish_run.py` counts `runs/<prompt-id>/<run-id>/tool-events/*.jsonl` when those files exist. Each `postToolUse` or `postToolUseFailure` line is one call, classified with `docs/tool-buckets.md`. A missing log leaves the counts null. When the log contains the prompt submission and the agent stop, those two timestamps are `wall_clock`. The sum of tool durations is tool time. It is not model time, and it does not fill `model_time`. This reading does not change `rules_version`.
+`scripts/finish_run.py` counts `runs/<prompt-id>/<run-id>/tool-events/*.jsonl` when those files exist. Each `postToolUse` or `postToolUseFailure` line is one call, classified with `docs/tool-buckets.md`. A missing log leaves the counts null. When the log contains the prompt submission and the agent stop, those two timestamps are `wall_clock`. The same log gives model time under `wall_clock_minus_tool_time`, as described in section 2.
 
 ## 4. Context re-read
 
@@ -153,3 +171,12 @@ Claude Fable 5.1 high, from the gallery chart:
 | Context re-read | `6.4M` | 6.4M tokens read from the prompt cache |
 
 The bar flex for that token row is 51.799 and 55.43 (thousands). Their sum rounds to 107k. The reasoning share rounds to 48%. The title’s `52k` is the reasoning bar rounded to thousands. Use the cell `107k · 48%` as the comparison figure.
+
+## Version history
+
+| `rules_version` | Change |
+| --- | --- |
+| 1 | First rules. Model time needs a harness or usage-export duration. |
+| 2 | Adds the model time source `wall_clock_minus_tool_time`, read from the Cursor hook log. The tool buckets did not change. |
+
+A version 1 record keeps `rules_version` 1 and cannot use the version 2 source. A series holds one `rules_version`, so version 2 runs start a new series.

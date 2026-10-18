@@ -1,64 +1,34 @@
 #!/usr/bin/env python3
 """Print the LLM frontier process table and check the records.
 
-Reference rows use the published labels. Local rows use rules_version 1
-from docs/metrics.md: round half away from zero.
+Reference rows use the published labels. Local rows use the rounding in
+docs/metrics.md: round half away from zero. Each local run.json is
+validated against schema/run.schema.json, and each series must share one
+rules_version.
 """
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-PROMPTS_DIR = ROOT / "prompt"
-REFERENCE_PATH = ROOT / "reference" / "lassence-2026-10.json"
-RUNS_DIR = ROOT / "runs"
+from run_common import (
+    BUCKETS,
+    CHART_BUCKETS,
+    ROOT,
+    UNKNOWN_REASONING,
+    available_prompt_ids,
+    discover_run_dirs,
+    load_json,
+    prompt_path,
+    prompt_sha256,
+    run_schema_errors,
+)
 
-RULES_VERSION = 1
-
-
-def prompt_path(prompt_id: str) -> Path:
-    return PROMPTS_DIR / f"{prompt_id}.txt"
-
-
-def prompt_sha256(prompt_id: str) -> str | None:
-    path = prompt_path(prompt_id)
-    if not path.is_file():
-        return None
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def available_prompt_ids() -> list[str]:
-    if not PROMPTS_DIR.is_dir():
-        return []
-    return sorted(path.stem for path in PROMPTS_DIR.glob("*.txt") if path.is_file())
-
-CHART_BUCKETS = ("shell", "files", "visual_checks", "web")
-BUCKETS = CHART_BUCKETS + ("other",)
-SPLIT_RULES = {
-    "output_includes_reasoning",
-    "output_excludes_reasoning",
-    "harness_pre_split",
-    "unavailable",
-}
-TIME_SOURCES = {
-    "harness_model_time",
-    "sum_of_llm_request_durations",
-    "unavailable",
-}
-CACHE_SOURCES = {"provider_cache_read", "unavailable"}
-HARNESS_NAMES = {"cursor", "claude-code", "codex", "other"}
-# Per-harness effort levels (docs/protocol.md), plus the legacy none/unknown
-# values on runs recorded before those lists existed.
-CURSOR_REASONING = {"minimal", "low", "medium", "high", "xhigh", "max"}
-CLAUDE_REASONING = {"low", "medium", "high", "ultra", "max", "ultracode"}
-REASONING_BY_HARNESS = {"cursor": CURSOR_REASONING, "claude-code": CLAUDE_REASONING}
-REASONING = CURSOR_REASONING | CLAUDE_REASONING | {"none", "unknown"}
+REFERENCE_PATH = ROOT / "reference" / "2026-10-11-lassence.json"
 
 
 def round_half_up(value: Decimal, places: int) -> Decimal:
@@ -89,14 +59,6 @@ def format_tools(calls: int, failures: int) -> str:
     if failures == 0:
         return str(calls)
     return f"{calls} {failures}✗"
-
-
-def load_json(path: Path) -> dict:
-    with path.open(encoding="utf-8") as handle:
-        data = json.load(handle)
-    if not isinstance(data, dict):
-        raise ValueError(f"{path} must contain a JSON object")
-    return data
 
 
 def check_prompt() -> list[str]:
@@ -166,61 +128,20 @@ def check_reference(reference: dict) -> list[str]:
     return errors
 
 
-def require(condition: bool, errors: list[str], message: str) -> None:
-    if not condition:
-        errors.append(message)
-
-
-def check_bucket(name: str, bucket: object, errors: list[str], prefix: str = "") -> None:
-    require(isinstance(bucket, dict), errors, f"{prefix}tool_calls.{name} must be an object")
-    if not isinstance(bucket, dict):
-        return
-    for key in ("calls", "failures", "by_tool"):
-        require(key in bucket, errors, f"{prefix}tool_calls.{name}.{key} is missing")
-    calls = bucket.get("calls")
-    failures = bucket.get("failures")
-    by_tool = bucket.get("by_tool")
-    require(
-        calls is None or isinstance(calls, int) and not isinstance(calls, bool),
-        errors,
-        f"{prefix}tool_calls.{name}.calls must be an integer or null",
-    )
-    require(
-        failures is None or isinstance(failures, int) and not isinstance(failures, bool),
-        errors,
-        f"{prefix}tool_calls.{name}.failures must be an integer or null",
-    )
-    require(isinstance(by_tool, dict), errors, f"{prefix}tool_calls.{name}.by_tool must be an object")
-    if not isinstance(by_tool, dict):
-        return
-    if (calls is None) != (failures is None):
-        errors.append(f"{prefix}tool_calls.{name}: set calls and failures together")
-        return
-    summed_calls = 0
-    summed_failures = 0
+def check_bucket_counts(name: str, bucket: dict, errors: list[str], prefix: str) -> None:
+    """Count rules JSON Schema cannot express; the schema has checked the types."""
+    calls = bucket["calls"]
+    failures = bucket["failures"]
+    by_tool = bucket["by_tool"]
     for tool_name, counts in by_tool.items():
-        if not isinstance(counts, dict):
-            errors.append(f"{prefix}tool_calls.{name}.by_tool.{tool_name} must be an object")
-            continue
-        tool_calls = counts.get("calls")
-        tool_failures = counts.get("failures")
-        if not isinstance(tool_calls, int) or isinstance(tool_calls, bool):
-            errors.append(f"{prefix}{name}.{tool_name}.calls must be an integer")
-            continue
-        if not isinstance(tool_failures, int) or isinstance(tool_failures, bool):
-            errors.append(f"{prefix}{name}.{tool_name}.failures must be an integer")
-            continue
-        if tool_failures > tool_calls:
-            errors.append(f"{prefix}{name}.{tool_name}: more failures than calls")
-        summed_calls += tool_calls
-        summed_failures += tool_failures
+        if counts["failures"] > counts["calls"]:
+            errors.append(f"{prefix}tool_calls.{name}.by_tool.{tool_name}: more failures than calls")
     if calls is None:
-        require(by_tool == {}, errors, f"{prefix}tool_calls.{name}: by_tool must be empty when calls is null")
         return
-    if calls < 0 or failures < 0:
-        errors.append(f"{prefix}tool_calls.{name}: negative count")
     if failures > calls:
         errors.append(f"{prefix}tool_calls.{name}: more failures than calls")
+    summed_calls = sum(counts["calls"] for counts in by_tool.values())
+    summed_failures = sum(counts["failures"] for counts in by_tool.values())
     if summed_calls != calls or summed_failures != failures:
         errors.append(
             f"{prefix}tool_calls.{name}: by_tool sums to {summed_calls} calls and "
@@ -229,130 +150,38 @@ def check_bucket(name: str, bucket: object, errors: list[str], prefix: str = "")
 
 
 def check_local_run(run: dict, path: Path) -> list[str]:
-    errors: list[str] = []
-    require(run.get("rules_version") == RULES_VERSION, errors, f"{path}: rules_version must be {RULES_VERSION}")
-    require(isinstance(run.get("run_id"), str) and run.get("run_id"), errors, f"{path}: run_id is empty")
-    require(isinstance(run.get("series_id"), str) and run.get("series_id"), errors, f"{path}: series_id is empty")
-    prompt_id = run.get("prompt_id")
-    expected_sha = prompt_sha256(prompt_id) if isinstance(prompt_id, str) else None
-    require(
-        isinstance(prompt_id, str) and bool(prompt_id) and expected_sha is not None,
-        errors,
-        f"{path}: prompt_id {prompt_id!r} has no prompt/<prompt-id>.txt file",
-    )
-    if expected_sha is not None:
-        require(
-            run.get("prompt_sha256") == expected_sha,
-            errors,
-            f"{path}: prompt_sha256 does not match prompt/{prompt_id}.txt",
-        )
-        require(
-            path.parent.parent.name == prompt_id,
-            errors,
-            f"{path}: directory runs/{path.parent.parent.name}/ does not match prompt_id {prompt_id!r}",
-        )
-    require(run.get("shot") in {"primary", "follow-up"}, errors, f"{path}: shot must be primary or follow-up")
-    if run.get("shot") == "primary":
-        require(run.get("parent_run_id") is None, errors, f"{path}: a primary run has no parent_run_id")
+    """Validate against schema/run.schema.json, then check the record against its files."""
+    errors = [f"{path}: {message}" for message in run_schema_errors(run)]
+    if errors:
+        return errors
+
+    prompt_id = run["prompt_id"]
+    if not prompt_path(prompt_id).is_file():
+        errors.append(f"{path}: prompt_id {prompt_id!r} has no prompt/<prompt-id>.txt file")
     else:
-        require(
-            isinstance(run.get("parent_run_id"), str) and run.get("parent_run_id"),
-            errors,
-            f"{path}: a follow-up needs parent_run_id",
-        )
-    if isinstance(run.get("run_id"), str) and run.get("run_id") and path.parent.name != run["run_id"]:
+        if run["prompt_sha256"] != prompt_sha256(prompt_id):
+            errors.append(f"{path}: prompt_sha256 does not match prompt/{prompt_id}.txt")
+        if path.parent.parent.name != prompt_id:
+            errors.append(
+                f"{path}: directory runs/{path.parent.parent.name}/ does not match prompt_id {prompt_id!r}"
+            )
+    if path.parent.name != run["run_id"]:
         errors.append(f"{path}: directory name {path.parent.name!r} != run_id {run['run_id']!r}")
 
-    model = run.get("model")
-    require(isinstance(model, dict), errors, f"{path}: model must be an object")
-    if isinstance(model, dict):
-        require(isinstance(model.get("provider"), str) and model.get("provider"), errors, f"{path}: model.provider is empty")
-        require(isinstance(model.get("name"), str) and model.get("name"), errors, f"{path}: model.name is empty")
-        require(
-            model.get("reasoning") is None or model.get("reasoning") in REASONING,
-            errors,
-            f"{path}: model.reasoning is invalid",
-        )
-        context = model.get("context")
-        require(
-            context is None or (isinstance(context, str) and context),
-            errors,
-            f"{path}: model.context must be a non-empty string or null",
-        )
-        harness_name = (run.get("harness") or {}).get("name")
-        # Context is a Cursor-only segment of the run id (any capitalisation
-        # of the harness name counts); older Cursor runs recorded without it
-        # keep a null or absent context.
-        if isinstance(harness_name, str) and harness_name.lower() != "cursor":
-            require(context is None, errors, f"{path}: model.context only applies to Cursor runs")
-        allowed = REASONING_BY_HARNESS.get(harness_name) if isinstance(harness_name, str) else None
-        if allowed is not None:
-            require(
-                model.get("reasoning") is None
-                or model.get("reasoning") in allowed | {"none", "unknown"},
-                errors,
-                f"{path}: model.reasoning is not an effort level for harness {harness_name}",
-            )
-
-    harness = run.get("harness")
-    require(isinstance(harness, dict), errors, f"{path}: harness must be an object")
-    if isinstance(harness, dict):
-        require(harness.get("name") in HARNESS_NAMES, errors, f"{path}: harness.name is invalid")
-
-    tokens = run.get("tokens")
-    require(isinstance(tokens, dict), errors, f"{path}: tokens must be an object")
-    if isinstance(tokens, dict):
-        rule = tokens.get("split_rule")
-        require(rule in SPLIT_RULES, errors, f"{path}: tokens.split_rule is invalid")
-        reasoning = tokens.get("reasoning_tokens")
-        visible = tokens.get("visible_tokens")
-        if rule == "unavailable":
-            require(reasoning is None and visible is None, errors, f"{path}: unavailable split must leave token counts null")
-        else:
-            require(
-                isinstance(reasoning, int) and not isinstance(reasoning, bool) and reasoning >= 0,
-                errors,
-                f"{path}: reasoning_tokens must be a non-negative integer",
-            )
-            require(
-                isinstance(visible, int) and not isinstance(visible, bool) and visible >= 0,
-                errors,
-                f"{path}: visible_tokens must be a non-negative integer",
-            )
-
-    model_time = run.get("model_time")
-    require(isinstance(model_time, dict), errors, f"{path}: model_time must be an object")
-    if isinstance(model_time, dict):
-        source = model_time.get("source")
-        seconds = model_time.get("generating_seconds")
-        require(source in TIME_SOURCES, errors, f"{path}: model_time.source is invalid")
-        if source == "unavailable":
-            require(seconds is None, errors, f"{path}: unavailable model time must be null")
-        else:
-            require(isinstance(seconds, (int, float)) and not isinstance(seconds, bool) and seconds >= 0, errors, f"{path}: generating_seconds must be a non-negative number")
-
-    tool_calls = run.get("tool_calls")
-    require(isinstance(tool_calls, dict), errors, f"{path}: tool_calls must be an object")
-    if isinstance(tool_calls, dict):
-        for name in BUCKETS:
-            require(name in tool_calls, errors, f"{path}: tool_calls.{name} is missing")
-            if name in tool_calls:
-                check_bucket(name, tool_calls[name], errors, prefix=f"{path}: ")
-
-    cache = run.get("context_reread")
-    require(isinstance(cache, dict), errors, f"{path}: context_reread must be an object")
-    if isinstance(cache, dict):
-        source = cache.get("source")
-        read = cache.get("cache_read_tokens")
-        require(source in CACHE_SOURCES, errors, f"{path}: context_reread.source is invalid")
-        if source == "unavailable":
-            require(read is None, errors, f"{path}: unavailable cache read must be null")
-        else:
-            require(isinstance(read, int) and not isinstance(read, bool) and read >= 0, errors, f"{path}: cache_read_tokens must be a non-negative integer")
-
-    require(isinstance(run.get("observations"), str), errors, f"{path}: observations must be a string")
-
+    for name in BUCKETS:
+        check_bucket_counts(name, run["tool_calls"][name], errors, prefix=f"{path}: ")
     return errors
+
+
+def check_series_versions(runs: list[dict]) -> list[str]:
+    versions: dict[str, set[int]] = {}
+    for run in runs:
+        versions.setdefault(run["series_id"], set()).add(run["rules_version"])
+    return [
+        f"series {series_id!r} mixes rules_version {', '.join(str(v) for v in sorted(found))}"
+        for series_id, found in sorted(versions.items())
+        if len(found) > 1
+    ]
 
 
 def local_row(run: dict) -> tuple[list[str], list[str]]:
@@ -395,7 +224,7 @@ def local_row(run: dict) -> tuple[list[str], list[str]]:
 
     model = run["model"]
     # Reasoning is optional: null (and the stored default) read as unknown.
-    reasoning = model.get("reasoning") or "unknown"
+    reasoning = model.get("reasoning") or UNKNOWN_REASONING
     label = f"{model['name']} {reasoning}"
     if model.get("context"):
         label = f"{model['name']} {model['context']} {reasoning}"
@@ -424,7 +253,7 @@ def reference_harness(run: dict) -> str:
 
 
 def print_reference(reference: dict) -> None:
-    print("Reference series: lassence-2026-10")
+    print("Reference series: 2026-10-11-lassence")
     print("Published chart from bench.lassence.net, transcribed on 2026-10-17.")
     print()
     headers = ["Model", "Harness", "Tokens generated", "Model time", "Tool calls", "Context re-read"]
@@ -442,13 +271,6 @@ def print_reference(reference: dict) -> None:
     print()
     print(f"Post favorite: {reference['post_favorite']}")
     print("Gallery tiers: reference/README.md")
-
-
-def discover_runs(prompt_id: str | None = None) -> list[Path]:
-    if not RUNS_DIR.is_dir():
-        return []
-    pattern = f"{prompt_id}/*/run.json" if prompt_id else "*/*/run.json"
-    return sorted(path for path in RUNS_DIR.glob(pattern) if path.is_file())
 
 
 def main() -> int:
@@ -485,26 +307,34 @@ def main() -> int:
     local_errors: list[str] = []
     incomplete: list[str] = []
     selected: list[dict] = []
-    for path in discover_runs(args.prompt_id):
+    valid: list[dict] = []
+    run_paths = [run_dir / "run.json" for run_dir in sorted(discover_run_dirs(args.prompt_id))]
+    for path in run_paths:
         try:
             run = load_json(path)
         except (OSError, json.JSONDecodeError, ValueError) as exc:
             local_errors.append(f"{path}: {exc}")
             continue
-        problems = check_local_run(run, path)
+        try:
+            problems = check_local_run(run, path)
+        except RuntimeError as exc:
+            print(exc, file=sys.stderr)
+            return 2
         if problems:
             local_errors.extend(problems)
             continue
+        valid.append(run)
         if run["shot"] == "follow-up" and not args.follow_ups:
             continue
         selected.append(run)
+    local_errors.extend(check_series_versions(valid))
 
     if reference is not None and not errors:
         print_reference(reference)
         print()
 
     print("Local runs")
-    if not discover_runs(args.prompt_id):
+    if not run_paths:
         print("No local runs yet.")
     elif not selected and not local_errors:
         print("No primary local runs. Pass --follow-ups to print follow-ups.")

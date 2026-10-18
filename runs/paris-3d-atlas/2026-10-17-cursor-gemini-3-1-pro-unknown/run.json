@@ -1,14 +1,14 @@
 {
   "rules_version": 1,
   "run_id": "2026-10-17-cursor-gemini-3-1-pro-unknown",
-  "series_id": "local-2026-10-cursor",
+  "series_id": "2026-10-17-init",
   "prompt_id": "paris-3d-atlas",
   "prompt_sha256": "19387b5a175db8f74b22515f1fce112c653d2286a5ab47fb46c4763176e64c1d",
   "shot": "primary",
   "parent_run_id": null,
   "model": {
     "provider": "google",
-    "name": "Gemini 3.1 Pro",
+    "name": "gemini-3.1-pro",
     "context": null,
     "reasoning": "unknown"
   },
@@ -65,9 +65,12 @@
     }
   },
   "model_time": {
-    "source": "harness_model_time",
-    "generating_seconds": 389.0,
-    "raw": {}
+    "source": "unavailable",
+    "generating_seconds": null,
+    "raw": {
+      "operator_entered_seconds": 389.0,
+      "note": "Entered by hand as harness_model_time with no named source field. The figure equals the wall clock (2026-10-17T02:47:30Z to 02:53:59Z), which is not model time."
+    }
   },
   "tool_calls": {
     "shell": {
