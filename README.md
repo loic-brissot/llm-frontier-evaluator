@@ -79,5 +79,6 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 | `runs/<prompt-id>/<run-id>/` | One directory per run, sorted by prompt id, then run id. |
 | `scripts/compare_runs.py` | Validates the records against the schema and prints the four columns. |
 | `requirements.txt` | `jsonschema`, the only dependency. |
+| `CONTRIBUTING.md` | Branching, pull request template, and squash-and-merge workflow. |
 
 [^dev]: Developed with [Cursor](https://cursor.com) on macOS. The Cursor tool-event hook uses `fcntl`, so it runs on macOS and Linux only.
