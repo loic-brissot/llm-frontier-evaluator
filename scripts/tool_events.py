@@ -214,8 +214,23 @@ def _are_thoughts_duplicate(r1: dict, r2: dict, max_time_delta_sec: float = 5.0)
 def _dedupe_thoughts(records: list[dict]) -> list[dict]:
     deduped: list[dict] = []
     for record in records:
-        if not any(_are_thoughts_duplicate(record, prev) for prev in deduped):
+        matched_idx = None
+        for idx, prev in enumerate(deduped):
+            if _are_thoughts_duplicate(record, prev):
+                matched_idx = idx
+                break
+        if matched_idx is None:
             deduped.append(record)
+        else:
+            prev_gen = deduped[matched_idx].get("generation_id")
+            curr_gen = record.get("generation_id")
+            if (
+                isinstance(curr_gen, str)
+                and isinstance(prev_gen, str)
+                and _extract_base_gen_id(curr_gen) != curr_gen.strip()
+                and _extract_base_gen_id(prev_gen) == prev_gen.strip()
+            ):
+                deduped[matched_idx] = record
     return deduped
 
 

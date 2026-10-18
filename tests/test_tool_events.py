@@ -34,6 +34,36 @@ class TestToolEvents(unittest.TestCase):
         self.assertEqual(len(deduped), 1)
         self.assertEqual(deduped[0]["duration_ms"], 120)
 
+    def test_dedupe_thoughts_base_first_does_not_absorb_second_step(self):
+        records = [
+            {
+                "hook_event_name": "afterAgentThought",
+                "generation_id": "gen-123",
+                "duration_ms": 120,
+                "logged_at": "2026-10-18T00:00:00.000Z",
+            },
+            {
+                "hook_event_name": "afterAgentThought",
+                "generation_id": "gen-123-1-abc",
+                "duration_ms": 120,
+                "logged_at": "2026-10-18T00:00:00.002Z",
+            },
+            {
+                "hook_event_name": "afterAgentThought",
+                "generation_id": "gen-123-2-def",
+                "duration_ms": 120,
+                "logged_at": "2026-10-18T00:00:01.000Z",
+            },
+            {
+                "hook_event_name": "afterAgentThought",
+                "generation_id": "gen-123",
+                "duration_ms": 120,
+                "logged_at": "2026-10-18T00:00:01.002Z",
+            },
+        ]
+        deduped = _dedupe_thoughts(records)
+        self.assertEqual(len(deduped), 2)
+
     def test_dedupe_thoughts_identical_duplicates(self):
         records = [
             {
