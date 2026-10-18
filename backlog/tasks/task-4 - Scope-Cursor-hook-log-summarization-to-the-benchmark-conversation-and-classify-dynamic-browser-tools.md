@@ -3,7 +3,7 @@ id: TASK-4
 title: >-
   Scope Cursor hook log summarization to the benchmark conversation and classify
   dynamic/browser tools
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-18 02:18'
 labels:
@@ -30,8 +30,8 @@ load_records() merges all *.jsonl files in tool-events/ without filtering by con
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 summarize_records() selects the conversation_id whose first prompt matches the benchmark run (or warns clearly when multiple conversations exist) instead of blindly merging unrelated conversation files
-- [ ] #2 bucket_for() inspects tool_input.toolName when tool_name is CallDynamicTool so dynamic WebSearch, WebFetch, Delete, and other tools map to their documented bucket
-- [ ] #3 docs/tool-buckets.md and bucket_for() define clear rules for headless Playwright/browser visual verification and screenshot inspection
-- [ ] #4 Unit tests cover multi-conversation tool-events directories and CallDynamicTool bucket classification
+- [x] #1 summarize_records() selects the conversation_id whose first prompt matches the benchmark run (or warns clearly when multiple conversations exist) instead of blindly merging unrelated conversation files
+- [x] #2 bucket_for() inspects tool_input.toolName when tool_name is CallDynamicTool so dynamic WebSearch, WebFetch, Delete, and other tools map to their documented bucket
+- [x] #3 docs/tool-buckets.md and bucket_for() define clear rules for headless Playwright/browser visual verification and screenshot inspection
+- [x] #4 Unit tests cover multi-conversation tool-events directories and CallDynamicTool bucket classification
 <!-- AC:END -->

@@ -37,9 +37,9 @@ The tool reads, searches, edits, or writes workspace files, and it does not run 
 
 ### visual checks
 
-The tool inspects the rendered atlas. A screenshot, a DOM or accessibility snapshot, and a browser-console read are visual checks. A headless browser check whose result is a view of the page is a visual check.
+The tool inspects the rendered atlas or page output. A screenshot, a DOM or accessibility snapshot, a browser-console read, and any direct browser or Playwright visual verification and page inspection tools (such as `playwright_*`, `browser_*`, `computer`, `take_screenshot`, `snapshot`, etc., including dynamic tool calls wrapping browser or Playwright tools) are visual checks.
 
-A dev server command is shell. A source-file read is files.
+A dev server command executed in a terminal is shell. A headless script executed via `Shell` (e.g., `python script.py` running Playwright) is shell. A source-file read is files.
 
 ### web
 
@@ -61,13 +61,13 @@ Use the purpose rules above when a name is missing from this map.
 
 | Harness tool | Bucket |
 | --- | --- |
-| `Shell`, `Bash`, `shell`, `local_shell` | shell |
+| `Shell`, `Bash`, `shell`, `local_shell`, `AwaitShell` | shell |
 | `Read`, `Write`, `Edit`, `StrReplace`, `Delete`, `EditNotebook`, `Glob`, `Grep` | files |
 | `WebSearch`, `WebFetch` | web |
-| Browser screenshot, page snapshot, browser console read | visual checks |
-| `TodoWrite`, `Task`, `SwitchMode`, `AskQuestion`, `GenerateImage`, `ReadLints` | other |
+| Browser screenshot, page snapshot, browser console read, `playwright_*`, `browser_*`, `computer` | visual checks |
+| `TodoWrite`, `Task`, `SwitchMode`, `AskQuestion`, `GenerateImage`, `ReadLints`, `GetDynamicTools` | other |
 
-An MCP tool follows the same purpose rules. Record its full tool name in `by_tool`.
+An MCP tool follows the same purpose rules. Record its full tool name in `by_tool`. For `CallDynamicTool` / `call_dynamic_tool`, the classifier inspects `tool_input.toolName` (or `tool_name` / `name`) to classify the unwrapped inner tool into its documented bucket (e.g., dynamic `WebSearch` and `WebFetch` map to `web`, dynamic `Delete` maps to `files`, dynamic Playwright/browser tools map to `visual_checks`, `AwaitShell` maps to `shell`, and `GetDynamicTools` stays in `other`).
 
 ## Example
 
