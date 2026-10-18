@@ -3,7 +3,7 @@ id: TASK-6
 title: >-
   Relocate Cursor hook template out of root .cursor/hooks.json to stop logging
   maintainer sessions
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-18 02:18'
 labels:
@@ -13,9 +13,11 @@ milestone: m-0
 dependencies: []
 references:
   - scripts/setup_run.py
-  - .cursor/hooks.json
+  - templates/cursor/hooks.json
+  - templates/cursor/hooks/log-tool-event.py
 documentation:
   - docs/protocol.md
+  - README.md
 priority: medium
 type: enhancement
 ordinal: 6000
@@ -29,7 +31,7 @@ Because .cursor/hooks.json sits at the root of this repository, opening llm-fron
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The hook template is stored under templates/cursor/ (or scripts/hooks/) and copied into workspace/.cursor/ by scripts/setup_run.py
-- [ ] #2 Opening the root repository in Cursor no longer logs maintainer sessions into .cursor/tool-events/
-- [ ] #3 docs/protocol.md and README.md reflect the template location
+- [x] #1 The hook template is stored under templates/cursor/ (or scripts/hooks/) and copied into workspace/.cursor/ by scripts/setup_run.py
+- [x] #2 Opening the root repository in Cursor no longer logs maintainer sessions into .cursor/tool-events/
+- [x] #3 docs/protocol.md and README.md reflect the template location
 <!-- AC:END -->

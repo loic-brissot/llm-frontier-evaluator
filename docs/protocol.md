@@ -34,7 +34,7 @@ The effort levels `setup_run.py` proposes depend on the harness. Every harness a
 | Claude (`claude-code`) | `low`, `medium`, `high`, `ultra`, `max`, `ultracode` |
 | Other harnesses | `low`, `medium`, `high`, `xhigh`, `none`, `unknown` |
 
-For a Cursor harness, `setup_run.py` copies `.cursor/hooks.json` and its script into `workspace/.cursor/`. Cursor loads project hooks from the folder you open. The repository copy does not run inside that window.
+For a Cursor harness, `setup_run.py` copies the hook template from `templates/cursor/` (`templates/cursor/hooks.json` and `templates/cursor/hooks/log-tool-event.py`) into `workspace/.cursor/`. Cursor loads project hooks from the folder you open.
 
 Example run ids: `2026-10-17-cursor-claude-opus-4-7-500k-high` (Cursor, with context), `2026-10-17-cursor-claude-opus-4-7-high` (Cursor, context not set — null), `2026-10-17-cursor-composer-2-5-unknown` (reasoning not set — `unknown`), and `2026-10-17-claude-code-claude-opus-4-7-ultra` (Claude, no context).
 

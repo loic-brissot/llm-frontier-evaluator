@@ -75,7 +75,7 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 | `docs/` | Protocol, metric definitions, tool buckets. |
 | `reference/` | Transcription of the October 2026 chart. |
 | `schema/run.schema.json` | Shape of one local run record, and the source of the enums and defaults the scripts use. |
-| `templates/` | Blank run record. |
+| `templates/` | Blank run record and Cursor hook template (`templates/cursor/`). |
 | `runs/<prompt-id>/<run-id>/` | One directory per run, sorted by prompt id, then run id. |
 | `scripts/compare_runs.py` | Validates the records against the schema and prints the four columns. |
 | `requirements.txt` | `jsonschema`, the only dependency. |

@@ -148,10 +148,10 @@ def create_run_directory(
 
 
 def install_cursor_hook(workspace: Path) -> None:
-    source_config = ROOT / ".cursor" / "hooks.json"
-    source_script = ROOT / ".cursor" / "hooks" / "log-tool-event.py"
+    source_config = ROOT / "templates" / "cursor" / "hooks.json"
+    source_script = ROOT / "templates" / "cursor" / "hooks" / "log-tool-event.py"
     if not source_config.is_file() or not source_script.is_file():
-        raise FileNotFoundError("Cursor hook files are missing from .cursor/.")
+        raise FileNotFoundError("Cursor hook template files are missing from templates/cursor/.")
     hook_dir = workspace / ".cursor" / "hooks"
     hook_dir.mkdir(parents=True)
     shutil.copy2(source_config, workspace / ".cursor" / "hooks.json")
