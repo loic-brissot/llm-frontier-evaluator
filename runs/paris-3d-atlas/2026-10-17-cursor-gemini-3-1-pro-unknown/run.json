@@ -61,6 +61,18 @@
         "total_tokens_mismatches": 0,
         "total_tokens_check": "matches",
         "cost": "1.88"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "gemini-3-1-pro",
+        "context_variant": null,
+        "rates_per_1m_usd": {
+          "input": "2.00",
+          "cache_write": "0.00",
+          "cache_read": "0.20",
+          "output": "12.00"
+        },
+        "estimated_cost_usd": "1.35"
       }
     }
   },

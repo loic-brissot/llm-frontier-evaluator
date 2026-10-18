@@ -102,9 +102,9 @@ Store `context_reread.cache_read_tokens`.
 | OpenAI `prompt_tokens_details.cached_tokens` | `cache_read_tokens` |
 | Cache creation or cache write | `cache_write_tokens` |
 | Uncached input | `uncached_input_tokens` |
-| Cursor `Cache Read` | `cache_read_tokens` |
-| Cursor `Input (w/ Cache Write)` | `cache_write_tokens`. This column is the cache write alone. |
-| Cursor `Input (w/o Cache Write)` | `uncached_input_tokens` |
+| Cursor `Cache Read` / `stop` hook `cache_read_tokens` | `cache_read_tokens` |
+| Cursor `Input (w/ Cache Write)` / `stop` hook `cache_write_tokens` | `cache_write_tokens`. This column is the cache write alone. |
+| Cursor `Input (w/o Cache Write)` / `stop` hook `input_tokens - cache_read_tokens - cache_write_tokens` | `uncached_input_tokens` |
 
 Set `source` to `provider_cache_read` when the export has a cache-read field. Set `unavailable` and leave `cache_read_tokens` null when it does not.
 

@@ -12,34 +12,47 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 **Reference series `2026-10-11-lassence`**: Claude Code and Codex app, transcribed from [bench.lassence.net](https://bench.lassence.net/) ([`reference/`](reference/README.md)).
 
-| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read |
-| --- | --- | --- | --- | --- | --- | --- |
-| `paris-3d-atlas` | Claude Fable 5.1 high | Claude Code | 107k · 48% | 24.9 min | 60 3✗ | 6.4M |
-| `paris-3d-atlas` | Claude Opus 5.5 high | Claude Code | 187k · 47% | 31.6 min | 94 2✗ | 15.5M |
-| `paris-3d-atlas` | Claude Opus 5.5 medium | Claude Code | 77k · 37% | 12.2 min | 54 4✗ | 5.7M |
-| `paris-3d-atlas` | Claude Sonnet 5.5 high | Claude Code | 253k · 52% | 32.5 min | 101 | 22.4M |
-| `paris-3d-atlas` | Claude Haiku 5.5 high | Claude Code | 157k · 64% | 12.9 min | 52 3✗ | 7.7M |
-| `paris-3d-atlas` | GPT-6 Astra high | Codex app | 31k · 20% | 13.0 min | 81 6✗ | 5.7M |
-| `paris-3d-atlas` | GPT-6.1 Sol high | Codex app | 43k · 36% | 27.5 min | 109 11✗ | 11.8M |
-| `paris-3d-atlas` | GPT-6 Luna high | Codex app | 65k · 63% | 12.2 min | 77 8✗ | 11.0M |
+| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `paris-3d-atlas` | Claude Fable 5.1 high | Claude Code | 107k · 48% | 24.9 min | 60 3✗ | 6.4M | $6.95 |
+| `paris-3d-atlas` | Claude Opus 5.5 high | Claude Code | 187k · 47% | 31.6 min | 94 2✗ | 15.5M | $6.84 |
+| `paris-3d-atlas` | Claude Opus 5.5 medium | Claude Code | 77k · 37% | 12.2 min | 54 4✗ | 5.7M | $2.67 |
+| `paris-3d-atlas` | Claude Sonnet 5.5 high | Claude Code | 253k · 52% | 32.5 min | 101 | 22.4M | $4.77 |
+| `paris-3d-atlas` | Claude Haiku 5.5 high | Claude Code | 157k · 64% | 12.9 min | 52 3✗ | 7.7M | $0.16 |
+| `paris-3d-atlas` | GPT-6 Astra high | Codex app | 31k · 20% | 13.0 min | 81 6✗ | 5.7M | $7.29 |
+| `paris-3d-atlas` | GPT-6.1 Sol high | Codex app | 43k · 36% | 27.5 min | 109 11✗ | 11.8M | $1.61 |
+| `paris-3d-atlas` | GPT-6 Luna high | Codex app | 65k · 63% | 12.2 min | 77 8✗ | 11.0M | $0.14 |
 
 **Local series `2026-10-17-init`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
-| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Outcome |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `paris-3d-atlas` | composer-2.5-fast unknown | Cursor | n/a | n/a | n/a | 1.1M | Stuck on a loading page |
-| `paris-3d-atlas` | gemini-3.1-pro unknown | Cursor | n/a | n/a | 56 13✗ | 1.9M | Working one-page visualization |
-| `paris-3d-atlas` | grok-4.7 500k xhigh | Cursor | n/a | n/a | n/a | 39.3M | Working one-page visualization |
+| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost | Outcome |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `paris-3d-atlas` | composer-2.5-fast unknown | Cursor | n/a | n/a | n/a | 1.1M | $1.06 | Stuck on a loading page |
+| `paris-3d-atlas` | gemini-3.1-pro unknown | Cursor | n/a | n/a | 56 13✗ | 1.9M | $1.35 | Working one-page visualization |
+| `paris-3d-atlas` | grok-4.7 500k xhigh | Cursor | n/a | n/a | n/a | 39.3M | $51.68 | Working one-page visualization |
+
+**Local series `paris-3d-atlas-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
+
+| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost | Outcome |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `paris-3d-atlas` | Gemini 4 Argon 1m medium | Cursor | n/a | 22.8 min | 89 19✗ | 6.1M | $3.06 | Great visualization with the option to deep-dive on each borough |
 
 ### Glossary
 1. Tokens generated: Reasoning tokens and visible tokens, in thousands. The percent is the reasoning share.
 2. Model time: Minutes spent generating. Tool time is excluded.
 3. Tool calls: Shell, files, visual checks, and web. Failures stay inside that total and are marked in red.
 4. Context re-read: Tokens read from the prompt cache, in millions.
+5. Est. cost: Estimated USD token cost at public list prices ([`reference/pricing-2026-10-18.json`](reference/pricing-2026-10-18.json)). Reference rows only include published generated + cache-read tokens.
 
 ### Prompts
 
 1. [`paris-3d-atlas`](prompt/paris-3d-atlas.txt): build, from Paris open data, an interactive 3D atlas of every building in inner Paris at its real height, colored by construction period, with a year-by-year time slider from 1800.
+2. [`france-road-accidents`](prompt/france-road-accidents.txt): build, from the four relational ONISR BAAC open-data tables, an interactive map and "who hits whom" collision observatory of corporeal road accidents in metropolitan France across severity, transport modes, and road conditions.
+3. [`france-socio-electoral-atlas`](prompt/france-socio-electoral-atlas.txt): build, from INSEE Filosofi, demographic, and Ministry of the Interior open data, an interactive bivariate socio-electoral atlas of metropolitan France across ~35,000 communes with a linked brushable scatterplot.
+4. [`adaptive-endurance-coach`](prompt/adaptive-endurance-coach.txt): build an adaptive training planner and physiological simulator for triathlon, running, cycling, and cross-training that derives individualized power/pace/HR/swim zones, models Banister CTL/ATL/TSB load dynamics, exports `.ics`/`.zwo` workouts, and live-recalibrates the plan when sessions are skipped or altered.
+5. [`paris-1910-flood-simulator`](prompt/paris-1910-flood-simulator.txt): build, from Apur, Paris, and Île-de-France Mobilités open data, an interactive 3D simulator of the Seine rising up to and beyond the 1910 centennial flood (+8.62 m at Austerlitz), submerging buildings, streets, and rail stations against PPRI flood risk zones.
+6. [`france-rail-24h-pulse`](prompt/france-rail-24h-pulse.txt): build, from SNCF GTFS and Réseau Ferré National open data, an interactive 24-hour animated map and station-to-station travel-time accessibility atlas of the French passenger rail network (TGV, Intercités, TER).
+7. [`france-electricity-carbon-flow`](prompt/france-electricity-carbon-flow.txt): build, from RTE éCO2mix and ODRE open data, an interactive observatory and grid stress-test simulator of the French electricity system mapping regional generation, power plants, cross-border flows, and carbon intensity.
 
 ## Record a run
 

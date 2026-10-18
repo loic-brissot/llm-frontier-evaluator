@@ -61,6 +61,18 @@
         "total_tokens_mismatches": 0,
         "total_tokens_check": "matches",
         "cost": "1.01"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "composer-2-5-fast",
+        "context_variant": null,
+        "rates_per_1m_usd": {
+          "input": "3.00",
+          "cache_write": "0.00",
+          "cache_read": "0.50",
+          "output": "15.00"
+        },
+        "estimated_cost_usd": "1.06"
       }
     }
   },

@@ -57,6 +57,13 @@ class ToolEventSummary:
     model_time_seconds: float | None = None
     thinking_seconds: float | None = None
     thought_blocks: int = 0
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cache_read_tokens: int | None = None
+    cache_write_tokens: int | None = None
+    uncached_input_tokens: int | None = None
+    token_turns: int = 0
+    model_slug: str | None = None
     notes: list[str] = field(default_factory=list)
     other_tools: list[str] = field(default_factory=list)
 
@@ -136,7 +143,7 @@ def _effort(record: dict) -> str | None:
     if not isinstance(params, list):
         return None
     for item in params:
-        if not isinstance(item, dict) or item.get("id") != "effort":
+        if not isinstance(item, dict) or item.get("id") not in {"effort", "reasoning_effort"}:
             continue
         value = item.get("value")
         if isinstance(value, str) and value.strip():
@@ -166,6 +173,36 @@ def _duration(value: object) -> float | None:
     if isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0:
         return float(value)
     return None
+
+
+def _nonneg_int(value: object) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    return None
+
+
+def _apply_stop_tokens(summary: ToolEventSummary, stop_record: dict | None) -> None:
+    """Extract cumulative turn token counts from the selected stop record."""
+    if not isinstance(stop_record, dict):
+        return
+    input_tokens = _nonneg_int(stop_record.get("input_tokens"))
+    output_tokens = _nonneg_int(stop_record.get("output_tokens"))
+    cache_read = _nonneg_int(stop_record.get("cache_read_tokens"))
+    cache_write = _nonneg_int(stop_record.get("cache_write_tokens"))
+    if all(val is None for val in (input_tokens, output_tokens, cache_read, cache_write)):
+        return
+    summary.token_turns = 1
+    summary.input_tokens = input_tokens
+    summary.output_tokens = output_tokens
+    summary.cache_read_tokens = cache_read
+    summary.cache_write_tokens = cache_write
+    if input_tokens is not None:
+        cr = cache_read or 0
+        cw = cache_write or 0
+        summary.uncached_input_tokens = max(0, input_tokens - cr - cw)
+    model_val = stop_record.get("model") or stop_record.get("model_id")
+    if isinstance(model_val, str) and model_val.strip() and model_val.strip() != "default":
+        summary.model_slug = model_val.strip()
 
 
 def _merged_seconds(intervals: list[tuple[datetime, datetime]]) -> float:
@@ -228,11 +265,13 @@ def summarize_records(
     start = parse_time(prompts[0].get("logged_at")) if prompts else None
     end: datetime | None = None
     end_exclusive: datetime | None = None
+    selected_stop: dict | None = None
     if start is not None:
         for record in stops:
             stamped = parse_time(record.get("logged_at"))
             if stamped is not None and stamped >= start:
                 end = stamped
+                selected_stop = record
                 status = record.get("status")
                 summary.stop_status = status if isinstance(status, str) else None
                 break
@@ -246,7 +285,11 @@ def summarize_records(
         if len(prompts) > 1 and end is not None:
             summary.notes.append("Tool counts use the first prompt and the first stop.")
     else:
+        if stops:
+            selected_stop = stops[0]
         summary.notes.append("No prompt event, so tool counts include every logged call.")
+
+    _apply_stop_tokens(summary, selected_stop)
 
     if start is not None and end is not None:
         summary.wall_started_at = format_time(start)
@@ -322,6 +365,12 @@ def summarize_records(
         summary.effort = next(iter(efforts))
     elif len(efforts) > 1:
         summary.notes.append("The log contains more than one effort value.")
+    if summary.model_slug is None:
+        for record in selected + thoughts + ([selected_stop] if selected_stop else []):
+            model_val = record.get("model") or record.get("model_id")
+            if isinstance(model_val, str) and model_val.strip() and model_val.strip() != "default":
+                summary.model_slug = model_val.strip()
+                break
 
     summary.buckets = buckets
     summary.tool_duration_ms = duration_ms

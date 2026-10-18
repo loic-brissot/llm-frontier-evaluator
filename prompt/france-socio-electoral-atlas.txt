@@ -1,0 +1,21 @@
+Build an interactive socio-electoral map of metropolitan France that crosses income, poverty, demographic and voting data down to the commune level.
+The goal is an exceptional visual result, as beautiful and impressive as possible: a piece worthy of a great socio-political atlas, not a mere technical demo.
+Expected result:
+
+* Every commune and department in metropolitan France is mapped with smooth pan and zoom across all ~35,000 communes.
+* The viewer can switch between a single-indicator choropleth and a bivariate 3x3 choropleth crossing any two indicators among median standard of living, poverty rate, income inequality, population density, age structure or life expectancy, abstention rate, and vote share by major political bloc or candidate.
+* A color-matrix legend shows the active distribution and quantile thresholds. Clicking a cell or class highlights the matching communes.
+* A linked scatterplot sizes each commune by population and shows the correlation and regression trend line between the two chosen indicators.
+* Brushing points on the scatterplot highlights those communes on the map, and clicking a region or department filters the scatterplot to that territory.
+* INSEE commune codes (COG) and the municipal arrondissements of Paris, Lyon and Marseille are reconciled so major cities and merged communes are seamlessly represented without gaps.
+
+Available data sources (Open Licence / Etalab):
+
+* Insee, "Indicateurs sur les revenus et la pauvreté au niveau local – Filosofi" (median standard of living, poverty rate and income inequality by commune and department): https://www.insee.fr/fr/statistiques/8984752
+* Insee, "Base du comparateur de territoires" (population, density, age structure and socio-economic indicators by commune and department): https://www.insee.fr/fr/statistiques/2521169
+* Insee, "Espérance de vie : comparaisons régionales et départementales" (life expectancy by department and region): https://www.insee.fr/fr/statistiques/2012749
+* Ministère de l'Intérieur / data.gouv.fr, "Données des élections agrégées" (presidential and legislative turnout, abstention and candidate results): https://www.data.gouv.fr/datasets/donnees-des-elections-agregees
+* Ministère de l'Intérieur, "Élection présidentielle 2022 – Résultats définitifs du 1er tour" (results by commune and department): https://www.data.gouv.fr/datasets/election-presidentielle-des-10-et-24-avril-2022-resultats-definitifs-du-1er-tour
+* Ministère de l'Intérieur, "Élections législatives 2024 – Résultats définitifs du 1er tour" (results by commune and department): https://www.data.gouv.fr/datasets/elections-legislatives-des-30-juin-et-7-juillet-2024-resultats-definitifs-du-1er-tour
+* Etalab / IGN, "Contours administratifs" (commune, municipal arrondissement, department and region GeoJSON boundaries): https://www.data.gouv.fr/datasets/contours-administratifs
+* Etalab, "API Découpage administratif – API Géo" (commune, department and region geometries and COG lookup): https://geo.api.gouv.fr/

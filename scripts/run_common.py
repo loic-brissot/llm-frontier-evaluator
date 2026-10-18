@@ -6,15 +6,20 @@ import hashlib
 import json
 import re
 import shutil
+import site
+import sys
 from datetime import datetime, timezone
+from decimal import Decimal, ROUND_HALF_UP
 from functools import lru_cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+README_PATH = ROOT / "README.md"
 RUNS_DIR = ROOT / "runs"
 TEMPLATES_DIR = ROOT / "templates"
 PROMPTS_DIR = ROOT / "prompt"
 SCHEMA_PATH = ROOT / "schema" / "run.schema.json"
+PRICING_PATH = ROOT / "reference" / "pricing-2026-10-18.json"
 
 # The run schema is the single source for enums and defaults below.
 RUN_SCHEMA: dict = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -209,15 +214,41 @@ def load_json(path: Path) -> dict:
     return data
 
 
+def preferred_python() -> str:
+    """Return the workspace .venv interpreter when present, else sys.executable."""
+    for rel in (Path(".venv/bin/python3"), Path(".venv/bin/python"), Path(".venv/Scripts/python.exe")):
+        candidate = ROOT / rel
+        if candidate.is_file():
+            return str(candidate)
+    return sys.executable
+
+
+def _add_venv_site_packages() -> None:
+    """Add workspace .venv site-packages to sys.path when running outside .venv."""
+    venv_dir = ROOT / ".venv"
+    if not venv_dir.is_dir():
+        return
+    for site_dir in sorted(venv_dir.glob("lib/python*/site-packages")):
+        if site_dir.is_dir():
+            site.addsitedir(str(site_dir))
+    win_site = venv_dir / "Lib" / "site-packages"
+    if win_site.is_dir():
+        site.addsitedir(str(win_site))
+
+
 @lru_cache(maxsize=1)
 def _run_validator():
     try:
         from jsonschema import Draft202012Validator
-    except ImportError as exc:
-        raise RuntimeError(
-            "Validating run.json needs the jsonschema package: "
-            "python3 -m pip install -r requirements.txt"
-        ) from exc
+    except ImportError:
+        _add_venv_site_packages()
+        try:
+            from jsonschema import Draft202012Validator
+        except ImportError as exc:
+            raise RuntimeError(
+                "Validating run.json needs the jsonschema package: "
+                "python3 -m pip install -r requirements.txt"
+            ) from exc
     Draft202012Validator.check_schema(RUN_SCHEMA)
     return Draft202012Validator(RUN_SCHEMA)
 
@@ -325,3 +356,108 @@ def discover_run_dirs(prompt_id: str | None = None) -> list[Path]:
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+@lru_cache(maxsize=1)
+def load_pricing() -> dict:
+    if not PRICING_PATH.is_file():
+        return {}
+    return load_json(PRICING_PATH)
+
+
+def lookup_model_pricing(
+    model_name: str,
+    *,
+    context: str | None = None,
+    harness: str | None = None,
+) -> dict | None:
+    """Find the pricing entry in reference/pricing-2026-10-18.json for `model_name`."""
+    pricing = load_pricing()
+    models = pricing.get("models")
+    if not isinstance(models, list) or not model_name:
+        return None
+    target_slug = slugify(model_name)
+    target_lower = model_name.strip().lower()
+    matched: dict | None = None
+    for entry in models:
+        if not isinstance(entry, dict):
+            continue
+        names = [entry.get("id", "")] + list(entry.get("names") or [])
+        for candidate in names:
+            if not isinstance(candidate, str) or not candidate:
+                continue
+            if candidate.strip().lower() == target_lower or slugify(candidate) == target_slug:
+                matched = entry
+                break
+        if matched is not None:
+            break
+    if matched is None:
+        # Prefix match fallback (e.g., gemini-4-argon-medium -> gemini-4-argon)
+        for entry in models:
+            if not isinstance(entry, dict):
+                continue
+            entry_id = slugify(str(entry.get("id", "")))
+            if entry_id and target_slug.startswith(entry_id + "-"):
+                matched = entry
+                break
+    if matched is None:
+        return None
+
+    result = {
+        "model_id": matched["id"],
+        "as_of": pricing.get("as_of"),
+        "input": Decimal(str(matched.get("input", "0"))),
+        "cache_write": Decimal(str(matched.get("cache_write", "0"))),
+        "cache_read": Decimal(str(matched.get("cache_read", "0"))),
+        "output": Decimal(str(matched.get("output", "0"))),
+    }
+    variants = matched.get("context_variants")
+    if context and isinstance(variants, dict):
+        ctx_key = context.strip().lower()
+        variant = variants.get(ctx_key)
+        if isinstance(variant, dict):
+            for key in ("input", "cache_write", "cache_read", "output"):
+                if key in variant:
+                    result[key] = Decimal(str(variant[key]))
+            result["context_variant"] = ctx_key
+    return result
+
+
+def estimate_token_cost(
+    model_name: str,
+    *,
+    uncached_input_tokens: int | Decimal = 0,
+    cache_write_tokens: int | Decimal = 0,
+    cache_read_tokens: int | Decimal = 0,
+    output_tokens: int | Decimal = 0,
+    context: str | None = None,
+    harness: str | None = None,
+) -> dict | None:
+    """Compute estimated USD cost from public per-1M-token rates."""
+    rates = lookup_model_pricing(model_name, context=context, harness=harness)
+    if rates is None:
+        return None
+    million = Decimal(1_000_000)
+    u = Decimal(uncached_input_tokens or 0)
+    cw = Decimal(cache_write_tokens or 0)
+    cr = Decimal(cache_read_tokens or 0)
+    out = Decimal(output_tokens or 0)
+    cost = (
+        u * rates["input"]
+        + cw * rates["cache_write"]
+        + cr * rates["cache_read"]
+        + out * rates["output"]
+    ) / million
+    return {
+        "as_of": rates["as_of"],
+        "model_id": rates["model_id"],
+        "context_variant": rates.get("context_variant"),
+        "rates_per_1m_usd": {
+            "input": str(rates["input"]),
+            "cache_write": str(rates["cache_write"]),
+            "cache_read": str(rates["cache_read"]),
+            "output": str(rates["output"]),
+        },
+        "estimated_cost_usd": str(cost.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+    }
+

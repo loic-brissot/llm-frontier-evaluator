@@ -1,0 +1,18 @@
+Build an interactive observatory and grid stress-test simulator of the French electricity system, mapping regional generation, power plants, cross-border flows, and carbon intensity.
+The goal is an exceptional visual result, as clear, authoritative and impressive as a national grid control room and energy atlas, not a mere technical demo.
+Expected result:
+
+* A map of metropolitan France shows the 12 administrative regions colored by net electrical balance (net exporter vs. net importer), with animated cross-border interconnections (UK, Belgium, Germany, Switzerland, Italy, Spain) sized by physical flow.
+* Major power plants and storage facilities are plotted across the country, sized by installed capacity (MW) and colored by technology (nuclear, hydro, pumped storage, wind, solar, thermal, bioenergy).
+* A legend and technology filter list each generation source with its live output (MW), share of the mix (%), and capacity factor. Clicking a source or region isolates and inspects its profile.
+* A high-resolution timeline scrubber lets the viewer step through a full year (with presets for winter peak demand and summer solar peak), displaying stacked generation by source against total consumption and live carbon intensity (gCO2eq/kWh).
+* An interactive grid stress-test simulator lets the viewer vary nuclear fleet availability (%), wind and solar load factors, and winter temperature anomaly (°C thermosensitivity) to observe real-time adequacy margin, import needs, and load-shedding thresholds.
+* Selecting any region opens a detailed breakdown of its generation fleet, local demand, self-sufficiency ratio, and net regional transfers.
+
+Available data sources (Open Licence / Etalab):
+
+* ODRE (RTE), "Données éCO2mix nationales consolidées et définitives" (national generation by source, consumption, cross-border flows and carbon intensity): https://odre.opendatasoft.com/explore/dataset/eco2mix-national-cons-def
+* ODRE (RTE), "Données éCO2mix nationales temps réel" (real-time national electricity mix and carbon intensity): https://odre.opendatasoft.com/explore/dataset/eco2mix-national-tr
+* ODRE (RTE), "Données éCO2mix régionales consolidées et définitives" (regional generation, consumption and flows across the 12 metropolitan regions): https://odre.opendatasoft.com/explore/dataset/eco2mix-regional-cons-def
+* ODRE, "Registre national des installations de production et de stockage d'électricité" (power plants and storage facilities with technology, commune and installed capacity): https://odre.opendatasoft.com/explore/dataset/registre-national-installation-production-stockage-electricite-agrege
+* Etalab / data.gouv.fr, "Contours administratifs – Régions" (French regional boundaries GeoJSON): https://etalab-datasets.geo.data.gouv.fr/contours-administratifs/latest/geojson/regions-100m.geojson

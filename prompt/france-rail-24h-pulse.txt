@@ -1,0 +1,17 @@
+Build an interactive 24-hour animated map and accessibility atlas of the French passenger rail network (TGV, Intercités, TER).
+The goal is an exceptional visual result, as beautiful and impressive as a national railway control center and transport atlas, not a mere technical demo.
+Expected result:
+
+* Smooth 24-hour timeline scrubbing and animation of every scheduled passenger train across metropolitan France, colored and sized by service category (TGV, Intercités, TER), with a legend to filter or highlight each category.
+* Interactive station-to-station travel-time accessibility mode: clicking any station computes and colors all reachable stations across France by shortest rail travel time (<1h, 1–2h, 2–3h, 3–5h, >5h), including transfer wait times.
+* A daily corridor flow view showing cumulative 24-hour train frequency along each line of the national rail network (RFN), with line weight and luminance scaled by traffic volume.
+* Live statistics for the current clock time showing active trains in circulation by category, the 24-hour traffic profile, and the busiest stations.
+* Selecting any train or station displays its full stop-by-stop timetable, route path, and scheduled connections.
+
+Available data sources (Open Licence / ODbL):
+
+* transport.data.gouv.fr, "Réseau SNCF TGV, Intercités et TER" (GTFS schedules for TGV, Intercités and TER): https://transport.data.gouv.fr/datasets/horaires-sncf
+* SNCF Open Data, "HORAIRES SNCF" (GTFS timetable catalog and archive): https://ressources.data.sncf.com/explore/dataset/horaires-sncf
+* SNCF Open Data, "Fichier de formes des lignes du Réseau Ferré National" (RFN rail line geometries): https://ressources.data.sncf.com/explore/dataset/formes-des-lignes-du-rfn
+* SNCF Open Data, "Liste des gares" (stations, UIC codes, line codes and coordinates): https://ressources.data.sncf.com/explore/dataset/liste-des-gares
+* SNCF Open Data, "Gares de voyageurs" (passenger stations and categories): https://ressources.data.sncf.com/explore/dataset/gares-de-voyageurs

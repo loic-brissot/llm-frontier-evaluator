@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
+from compare_runs import check_local_run, update_readme_comparisons
 from run_common import (
     BUCKETS,
     CACHE_SOURCES,
@@ -26,6 +27,8 @@ from run_common import (
     SPLIT_RULES,
     TIME_SOURCES,
     UNKNOWN_REASONING,
+    estimate_token_cost,
+    preferred_python,
     reasoning_levels_for_harness,
     discover_run_dirs,
     copy_usage_export,
@@ -116,8 +119,19 @@ def ingest_usage(run_dir: Path, source: Path | None, *, skip_copy: bool) -> list
         return sorted(path for path in usage_dir.iterdir() if path.is_file())
 
     if source is None:
-        raw = prompt("Path to harness usage export (file or directory)")
-        source = Path(raw).expanduser()
+        existing = sorted(path for path in usage_dir.iterdir() if path.is_file())
+        tool_summary = summarize_run(run_dir)
+        has_hook_tokens = bool(tool_summary.token_turns)
+        if existing or has_hook_tokens:
+            raw = prompt_optional(
+                "Path to harness usage export (Enter to use hook log / existing usage/)"
+            )
+            if not raw:
+                return existing
+            source = Path(raw).expanduser()
+        else:
+            raw = prompt("Path to harness usage export (file or directory)")
+            source = Path(raw).expanduser()
     if not source.exists():
         raise FileNotFoundError(f"Usage export not found: {source}")
 
@@ -1018,6 +1032,19 @@ def print_tool_summary(summary: ToolEventSummary) -> None:
         print(f"  Wall clock minus tool time: {summary.model_time_seconds} s of {summary.wall_seconds} s.")
     if summary.thinking_seconds is not None:
         print(f"  Thinking: {summary.thinking_seconds} s over {summary.thought_blocks} blocks.")
+    if summary.token_turns:
+        token_parts = []
+        if summary.input_tokens is not None:
+            token_parts.append(f"input {summary.input_tokens:,}")
+        if summary.uncached_input_tokens is not None:
+            token_parts.append(f"uncached {summary.uncached_input_tokens:,}")
+        if summary.cache_read_tokens is not None:
+            token_parts.append(f"cache read {summary.cache_read_tokens:,}")
+        if summary.cache_write_tokens is not None:
+            token_parts.append(f"cache write {summary.cache_write_tokens:,}")
+        if summary.output_tokens is not None:
+            token_parts.append(f"output {summary.output_tokens:,}")
+        print(f"  Hook tokens (stop): {', '.join(token_parts)}")
     for note in summary.notes:
         print(f"  {note}")
 
@@ -1077,6 +1104,95 @@ def apply_logged_time(run: dict, summary: ToolEventSummary, hints: dict) -> None
     hints["generating_seconds"] = summary.model_time_seconds
 
 
+def apply_logged_tokens(run: dict, summary: ToolEventSummary, hints: dict) -> None:
+    """Store hook stop-event token totals in tokens.raw and context_reread.raw, and offer as defaults."""
+    if not summary.token_turns:
+        return
+    hook_tokens: dict[str, object] = {"source": "cursor_stop_hook"}
+    if summary.model_slug:
+        hook_tokens["model"] = summary.model_slug
+    for key in (
+        "input_tokens",
+        "uncached_input_tokens",
+        "cache_read_tokens",
+        "cache_write_tokens",
+        "output_tokens",
+    ):
+        val = getattr(summary, key)
+        if val is not None:
+            hook_tokens[key] = val
+    run["tokens"].setdefault("raw", {})["hook_tokens"] = hook_tokens
+    if not run["context_reread"].get("raw"):
+        run["context_reread"]["raw"] = dict(hook_tokens)
+    if summary.cache_read_tokens is not None and hints.get("cache_read_tokens") is None:
+        hints["cache_read_tokens"] = summary.cache_read_tokens
+        hints["cache_source"] = "provider_cache_read"
+        hints["cache_read_field"] = "stop.cache_read_tokens"
+    if summary.cache_write_tokens is not None and hints.get("cache_write_tokens") is None:
+        hints["cache_write_tokens"] = summary.cache_write_tokens
+        hints["cache_write_field"] = "stop.cache_write_tokens"
+    if summary.uncached_input_tokens is not None and hints.get("uncached_input_tokens") is None:
+        hints["uncached_input_tokens"] = summary.uncached_input_tokens
+        hints["uncached_input_field"] = "stop.input_tokens - stop.cache_read_tokens - stop.cache_write_tokens"
+    if summary.output_tokens is not None and hints.get("output_tokens") is None:
+        hints["output_tokens"] = summary.output_tokens
+        hints["output_field"] = "stop.output_tokens"
+        if not hints.get("split_rule"):
+            hints["split_rule"] = "unavailable"
+
+
+def apply_pricing_estimate(run: dict, summary: ToolEventSummary | None = None) -> None:
+    """Compute public list-price cost estimate from recorded tokens and store in tokens.raw.pricing."""
+    tokens = run.get("tokens") or {}
+    raw = tokens.get("raw") if isinstance(tokens.get("raw"), dict) else {}
+    cache = run.get("context_reread") or {}
+
+    output_tokens: int | None = None
+    if isinstance(tokens.get("reasoning_tokens"), int) and isinstance(tokens.get("visible_tokens"), int):
+        output_tokens = tokens["reasoning_tokens"] + tokens["visible_tokens"]
+    if output_tokens is None:
+        csv_block = raw.get("usage_csv") if isinstance(raw.get("usage_csv"), dict) else {}
+        hook_block = raw.get("hook_tokens") if isinstance(raw.get("hook_tokens"), dict) else {}
+        for candidate in (
+            csv_block.get("output_tokens"),
+            hook_block.get("output_tokens"),
+            raw.get("output_tokens"),
+            raw.get("completion_tokens"),
+            summary.output_tokens if summary else None,
+        ):
+            if is_int(candidate):
+                output_tokens = candidate
+                break
+
+    cache_read = cache.get("cache_read_tokens") if is_int(cache.get("cache_read_tokens")) else 0
+    cache_write = cache.get("cache_write_tokens") if is_int(cache.get("cache_write_tokens")) else 0
+    uncached_input = cache.get("uncached_input_tokens") if is_int(cache.get("uncached_input_tokens")) else 0
+
+    if output_tokens is None and cache_read == 0 and uncached_input == 0:
+        return
+
+    model_info = run.get("model") or {}
+    model_name = str(model_info.get("name") or "")
+    context = model_info.get("context")
+    harness_name = str((run.get("harness") or {}).get("name") or "")
+
+    estimate = estimate_token_cost(
+        model_name,
+        uncached_input_tokens=uncached_input,
+        cache_write_tokens=cache_write,
+        cache_read_tokens=cache_read,
+        output_tokens=output_tokens or 0,
+        context=context if isinstance(context, str) else None,
+        harness=harness_name,
+    )
+    if estimate is not None:
+        run["tokens"].setdefault("raw", {})["pricing"] = estimate
+        print(
+            f"Estimated public API cost ({estimate['model_id']} as of {estimate['as_of']}): "
+            f"${estimate['estimated_cost_usd']}"
+        )
+
+
 def observation_default(run: dict, summary: ToolEventSummary, *, include_other: bool) -> str:
     existing = run.get("observations") if isinstance(run.get("observations"), str) else ""
     extra = list(summary.notes)
@@ -1111,6 +1227,7 @@ def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bo
             use_log = prompt_yes_no("  Use these tool counts?", default=True)
     hints = prepare_hints(run, usage_paths, interactive=interactive)
     store_usage_raw(run, hints)
+    apply_logged_tokens(run, tool_summary, hints)
     apply_logged_time(run, tool_summary, hints)
 
     tokens = run["tokens"]
@@ -1216,12 +1333,23 @@ def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bo
         run["observations"] = ""
     if not wall_from_log:
         run["wall_clock"]["ended_at"] = utc_now_iso()
+    apply_pricing_estimate(run, tool_summary)
     write_json(run_path, run)
+
+
+def sync_run_to_readme(run_dir: Path) -> None:
+    run_path = run_dir / "run.json"
+    run = load_json(run_path)
+    problems = check_local_run(run, run_path)
+    if problems:
+        return
+    if update_readme_comparisons(run):
+        print("Updated README.md under ## Comparisons.")
 
 
 def run_compare() -> int:
     script = ROOT / "scripts" / "compare_runs.py"
-    result = subprocess.run([sys.executable, str(script)], cwd=ROOT, check=False)
+    result = subprocess.run([preferred_python(), str(script)], cwd=ROOT, check=False)
     return result.returncode
 
 
@@ -1246,6 +1374,7 @@ def main() -> int:
         return 1
 
     if args.compare_only:
+        sync_run_to_readme(run_dir)
         return run_compare()
 
     try:
@@ -1262,6 +1391,8 @@ def main() -> int:
 
     if not args.skip_metrics:
         complete_run_json(run_dir, usage_paths, interactive=True)
+
+    sync_run_to_readme(run_dir)
 
     print("\nWhen run.json is ready, commit it and usage/.")
     print("workspace/ stays gitignored.")
