@@ -40,6 +40,7 @@ from run_common import (
     write_json,
 )
 from tool_events import ToolEventSummary, summarize_run
+from verify_run import verify_run
 
 
 def prompt(label: str, default: str | None = None) -> str:
@@ -1219,9 +1220,41 @@ def observation_default(run: dict, summary: ToolEventSummary, *, include_other: 
     return f"{existing} {note}".strip() if existing else note
 
 
-def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bool) -> None:
+def complete_run_json(
+    run_dir: Path,
+    usage_paths: list[Path],
+    *,
+    interactive: bool,
+    verify: bool = False,
+    skip_verify: bool = False,
+) -> None:
+    if verify and not skip_verify:
+        try:
+            verify_run(run_dir, update_run_json=True)
+        except Exception as exc:
+            print(f"Warning: verify_run failed: {exc}", file=sys.stderr)
+
+    runtime_file = run_dir / "artifacts" / "runtime.json"
+    runtime_data: dict | None = None
+    if runtime_file.is_file():
+        try:
+            runtime_data = load_json(runtime_file)
+        except Exception:
+            runtime_data = None
+
     run_path = run_dir / "run.json"
     run = load_json(run_path)
+    if runtime_data:
+        if "verification" not in run or run["verification"] is None:
+            run["verification"] = {}
+        run["verification"]["runtime"] = runtime_data
+        passed_str = "PASSED" if runtime_data.get("passed") else "FAILED"
+        print(f"\nPlaywright smoke test ({passed_str}):")
+        print(f"  URL: {runtime_data.get('url')} (mode: {runtime_data.get('server_mode')})")
+        print(f"  HTTP Status: {runtime_data.get('http_status')}")
+        print(f"  Page errors: {len(runtime_data.get('page_errors') or [])}")
+        print(f"  Console errors: {len(runtime_data.get('console_errors') or [])}")
+
     if isinstance(run.get("model"), dict):
         # Runs set up before model.context existed have no key; keep it null.
         run["model"].setdefault("context", None)
@@ -1312,8 +1345,8 @@ def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bo
         for name in BUCKETS:
             apply_bucket(run, name, interactive=True)
 
+    outcome = run["outcome"]
     if interactive:
-        outcome = run["outcome"]
         print("\nOutcome")
         if outcome["model_stopped"] is not None:
             stopped_default = bool(outcome["model_stopped"])
@@ -1328,6 +1361,8 @@ def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bo
             page_default = "true"
         elif outcome["operator_saw_a_page"] is False:
             page_default = "false"
+        elif runtime_data and isinstance(runtime_data.get("passed"), bool):
+            page_default = "true" if runtime_data["passed"] else "false"
         else:
             page_default = "unknown"
         saw_page = prompt("  Operator saw a page? (true/false/unknown)", page_default).lower()
@@ -1343,6 +1378,9 @@ def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bo
             "  Additional observations",
             observation_default(run, tool_summary, include_other=tool_counts_applied),
         )
+
+    if outcome.get("operator_saw_a_page") is None and runtime_data and isinstance(runtime_data.get("passed"), bool):
+        outcome["operator_saw_a_page"] = runtime_data["passed"]
 
     if not isinstance(run.get("observations"), str):
         run["observations"] = ""
@@ -1376,6 +1414,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--skip-usage-copy", action="store_true", help="Only scrub files already in usage/.")
     parser.add_argument("--skip-metrics", action="store_true", help="Skip run.json prompts.")
     parser.add_argument("--compare-only", action="store_true", help="Only run compare_runs.py.")
+    parser.add_argument("--verify", action="store_true", help="Run verify_run Playwright smoke test before completing run.json.")
+    parser.add_argument("--skip-verify", action="store_true", help="Skip Playwright verification.")
     return parser
 
 
@@ -1405,7 +1445,13 @@ def main() -> int:
         print("Scrubbed usage export (no secret patterns matched).")
 
     if not args.skip_metrics:
-        complete_run_json(run_dir, usage_paths, interactive=True)
+        complete_run_json(
+            run_dir,
+            usage_paths,
+            interactive=True,
+            verify=args.verify,
+            skip_verify=args.skip_verify,
+        )
 
     sync_run_to_readme(run_dir)
 

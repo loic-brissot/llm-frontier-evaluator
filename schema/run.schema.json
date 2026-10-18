@@ -162,7 +162,66 @@
         "summary": {"type": "string", "default": ""}
       }
     },
-    "observations": {"type": "string", "default": ""}
+    "observations": {"type": "string", "default": ""},
+    "verification": {
+      "type": ["object", "null"],
+      "default": null,
+      "additionalProperties": true,
+      "properties": {
+        "runtime": {
+          "type": ["object", "null"],
+          "default": null,
+          "additionalProperties": true,
+          "properties": {
+            "passed": {"type": "boolean"},
+            "http_status": {"type": ["integer", "null"]},
+            "url": {"type": "string"},
+            "server_mode": {
+              "type": "string",
+              "enum": ["static", "command", "external_url", "none"]
+            },
+            "load_time_ms": {"type": ["number", "null"]},
+            "console_errors": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "console_warnings_count": {"type": "integer", "minimum": 0},
+            "page_errors": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "failed_requests": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "url": {"type": "string"},
+                  "reason": {"type": "string"},
+                  "status": {"type": ["integer", "null"]}
+                }
+              }
+            },
+            "dom": {
+              "type": ["object", "null"],
+              "additionalProperties": true,
+              "properties": {
+                "title": {"type": "string"},
+                "canvas_count": {"type": "integer", "minimum": 0},
+                "svg_count": {"type": "integer", "minimum": 0},
+                "webgl_context": {"type": "boolean"},
+                "text_length": {"type": "integer", "minimum": 0}
+              }
+            },
+            "screenshot_path": {"type": ["string", "null"]},
+            "verified_at": {"type": "string"}
+          }
+        },
+        "data_pipeline": {
+          "type": ["object", "null"]
+        }
+      }
+    }
   },
   "allOf": [
     {

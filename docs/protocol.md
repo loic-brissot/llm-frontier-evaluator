@@ -52,14 +52,15 @@ Operator messages, hints, and manual edits belong to a follow-up. They do not be
 
 ## After the model stops
 
-Run `python3 scripts/finish_run.py --prompt <prompt-id> --run-id <run-id>`. It copies the usage export, scrubs credentials, reads a JSON usage object or a usage CSV, walks through `run.json`, and runs `compare_runs.py`.
+Run `python3 scripts/finish_run.py --prompt <prompt-id> --run-id <run-id>` (add `--verify` to execute the automated Playwright smoke test during completion). Alternatively, run `python3 scripts/verify_run.py --prompt <prompt-id> --run-id <run-id> --update-run-json`.
 
 1. Save the harness usage export in `runs/<prompt-id>/<run-id>/usage/`.
 2. Remove credentials from that export before you commit it.
-3. Complete `run.json` from the export. Use `docs/metrics.md`.
-4. Classify each tool with `docs/tool-buckets.md`. `finish_run.py` reads `tool-events/` when that directory has records.
-5. Run `python3 scripts/compare_runs.py`. Use `--check-readme` to verify `README.md` comparison tables match all run records, or `--sync-readme` to update `README.md` in place.
-6. Commit `run.json` and the usage export.
+3. Run automated headless verification with `python3 scripts/verify_run.py` (or `finish_run.py --verify`). The verification script inspects `workspace/` without mutating any workspace files, launches the app or static server, records HTTP status, console errors, uncaught exceptions, and DOM/WebGL state, saves standard screenshots to `runs/<prompt-id>/<run-id>/artifacts/screenshot.png` and structured telemetry to `artifacts/runtime.json`.
+4. Complete `run.json` from the export. Use `docs/metrics.md`. `finish_run.py` automatically loads `artifacts/runtime.json` to pre-fill `outcome.operator_saw_a_page` and store `verification.runtime`.
+5. Classify each tool with `docs/tool-buckets.md`. `finish_run.py` reads `tool-events/` when that directory has records.
+6. Run `python3 scripts/compare_runs.py`. Use `--check-readme` to verify `README.md` comparison tables match all run records, or `--sync-readme` to update `README.md` in place.
+7. Commit `run.json`, `artifacts/`, and the usage export.
 
 `.gitignore` omits `workspace/` and `tool-events/`. Keep downloaded open data and generated geometry in `workspace/`. Keep the ODbL attribution with that data.
 
