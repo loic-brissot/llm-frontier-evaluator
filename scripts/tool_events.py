@@ -22,6 +22,7 @@ NAME_BUCKETS = {
     "shell": "shell",
     "bash": "shell",
     "localshell": "shell",
+    "awaitshell": "shell",
     "read": "files",
     "write": "files",
     "edit": "files",
@@ -38,6 +39,10 @@ NAME_BUCKETS = {
     "askquestion": "other",
     "generateimage": "other",
     "readlints": "other",
+    "creategoal": "other",
+    "updategoal": "other",
+    "getdynamictools": "other",
+    "calldynamictool": "other",
 }
 
 
@@ -68,8 +73,26 @@ class ToolEventSummary:
     other_tools: list[str] = field(default_factory=list)
 
 
-def bucket_for(tool_name: str) -> str:
+def effective_tool_name(tool_name: str, tool_input: object = None) -> str:
     leaf = tool_name.split(":")[-1]
+    key = re.sub(r"[^a-z0-9]+", "", leaf.lower())
+    if key in ("calldynamictool", "calldynamic"):
+        inp = tool_input
+        if isinstance(inp, str) and inp.strip().startswith("{"):
+            try:
+                inp = json.loads(inp)
+            except Exception:
+                pass
+        if isinstance(inp, dict):
+            inner = inp.get("toolName") or inp.get("tool_name") or inp.get("name")
+            if isinstance(inner, str) and inner.strip():
+                return inner.strip()
+    return tool_name
+
+
+def bucket_for(tool_name: str, tool_input: object = None) -> str:
+    eff_name = effective_tool_name(tool_name, tool_input)
+    leaf = eff_name.split(":")[-1]
     key = re.sub(r"[^a-z0-9]+", "", leaf.lower())
     mapped = NAME_BUCKETS.get(key)
     if mapped:
@@ -77,7 +100,9 @@ def bucket_for(tool_name: str) -> str:
     lowered = leaf.lower()
     if "screenshot" in lowered or "snapshot" in lowered:
         return "visual_checks"
-    if "browser" in lowered and "console" in lowered:
+    if "browser" in lowered or "playwright" in lowered or "puppeteer" in lowered:
+        return "visual_checks"
+    if key in ("computer", "takescreenshot"):
         return "visual_checks"
     if "publish" in lowered or key == "deploy":
         return "web"
@@ -313,6 +338,20 @@ def _empty_buckets() -> dict[str, dict]:
     }
 
 
+def _prompt_matches(record: dict, expected_path: Path) -> bool:
+    if record.get("hook_event_name") != "beforeSubmitPrompt":
+        return False
+    prompt_text = record.get("prompt")
+    if not isinstance(prompt_text, str) or not expected_path.is_file():
+        return False
+    expected = expected_path.read_text(encoding="utf-8")
+    if prompt_text == expected:
+        return True
+    if record.get("prompt_truncated") and expected.startswith(prompt_text):
+        return True
+    return False
+
+
 def summarize_records(
     records: list[dict],
     notes: list[str] | None = None,
@@ -323,6 +362,41 @@ def summarize_records(
     if not records:
         return summary
     summary.present = True
+
+    conv_ids = {r.get("conversation_id") for r in records if r.get("conversation_id") is not None}
+    if len(conv_ids) > 1:
+        selected_cid = None
+        if expected_prompt_path is not None and expected_prompt_path.is_file():
+            for cid in sorted(conv_ids):
+                conv_prompts = [
+                    r for r in records
+                    if r.get("conversation_id") == cid and r.get("hook_event_name") == "beforeSubmitPrompt"
+                ]
+                conv_prompts.sort(key=lambda r: parse_time(r.get("logged_at")) or datetime.max.replace(tzinfo=timezone.utc))
+                if conv_prompts and _prompt_matches(conv_prompts[0], expected_prompt_path):
+                    selected_cid = cid
+                    break
+
+        if selected_cid is None:
+            prompts_all = [r for r in records if r.get("hook_event_name") == "beforeSubmitPrompt"]
+            prompts_all.sort(key=lambda r: parse_time(r.get("logged_at")) or datetime.max.replace(tzinfo=timezone.utc))
+            for p in prompts_all:
+                cid = p.get("conversation_id")
+                if cid is not None and cid in conv_ids:
+                    selected_cid = cid
+                    break
+
+        if selected_cid is not None:
+            ignored_cids = sorted(conv_ids - {selected_cid})
+            records = [r for r in records if r.get("conversation_id") == selected_cid]
+            summary.notes.append(
+                f"Ignored {len(ignored_cids)} extra conversation(s) in tool-events log ({', '.join(ignored_cids)})."
+            )
+        else:
+            ignored_cids = sorted(conv_ids)
+            summary.notes.append(
+                f"Multiple conversations found in tool-events log ({', '.join(ignored_cids)})."
+            )
 
     prompts = [record for record in records if record.get("hook_event_name") == "beforeSubmitPrompt"]
     stops = [record for record in records if record.get("hook_event_name") == "stop"]
@@ -403,13 +477,15 @@ def summarize_records(
             nameless += 1
             continue
         name = name.strip()
-        bucket = bucket_for(name)
+        tool_input = record.get("tool_input")
+        eff_name = effective_tool_name(name, tool_input)
+        bucket = bucket_for(name, tool_input)
         failed = is_failed(record)
         entry = buckets[bucket]
         entry["calls"] += 1
         if failed:
             entry["failures"] += 1
-        tool_counts = entry["by_tool"].setdefault(name, {"calls": 0, "failures": 0})
+        tool_counts = entry["by_tool"].setdefault(eff_name, {"calls": 0, "failures": 0})
         tool_counts["calls"] += 1
         if failed:
             tool_counts["failures"] += 1
