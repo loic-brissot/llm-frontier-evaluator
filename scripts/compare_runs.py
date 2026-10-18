@@ -88,6 +88,11 @@ def format_tools(calls: int, failures: int) -> str:
 
 
 def format_reference_cost(run: dict) -> str:
+    """Format estimated public API list-price cost for a reference run.
+
+    Est. cost reflects public per-1M-token API list prices from pricing reference data.
+    Harness-billed CSV costs are recorded separately in tokens.raw.usage_csv.cost.
+    """
     tokens = run["tokens_generated"]
     out_tokens = (
         Decimal(tokens["reasoning_thousands_bar"]) + Decimal(tokens["visible_thousands_bar"])
@@ -105,6 +110,12 @@ def format_reference_cost(run: dict) -> str:
 
 
 def format_local_cost(run: dict) -> str:
+    """Format estimated public API list-price cost for a local run.
+
+    Est. cost reflects public per-1M-token API list prices (including context variants
+    and long-context thresholds). Actual harness-billed CSV costs (which include harness
+    surcharges or plan rates) are recorded in tokens.raw.usage_csv.cost.
+    """
     tokens = run.get("tokens") or {}
     raw = tokens.get("raw") if isinstance(tokens.get("raw"), dict) else {}
     pricing_block = raw.get("pricing") if isinstance(raw.get("pricing"), dict) else {}

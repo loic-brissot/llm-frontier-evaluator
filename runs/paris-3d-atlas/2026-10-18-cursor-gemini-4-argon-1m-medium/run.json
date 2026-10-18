@@ -65,14 +65,19 @@
       "pricing": {
         "as_of": "2026-10-18",
         "model_id": "gemini-4-argon",
-        "context_variant": null,
+        "context_variant": "1m",
+        "long_context_applied": true,
+        "harness": "cursor",
+        "harness_token_rate_per_1m": "0.25",
+        "harness_surcharge_usd": "1.69",
         "rates_per_1m_usd": {
-          "input": "2.00",
+          "input": "4.00",
           "cache_write": "0.00",
-          "cache_read": "0.10",
-          "output": "10.00"
+          "cache_read": "0.20",
+          "output": "15.00"
         },
-        "estimated_cost_usd": "3.06"
+        "estimated_cost_usd": "5.37",
+        "estimated_cost_with_harness_usd": "7.05"
       }
     }
   },
