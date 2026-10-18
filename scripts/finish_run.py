@@ -1199,10 +1199,13 @@ def apply_pricing_estimate(run: dict, summary: ToolEventSummary | None = None) -
     )
     if estimate is not None:
         run["tokens"].setdefault("raw", {})["pricing"] = estimate
-        print(
+        msg = (
             f"Estimated public API cost ({estimate['model_id']} as of {estimate['as_of']}): "
             f"${estimate['estimated_cost_usd']}"
         )
+        if Decimal(estimate.get("harness_surcharge_usd", "0")) > 0:
+            msg += f" (with {estimate['harness']} harness surcharge: ${estimate['estimated_cost_with_harness_usd']})"
+        print(msg)
 
 
 def observation_default(run: dict, summary: ToolEventSummary, *, include_other: bool) -> str:

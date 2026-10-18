@@ -373,6 +373,8 @@ def lookup_model_pricing(
     *,
     context: str | None = None,
     harness: str | None = None,
+    total_input_tokens: int | Decimal | None = None,
+    use_long_context: bool | None = None,
 ) -> dict | None:
     """Find the pricing entry in reference/pricing-2026-10-18.json for `model_name`."""
     pricing = load_pricing()
@@ -406,24 +408,80 @@ def lookup_model_pricing(
     if matched is None:
         return None
 
-    result = {
-        "model_id": matched["id"],
-        "as_of": pricing.get("as_of"),
-        "input": Decimal(str(matched.get("input", "0"))),
-        "cache_write": Decimal(str(matched.get("cache_write", "0"))),
-        "cache_read": Decimal(str(matched.get("cache_read", "0"))),
-        "output": Decimal(str(matched.get("output", "0"))),
-    }
+    input_rate = Decimal(str(matched.get("input", "0")))
+    cache_write_rate = Decimal(str(matched.get("cache_write", "0")))
+    cache_read_rate = Decimal(str(matched.get("cache_read", "0")))
+    output_rate = Decimal(str(matched.get("output", "0")))
+
+    context_variant_applied = None
     variants = matched.get("context_variants")
     if context and isinstance(variants, dict):
         ctx_key = context.strip().lower()
         variant = variants.get(ctx_key)
         if isinstance(variant, dict):
-            for key in ("input", "cache_write", "cache_read", "output"):
-                if key in variant:
-                    result[key] = Decimal(str(variant[key]))
-            result["context_variant"] = ctx_key
-    return result
+            if "input" in variant:
+                input_rate = Decimal(str(variant["input"]))
+            if "cache_write" in variant:
+                cache_write_rate = Decimal(str(variant["cache_write"]))
+            if "cache_read" in variant:
+                cache_read_rate = Decimal(str(variant["cache_read"]))
+            if "output" in variant:
+                output_rate = Decimal(str(variant["output"]))
+            context_variant_applied = ctx_key
+
+    long_context_applied = False
+    lc = matched.get("long_context")
+    if isinstance(lc, dict) and context_variant_applied is None:
+        threshold = lc.get("threshold_input_tokens")
+        should_apply = False
+        if use_long_context is True:
+            should_apply = True
+        elif use_long_context is not False and total_input_tokens is not None and threshold is not None:
+            if Decimal(str(total_input_tokens)) > Decimal(str(threshold)):
+                should_apply = True
+        if should_apply:
+            if "input" in lc:
+                input_rate = Decimal(str(lc["input"]))
+            if "cache_write" in lc:
+                cache_write_rate = Decimal(str(lc["cache_write"]))
+            if "cache_read" in lc:
+                cache_read_rate = Decimal(str(lc["cache_read"]))
+            if "output" in lc:
+                output_rate = Decimal(str(lc["output"]))
+            long_context_applied = True
+
+    harness_surcharge_rate = Decimal("0")
+    canon_harness = canonical_harness(harness) if harness else None
+    if canon_harness:
+        harnesses_cfg = pricing.get("harnesses") or {}
+        harness_info = harnesses_cfg.get(canon_harness) or {}
+        third_party_rate = Decimal(str(harness_info.get("third_party_token_rate_per_1m", "0")))
+
+        provider = str(matched.get("provider") or "").lower()
+        first_party_providers = [
+            str(p).lower() for p in (harness_info.get("first_party_providers") or [])
+        ]
+        is_first_party = (
+            (canon_harness == "cursor" and matched.get("first_party_in_cursor") is True)
+            or (provider in first_party_providers)
+            or (provider == canon_harness)
+        )
+        if not is_first_party:
+            harness_surcharge_rate = third_party_rate
+
+    return {
+        "as_of": pricing.get("as_of"),
+        "model_id": matched["id"],
+        "provider": matched.get("provider"),
+        "input": input_rate,
+        "cache_write": cache_write_rate,
+        "cache_read": cache_read_rate,
+        "output": output_rate,
+        "context_variant": context_variant_applied,
+        "long_context_applied": long_context_applied,
+        "harness": canon_harness,
+        "harness_token_rate_per_1m": harness_surcharge_rate,
+    }
 
 
 def estimate_token_cost(
@@ -435,32 +493,54 @@ def estimate_token_cost(
     output_tokens: int | Decimal = 0,
     context: str | None = None,
     harness: str | None = None,
+    use_long_context: bool | None = None,
 ) -> dict | None:
-    """Compute estimated USD cost from public per-1M-token rates."""
-    rates = lookup_model_pricing(model_name, context=context, harness=harness)
-    if rates is None:
-        return None
-    million = Decimal(1_000_000)
+    """Compute estimated USD cost from public per-1M-token rates and harness surcharges."""
     u = Decimal(uncached_input_tokens or 0)
     cw = Decimal(cache_write_tokens or 0)
     cr = Decimal(cache_read_tokens or 0)
     out = Decimal(output_tokens or 0)
-    cost = (
+    total_input = u + cw + cr
+    total_tokens = total_input + out
+
+    rates = lookup_model_pricing(
+        model_name,
+        context=context,
+        harness=harness,
+        total_input_tokens=total_input,
+        use_long_context=use_long_context,
+    )
+    if rates is None:
+        return None
+    million = Decimal(1_000_000)
+    base_cost = (
         u * rates["input"]
         + cw * rates["cache_write"]
         + cr * rates["cache_read"]
         + out * rates["output"]
     ) / million
+    harness_surcharge = (total_tokens * rates["harness_token_rate_per_1m"]) / million
+    total_cost_with_harness = base_cost + harness_surcharge
+
+    est_base = base_cost.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    est_surcharge = harness_surcharge.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    est_total = total_cost_with_harness.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
     return {
         "as_of": rates["as_of"],
         "model_id": rates["model_id"],
         "context_variant": rates.get("context_variant"),
+        "long_context_applied": rates.get("long_context_applied", False),
+        "harness": rates.get("harness"),
+        "harness_token_rate_per_1m": str(rates["harness_token_rate_per_1m"]),
+        "harness_surcharge_usd": str(est_surcharge),
         "rates_per_1m_usd": {
             "input": str(rates["input"]),
             "cache_write": str(rates["cache_write"]),
             "cache_read": str(rates["cache_read"]),
             "output": str(rates["output"]),
         },
-        "estimated_cost_usd": str(cost.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+        "estimated_cost_usd": str(est_base),
+        "estimated_cost_with_harness_usd": str(est_total),
     }
 

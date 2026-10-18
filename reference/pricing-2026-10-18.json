@@ -239,7 +239,23 @@
       "input": "2.00",
       "cache_write": "0.00",
       "cache_read": "0.10",
-      "output": "10.00"
+      "output": "10.00",
+      "context_variants": {
+        "1m": {
+          "input": "4.00",
+          "cache_write": "0.00",
+          "cache_read": "0.20",
+          "output": "15.00",
+          "note": "Long context (>200k input tokens, up to 1M) is billed at long-context rates."
+        }
+      },
+      "long_context": {
+        "threshold_input_tokens": 200000,
+        "input": "4.00",
+        "cache_write": "0.00",
+        "cache_read": "0.20",
+        "output": "15.00"
+      }
     },
     {
       "id": "gemini-3-1-pro",
@@ -249,7 +265,23 @@
       "input": "2.00",
       "cache_write": "0.00",
       "cache_read": "0.20",
-      "output": "12.00"
+      "output": "12.00",
+      "context_variants": {
+        "1m": {
+          "input": "4.00",
+          "cache_write": "0.00",
+          "cache_read": "0.40",
+          "output": "18.00",
+          "note": "Long context (>200k input tokens, up to 1M) is billed at long-context rates."
+        }
+      },
+      "long_context": {
+        "threshold_input_tokens": 200000,
+        "input": "4.00",
+        "cache_write": "0.00",
+        "cache_read": "0.40",
+        "output": "18.00"
+      }
     },
     {
       "id": "gemini-3-8-flash",

@@ -132,6 +132,11 @@ On a Cursor row, `Total Tokens` equals cache write, uncached input, cache read, 
 
 This reading does not change `rules_version`.
 
+## Cost estimation (`Est. cost`) vs harness-billed cost
+
+- **Public API list-price `Est. cost`**: Computed by `scripts/run_common.py` (`estimate_token_cost()`) and recorded in `tokens.raw.pricing`. It uses public per-1M-token API list prices from `reference/pricing-2026-10-18.json`. It applies context variants (e.g., `500k`, `1m`) and long-context input token thresholds (`threshold_input_tokens`). When third-party harness surcharges apply (such as Cursor's `$0.25/1M` rate on third-party models), `estimate_token_cost()` calculates both `estimated_cost_usd` (base API list price) and `estimated_cost_with_harness_usd` (base API cost + harness surcharge).
+- **Actual harness-billed CSV cost**: Recorded in `tokens.raw.usage_csv.cost` directly from harness exports (e.g. Cursor team usage CSV). It reflects actual account billing, including harness third-party token surcharges, team/enterprise plan rates, and provider rounding.
+
 ## Rounding
 
 Local rows use this function: round half away from zero.
