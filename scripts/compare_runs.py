@@ -10,6 +10,7 @@ rules_version.
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import sys
 from decimal import Decimal, ROUND_HALF_UP
@@ -347,83 +348,146 @@ def _row_key(markdown_row: str) -> tuple[str, str, str] | None:
     return parts[0], parts[1], parts[2]
 
 
-def update_readme_comparisons(run: dict, readme_path: Path = README_PATH) -> bool:
-    """Insert or update `run` under `## Comparisons` in README.md."""
-    if run.get("shot") == "follow-up" or not readme_path.is_file():
+def generate_readme_comparisons(
+    readme_path: Path = README_PATH,
+    reference_path: Path = REFERENCE_PATH,
+) -> str:
+    lines = [
+        "## Comparisons",
+        "",
+        "Rows compare only inside one series, so each series has its own table ([`docs/protocol.md`](docs/protocol.md)).",
+        "",
+    ]
+
+    reference = None
+    if reference_path.is_file():
+        try:
+            reference = load_json(reference_path)
+        except (OSError, json.JSONDecodeError, ValueError):
+            reference = None
+
+    if reference:
+        series_id = reference.get("series_id", "2026-10-11-lassence")
+        lines.append(
+            f"**Reference series `{series_id}`**: Claude Code and Codex app, transcribed from [bench.lassence.net](https://bench.lassence.net/) ([`reference/`](reference/README.md))."
+        )
+        lines.append("")
+        lines.append(
+            "| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost |"
+        )
+        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
+        prompt_id = reference.get("prompt_id", "paris-3d-atlas")
+        for run in reference.get("runs", []):
+            model_name = run.get("model_name", "")
+            reasoning = run.get("reasoning", "")
+            model_str = f"{model_name} {reasoning}"
+            harness = reference_harness(run)
+            tokens = run.get("tokens_generated", {}).get("display", "")
+            mtime = run.get("model_time", {}).get("display", "")
+            tools = run.get("tool_calls", {}).get("display", "")
+            cache = run.get("context_reread", {}).get("display", "")
+            cost = format_reference_cost(run)
+            lines.append(
+                f"| `{prompt_id}` | {model_str} | {harness} | {tokens} | {mtime} | {tools} | {cache} | {cost} |"
+            )
+        lines.append("")
+
+    run_paths = [run_dir / "run.json" for run_dir in sorted(discover_run_dirs())]
+    valid_primary_runs = []
+    for path in run_paths:
+        try:
+            run = load_json(path)
+        except (OSError, json.JSONDecodeError, ValueError):
+            continue
+        if check_local_run(run, path):
+            continue
+        if run.get("shot") == "follow-up":
+            continue
+        valid_primary_runs.append(run)
+
+    series_groups: dict[str, list[dict]] = {}
+    for run in valid_primary_runs:
+        sid = run["series_id"]
+        series_groups.setdefault(sid, []).append(run)
+
+    for sid, runs in series_groups.items():
+        harnesses = sorted({harness_label(r["harness"]["name"]) for r in runs})
+        harness_text = ", ".join(harnesses)
+        lines.append(
+            f"**Local series `{sid}`**: {harness_text}, recorded with this repository ([`runs/`](runs/README.md))."
+        )
+        lines.append("")
+        lines.append(LOCAL_TABLE_HEADER)
+        lines.append(LOCAL_TABLE_RULE)
+        for run in runs:
+            lines.append(readme_row(run))
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def sync_readme(
+    check_only: bool = False,
+    readme_path: Path = README_PATH,
+    reference_path: Path = REFERENCE_PATH,
+) -> bool:
+    if not readme_path.is_file():
+        if check_only:
+            print(f"Error: {readme_path} does not exist", file=sys.stderr)
         return False
 
-    series_id = run["series_id"]
-    harness_display = harness_label(run["harness"]["name"])
-    row_line = readme_row(run)
-    target_key = _row_key(row_line)
-    series_marker = f"**Local series `{series_id}`**:"
+    expected_block = generate_readme_comparisons(readme_path, reference_path)
 
-    lines = readme_path.read_text(encoding="utf-8").splitlines()
+    readme_content = readme_path.read_text(encoding="utf-8")
+    readme_lines = readme_content.splitlines()
+
     try:
-        comp_idx = next(i for i, line in enumerate(lines) if line.strip() == "## Comparisons")
+        comp_idx = next(i for i, line in enumerate(readme_lines) if line.strip() == "## Comparisons")
     except StopIteration:
+        if check_only:
+            print("Error: '## Comparisons' heading not found in README.md", file=sys.stderr)
         return False
 
-    # Bound of the comparisons tables section (before the first ### or ## heading).
-    section_end = len(lines)
-    for idx in range(comp_idx + 1, len(lines)):
-        if lines[idx].startswith("## ") or lines[idx].startswith("### "):
+    section_end = len(readme_lines)
+    for idx in range(comp_idx + 1, len(readme_lines)):
+        if readme_lines[idx].startswith("## ") or readme_lines[idx].startswith("### "):
             section_end = idx
             break
 
-    series_idx = None
-    for idx in range(comp_idx + 1, section_end):
-        if lines[idx].strip().startswith(series_marker):
-            series_idx = idx
-            break
+    existing_block = "\n".join(readme_lines[comp_idx:section_end]).strip()
+    target_block = expected_block.strip()
 
-    if series_idx is not None:
-        # Find the markdown table immediately following the series header.
-        table_start = None
-        for idx in range(series_idx + 1, section_end):
-            if lines[idx].strip().startswith("|"):
-                table_start = idx
-                break
-            if lines[idx].strip().startswith("**"):
-                break
-        if table_start is not None:
-            changed = False
-            if lines[table_start].strip() != LOCAL_TABLE_HEADER:
-                lines[table_start] = LOCAL_TABLE_HEADER
-                changed = True
-            if table_start + 1 < section_end and lines[table_start + 1].strip().startswith("| ---"):
-                if lines[table_start + 1].strip() != LOCAL_TABLE_RULE:
-                    lines[table_start + 1] = LOCAL_TABLE_RULE
-                    changed = True
-            table_end = table_start
-            while table_end < section_end and lines[table_end].strip().startswith("|"):
-                if target_key is not None and _row_key(lines[table_end]) == target_key:
-                    if lines[table_end] == row_line and not changed:
-                        return False
-                    lines[table_end] = row_line
-                    readme_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-                    return True
-                table_end += 1
-            lines.insert(table_end, row_line)
-            readme_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-            return True
+    if existing_block == target_block:
+        if check_only:
+            print("README.md comparison tables are in sync with run records.")
+        else:
+            print("README.md comparison tables are already in sync.")
+        return True
 
-    # Create a new Local series block before `section_end`.
-    insert_at = section_end
-    while insert_at > comp_idx + 1 and not lines[insert_at - 1].strip():
-        insert_at -= 1
-    new_block = [
-        "",
-        f"**Local series `{series_id}`**: {harness_display}, recorded with this repository ([`runs/`](runs/README.md)).",
-        "",
-        LOCAL_TABLE_HEADER,
-        LOCAL_TABLE_RULE,
-        row_line,
-        "",
-    ]
-    lines[insert_at:section_end] = new_block
-    readme_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if check_only:
+        print("README.md comparison tables are out of sync with run records:")
+        diff = difflib.unified_diff(
+            existing_block.splitlines(keepends=True),
+            target_block.splitlines(keepends=True),
+            fromfile="README.md (current)",
+            tofile="README.md (expected)",
+        )
+        for line in diff:
+            sys.stdout.write(line)
+        return False
+
+    new_lines = readme_lines[:comp_idx] + target_block.splitlines() + [""] + readme_lines[section_end:]
+    new_content = "\n".join(new_lines).rstrip() + "\n"
+    readme_path.write_text(new_content, encoding="utf-8")
+    print("Updated README.md comparison tables.")
     return True
+
+
+def update_readme_comparisons(run: dict, readme_path: Path = README_PATH) -> bool:
+    """Insert or update comparison tables in README.md."""
+    if run.get("shot") == "follow-up" or not readme_path.is_file():
+        return False
+    return sync_readme(check_only=False, readme_path=readme_path)
 
 
 def print_table(headers: list[str], rows: list[list[str]]) -> None:
@@ -486,6 +550,16 @@ def main() -> int:
         dest="prompt_id",
         help="Only check and print runs for this prompt id (directory under runs/).",
     )
+    parser.add_argument(
+        "--check-readme",
+        action="store_true",
+        help="Check if README.md comparison tables match run records.",
+    )
+    parser.add_argument(
+        "--sync-readme",
+        action="store_true",
+        help="Update README.md comparison tables to match run records.",
+    )
     args = parser.parse_args()
 
     errors = check_prompt()
@@ -524,6 +598,16 @@ def main() -> int:
             continue
         selected.append(run)
     local_errors.extend(check_series_versions(valid))
+
+    if args.check_readme or args.sync_readme:
+        all_errors = errors + local_errors
+        if all_errors:
+            print("Errors:")
+            for line in all_errors:
+                print(f"- {line}")
+            return 1
+        success = sync_readme(check_only=args.check_readme)
+        return 0 if success else 1
 
     if reference is not None and not errors:
         print_reference(reference)

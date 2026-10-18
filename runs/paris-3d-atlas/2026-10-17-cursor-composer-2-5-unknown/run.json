@@ -91,28 +91,28 @@
   },
   "tool_calls": {
     "shell": {
-      "calls": 0,
-      "failures": 0,
+      "calls": null,
+      "failures": null,
       "by_tool": {}
     },
     "files": {
-      "calls": 0,
-      "failures": 0,
+      "calls": null,
+      "failures": null,
       "by_tool": {}
     },
     "visual_checks": {
-      "calls": 0,
-      "failures": 0,
+      "calls": null,
+      "failures": null,
       "by_tool": {}
     },
     "web": {
-      "calls": 0,
-      "failures": 0,
+      "calls": null,
+      "failures": null,
       "by_tool": {}
     },
     "other": {
-      "calls": 0,
-      "failures": 0,
+      "calls": null,
+      "failures": null,
       "by_tool": {}
     }
   },

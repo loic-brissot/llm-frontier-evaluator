@@ -58,7 +58,7 @@ Run `python3 scripts/finish_run.py --prompt <prompt-id> --run-id <run-id>`. It c
 2. Remove credentials from that export before you commit it.
 3. Complete `run.json` from the export. Use `docs/metrics.md`.
 4. Classify each tool with `docs/tool-buckets.md`. `finish_run.py` reads `tool-events/` when that directory has records.
-5. Run `python3 scripts/compare_runs.py`.
+5. Run `python3 scripts/compare_runs.py`. Use `--check-readme` to verify `README.md` comparison tables match all run records, or `--sync-readme` to update `README.md` in place.
 6. Commit `run.json` and the usage export.
 
 `.gitignore` omits `workspace/` and `tool-events/`. Keep downloaded open data and generated geometry in `workspace/`. Keep the ODbL attribution with that data.

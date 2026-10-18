@@ -28,14 +28,14 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 | Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost | Outcome |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `paris-3d-atlas` | composer-2.5-fast unknown | Cursor | n/a | n/a | n/a | 1.1M | $1.06 | Stuck on a loading page |
-| `paris-3d-atlas` | gemini-3.1-pro unknown | Cursor | n/a | n/a | 56 13✗ | 1.9M | $1.35 | Working one-page visualization |
+| `paris-3d-atlas` | gemini-3.1-pro unknown | Cursor | n/a | n/a | 56 13✗ | 1.9M | $1.46 | Working one-page visualization |
 | `paris-3d-atlas` | grok-4.7 500k xhigh | Cursor | n/a | n/a | n/a | 39.3M | $51.68 | Working one-page visualization |
 
 **Local series `paris-3d-atlas-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
 | Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost | Outcome |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `paris-3d-atlas` | Gemini 4 Argon 1m medium | Cursor | n/a | 22.8 min | 89 19✗ | 6.1M | $3.06 | Great visualization with the option to deep-dive on each borough |
+| `paris-3d-atlas` | Gemini 4 Argon 1m medium | Cursor | n/a | 22.8 min | 89 19✗ | 6.1M | $5.37 | Great visualization with the option to deep-dive on each borough |
 
 ### Glossary
 1. Tokens generated: Reasoning tokens and visible tokens, in thousands. The percent is the reasoning share.
@@ -61,7 +61,7 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 3. Send `prompt/<prompt-id>.txt` as the only user message (e.g. [`prompt/paris-3d-atlas.txt`](prompt/paris-3d-atlas.txt)).
 4. Copy [`templates/run.json`](templates/run.json) to `runs/<prompt-id>/<run-id>/run.json`.
 5. Apply [`docs/metrics.md`](docs/metrics.md) and [`docs/tool-buckets.md`](docs/tool-buckets.md).
-6. Print the table with `python3 scripts/compare_runs.py` (add `--prompt <prompt-id>` for one prompt only).
+6. Print the table with `python3 scripts/compare_runs.py` (add `--prompt <prompt-id>` for one prompt only, `--check-readme` to verify `README.md` comparison tables match run records, or `--sync-readme` to update `README.md`).
 
 `scripts/setup_run.py --prompt <prompt-id>` creates the run directory and its id, `YYYY-MM-DD-<harness>-<model>-<context>-<reasoning>`. The `<context>` segment appears only on Cursor runs that have a context set; it is optional even there, and when it is not filled `model.context` is null and the segment is omitted. The effort levels it proposes are harness-specific: `minimal`, `low`, `medium`, `high`, `xhigh`, `max` for Cursor, and `low`, `medium`, `high`, `ultra`, `max`, `ultracode` for Claude (`claude-code`). Reasoning is optional: when it is not filled, `model.reasoning` defaults to `unknown` (null is accepted as the same not-set value) and the run id ends in `-unknown`.
 

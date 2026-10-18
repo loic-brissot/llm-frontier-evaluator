@@ -19,7 +19,7 @@
   },
   "wall_clock": {
     "started_at": "2026-10-16T23:39:46Z",
-    "ended_at": "2026-10-17T01:22:42Z"
+    "ended_at": "2026-10-17T01:44:58Z"
   },
   "tokens": {
     "split_rule": "unavailable",
@@ -29,7 +29,7 @@
       "usage_csv": {
         "events_in_file": 6,
         "events_selected": 6,
-        "selection": "6 events. No model name matches grok-4-7. Inside the run window.",
+        "selection": "6 events. Exact model match for grok-4.7. Inside the run window.",
         "files": [
           "team-usage-events-2026-10-17.csv"
         ],
@@ -91,28 +91,28 @@
   },
   "tool_calls": {
     "shell": {
-      "calls": 0,
-      "failures": 0,
+      "calls": null,
+      "failures": null,
       "by_tool": {}
     },
     "files": {
-      "calls": 0,
-      "failures": 0,
+      "calls": null,
+      "failures": null,
       "by_tool": {}
     },
     "visual_checks": {
-      "calls": 0,
-      "failures": 0,
+      "calls": null,
+      "failures": null,
       "by_tool": {}
     },
     "web": {
-      "calls": 0,
-      "failures": 0,
+      "calls": null,
+      "failures": null,
       "by_tool": {}
     },
     "other": {
-      "calls": 0,
-      "failures": 0,
+      "calls": null,
+      "failures": null,
       "by_tool": {}
     }
   },

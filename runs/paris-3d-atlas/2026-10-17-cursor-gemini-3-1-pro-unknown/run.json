@@ -152,5 +152,5 @@
     "operator_saw_a_page": true,
     "summary": "Working one-page visualization"
   },
-  "observations": "Tool counts use the first prompt and the first stop."
+  "observations": "Ignored 1 extra conversation(s) in tool-events log (5ee0fedd-3fd8-434c-87ae-2a943935aaa1)."
 }
