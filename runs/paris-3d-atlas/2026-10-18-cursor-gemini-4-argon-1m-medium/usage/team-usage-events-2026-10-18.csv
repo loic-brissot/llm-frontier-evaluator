@@ -1,0 +1,2 @@
+Date,User,PR Author,Repo,PR Number,Cloud Agent ID,Automation ID,Kind,Model,Max Mode,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost
+"2026-10-17T23:56:07.664Z",null,"","","","","","Included","gemini-4-argon-medium","No","0","470740","6119003","150767","6740510","4.50"
