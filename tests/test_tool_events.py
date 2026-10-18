@@ -11,10 +11,18 @@ from tool_events import (
     _dedupe_thoughts,
     _are_thoughts_duplicate,
     ToolEventSummary,
+    format_time,
 )
 
 
 class TestToolEvents(unittest.TestCase):
+    def test_format_time_preserves_millisecond_precision(self):
+        dt = datetime(2026, 10, 17, 2, 47, 30, 471611, tzinfo=timezone.utc)
+        self.assertEqual(format_time(dt), "2026-10-17T02:47:30.471Z")
+
+    def test_format_time_whole_second(self):
+        dt = datetime(2026, 10, 17, 2, 47, 30, 0, tzinfo=timezone.utc)
+        self.assertEqual(format_time(dt), "2026-10-17T02:47:30Z")
     def test_dedupe_thoughts_base_and_step_suffixed(self):
         records = [
             {

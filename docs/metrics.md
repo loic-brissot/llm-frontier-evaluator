@@ -116,7 +116,7 @@ The chart cell is millions of tokens, to one decimal, with the suffix `M`. Round
 
 `scripts/finish_run.py` reads a usage CSV by header name and sums the selected rows. A JSON usage object is still read the same way. When both are present, a provider JSON split fills the token split. CSV column sums fill cache figures the JSON does not already contain. When both reports include a cache-read count and the counts differ, the script says so and the prompts default to the CSV sum.
 
-A team export can contain other models, other people, and other times. The default selection keeps rows whose model name matches `model.name`, including a more specific export name such as `composer-2.5-fast` for `composer-2-5`, and whose timestamp falls inside `wall_clock` when those timestamps exist. The script asks for confirmation when that selection leaves rows out, when the export model name is shorter than `model.name`, or when the selected rows contain more than one model, user, or kind.
+A team export can contain other models, other people, and other times. The default selection keeps rows whose model name matches `model.name`, including a more specific export name such as `composer-2.5-fast` for `composer-2-5`, and whose timestamp falls inside `wall_clock` (preserving millisecond precision with a clock-skew grace window) when those timestamps exist. The script asks for confirmation when that selection leaves rows out, when the export model name is shorter than `model.name`, or when the selected rows contain more than one model, user, or kind.
 
 | Header | Where it goes |
 | --- | --- |

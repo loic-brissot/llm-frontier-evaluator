@@ -14,7 +14,7 @@ import subprocess
 import sys
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -496,12 +496,24 @@ def models_match(run_model: str, event_model: str) -> str | None:
     return None
 
 
-def event_in_window(event: UsageEvent, started: datetime | None, ended: datetime | None) -> bool:
+def event_in_window(
+    event: UsageEvent,
+    started: datetime | None,
+    ended: datetime | None,
+    grace_seconds: float = 2.0,
+) -> bool:
+    """Check if a usage event falls within [started - grace, ended + grace].
+
+    Applies a small grace window (default 2 seconds) to preserve sub-second precision,
+    handle whole-second window bounds, and account for minor clock skew / server latency
+    between local tool-event stop hooks and server-side usage export logging.
+    """
     if event.date is None:
         return False
-    if started and event.date < started:
+    grace = timedelta(seconds=grace_seconds)
+    if started and event.date < (started - grace):
         return False
-    if ended and event.date > ended:
+    if ended and event.date > (ended + grace):
         return False
     return True
 
