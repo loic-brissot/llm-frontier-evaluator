@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-frontier-evaluator"
+version = "0.2.0"
+description = "Measurement standard and benchmark harness for LLM frontier evaluation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "jsonschema>=4.18",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[tool.setuptools]
+package-dir = {"" = "scripts"}
+py-modules = ["compare_runs", "finish_run", "run_common", "setup_run", "tool_events"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+src = ["scripts", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]
