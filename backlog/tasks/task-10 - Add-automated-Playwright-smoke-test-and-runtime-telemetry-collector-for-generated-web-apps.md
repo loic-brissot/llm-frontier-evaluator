@@ -3,7 +3,7 @@ id: TASK-10
 title: >-
   Add automated Playwright smoke-test and runtime telemetry collector for
   generated web apps
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-18 02:19'
 labels:
@@ -30,8 +30,8 @@ Outcome tracking currently relies on a manual boolean (operator_saw_a_page) and 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A verification script launches the workspace app (or static server), opens it in headless Playwright, and records HTTP status, console errors, uncaught page errors, and canvas/WebGL presence
-- [ ] #2 Standardized screenshots are captured and saved to runs/<prompt-id>/<run-id>/artifacts/ for visual comparison
-- [ ] #3 schema/run.schema.json optionally records structured verification results alongside outcome
-- [ ] #4 Documentation explains how to run the automated smoke check without mutating workspace files during the primary run
+- [x] #1 A verification script launches the workspace app (or static server), opens it in headless Playwright, and records HTTP status, console errors, uncaught page errors, and canvas/WebGL presence
+- [x] #2 Standardized screenshots are captured and saved to runs/<prompt-id>/<run-id>/artifacts/ for visual comparison
+- [x] #3 schema/run.schema.json optionally records structured verification results alongside outcome
+- [x] #4 Documentation explains how to run the automated smoke check without mutating workspace files during the primary run
 <!-- AC:END -->

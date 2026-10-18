@@ -18,10 +18,13 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.4",
 ]
+verify = [
+    "playwright>=1.40",
+]
 
 [tool.setuptools]
 package-dir = {"" = "scripts"}
-py-modules = ["compare_runs", "finish_run", "run_common", "setup_run", "tool_events"]
+py-modules = ["compare_runs", "finish_run", "run_common", "setup_run", "tool_events", "verify_run"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
