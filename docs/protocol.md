@@ -17,7 +17,7 @@ The post describes the task in five parts. Download the data. Prepare it. Build 
 
 ## Before you start
 
-Run `python3 scripts/setup_run.py --prompt <prompt-id>`. It asks for the prompt, the harness, the model, the optional context on a Cursor run, and the optional reasoning (effort) setting, then creates the directory below.
+Run `python3 scripts/setup_run.py --prompt <prompt-id>` (or `--follow-up --parent-run-id <id>` for a follow-up run). It asks for the prompt, the harness, the model, the optional context on a Cursor run, and the optional reasoning (effort) setting, then creates the directory below.
 
 1. Create `runs/<prompt-id>/<run-id>/`.
 2. Use a run id of the form `YYYY-MM-DD-<harness>-<model>-<context>-<reasoning>` on a Cursor run that has a context, and `YYYY-MM-DD-<harness>-<model>-<reasoning>` on every other run. The `<context>` segment, such as `500k`, appears only when the harness is Cursor and a context was filled in. Context is optional even for Cursor — it cannot be tuned in every configuration — so omit `--context` (or leave the prompt blank) when it is not set: `model.context` is then null and the run id has no `<context>` segment. `setup_run.py` rejects a filled context for other harnesses.

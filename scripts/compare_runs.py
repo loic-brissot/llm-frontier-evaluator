@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import hashlib
 import json
 import sys
 from decimal import Decimal, ROUND_HALF_UP
@@ -19,6 +20,7 @@ from pathlib import Path
 from run_common import (
     BUCKETS,
     CHART_BUCKETS,
+    PROMPTS_DIR,
     README_PATH,
     ROOT,
     UNKNOWN_REASONING,
@@ -162,10 +164,97 @@ def format_local_cost(run: dict) -> str:
     return f"${est['estimated_cost_usd']}"
 
 
-def check_prompt() -> list[str]:
-    if not available_prompt_ids():
-        return [f"No prompts found: expected at least one prompt/*.txt file"]
-    return []
+def check_prompt(prompts_dir: Path = PROMPTS_DIR) -> list[str]:
+    errors: list[str] = []
+    if not prompts_dir.is_dir():
+        return [f"Prompts directory does not exist: {prompts_dir}"]
+
+    prompt_files = sorted(path for path in prompts_dir.glob("*.txt") if path.is_file())
+    if not prompt_files:
+        return [f"No prompts found in {prompts_dir}: expected at least one *.txt file"]
+
+    readme_path = prompts_dir / "README.md"
+    if not readme_path.is_file():
+        return [f"Missing prompt manifest: {readme_path} does not exist"]
+
+    readme_content = readme_path.read_text(encoding="utf-8")
+    table_lines = [
+        line.strip()
+        for line in readme_content.splitlines()
+        if line.strip().startswith("|")
+    ]
+
+    readme_prompts: dict[str, dict[str, str | int]] = {}
+    for line in table_lines:
+        parts = [part.strip() for part in line.split("|")[1:-1]]
+        if len(parts) == 5:
+            prompt_id_raw = parts[0].strip("`")
+            if prompt_id_raw in {"Prompt id", "Prompt"} or prompt_id_raw.startswith("---"):
+                continue
+            filename = parts[1].strip("`")
+            sha256_hex = parts[2].strip("`")
+            try:
+                byte_count = int(parts[3])
+            except ValueError:
+                errors.append(
+                    f"{readme_path}: Invalid byte count {parts[3]!r} for prompt {prompt_id_raw!r}"
+                )
+                continue
+            final_newline = parts[4]
+
+            if filename != f"{prompt_id_raw}.txt":
+                errors.append(
+                    f"{readme_path}: Table entry for prompt id {prompt_id_raw!r} has File {filename!r}, expected {prompt_id_raw}.txt"
+                )
+
+            readme_prompts[prompt_id_raw] = {
+                "file": filename,
+                "sha256": sha256_hex,
+                "bytes": byte_count,
+                "final_newline": final_newline,
+            }
+
+    if not readme_prompts:
+        errors.append(f"{readme_path} contains no valid prompt rows in table")
+
+    # Check that every *.txt file in prompts_dir is listed in README.md
+    for prompt_file in prompt_files:
+        prompt_id = prompt_file.stem
+        if prompt_id not in readme_prompts:
+            errors.append(f"Prompt file {prompt_file.name} is missing from {readme_path}")
+            continue
+
+        info = readme_prompts[prompt_id]
+        raw_bytes = prompt_file.read_bytes()
+        actual_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+        actual_bytes = len(raw_bytes)
+        actual_newline = "Yes" if raw_bytes.endswith(b"\n") else "No"
+
+        if actual_sha256 != info["sha256"]:
+            errors.append(
+                f"SHA-256 mismatch for {prompt_file.name}: "
+                f"table has {info['sha256']!r}, disk has {actual_sha256!r}"
+            )
+        if actual_bytes != info["bytes"]:
+            errors.append(
+                f"Byte length mismatch for {prompt_file.name}: "
+                f"table has {info['bytes']}, disk has {actual_bytes}"
+            )
+        if actual_newline != info["final_newline"]:
+            errors.append(
+                f"Final newline flag mismatch for {prompt_file.name}: "
+                f"table has {info['final_newline']!r}, disk has {actual_newline!r}"
+            )
+
+    # Check that every row in prompt/README.md corresponds to an existing *.txt file in prompts_dir
+    for prompt_id, info in readme_prompts.items():
+        expected_file = prompts_dir / str(info["file"])
+        if not expected_file.is_file():
+            errors.append(
+                f"Table entry {prompt_id!r} in {readme_path} references missing file {expected_file.name}"
+            )
+
+    return errors
 
 
 def format_bar_tokens(reasoning_k: str, visible_k: str) -> str:
