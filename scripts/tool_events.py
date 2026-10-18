@@ -100,7 +100,9 @@ def parse_time(value: object) -> datetime | None:
 
 
 def format_time(value: datetime) -> str:
-    return value.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    if value.microsecond == 0:
+        return value.isoformat(timespec="seconds").replace("+00:00", "Z")
+    return value.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def is_failed(record: dict) -> bool:

@@ -355,7 +355,10 @@ def discover_run_dirs(prompt_id: str | None = None) -> list[Path]:
 
 
 def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    now = datetime.now(timezone.utc)
+    if now.microsecond == 0:
+        return now.isoformat(timespec="seconds").replace("+00:00", "Z")
+    return now.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 @lru_cache(maxsize=1)

@@ -3,7 +3,7 @@ id: TASK-2
 title: >-
   Preserve sub-second precision on wall-clock window bounds when matching usage
   CSV events
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-18 02:18'
 labels:
@@ -29,7 +29,7 @@ format_time() in scripts/tool_events.py and utc_now_iso() in scripts/run_common.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Wall-clock timestamps preserve millisecond precision or apply a documented clock-skew grace window when matching usage CSV events
-- [ ] #2 Running CSV selection on 2026-10-17-cursor-gemini-3-1-pro-unknown includes both usage events from the run window
-- [ ] #3 Unit tests verify that usage events logged in the same second as stop are retained by event_in_window()
+- [x] #1 Wall-clock timestamps preserve millisecond precision or apply a documented clock-skew grace window when matching usage CSV events
+- [x] #2 Running CSV selection on 2026-10-17-cursor-gemini-3-1-pro-unknown includes both usage events from the run window
+- [x] #3 Unit tests verify that usage events logged in the same second as stop are retained by event_in_window()
 <!-- AC:END -->
