@@ -41,6 +41,7 @@ from run_common import (
 )
 from tool_events import ToolEventSummary, summarize_run
 from verify_run import verify_run
+from probe_data import probe_run
 
 
 def prompt(label: str, default: str | None = None) -> str:
@@ -1254,6 +1255,34 @@ def complete_run_json(
         print(f"  HTTP Status: {runtime_data.get('http_status')}")
         print(f"  Page errors: {len(runtime_data.get('page_errors') or [])}")
         print(f"  Console errors: {len(runtime_data.get('console_errors') or [])}")
+
+    data_pipeline_file = run_dir / "artifacts" / "data_pipeline.json"
+    data_pipeline_data: dict | None = None
+    if data_pipeline_file.is_file():
+        try:
+            data_pipeline_data = load_json(data_pipeline_file)
+        except Exception:
+            data_pipeline_data = None
+
+    if not data_pipeline_data:
+        try:
+            data_pipeline_data = probe_run(run_dir, update_run_json=False)
+        except Exception:
+            data_pipeline_data = None
+
+    if data_pipeline_data:
+        if "verification" not in run or run["verification"] is None:
+            run["verification"] = {}
+        run["verification"]["data_pipeline"] = data_pipeline_data
+        dp_passed = "PASSED" if data_pipeline_data.get("passed") else "FAILED"
+        checks = data_pipeline_data.get("checks") or []
+        passed_chk = sum(1 for c in checks if c.get("passed"))
+        print(f"\nData pipeline probe ({dp_passed}):")
+        print(f"  Authenticity: {data_pipeline_data.get('authenticity')}")
+        print(f"  Score: {data_pipeline_data.get('score')} ({passed_chk}/{len(checks)} checks passed)")
+        print(f"  Total Data Files: {data_pipeline_data.get('total_data_files')}, Total Records: {data_pipeline_data.get('total_records')}")
+        if data_pipeline_data.get("synthetic_signals"):
+            print(f"  Synthetic Signals: {data_pipeline_data.get('synthetic_signals')}")
 
     if isinstance(run.get("model"), dict):
         # Runs set up before model.context existed have no key; keep it null.

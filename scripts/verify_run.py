@@ -25,6 +25,7 @@ from run_common import (
     utc_now_iso,
     write_json,
 )
+from probe_data import probe_run
 
 
 class EphemeralStaticServer:
@@ -370,6 +371,7 @@ def verify_run(
     viewport: str = "1440x900",
     wait_ms: int = 2500,
     update_run_json: bool = False,
+    skip_data_probe: bool = False,
 ) -> dict:
     workspace_dir = run_dir / "workspace"
     artifacts_dir = run_dir / "artifacts"
@@ -397,6 +399,13 @@ def verify_run(
 
     write_json(artifacts_dir / "runtime.json", telemetry)
 
+    scorecard: dict | None = None
+    if not skip_data_probe:
+        try:
+            scorecard = probe_run(run_dir, update_run_json=False)
+        except Exception as exc:
+            print(f"Warning: probe_run failed: {exc}", file=sys.stderr)
+
     if update_run_json:
         run_json_path = run_dir / "run.json"
         if run_json_path.is_file():
@@ -404,6 +413,8 @@ def verify_run(
             if "verification" not in run_data or run_data["verification"] is None:
                 run_data["verification"] = {}
             run_data["verification"]["runtime"] = telemetry
+            if scorecard is not None:
+                run_data["verification"]["data_pipeline"] = scorecard
             write_json(run_json_path, run_data)
 
     return telemetry
@@ -440,6 +451,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--viewport", default="1440x900", help="Browser viewport size (WxH, default 1440x900).")
     parser.add_argument("--wait-ms", type=int, default=2500, help="Settle wait time after load in ms (default 2500).")
     parser.add_argument("--update-run-json", action="store_true", help="Update run.json with verification results.")
+    parser.add_argument("--skip-data-probe", action="store_true", help="Skip running data pipeline probe.")
     return parser
 
 
@@ -463,6 +475,7 @@ def main() -> int:
             viewport=args.viewport,
             wait_ms=args.wait_ms,
             update_run_json=args.update_run_json,
+            skip_data_probe=args.skip_data_probe,
         )
         print(f"Smoke test {'PASSED' if telemetry['passed'] else 'FAILED'}")
         print(f"  URL: {telemetry['url']} (mode: {telemetry['server_mode']})")

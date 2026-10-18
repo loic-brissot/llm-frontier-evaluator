@@ -5,7 +5,7 @@ Runs are sorted first by prompt id, then by run id:
 ```text
 runs/<prompt-id>/<run-id>/
   run.json
-  artifacts/    # automated verification telemetry (runtime.json) and screenshot.png
+  artifacts/    # automated verification telemetry (runtime.json, data_pipeline.json) and screenshot.png
   usage/        # harness usage export, with credentials removed
   tool-events/  # gitignored Cursor hook JSONL; counts are copied into run.json
   workspace/    # gitignored atlas build and downloaded data

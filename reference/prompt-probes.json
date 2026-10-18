@@ -1,0 +1,265 @@
+{
+  "adaptive-endurance-coach": {
+    "prompt_id": "adaptive-endurance-coach",
+    "type": "domain_model",
+    "description": "Adaptive endurance training planner and physiological simulator",
+    "checks": [
+      {
+        "id": "banister_ewma_model",
+        "description": "Banister impulse-response model constants (CTL 42d EWMA, ATL 7d EWMA, TSB = CTL - ATL)",
+        "required_markers": ["42", "7", "TSB"],
+        "min_records": 1
+      },
+      {
+        "id": "coggan_power_tss_model",
+        "description": "Coggan power zones & TSS formula (FTP, NP, IF, 3600s denominator)",
+        "required_markers": ["FTP", "NP", "IF", "3600"],
+        "min_records": 1
+      },
+      {
+        "id": "daniels_vdot_css_model",
+        "description": "Daniels VDOT running zones & Critical Swim Speed formula (CSS, 400, 200)",
+        "required_markers": ["CSS", "400", "200"],
+        "min_records": 1
+      },
+      {
+        "id": "export_formats_support",
+        "description": "Calendar (.ics) and Zwift workout (.zwo) export implementation",
+        "file_patterns": ["*.ics", "*.zwo", "*export*", "*zwo*", "*ics*"],
+        "required_markers": ["ics", "zwo"],
+        "min_records": 1
+      },
+      {
+        "id": "endurance_disciplines",
+        "description": "Four endurance disciplines (triathlon, running, cycling, cross-training)",
+        "required_markers": ["triathlon", "running", "cycling"],
+        "min_records": 1
+      }
+    ],
+    "synthetic_patterns": []
+  },
+  "france-electricity-carbon-flow": {
+    "prompt_id": "france-electricity-carbon-flow",
+    "type": "open_data",
+    "description": "French electricity system observatory and carbon flow simulator",
+    "checks": [
+      {
+        "id": "regions_dataset",
+        "description": "12 French administrative regions boundaries or dataset",
+        "file_patterns": ["*region*", "*eco2mix*", "*contours*"],
+        "required_markers": ["region", "code", "nom"],
+        "min_records": 12
+      },
+      {
+        "id": "eco2mix_timeseries_dataset",
+        "description": "eCO2mix national/regional generation time series with technology mix & carbon intensity",
+        "file_patterns": ["*eco2mix*", "*generation*", "*mix*", "*carbon*"],
+        "required_markers": ["nucleaire", "hydro", "eolien", "solaire", "co2"],
+        "min_records": 100
+      },
+      {
+        "id": "power_plants_registry_dataset",
+        "description": "National registry of power plants and storage facilities with MW capacity",
+        "file_patterns": ["*registre*", "*installation*", "*centrale*", "*power*"],
+        "required_markers": ["mw", "capacite", "technologie"],
+        "min_records": 50
+      },
+      {
+        "id": "cross_border_interconnections",
+        "description": "Cross-border interconnections with neighboring countries (UK, BE, DE, CH, IT, ES)",
+        "required_markers": ["royaume-uni", "belgique", "allemagne", "suisse", "italie", "espagne"],
+        "min_records": 1
+      }
+    ],
+    "synthetic_patterns": [
+      "generateMockGrid",
+      "fakePowerPlants",
+      "mockEco2mix",
+      "generateRandomPower"
+    ]
+  },
+  "france-rail-24h-pulse": {
+    "prompt_id": "france-rail-24h-pulse",
+    "type": "open_data",
+    "description": "24-hour French passenger rail network map and accessibility atlas",
+    "checks": [
+      {
+        "id": "sncf_stations_dataset",
+        "description": "SNCF stations list with UIC codes or coordinates",
+        "file_patterns": ["*gare*", "*station*", "*uic*"],
+        "required_markers": ["gare", "uic", "latitude", "longitude"],
+        "min_records": 200
+      },
+      {
+        "id": "rail_network_lines_dataset",
+        "description": "RFN rail line shapes / geometries",
+        "file_patterns": ["*rfn*", "*ligne*", "*rail*", "*shapes*"],
+        "min_records": 10
+      },
+      {
+        "id": "gtfs_timetables_trips_dataset",
+        "description": "GTFS schedules or processed timetables/trips for TGV, Intercités, TER",
+        "file_patterns": ["*gtfs*", "*trip*", "*stop_time*", "*horaire*", "*timetable*"],
+        "required_markers": ["trip_id", "stop_id", "departure_time", "arrival_time"],
+        "min_records": 200
+      }
+    ],
+    "synthetic_patterns": [
+      "generateMockTrains",
+      "fakeGTFS",
+      "mockSchedules",
+      "generateRandomTrains"
+    ]
+  },
+  "france-road-accidents": {
+    "prompt_id": "france-road-accidents",
+    "type": "open_data",
+    "description": "Metropolitan France road accidents collision observatory (BAAC)",
+    "checks": [
+      {
+        "id": "baac_relational_tables",
+        "description": "ONISR BAAC relational tables (caracteristiques, lieux, vehicules, usagers) or joined dataset",
+        "file_patterns": ["*caracteristiques*", "*lieux*", "*vehicules*", "*usagers*", "*accident*", "*baac*"],
+        "required_markers": ["Num_Acc", "num_acc", "grav", "catv", "catu"],
+        "min_records": 5000
+      },
+      {
+        "id": "departments_dataset",
+        "description": "Metropolitan France department boundaries",
+        "file_patterns": ["*departement*", "*department*", "*dept*"],
+        "required_markers": ["code_dep", "code", "nom"],
+        "min_records": 90
+      }
+    ],
+    "synthetic_patterns": [
+      "generateMockAccidents",
+      "fakeAccidents",
+      "mockAccidents",
+      "generateRandomAccidents"
+    ]
+  },
+  "france-socio-electoral-atlas": {
+    "prompt_id": "france-socio-electoral-atlas",
+    "type": "open_data",
+    "description": "Metropolitan France socio-electoral commune-level atlas",
+    "checks": [
+      {
+        "id": "communes_socio_electoral_dataset",
+        "description": "INSEE commune socio-economic & electoral indicators",
+        "file_patterns": ["*commune*", "*filosofi*", "*insee*", "*election*", "*socio*"],
+        "required_markers": ["code_insee", "codgeo", "insee", "code_commune"],
+        "min_records": 1000
+      },
+      {
+        "id": "plm_arrondissements_reconciliation",
+        "description": "Paris (75101-75120), Lyon (69381-69389), Marseille (13201-13216) PLM municipal arrondissements reconciliation",
+        "required_markers": ["75101", "69381", "13201"],
+        "min_records": 1
+      },
+      {
+        "id": "departments_dataset",
+        "description": "Metropolitan France department boundaries",
+        "file_patterns": ["*departement*", "*department*", "*dept*"],
+        "min_records": 90
+      }
+    ],
+    "synthetic_patterns": [
+      "generateMockCommunes",
+      "fakeCommunes",
+      "mockElections",
+      "generateRandomCommunes"
+    ]
+  },
+  "paris-1910-flood-simulator": {
+    "prompt_id": "paris-1910-flood-simulator",
+    "type": "open_data",
+    "description": "Paris 1910 3D flood simulator with building ground elevations and river gauges",
+    "checks": [
+      {
+        "id": "buildings_elevation_dataset",
+        "description": "Paris buildings footprint dataset with height and median ground elevation",
+        "file_patterns": ["*building*", "*batie*", "*emprise*", "*apur*", "*batiment*"],
+        "required_markers": ["hauteur", "height", "z_min", "z_med", "elevation", "altitude"],
+        "min_records": 1000
+      },
+      {
+        "id": "ppri_flood_risk_zones",
+        "description": "PPRI flood risk zones (plub_pprizone)",
+        "file_patterns": ["*ppri*", "*plub_pprizone*", "*inondation*", "*flood*"],
+        "min_records": 1
+      },
+      {
+        "id": "street_elevation_benchmarks",
+        "description": "Street elevation leveling benchmarks (repere-de-nivellement)",
+        "file_patterns": ["*nivellement*", "*repere*", "*benchmark*"],
+        "min_records": 50
+      },
+      {
+        "id": "stations_dataset",
+        "description": "Île-de-France metro and rail stations (emplacement-des-gares-idf)",
+        "file_patterns": ["*gare*", "*station*", "*emplacement-des-gares*"],
+        "min_records": 20
+      },
+      {
+        "id": "arrondissements_dataset",
+        "description": "Paris 20 arrondissements district boundaries",
+        "file_patterns": ["*arrondissement*", "*district*"],
+        "min_records": 20
+      },
+      {
+        "id": "historical_flood_markers",
+        "description": "Historical flood markers (1910 at +8.62m, 2018 at +5.84m, 2016 at +6.10m, 1955 at +7.12m)",
+        "required_markers": ["8.62", "1910", "5.84", "6.10", "7.12"],
+        "min_records": 1
+      }
+    ],
+    "synthetic_patterns": [
+      "generateMockFloods",
+      "fakeStations",
+      "generateMockBuildings",
+      "fake_flood",
+      "mockData"
+    ]
+  },
+  "paris-3d-atlas": {
+    "prompt_id": "paris-3d-atlas",
+    "type": "open_data",
+    "description": "Paris 3D building volume map by construction period",
+    "checks": [
+      {
+        "id": "buildings_dataset",
+        "description": "Paris building footprints with height and construction period/year",
+        "file_patterns": ["*building*", "*batie*", "*emprise*", "*apur*", "*batiment*"],
+        "required_markers": ["hauteur", "height", "periode", "annee", "year"],
+        "spatial_bbox": [2.22, 48.81, 2.47, 48.91],
+        "min_records": 1000
+      },
+      {
+        "id": "trees_dataset",
+        "description": "Paris trees dataset (les-arbres)",
+        "file_patterns": ["*arbre*", "*tree*", "*les-arbres*"],
+        "min_records": 1000
+      },
+      {
+        "id": "arrondissements_dataset",
+        "description": "Paris 20 arrondissements district boundaries",
+        "file_patterns": ["*arrondissement*", "*district*"],
+        "min_records": 20
+      },
+      {
+        "id": "waterways_green_spaces_dataset",
+        "description": "Paris waterways and green spaces",
+        "file_patterns": ["*eau*", "*water*", "*espace*", "*vert*", "*green*"],
+        "min_records": 5
+      }
+    ],
+    "synthetic_patterns": [
+      "generateMockBuildings",
+      "fakeBuildings",
+      "generateRandomBuildings",
+      "mockBuildings",
+      "fake_buildings",
+      "createMockData"
+    ]
+  }
+}

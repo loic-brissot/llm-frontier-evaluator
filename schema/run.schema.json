@@ -218,7 +218,49 @@
           }
         },
         "data_pipeline": {
-          "type": ["object", "null"]
+          "type": ["object", "null"],
+          "default": null,
+          "additionalProperties": true,
+          "properties": {
+            "prompt_id": {"type": "string"},
+            "passed": {"type": "boolean"},
+            "authenticity": {
+              "type": "string",
+              "enum": [
+                "real_open_data",
+                "domain_model_verified",
+                "partial_or_filtered",
+                "synthetic_fallback",
+                "missing_workspace"
+              ]
+            },
+            "score": {"type": "number", "minimum": 0, "maximum": 1},
+            "total_data_files": {"type": "integer", "minimum": 0},
+            "total_records": {"type": "integer", "minimum": 0},
+            "synthetic_signals": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "checks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "id": {"type": "string"},
+                  "description": {"type": "string"},
+                  "passed": {"type": "boolean"},
+                  "observed_records": {"type": ["integer", "null"]},
+                  "matched_files": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                  },
+                  "detail": {"type": "string"}
+                }
+              }
+            },
+            "verified_at": {"type": "string"}
+          }
         }
       }
     }
