@@ -368,6 +368,17 @@ def load_pricing() -> dict:
     return load_json(PRICING_PATH)
 
 
+def _parse_context_tokens(context: str | None) -> int | None:
+    if not isinstance(context, str):
+        return None
+    m = re.match(r"^\s*(\d+(?:\.\d+)?)\s*([km])\s*$", context.strip().lower())
+    if not m:
+        return None
+    val = float(m.group(1))
+    unit = m.group(2)
+    return int(val * (1_000_000 if unit == "m" else 1_000))
+
+
 def lookup_model_pricing(
     model_name: str,
     *,
@@ -431,24 +442,31 @@ def lookup_model_pricing(
 
     long_context_applied = False
     lc = matched.get("long_context")
-    if isinstance(lc, dict) and context_variant_applied is None:
+    ctx_tokens = _parse_context_tokens(context)
+    if isinstance(lc, dict):
         threshold = lc.get("threshold_input_tokens")
-        should_apply = False
-        if use_long_context is True:
-            should_apply = True
-        elif use_long_context is not False and total_input_tokens is not None and threshold is not None:
-            if Decimal(str(total_input_tokens)) > Decimal(str(threshold)):
+        if context_variant_applied is not None:
+            if threshold is not None and ctx_tokens is not None and ctx_tokens > int(threshold):
+                long_context_applied = True
+        else:
+            should_apply = False
+            if use_long_context is True:
                 should_apply = True
-        if should_apply:
-            if "input" in lc:
-                input_rate = Decimal(str(lc["input"]))
-            if "cache_write" in lc:
-                cache_write_rate = Decimal(str(lc["cache_write"]))
-            if "cache_read" in lc:
-                cache_read_rate = Decimal(str(lc["cache_read"]))
-            if "output" in lc:
-                output_rate = Decimal(str(lc["output"]))
-            long_context_applied = True
+            elif use_long_context is not False and threshold is not None:
+                if total_input_tokens is not None and Decimal(str(total_input_tokens)) > Decimal(str(threshold)):
+                    should_apply = True
+                elif ctx_tokens is not None and ctx_tokens > int(threshold):
+                    should_apply = True
+            if should_apply:
+                if "input" in lc:
+                    input_rate = Decimal(str(lc["input"]))
+                if "cache_write" in lc:
+                    cache_write_rate = Decimal(str(lc["cache_write"]))
+                if "cache_read" in lc:
+                    cache_read_rate = Decimal(str(lc["cache_read"]))
+                if "output" in lc:
+                    output_rate = Decimal(str(lc["output"]))
+                long_context_applied = True
 
     harness_surcharge_rate = Decimal("0")
     canon_harness = canonical_harness(harness) if harness else None
@@ -493,6 +511,7 @@ def estimate_token_cost(
     output_tokens: int | Decimal = 0,
     context: str | None = None,
     harness: str | None = None,
+    total_input_tokens: int | Decimal | None = None,
     use_long_context: bool | None = None,
 ) -> dict | None:
     """Compute estimated USD cost from public per-1M-token rates and harness surcharges."""
@@ -507,7 +526,7 @@ def estimate_token_cost(
         model_name,
         context=context,
         harness=harness,
-        total_input_tokens=total_input,
+        total_input_tokens=total_input_tokens,
         use_long_context=use_long_context,
     )
     if rates is None:

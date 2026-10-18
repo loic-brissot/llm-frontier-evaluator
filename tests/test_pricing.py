@@ -80,21 +80,34 @@ class TestPricing(unittest.TestCase):
         cost_below = estimate_token_cost(
             "claude-haiku-5-5",
             uncached_input_tokens=50_000,
+            total_input_tokens=50_000,
             harness="claude-code",
         )
         self.assertIsNotNone(cost_below)
         self.assertFalse(cost_below["long_context_applied"])
         self.assertEqual(cost_below["rates_per_1m_usd"]["input"], "0.10")
 
-        # Above threshold (150,000 input tokens > 100,000)
+        # Above threshold (150,000 single-request input tokens > 100,000)
         cost_above = estimate_token_cost(
             "claude-haiku-5-5",
             uncached_input_tokens=150_000,
+            total_input_tokens=150_000,
             harness="claude-code",
         )
         self.assertIsNotNone(cost_above)
         self.assertTrue(cost_above["long_context_applied"])
         self.assertEqual(cost_above["rates_per_1m_usd"]["input"], "0.50")
+
+        # Cumulative multi-turn cache reads without per-request total_input_tokens do not falsely trigger long_context
+        cost_cumulative = estimate_token_cost(
+            "claude-haiku-5-5",
+            cache_read_tokens=7_700_000,
+            output_tokens=157_000,
+            harness="claude-code",
+        )
+        self.assertIsNotNone(cost_cumulative)
+        self.assertFalse(cost_cumulative["long_context_applied"])
+        self.assertEqual(cost_cumulative["estimated_cost_usd"], "0.16")
 
     def test_explicit_use_long_context(self):
         cost_explicit = estimate_token_cost(
