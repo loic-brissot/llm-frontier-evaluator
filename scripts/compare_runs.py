@@ -15,13 +15,28 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PROMPT_PATH = ROOT / "prompt" / "PROMPT.txt"
+PROMPTS_DIR = ROOT / "prompt"
 REFERENCE_PATH = ROOT / "reference" / "lassence-2026-10.json"
 RUNS_DIR = ROOT / "runs"
 
-PROMPT_ID = "lassence-2026-10-11"
-PROMPT_SHA256 = "19387b5a175db8f74b22515f1fce112c653d2286a5ab47fb46c4763176e64c1d"
 RULES_VERSION = 1
+
+
+def prompt_path(prompt_id: str) -> Path:
+    return PROMPTS_DIR / f"{prompt_id}.txt"
+
+
+def prompt_sha256(prompt_id: str) -> str | None:
+    path = prompt_path(prompt_id)
+    if not path.is_file():
+        return None
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def available_prompt_ids() -> list[str]:
+    if not PROMPTS_DIR.is_dir():
+        return []
+    return sorted(path.stem for path in PROMPTS_DIR.glob("*.txt") if path.is_file())
 
 CHART_BUCKETS = ("shell", "files", "visual_checks", "web")
 BUCKETS = CHART_BUCKETS + ("other",)
@@ -38,7 +53,12 @@ TIME_SOURCES = {
 }
 CACHE_SOURCES = {"provider_cache_read", "unavailable"}
 HARNESS_NAMES = {"cursor", "claude-code", "codex", "other"}
-REASONING = {"xhigh", "high", "medium", "low", "none", "unknown"}
+# Per-harness effort levels (docs/protocol.md), plus the legacy none/unknown
+# values on runs recorded before those lists existed.
+CURSOR_REASONING = {"minimal", "low", "medium", "high", "xhigh", "max"}
+CLAUDE_REASONING = {"low", "medium", "high", "ultra", "max", "ultracode"}
+REASONING_BY_HARNESS = {"cursor": CURSOR_REASONING, "claude-code": CLAUDE_REASONING}
+REASONING = CURSOR_REASONING | CLAUDE_REASONING | {"none", "unknown"}
 
 
 def round_half_up(value: Decimal, places: int) -> Decimal:
@@ -80,14 +100,8 @@ def load_json(path: Path) -> dict:
 
 
 def check_prompt() -> list[str]:
-    if not PROMPT_PATH.is_file():
-        return [f"Missing frozen prompt: {PROMPT_PATH}"]
-    digest = hashlib.sha256(PROMPT_PATH.read_bytes()).hexdigest()
-    if digest != PROMPT_SHA256:
-        return [
-            "prompt/PROMPT.txt hash differs from the frozen prompt. "
-            f"Expected {PROMPT_SHA256}, got {digest}."
-        ]
+    if not available_prompt_ids():
+        return [f"No prompts found: expected at least one prompt/*.txt file"]
     return []
 
 
@@ -219,8 +233,24 @@ def check_local_run(run: dict, path: Path) -> list[str]:
     require(run.get("rules_version") == RULES_VERSION, errors, f"{path}: rules_version must be {RULES_VERSION}")
     require(isinstance(run.get("run_id"), str) and run.get("run_id"), errors, f"{path}: run_id is empty")
     require(isinstance(run.get("series_id"), str) and run.get("series_id"), errors, f"{path}: series_id is empty")
-    require(run.get("prompt_id") == PROMPT_ID, errors, f"{path}: prompt_id is not the frozen prompt")
-    require(run.get("prompt_sha256") == PROMPT_SHA256, errors, f"{path}: prompt_sha256 is not the frozen prompt")
+    prompt_id = run.get("prompt_id")
+    expected_sha = prompt_sha256(prompt_id) if isinstance(prompt_id, str) else None
+    require(
+        isinstance(prompt_id, str) and bool(prompt_id) and expected_sha is not None,
+        errors,
+        f"{path}: prompt_id {prompt_id!r} has no prompt/<prompt-id>.txt file",
+    )
+    if expected_sha is not None:
+        require(
+            run.get("prompt_sha256") == expected_sha,
+            errors,
+            f"{path}: prompt_sha256 does not match prompt/{prompt_id}.txt",
+        )
+        require(
+            path.parent.parent.name == prompt_id,
+            errors,
+            f"{path}: directory runs/{path.parent.parent.name}/ does not match prompt_id {prompt_id!r}",
+        )
     require(run.get("shot") in {"primary", "follow-up"}, errors, f"{path}: shot must be primary or follow-up")
     if run.get("shot") == "primary":
         require(run.get("parent_run_id") is None, errors, f"{path}: a primary run has no parent_run_id")
@@ -238,7 +268,31 @@ def check_local_run(run: dict, path: Path) -> list[str]:
     if isinstance(model, dict):
         require(isinstance(model.get("provider"), str) and model.get("provider"), errors, f"{path}: model.provider is empty")
         require(isinstance(model.get("name"), str) and model.get("name"), errors, f"{path}: model.name is empty")
-        require(model.get("reasoning") in REASONING, errors, f"{path}: model.reasoning is invalid")
+        require(
+            model.get("reasoning") is None or model.get("reasoning") in REASONING,
+            errors,
+            f"{path}: model.reasoning is invalid",
+        )
+        context = model.get("context")
+        require(
+            context is None or (isinstance(context, str) and context),
+            errors,
+            f"{path}: model.context must be a non-empty string or null",
+        )
+        harness_name = (run.get("harness") or {}).get("name")
+        # Context is a Cursor-only segment of the run id (any capitalisation
+        # of the harness name counts); older Cursor runs recorded without it
+        # keep a null or absent context.
+        if isinstance(harness_name, str) and harness_name.lower() != "cursor":
+            require(context is None, errors, f"{path}: model.context only applies to Cursor runs")
+        allowed = REASONING_BY_HARNESS.get(harness_name) if isinstance(harness_name, str) else None
+        if allowed is not None:
+            require(
+                model.get("reasoning") is None
+                or model.get("reasoning") in allowed | {"none", "unknown"},
+                errors,
+                f"{path}: model.reasoning is not an effort level for harness {harness_name}",
+            )
 
     harness = run.get("harness")
     require(isinstance(harness, dict), errors, f"{path}: harness must be an object")
@@ -340,8 +394,12 @@ def local_row(run: dict) -> tuple[list[str], list[str]]:
         cache_cell = format_millions(cache["cache_read_tokens"])
 
     model = run["model"]
-    label = f"{model['name']} {model['reasoning']}"
-    return [run["series_id"], run["harness"]["name"], label, token_cell, time_cell, tool_cell, cache_cell], notes
+    # Reasoning is optional: null (and the stored default) read as unknown.
+    reasoning = model.get("reasoning") or "unknown"
+    label = f"{model['name']} {reasoning}"
+    if model.get("context"):
+        label = f"{model['name']} {model['context']} {reasoning}"
+    return [run["prompt_id"], run["series_id"], run["harness"]["name"], label, token_cell, time_cell, tool_cell, cache_cell], notes
 
 
 def print_table(headers: list[str], rows: list[list[str]]) -> None:
@@ -386,10 +444,11 @@ def print_reference(reference: dict) -> None:
     print("Gallery tiers: reference/README.md")
 
 
-def discover_runs() -> list[Path]:
+def discover_runs(prompt_id: str | None = None) -> list[Path]:
     if not RUNS_DIR.is_dir():
         return []
-    return sorted(path for path in RUNS_DIR.glob("*/run.json") if path.is_file())
+    pattern = f"{prompt_id}/*/run.json" if prompt_id else "*/*/run.json"
+    return sorted(path for path in RUNS_DIR.glob(pattern) if path.is_file())
 
 
 def main() -> int:
@@ -403,6 +462,11 @@ def main() -> int:
         "--strict",
         action="store_true",
         help="Exit 1 when a local comparison cell is n/a.",
+    )
+    parser.add_argument(
+        "--prompt",
+        dest="prompt_id",
+        help="Only check and print runs for this prompt id (directory under runs/).",
     )
     args = parser.parse_args()
 
@@ -421,7 +485,7 @@ def main() -> int:
     local_errors: list[str] = []
     incomplete: list[str] = []
     selected: list[dict] = []
-    for path in discover_runs():
+    for path in discover_runs(args.prompt_id):
         try:
             run = load_json(path)
         except (OSError, json.JSONDecodeError, ValueError) as exc:
@@ -440,12 +504,12 @@ def main() -> int:
         print()
 
     print("Local runs")
-    if not discover_runs():
+    if not discover_runs(args.prompt_id):
         print("No local runs yet.")
     elif not selected and not local_errors:
         print("No primary local runs. Pass --follow-ups to print follow-ups.")
     elif selected:
-        headers = ["Series", "Harness", "Model", "Tokens generated", "Model time", "Tool calls", "Context re-read"]
+        headers = ["Prompt", "Series", "Harness", "Model", "Tokens generated", "Model time", "Tool calls", "Context re-read"]
         table_rows = []
         for run in selected:
             row, notes = local_row(run)

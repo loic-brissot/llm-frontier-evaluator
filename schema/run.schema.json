@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://local/llm-frontier-evaluator/run.schema.json",
   "title": "LLM frontier evaluator run",
-  "description": "One model attempt on the frozen Paris atlas prompt. Metric rules_version 1.",
+  "description": "One model attempt on one prompt in prompt/ (prompt_id is the file stem). Metric rules_version 1.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -27,9 +27,15 @@
     "rules_version": {"const": 1},
     "run_id": {"type": "string", "minLength": 1},
     "series_id": {"type": "string", "minLength": 1},
-    "prompt_id": {"const": "lassence-2026-10-11"},
+    "prompt_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$",
+      "description": "Stem of the prompt file: prompt/<prompt-id>.txt. The run lives in runs/<prompt-id>/<run-id>/."
+    },
     "prompt_sha256": {
-      "const": "19387b5a175db8f74b22515f1fce112c653d2286a5ab47fb46c4763176e64c1d"
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the exact bytes of prompt/<prompt-id>.txt at setup time."
     },
     "shot": {"enum": ["primary", "follow-up"]},
     "parent_run_id": {"type": ["string", "null"]},
@@ -40,7 +46,12 @@
       "properties": {
         "provider": {"type": "string", "minLength": 1},
         "name": {"type": "string", "minLength": 1},
-        "reasoning": {"enum": ["xhigh", "high", "medium", "low", "none", "unknown"]}
+        "context": {"type": ["string", "null"], "minLength": 1},
+        "reasoning": {
+          "description": "Optional effort level. Cursor: minimal, low, medium, high, xhigh, max. Claude (claude-code): low, medium, high, ultra, max, ultracode. When the level is not set, it defaults to unknown; null is accepted as the same not-set value. none is a legacy value from runs recorded before the per-harness lists.",
+          "type": ["string", "null"],
+          "enum": ["minimal", "low", "medium", "high", "xhigh", "ultra", "max", "ultracode", "none", "unknown", null]
+        }
       }
     },
     "harness": {

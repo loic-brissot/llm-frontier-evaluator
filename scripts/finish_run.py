@@ -20,16 +20,20 @@ from pathlib import Path
 
 from run_common import (
     ROOT,
+    reasoning_levels_for_harness,
     discover_run_dirs,
     copy_usage_export,
+    find_run_dir,
     load_json,
     scrub_path,
     slugify,
     utc_now_iso,
     write_json,
 )
+from tool_events import BUCKETS as TOOL_BUCKETS
+from tool_events import ToolEventSummary, summarize_run
 
-BUCKETS = ("shell", "files", "visual_checks", "web", "other")
+BUCKETS = TOOL_BUCKETS
 
 
 def prompt(label: str, default: str | None = None) -> str:
@@ -81,23 +85,20 @@ def prompt_float(label: str, default: float | None = None) -> float | None:
             print("  Enter a number or press Enter to skip.")
 
 
-def select_run_id(explicit: str | None) -> Path:
+def select_run_id(explicit: str | None, prompt_id: str | None = None) -> Path:
     if explicit:
-        run_dir = ROOT / "runs" / explicit
-        if not (run_dir / "run.json").is_file():
-            raise FileNotFoundError(f"No run.json in {run_dir}")
-        return run_dir
+        return find_run_dir(explicit, prompt_id)
 
-    runs = discover_run_dirs()
+    runs = discover_run_dirs(prompt_id)
     if not runs:
-        raise FileNotFoundError("No runs found under runs/.")
+        raise FileNotFoundError("No runs found under runs/<prompt-id>/.")
     if len(runs) == 1:
-        print(f"Using run {runs[0].name}")
+        print(f"Using run {runs[0].parent.name}/{runs[0].name}")
         return runs[0]
 
     print("Select a run:")
     for index, run_dir in enumerate(runs, start=1):
-        print(f"  {index}. {run_dir.name}")
+        print(f"  {index}. {run_dir.parent.name}/{run_dir.name}")
     while True:
         choice = input("Run number: ").strip()
         if choice.isdigit() and 1 <= int(choice) <= len(runs):
@@ -987,9 +988,95 @@ def apply_bucket(run: dict, name: str, *, interactive: bool) -> None:
         bucket["by_tool"] = {}
 
 
+def scrub_tool_events(run_dir: Path) -> int:
+    log_dir = run_dir / "tool-events"
+    if not log_dir.is_dir():
+        return 0
+    return sum(scrub_path(path) for path in sorted(log_dir.glob("*.jsonl")))
+
+
+def print_tool_summary(summary: ToolEventSummary) -> None:
+    print("\nTool events")
+    if summary.wall_started_at and summary.wall_ended_at:
+        print(f"  Wall clock {summary.wall_started_at} to {summary.wall_ended_at}")
+    if summary.stop_status:
+        print(f"  Stop status: {summary.stop_status}")
+    for name in BUCKETS:
+        bucket = summary.buckets[name]
+        tools = ", ".join(
+            f"{tool} {counts['calls']}"
+            for tool, counts in sorted(bucket["by_tool"].items())
+        )
+        suffix = f" ({tools})" if tools else ""
+        print(f"  {name}: {bucket['calls']} calls, {bucket['failures']} failed{suffix}")
+    seconds = summary.tool_duration_ms / 1000
+    print(f"  Tool execution time: {seconds:.1f} s. This is not model time.")
+    for note in summary.notes:
+        print(f"  {note}")
+
+
+def apply_logged_identity(run: dict, summary: ToolEventSummary) -> None:
+    if not summary.present:
+        return
+    version = run["harness"].get("version")
+    if version in {None, ""} and summary.cursor_version:
+        run["harness"]["version"] = summary.cursor_version
+        print(f"Harness version from the tool log: {summary.cursor_version}")
+    effort = summary.effort
+    recorded = run["model"].get("reasoning")
+    # Tool-event logs are a Cursor artefact, so an unknown harness falls back
+    # to the Cursor effort levels; a named harness uses its own list.
+    harness_name = str((run.get("harness") or {}).get("name") or "cursor")
+    levels = reasoning_levels_for_harness(harness_name)
+    if effort in levels and recorded in {None, "unknown"}:
+        run["model"]["reasoning"] = effort
+        print(f"Reasoning from the tool log: {effort}")
+    elif effort in levels and effort != recorded:
+        summary.notes.append(f"The log effort is {effort}; run.json keeps {recorded}.")
+
+
+def apply_tool_buckets(run: dict, summary: ToolEventSummary) -> None:
+    for name in BUCKETS:
+        bucket = summary.buckets[name]
+        run["tool_calls"][name] = {
+            "calls": bucket["calls"],
+            "failures": bucket["failures"],
+            "by_tool": bucket["by_tool"] if bucket["calls"] else {},
+        }
+
+
+def observation_default(run: dict, summary: ToolEventSummary, *, include_other: bool) -> str:
+    existing = run.get("observations") if isinstance(run.get("observations"), str) else ""
+    extra = list(summary.notes)
+    if include_other and summary.other_tools:
+        extra.append("other tools: " + ", ".join(summary.other_tools) + ".")
+    if not extra:
+        return existing
+    note = " ".join(extra)
+    return f"{existing} {note}".strip() if existing else note
+
+
 def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bool) -> None:
     run_path = run_dir / "run.json"
     run = load_json(run_path)
+    if isinstance(run.get("model"), dict):
+        # Runs set up before model.context existed have no key; keep it null.
+        run["model"].setdefault("context", None)
+        # Reasoning is optional and defaults to unknown when not set.
+        run["model"].setdefault("reasoning", "unknown")
+    tool_summary = summarize_run(run_dir)
+    apply_logged_identity(run, tool_summary)
+    wall_from_log = False
+    if tool_summary.wall_started_at and tool_summary.wall_ended_at:
+        run["wall_clock"]["started_at"] = tool_summary.wall_started_at
+        run["wall_clock"]["ended_at"] = tool_summary.wall_ended_at
+        wall_from_log = True
+    use_log = False
+    if tool_summary.present:
+        print_tool_summary(tool_summary)
+        use_log = True
+        if interactive:
+            use_log = prompt_yes_no("  Use these tool counts?", default=True)
     hints = prepare_hints(run, usage_paths, interactive=interactive)
     store_usage_raw(run, hints)
 
@@ -1052,7 +1139,11 @@ def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bo
             hint_int(hints, "uncached_input_tokens", cache["uncached_input_tokens"]),
         )
 
-    if interactive:
+    tool_counts_applied = False
+    if use_log:
+        apply_tool_buckets(run, tool_summary)
+        tool_counts_applied = True
+    if interactive and not tool_counts_applied:
         print("\nTool calls (see docs/tool-buckets.md)")
         for name in BUCKETS:
             apply_bucket(run, name, interactive=True)
@@ -1060,7 +1151,14 @@ def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bo
     if interactive:
         outcome = run["outcome"]
         print("\nOutcome")
-        stopped_default = True if outcome["model_stopped"] is None else bool(outcome["model_stopped"])
+        if outcome["model_stopped"] is not None:
+            stopped_default = bool(outcome["model_stopped"])
+        elif tool_summary.stop_status == "completed":
+            stopped_default = True
+        elif tool_summary.stop_status in {"aborted", "error"}:
+            stopped_default = False
+        else:
+            stopped_default = True
         outcome["model_stopped"] = prompt_yes_no("  The model stopped by itself?", default=stopped_default)
         if outcome["operator_saw_a_page"] is True:
             page_default = "true"
@@ -1079,12 +1177,13 @@ def complete_run_json(run_dir: Path, usage_paths: list[Path], *, interactive: bo
         print("\nObservations")
         run["observations"] = prompt_optional(
             "  Additional observations",
-            run.get("observations") if isinstance(run.get("observations"), str) else "",
+            observation_default(run, tool_summary, include_other=tool_counts_applied),
         )
 
     if not isinstance(run.get("observations"), str):
         run["observations"] = ""
-    run["wall_clock"]["ended_at"] = utc_now_iso()
+    if not wall_from_log:
+        run["wall_clock"]["ended_at"] = utc_now_iso()
     write_json(run_path, run)
 
 
@@ -1096,7 +1195,8 @@ def run_compare() -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Finish recording a LLM frontier evaluator run.")
-    parser.add_argument("--run-id", help="Run directory name under runs/.")
+    parser.add_argument("--prompt", dest="prompt_id", help="Prompt id (directory under runs/). Narrows --run-id lookup.")
+    parser.add_argument("--run-id", help="Run directory name under runs/<prompt-id>/, or <prompt-id>/<run-id>.")
     parser.add_argument("--usage-export", type=Path, help="Harness usage export file or directory.")
     parser.add_argument("--skip-usage-copy", action="store_true", help="Only scrub files already in usage/.")
     parser.add_argument("--skip-metrics", action="store_true", help="Skip run.json prompts.")
@@ -1108,8 +1208,8 @@ def main() -> int:
     args = build_parser().parse_args()
 
     try:
-        run_dir = select_run_id(args.run_id)
-    except FileNotFoundError as exc:
+        run_dir = select_run_id(args.run_id, args.prompt_id)
+    except (FileNotFoundError, ValueError) as exc:
         print(exc, file=sys.stderr)
         return 1
 
@@ -1122,7 +1222,7 @@ def main() -> int:
         print(exc, file=sys.stderr)
         return 1
 
-    redactions = scrub_usage_files(usage_paths)
+    redactions = scrub_usage_files(usage_paths) + scrub_tool_events(run_dir)
     if redactions:
         print(f"Redacted {redactions} possible secret(s) in usage/.")
     else:

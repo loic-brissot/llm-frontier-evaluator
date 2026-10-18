@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -11,14 +12,127 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RUNS_DIR = ROOT / "runs"
 TEMPLATES_DIR = ROOT / "templates"
-PROMPT_PATH = ROOT / "prompt" / "PROMPT.txt"
+PROMPTS_DIR = ROOT / "prompt"
 
-PROMPT_ID = "lassence-2026-10-11"
-PROMPT_SHA256 = "19387b5a175db8f74b22515f1fce112c653d2286a5ab47fb46c4763176e64c1d"
+# A prompt id is the stem of a file in prompt/: prompt/<prompt-id>.txt.
+DEFAULT_PROMPT_ID = "paris-3d-atlas"
+_PROMPT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 RULES_VERSION = 1
 
+
+def prompt_path(prompt_id: str) -> Path:
+    return PROMPTS_DIR / f"{prompt_id}.txt"
+
+
+def is_valid_prompt_id(prompt_id: object) -> bool:
+    return isinstance(prompt_id, str) and bool(_PROMPT_ID_RE.match(prompt_id))
+
+
+def available_prompt_ids() -> list[str]:
+    if not PROMPTS_DIR.is_dir():
+        return []
+    return sorted(path.stem for path in PROMPTS_DIR.glob("*.txt") if path.is_file())
+
+
+def require_prompt_id(prompt_id: str) -> str:
+    """Validate that `prompt_id` names an existing prompt/<prompt-id>.txt."""
+    if not is_valid_prompt_id(prompt_id):
+        raise ValueError(
+            f"Prompt id {prompt_id!r} is invalid: use lowercase letters, digits, '-' or '_', "
+            "starting with a letter or digit (it is the file name without .txt)."
+        )
+    if not prompt_path(prompt_id).is_file():
+        known = ", ".join(available_prompt_ids()) or "(none)"
+        raise ValueError(f"Unknown prompt id {prompt_id!r}. Available prompts: {known}")
+    return prompt_id
+
+
+def prompt_sha256(prompt_id: str) -> str:
+    return hashlib.sha256(prompt_path(prompt_id).read_bytes()).hexdigest()
+
+
+def run_dir_for(prompt_id: str, run_id: str) -> Path:
+    return RUNS_DIR / prompt_id / run_id
+
+
+def find_run_dir(run_id: str, prompt_id: str | None = None) -> Path:
+    """Locate runs/<prompt-id>/<run-id>/, optionally scoped to one prompt.
+
+    `run_id` may also be given as `<prompt-id>/<run-id>`.
+    """
+    if prompt_id is None and "/" in run_id:
+        prompt_id, run_id = run_id.split("/", 1)
+    if prompt_id is not None:
+        candidate = run_dir_for(prompt_id, run_id)
+        if (candidate / "run.json").is_file():
+            return candidate
+        raise FileNotFoundError(f"No run.json in {candidate}")
+    matches = [
+        path.parent
+        for path in sorted(RUNS_DIR.glob(f"*/{run_id}/run.json"))
+        if path.is_file()
+    ]
+    if not matches:
+        raise FileNotFoundError(f"No run {run_id!r} found under runs/<prompt-id>/")
+    if len(matches) > 1:
+        listed = ", ".join(str(path.relative_to(ROOT)) for path in matches)
+        raise ValueError(f"Run id {run_id!r} exists for several prompts ({listed}); pass --prompt.")
+    return matches[0]
+
+
+# Convenience handle for the default prompt; prefer prompt_path(prompt_id)
+# whenever a run's own prompt is known.
+PROMPT_PATH = prompt_path(DEFAULT_PROMPT_ID)
+PROMPT_ID = DEFAULT_PROMPT_ID
+
 HARNESS_NAMES = {"cursor", "claude-code", "codex", "other"}
-REASONING_LEVELS = {"xhigh", "high", "medium", "low", "none", "unknown"}
+
+# Effort (reasoning) levels proposed for each harness, in the order the
+# harness presents them. "Claude" is the `claude-code` harness.
+CURSOR_REASONING_LEVELS = ("minimal", "low", "medium", "high", "xhigh", "max")
+CLAUDE_REASONING_LEVELS = ("low", "medium", "high", "ultra", "max", "ultracode")
+# Harnesses without their own list keep the levels recorded before the
+# per-harness lists existed, so older runs still validate.
+DEFAULT_REASONING_LEVELS = ("low", "medium", "high", "xhigh", "none", "unknown")
+REASONING_LEVELS_BY_HARNESS = {
+    "cursor": CURSOR_REASONING_LEVELS,
+    "claude-code": CLAUDE_REASONING_LEVELS,
+}
+# Reasoning is optional: it cannot be tuned or reported in every
+# configuration. An unfilled reasoning level is recorded as this default;
+# `None`/null is accepted as the same "not set" value.
+UNKNOWN_REASONING = "unknown"
+
+# Every level a recorded run may hold, across all harnesses and older runs.
+REASONING_LEVELS = {
+    *CURSOR_REASONING_LEVELS,
+    *CLAUDE_REASONING_LEVELS,
+    *DEFAULT_REASONING_LEVELS,
+}
+
+_HARNESS_ALIASES = {
+    "claude": "claude-code",
+    "claude code": "claude-code",
+    "claude-code": "claude-code",
+    "codex app": "codex",
+}
+
+
+def canonical_harness(harness: str) -> str:
+    """Return the lowercase canonical harness name (``Cursor`` -> ``cursor``)."""
+    value = harness.strip().lower()
+    return _HARNESS_ALIASES.get(value, value)
+
+
+def is_cursor_harness(harness: str) -> bool:
+    return canonical_harness(harness) == "cursor"
+
+
+def reasoning_levels_for_harness(harness: str) -> tuple[str, ...]:
+    """Effort levels proposed for a harness, matched case-insensitively."""
+    return REASONING_LEVELS_BY_HARNESS.get(
+        canonical_harness(harness), DEFAULT_REASONING_LEVELS
+    )
 
 SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"sk-[A-Za-z0-9_-]{20,}"), "sk-[REDACTED]"),
@@ -54,15 +168,17 @@ def infer_provider(model_name: str) -> str | None:
     return None
 
 
-def default_series_id(harness: str) -> str:
-    for path in sorted(RUNS_DIR.glob("*/run.json"), reverse=True):
+def default_series_id(harness: str, prompt_id: str | None = None) -> str:
+    for path in sorted(RUNS_DIR.glob("*/*/run.json"), reverse=True):
         try:
             run = load_json(path)
         except (OSError, json.JSONDecodeError):
             continue
+        if prompt_id is not None and run.get("prompt_id") != prompt_id:
+            continue
         if run.get("harness", {}).get("name") == harness and run.get("series_id"):
             return str(run["series_id"])
-    return f"lassence-2026-10-{harness}"
+    return f"{prompt_id or DEFAULT_PROMPT_ID}-{harness}"
 
 
 def load_json(path: Path) -> dict:
@@ -79,13 +195,39 @@ def write_json(path: Path, data: dict) -> None:
         handle.write("\n")
 
 
-def allocate_run_id(harness: str, model: str, reasoning: str, *, on_date: datetime | None = None) -> str:
+def allocate_run_id(
+    harness: str,
+    model: str,
+    reasoning: str | None,
+    *,
+    context: str | None = None,
+    prompt_id: str = DEFAULT_PROMPT_ID,
+    on_date: datetime | None = None,
+) -> str:
+    """Build `YYYY-MM-DD-<harness>-<model>-[<context>-]<reasoning>`.
+
+    The context segment appears only for a Cursor harness, however the
+    harness name is capitalised; it is never emitted for other harnesses.
+    Context is optional even for Cursor: `None`, blank, or `null` emits
+    no segment. Reasoning is optional too: `None`, blank, or `null`
+    falls back to `unknown`, so the reasoning segment is always present.
+    Uniqueness is checked inside runs/<prompt-id>/, so the same run id
+    may exist once per prompt.
+    """
     when = on_date or datetime.now()
     date_part = when.strftime("%Y-%m-%d")
-    base = f"{date_part}-{harness}-{slugify(model)}-{slugify(reasoning)}"
+    parts = [date_part, slugify(canonical_harness(harness)), slugify(model)]
+    context_value = context.strip() if context else ""
+    if is_cursor_harness(harness) and context_value and context_value.lower() != "null":
+        parts.append(slugify(context_value))
+    reasoning_value = reasoning.strip().lower() if reasoning else ""
+    if reasoning_value in {"", "null"}:
+        reasoning_value = UNKNOWN_REASONING
+    parts.append(slugify(reasoning_value))
+    base = "-".join(parts)
     candidate = base
     suffix = 2
-    while (RUNS_DIR / candidate).exists():
+    while run_dir_for(prompt_id, candidate).exists():
         candidate = f"{base}-{suffix}"
         suffix += 1
     return candidate
@@ -128,11 +270,12 @@ def copy_usage_export(source: Path, usage_dir: Path) -> list[Path]:
     raise FileNotFoundError(f"Usage export not found: {source}")
 
 
-def discover_run_dirs() -> list[Path]:
+def discover_run_dirs(prompt_id: str | None = None) -> list[Path]:
     if not RUNS_DIR.is_dir():
         return []
-    dirs = [path.parent for path in RUNS_DIR.glob("*/run.json") if path.is_file()]
-    return sorted(dirs, key=lambda path: path.name, reverse=True)
+    pattern = f"{prompt_id}/*/run.json" if prompt_id else "*/*/run.json"
+    dirs = [path.parent for path in RUNS_DIR.glob(pattern) if path.is_file()]
+    return sorted(dirs, key=lambda path: (path.name, path.parent.name), reverse=True)
 
 
 def utc_now_iso() -> str:

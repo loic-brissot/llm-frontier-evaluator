@@ -6,7 +6,7 @@ These four columns match the gallery heading **How each model worked**. `scripts
 
 ## Where a number comes from
 
-Use the usage report for that run. Save the report under `runs/<run-id>/usage/` when the harness can write one. When the harness only shows the figures, copy them into `run.json`. Name the field you copied.
+Use the usage report for that run. Save the report under `runs/<prompt-id>/<run-id>/usage/` when the harness can write one. When the harness only shows the figures, copy them into `run.json`. Name the field you copied.
 
 Leave the matching JSON field null when the report has no such figure.
 
@@ -71,6 +71,8 @@ The chart cell is the total. When the failure count is greater than zero, the ce
 `other` is every remaining model tool call. Print it under the table. Keep it out of the four-column total.
 
 For each bucket, `by_tool` names the harness tools and their counts. The sum of `by_tool` must equal the bucket.
+
+`scripts/finish_run.py` counts `runs/<prompt-id>/<run-id>/tool-events/*.jsonl` when those files exist. Each `postToolUse` or `postToolUseFailure` line is one call, classified with `docs/tool-buckets.md`. A missing log leaves the counts null. When the log contains the prompt submission and the agent stop, those two timestamps are `wall_clock`. The sum of tool durations is tool time. It is not model time, and it does not fill `model_time`. This reading does not change `rules_version`.
 
 ## 4. Context re-read
 

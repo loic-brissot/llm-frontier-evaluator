@@ -2,13 +2,14 @@
   "rules_version": 1,
   "run_id": "",
   "series_id": "",
-  "prompt_id": "lassence-2026-10-11",
+  "prompt_id": "paris-3d-atlas",
   "prompt_sha256": "19387b5a175db8f74b22515f1fce112c653d2286a5ab47fb46c4763176e64c1d",
   "shot": "primary",
   "parent_run_id": null,
   "model": {
     "provider": "",
     "name": "",
+    "context": null,
     "reasoning": "unknown"
   },
   "harness": {
