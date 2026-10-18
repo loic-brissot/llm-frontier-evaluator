@@ -1,0 +1,356 @@
+{
+  "as_of": "2026-10-18",
+  "currency": "USD",
+  "unit": "per_1m_tokens",
+  "sources": {
+    "anthropic": "https://platform.claude.com/docs/en/about-claude/pricing",
+    "openai": "https://developers.openai.com/api/docs/pricing",
+    "cursor": "https://cursor.com/docs/models-and-pricing",
+    "cursor_token_rate": "https://cursor.com/help/models-and-usage/token-rate"
+  },
+  "harnesses": {
+    "cursor": {
+      "third_party_token_rate_per_1m": "0.25",
+      "first_party_providers": ["cursor", "xai"],
+      "note": "Cursor models (Grok, Composer) use Cursor's first-party rates and are exempt from the $0.25/1M Cursor Token Rate. Third-party models in Cursor use API list price (Teams and Enterprise plans add $0.25/1M across all tokens)."
+    },
+    "claude-code": {
+      "third_party_token_rate_per_1m": "0",
+      "note": "Anthropic API standard list prices per 1M tokens."
+    },
+    "codex": {
+      "third_party_token_rate_per_1m": "0",
+      "note": "OpenAI API standard list prices per 1M tokens."
+    }
+  },
+  "models": [
+    {
+      "id": "claude-fable-5-1",
+      "names": ["Claude Fable 5.1", "claude-fable-5-1"],
+      "provider": "anthropic",
+      "harnesses": ["claude-code", "cursor"],
+      "input": "10.00",
+      "cache_write": "12.50",
+      "cache_read": "0.25",
+      "output": "50.00"
+    },
+    {
+      "id": "claude-fable-5",
+      "names": ["Claude Fable 5", "claude-fable-5"],
+      "provider": "anthropic",
+      "harnesses": ["claude-code", "cursor"],
+      "input": "10.00",
+      "cache_write": "12.50",
+      "cache_read": "1.00",
+      "output": "50.00"
+    },
+    {
+      "id": "claude-opus-5-5",
+      "names": ["Claude Opus 5.5", "claude-opus-5-5", "claude-opus-5.5"],
+      "provider": "anthropic",
+      "harnesses": ["claude-code", "cursor"],
+      "input": "4.00",
+      "cache_write": "5.00",
+      "cache_read": "0.20",
+      "output": "20.00"
+    },
+    {
+      "id": "claude-opus-5",
+      "names": ["Claude Opus 5", "claude-opus-5", "Claude Opus 4.8", "claude-opus-4-8", "Claude Opus 4.7", "claude-opus-4-7", "Claude Opus 4.6", "claude-opus-4-6", "Claude Opus 4.5", "claude-opus-4-5"],
+      "provider": "anthropic",
+      "harnesses": ["claude-code", "cursor"],
+      "input": "5.00",
+      "cache_write": "6.25",
+      "cache_read": "0.50",
+      "output": "25.00"
+    },
+    {
+      "id": "claude-sonnet-5-5",
+      "names": ["Claude Sonnet 5.5", "claude-sonnet-5-5", "claude-sonnet-5.5"],
+      "provider": "anthropic",
+      "harnesses": ["claude-code", "cursor"],
+      "input": "2.00",
+      "cache_write": "2.50",
+      "cache_read": "0.10",
+      "output": "10.00"
+    },
+    {
+      "id": "claude-sonnet-5",
+      "names": ["Claude Sonnet 5", "claude-sonnet-5"],
+      "provider": "anthropic",
+      "harnesses": ["claude-code", "cursor"],
+      "input": "2.00",
+      "cache_write": "2.50",
+      "cache_read": "0.20",
+      "output": "10.00"
+    },
+    {
+      "id": "claude-sonnet-4-6",
+      "names": ["Claude Sonnet 4.6", "claude-sonnet-4-6", "Claude Sonnet 4.5", "claude-sonnet-4-5"],
+      "provider": "anthropic",
+      "harnesses": ["claude-code", "cursor"],
+      "input": "3.00",
+      "cache_write": "3.75",
+      "cache_read": "0.30",
+      "output": "15.00"
+    },
+    {
+      "id": "claude-haiku-5-5",
+      "names": ["Claude Haiku 5.5", "claude-haiku-5-5", "claude-haiku-5.5"],
+      "provider": "anthropic",
+      "harnesses": ["claude-code", "cursor"],
+      "input": "0.10",
+      "cache_write": "0.125",
+      "cache_read": "0.01",
+      "output": "0.50",
+      "long_context": {
+        "threshold_input_tokens": 100000,
+        "input": "0.50",
+        "cache_write": "0.625",
+        "cache_read": "0.05",
+        "output": "2.50"
+      }
+    },
+    {
+      "id": "claude-haiku-4-5",
+      "names": ["Claude Haiku 4.5", "claude-haiku-4-5"],
+      "provider": "anthropic",
+      "harnesses": ["claude-code", "cursor"],
+      "input": "1.00",
+      "cache_write": "1.25",
+      "cache_read": "0.10",
+      "output": "5.00"
+    },
+    {
+      "id": "gpt-6-astra",
+      "names": ["GPT-6 Astra", "gpt-6-astra"],
+      "provider": "openai",
+      "harnesses": ["codex", "cursor"],
+      "input": "10.00",
+      "cache_write": "12.50",
+      "cache_read": "1.00",
+      "output": "50.00"
+    },
+    {
+      "id": "gpt-6-1-sol",
+      "names": ["GPT-6.1 Sol", "gpt-6.1-sol", "gpt-6-1-sol"],
+      "provider": "openai",
+      "harnesses": ["codex", "cursor"],
+      "input": "2.00",
+      "cache_write": "2.50",
+      "cache_read": "0.10",
+      "output": "10.00"
+    },
+    {
+      "id": "gpt-6-sol",
+      "names": ["GPT-6 Sol", "gpt-6-sol"],
+      "provider": "openai",
+      "harnesses": ["codex", "cursor"],
+      "input": "2.00",
+      "cache_write": "2.50",
+      "cache_read": "0.20",
+      "output": "10.00"
+    },
+    {
+      "id": "gpt-6-luna",
+      "names": ["GPT-6 Luna", "gpt-6-luna"],
+      "provider": "openai",
+      "harnesses": ["codex", "cursor"],
+      "input": "0.10",
+      "cache_write": "0.125",
+      "cache_read": "0.01",
+      "output": "0.50"
+    },
+    {
+      "id": "gpt-5-6-sol",
+      "names": ["GPT-5.6 Sol", "gpt-5.6-sol", "gpt-5-6-sol"],
+      "provider": "openai",
+      "harnesses": ["codex", "cursor"],
+      "input": "4.00",
+      "cache_write": "5.00",
+      "cache_read": "0.40",
+      "output": "20.00"
+    },
+    {
+      "id": "gpt-5-6-sol-fast",
+      "names": ["GPT-5.6 Sol (Fast)", "gpt-5.6-sol-fast", "gpt-5.6-sol-high-fast"],
+      "provider": "openai",
+      "harnesses": ["codex", "cursor"],
+      "input": "8.00",
+      "cache_write": "10.00",
+      "cache_read": "0.80",
+      "output": "40.00"
+    },
+    {
+      "id": "gpt-5-6-terra",
+      "names": ["GPT-5.6 Terra", "gpt-5.6-terra", "gpt-5-6-terra"],
+      "provider": "openai",
+      "harnesses": ["codex", "cursor"],
+      "input": "2.00",
+      "cache_write": "2.50",
+      "cache_read": "0.20",
+      "output": "12.00"
+    },
+    {
+      "id": "gpt-5-6-luna",
+      "names": ["GPT-5.6 Luna", "gpt-5.6-luna", "gpt-5-6-luna"],
+      "provider": "openai",
+      "harnesses": ["codex", "cursor"],
+      "input": "0.20",
+      "cache_write": "0.25",
+      "cache_read": "0.02",
+      "output": "1.20"
+    },
+    {
+      "id": "gpt-5-5",
+      "names": ["GPT-5.5", "gpt-5.5", "gpt-5-5"],
+      "provider": "openai",
+      "harnesses": ["codex", "cursor"],
+      "input": "5.00",
+      "cache_write": "0.00",
+      "cache_read": "0.50",
+      "output": "30.00"
+    },
+    {
+      "id": "gpt-5-4",
+      "names": ["GPT-5.4", "gpt-5.4", "gpt-5-4"],
+      "provider": "openai",
+      "harnesses": ["codex", "cursor"],
+      "input": "2.50",
+      "cache_write": "0.00",
+      "cache_read": "0.25",
+      "output": "15.00"
+    },
+    {
+      "id": "gpt-5",
+      "names": ["GPT-5", "gpt-5", "gpt-5.1", "gpt-5.1-codex", "gpt-5-codex"],
+      "provider": "openai",
+      "harnesses": ["codex", "cursor"],
+      "input": "1.25",
+      "cache_write": "0.00",
+      "cache_read": "0.125",
+      "output": "10.00"
+    },
+    {
+      "id": "gemini-4-argon",
+      "names": ["Gemini 4 Argon", "gemini-4-argon", "gemini-4-argon-medium"],
+      "provider": "google",
+      "harnesses": ["cursor", "other"],
+      "input": "2.00",
+      "cache_write": "0.00",
+      "cache_read": "0.10",
+      "output": "10.00"
+    },
+    {
+      "id": "gemini-3-1-pro",
+      "names": ["Gemini 3.1 Pro", "gemini-3.1-pro", "gemini-3-1-pro", "Gemini 3 Pro", "gemini-3-pro"],
+      "provider": "google",
+      "harnesses": ["cursor", "other"],
+      "input": "2.00",
+      "cache_write": "0.00",
+      "cache_read": "0.20",
+      "output": "12.00"
+    },
+    {
+      "id": "gemini-3-8-flash",
+      "names": ["Gemini 3.8 Flash", "gemini-3.8-flash", "gemini-3-8-flash", "Gemini 3.7 Flash", "gemini-3.7-flash"],
+      "provider": "google",
+      "harnesses": ["cursor", "other"],
+      "input": "0.75",
+      "cache_write": "0.00",
+      "cache_read": "0.075",
+      "output": "3.75"
+    },
+    {
+      "id": "grok-4-7",
+      "names": ["Grok 4.7", "grok-4.7", "grok-4-7", "grok-4.7-xhigh"],
+      "provider": "xai",
+      "harnesses": ["cursor"],
+      "first_party_in_cursor": true,
+      "input": "2.00",
+      "cache_write": "0.00",
+      "cache_read": "0.50",
+      "output": "6.00",
+      "context_variants": {
+        "500k": {
+          "input": "4.00",
+          "cache_write": "0.00",
+          "cache_read": "1.00",
+          "output": "12.00",
+          "note": "Long context (>256k input tokens, up to 500k) is billed at 2x standard rates."
+        }
+      }
+    },
+    {
+      "id": "grok-4-7-fast",
+      "names": ["Grok 4.7 (Fast)", "grok-4.7-fast", "grok-4.7-xhigh-fast"],
+      "provider": "xai",
+      "harnesses": ["cursor"],
+      "first_party_in_cursor": true,
+      "input": "4.00",
+      "cache_write": "0.00",
+      "cache_read": "1.00",
+      "output": "12.00",
+      "context_variants": {
+        "500k": {
+          "input": "6.00",
+          "cache_write": "0.00",
+          "cache_read": "1.50",
+          "output": "18.00"
+        }
+      }
+    },
+    {
+      "id": "composer-2-5",
+      "names": ["Composer 2.5", "composer-2.5", "composer-2-5"],
+      "provider": "cursor",
+      "harnesses": ["cursor"],
+      "first_party_in_cursor": true,
+      "input": "0.50",
+      "cache_write": "0.00",
+      "cache_read": "0.20",
+      "output": "2.50"
+    },
+    {
+      "id": "composer-2-5-fast",
+      "names": ["Composer 2.5 (Fast)", "composer-2.5-fast", "composer-2-5-fast"],
+      "provider": "cursor",
+      "harnesses": ["cursor"],
+      "first_party_in_cursor": true,
+      "input": "3.00",
+      "cache_write": "0.00",
+      "cache_read": "0.50",
+      "output": "15.00"
+    },
+    {
+      "id": "kimi-k3",
+      "names": ["Kimi K3", "kimi-k3", "kimi-k3-max"],
+      "provider": "moonshot",
+      "harnesses": ["cursor", "other"],
+      "input": "3.00",
+      "cache_write": "0.00",
+      "cache_read": "0.30",
+      "output": "15.00"
+    },
+    {
+      "id": "glm-5-3",
+      "names": ["GLM 5.3", "glm-5.3", "glm-5p3-high", "GLM 5.2", "glm-5.2"],
+      "provider": "zai",
+      "harnesses": ["cursor", "other"],
+      "input": "1.40",
+      "cache_write": "0.00",
+      "cache_read": "0.26",
+      "output": "4.40"
+    },
+    {
+      "id": "muse-wonder",
+      "names": ["Muse Wonder", "muse-wonder", "muse-wonder-1.0", "muse-wonder-1.0-medium"],
+      "provider": "meta",
+      "harnesses": ["cursor", "other"],
+      "input": "4.00",
+      "cache_write": "0.00",
+      "cache_read": "0.20",
+      "output": "20.00"
+    }
+  ]
+}

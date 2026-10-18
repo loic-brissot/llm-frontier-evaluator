@@ -61,6 +61,18 @@
         "total_tokens_mismatches": 0,
         "total_tokens_check": "matches",
         "cost": "38.57"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "grok-4-7",
+        "context_variant": "500k",
+        "rates_per_1m_usd": {
+          "input": "4.00",
+          "cache_write": "0.00",
+          "cache_read": "1.00",
+          "output": "12.00"
+        },
+        "estimated_cost_usd": "51.68"
       }
     }
   },

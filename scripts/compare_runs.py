@@ -24,6 +24,7 @@ from run_common import (
     available_prompt_ids,
     canonical_harness,
     discover_run_dirs,
+    estimate_token_cost,
     load_json,
     prompt_path,
     prompt_sha256,
@@ -37,8 +38,8 @@ HARNESS_LABELS = {
     "codex": "Codex",
     "other": "Other",
 }
-LOCAL_TABLE_HEADER = "| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Outcome |"
-LOCAL_TABLE_RULE = "| --- | --- | --- | --- | --- | --- | --- | --- |"
+LOCAL_TABLE_HEADER = "| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost | Outcome |"
+LOCAL_TABLE_RULE = "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
 
 
 def harness_label(harness_name: str) -> str:
@@ -84,6 +85,69 @@ def format_tools(calls: int, failures: int) -> str:
     if failures == 0:
         return str(calls)
     return f"{calls} {failures}✗"
+
+
+def format_reference_cost(run: dict) -> str:
+    tokens = run["tokens_generated"]
+    out_tokens = (
+        Decimal(tokens["reasoning_thousands_bar"]) + Decimal(tokens["visible_thousands_bar"])
+    ) * Decimal(1000)
+    cache_read_tokens = Decimal(run["context_reread"]["millions_bar"]) * Decimal(1_000_000)
+    est = estimate_token_cost(
+        run["model_name"],
+        cache_read_tokens=cache_read_tokens,
+        output_tokens=out_tokens,
+        harness=run.get("harness"),
+    )
+    if est is None:
+        return "n/a"
+    return f"${est['estimated_cost_usd']}"
+
+
+def format_local_cost(run: dict) -> str:
+    tokens = run.get("tokens") or {}
+    raw = tokens.get("raw") if isinstance(tokens.get("raw"), dict) else {}
+    pricing_block = raw.get("pricing") if isinstance(raw.get("pricing"), dict) else {}
+    if isinstance(pricing_block.get("estimated_cost_usd"), str) and pricing_block["estimated_cost_usd"]:
+        return f"${pricing_block['estimated_cost_usd']}"
+
+    output_tokens: int | None = None
+    if isinstance(tokens.get("reasoning_tokens"), int) and isinstance(tokens.get("visible_tokens"), int):
+        output_tokens = tokens["reasoning_tokens"] + tokens["visible_tokens"]
+    if output_tokens is None:
+        csv_block = raw.get("usage_csv") if isinstance(raw.get("usage_csv"), dict) else {}
+        hook_block = raw.get("hook_tokens") if isinstance(raw.get("hook_tokens"), dict) else {}
+        for candidate in (
+            csv_block.get("output_tokens"),
+            hook_block.get("output_tokens"),
+            raw.get("output_tokens"),
+            raw.get("completion_tokens"),
+        ):
+            if isinstance(candidate, int) and not isinstance(candidate, bool):
+                output_tokens = candidate
+                break
+
+    cache = run.get("context_reread") or {}
+    cache_read = cache.get("cache_read_tokens") if isinstance(cache.get("cache_read_tokens"), int) else 0
+    cache_write = cache.get("cache_write_tokens") if isinstance(cache.get("cache_write_tokens"), int) else 0
+    uncached_input = cache.get("uncached_input_tokens") if isinstance(cache.get("uncached_input_tokens"), int) else 0
+
+    if output_tokens is None and cache_read == 0 and uncached_input == 0:
+        return "n/a"
+
+    model_info = run.get("model") or {}
+    est = estimate_token_cost(
+        str(model_info.get("name") or ""),
+        uncached_input_tokens=uncached_input,
+        cache_write_tokens=cache_write,
+        cache_read_tokens=cache_read,
+        output_tokens=output_tokens or 0,
+        context=model_info.get("context") if isinstance(model_info.get("context"), str) else None,
+        harness=str((run.get("harness") or {}).get("name") or ""),
+    )
+    if est is None:
+        return "n/a"
+    return f"${est['estimated_cost_usd']}"
 
 
 def check_prompt() -> list[str]:
@@ -247,18 +311,19 @@ def local_row(run: dict) -> tuple[list[str], list[str]]:
     else:
         cache_cell = format_millions(cache["cache_read_tokens"])
 
+    cost_cell = format_local_cost(run)
     label = model_label(run)
-    return [run["prompt_id"], run["series_id"], run["harness"]["name"], label, token_cell, time_cell, tool_cell, cache_cell], notes
+    return [run["prompt_id"], run["series_id"], run["harness"]["name"], label, token_cell, time_cell, tool_cell, cache_cell, cost_cell], notes
 
 
 def readme_row(run: dict) -> str:
     """Format one local primary run as a Markdown table row for README.md."""
     cells, _ = local_row(run)
-    prompt_id, _series_id, harness_name, label, token_cell, time_cell, tool_cell, cache_cell = cells
+    prompt_id, _series_id, harness_name, label, token_cell, time_cell, tool_cell, cache_cell, cost_cell = cells
     harness_display = harness_label(harness_name)
     outcome_summary = ((run.get("outcome") or {}).get("summary") or "").strip() or "n/a"
     outcome_cell = outcome_summary.replace("|", r"\|")
-    return f"| `{prompt_id}` | {label} | {harness_display} | {token_cell} | {time_cell} | {tool_cell} | {cache_cell} | {outcome_cell} |"
+    return f"| `{prompt_id}` | {label} | {harness_display} | {token_cell} | {time_cell} | {tool_cell} | {cache_cell} | {cost_cell} | {outcome_cell} |"
 
 
 def _row_key(markdown_row: str) -> tuple[str, str, str] | None:
@@ -311,10 +376,18 @@ def update_readme_comparisons(run: dict, readme_path: Path = README_PATH) -> boo
             if lines[idx].strip().startswith("**"):
                 break
         if table_start is not None:
+            changed = False
+            if lines[table_start].strip() != LOCAL_TABLE_HEADER:
+                lines[table_start] = LOCAL_TABLE_HEADER
+                changed = True
+            if table_start + 1 < section_end and lines[table_start + 1].strip().startswith("| ---"):
+                if lines[table_start + 1].strip() != LOCAL_TABLE_RULE:
+                    lines[table_start + 1] = LOCAL_TABLE_RULE
+                    changed = True
             table_end = table_start
             while table_end < section_end and lines[table_end].strip().startswith("|"):
                 if target_key is not None and _row_key(lines[table_end]) == target_key:
-                    if lines[table_end] == row_line:
+                    if lines[table_end] == row_line and not changed:
                         return False
                     lines[table_end] = row_line
                     readme_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -367,7 +440,7 @@ def print_reference(reference: dict) -> None:
     print("Reference series: 2026-10-11-lassence")
     print("Published chart from bench.lassence.net, transcribed on 2026-10-17.")
     print()
-    headers = ["Model", "Harness", "Tokens generated", "Model time", "Tool calls", "Context re-read"]
+    headers = ["Model", "Harness", "Tokens generated", "Model time", "Tool calls", "Context re-read", "Est. cost"]
     rows = []
     for run in reference["runs"]:
         rows.append([
@@ -377,6 +450,7 @@ def print_reference(reference: dict) -> None:
             run["model_time"]["display"],
             run["tool_calls"]["display"],
             run["context_reread"]["display"],
+            format_reference_cost(run),
         ])
     print_table(headers, rows)
     print()
@@ -450,7 +524,7 @@ def main() -> int:
     elif not selected and not local_errors:
         print("No primary local runs. Pass --follow-ups to print follow-ups.")
     elif selected:
-        headers = ["Prompt", "Series", "Harness", "Model", "Tokens generated", "Model time", "Tool calls", "Context re-read"]
+        headers = ["Prompt", "Series", "Harness", "Model", "Tokens generated", "Model time", "Tool calls", "Context re-read", "Est. cost"]
         table_rows = []
         for run in selected:
             row, notes = local_row(run)
