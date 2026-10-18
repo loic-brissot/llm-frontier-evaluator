@@ -68,13 +68,13 @@ Prefer the sources in table order. A harness or usage export that reports genera
 1. Wall clock runs from the first `beforeSubmitPrompt` to the first `stop` after it.
 2. Each `postToolUse` or `postToolUseFailure` is logged when the tool returns. Its interval is `logged_at` minus `duration` milliseconds, up to `logged_at`, clipped to the wall clock.
 3. Overlapping intervals are merged, so parallel tool calls count once. The merged length is tool time.
-4. `generating_seconds` is wall clock minus tool time, in seconds to one decimal.
+4. `generating_seconds` is wall clock minus tool time, in seconds to one decimal. Per-tool durations in milliseconds preserve floating-point precision before rounding.
 
 When any tool event has no `duration`, the figure is not taken from the log and the source stays a manual choice.
 
 This is an upper bound on generation. It also holds network and queue latency, time to first token, harness overhead, hook execution, and any approval wait, because Cursor does not report LLM request durations to hooks. It is not comparable with a `harness_model_time` or `sum_of_llm_request_durations` cell, including the reference series.
 
-The hook also logs `afterAgentThought`, whose `duration_ms` is the length of one thinking block. Their sum is a lower bound, because visible output is not in it. `finish_run.py` stores both figures, and the summed and merged tool time, under `model_time.raw.tool_events`. Thinking time is not a score.
+The hook also logs `afterAgentThought`, whose `duration_ms` is the length of one thinking block. Duplicate thought records (such as dual base and step-suffixed `generation_id` events for the same block) are deduplicated. Their sum is a lower bound, because visible output is not in it. `finish_run.py` stores both figures, and the summed and merged tool time, under `model_time.raw.tool_events`. Thinking time is not a score.
 
 The chart cell is the number of minutes, to one decimal, with the suffix ` min`. Round half away from zero.
 

@@ -1,7 +1,7 @@
 ---
 id: TASK-1
 title: Deduplicate thought hook events and preserve sub-millisecond tool durations
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-18 02:18'
 labels:
@@ -26,8 +26,8 @@ Cursor fires two afterAgentThought hook events for every thinking block (one wit
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Duplicate afterAgentThought records for the same thought block are deduplicated before computing thinking_seconds and thought_blocks
-- [ ] #2 thinking_seconds on 2026-10-18-cursor-gemini-4-argon-1m-medium is recomputed to its true value (~887.1s across 58 blocks) and never exceeds wall_seconds
-- [ ] #3 Per-tool durations in milliseconds preserve floating-point precision before rounding the final summed seconds
-- [ ] #4 Unit tests cover duplicate afterAgentThought events and fractional millisecond tool durations
+- [x] #1 Duplicate afterAgentThought records for the same thought block are deduplicated before computing thinking_seconds and thought_blocks
+- [x] #2 thinking_seconds on 2026-10-18-cursor-gemini-4-argon-1m-medium is recomputed to its true value (~887.1s across 58 blocks) and never exceeds wall_seconds
+- [x] #3 Per-tool durations in milliseconds preserve floating-point precision before rounding the final summed seconds
+- [x] #4 Unit tests cover duplicate afterAgentThought events and fractional millisecond tool durations
 <!-- AC:END -->
