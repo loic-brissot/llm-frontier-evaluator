@@ -9,11 +9,16 @@ and every other event gets {}. No additional_context and no follow-up message.
 
 from __future__ import annotations
 
-import fcntl
+from contextlib import contextmanager
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:  # Non-POSIX (e.g., Windows)
+    fcntl = None  # type: ignore[assignment]
 
 FIELD_LIMIT = 32768
 
@@ -114,18 +119,48 @@ def record_from(event: dict) -> dict:
     }
 
 
+@contextmanager
+def _file_lock(handle):
+    locked = False
+    if fcntl is not None:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            locked = True
+        except OSError:
+            pass
+    else:
+        try:
+            import msvcrt
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            locked = True
+        except (ImportError, OSError):
+            pass
+    try:
+        yield
+    finally:
+        if locked:
+            if fcntl is not None:
+                try:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                except OSError:
+                    pass
+            else:
+                try:
+                    import msvcrt
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                except (ImportError, OSError):
+                    pass
+
+
 def append_record(event: dict) -> None:
     log_dir = log_directory_for(Path(__file__))
     log_dir.mkdir(parents=True, exist_ok=True)
     path = log_dir / f"{conversation_filename(event.get('conversation_id'))}.jsonl"
     line = json.dumps(record_from(event), ensure_ascii=False)
     with path.open("a", encoding="utf-8") as handle:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        try:
+        with _file_lock(handle):
             handle.write(line + "\n")
             handle.flush()
-        finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def main() -> None:

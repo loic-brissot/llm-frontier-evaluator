@@ -1,3 +1,5 @@
+import importlib.util
+import json
 import os
 import shutil
 import tempfile
@@ -172,6 +174,51 @@ class TestSetupRun(unittest.TestCase):
                 with patch("sys.argv", ["setup_run.py", "--follow-up", "--non-interactive"]):
                     exit_code = main()
                     self.assertNotEqual(exit_code, 0)
+
+    def test_log_tool_event_record_from_and_file_locking_fallback(self):
+        script_path = ROOT / "templates" / "cursor" / "hooks" / "log-tool-event.py"
+        spec = importlib.util.spec_from_file_location("log_tool_event", script_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        # 1. Test record_from
+        event = {
+            "hook_event_name": "postToolUse",
+            "conversation_id": "test-conv-123",
+            "tool_name": "Shell",
+            "tool_input": {"command": "echo hi"},
+            "tool_output": '{"exitCode": 0, "output": "hi\\n"}',
+        }
+        rec = mod.record_from(event)
+        self.assertEqual(rec["hook_event_name"], "postToolUse")
+        self.assertEqual(rec["tool_name"], "Shell")
+        self.assertFalse(rec["failed"])
+        self.assertEqual(rec["exit_code"], 0)
+
+        # 2. Test append_record normally
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_log_dir = Path(tmp_dir) / "tool-events"
+            with patch.object(mod, "log_directory_for", return_value=tmp_log_dir):
+                mod.append_record(event)
+                jsonl_file = tmp_log_dir / "test-conv-123.jsonl"
+                self.assertTrue(jsonl_file.is_file())
+                lines = jsonl_file.read_text(encoding="utf-8").strip().splitlines()
+                self.assertEqual(len(lines), 1)
+                data = json.loads(lines[0])
+                self.assertEqual(data["tool_name"], "Shell")
+
+        # 3. Test append_record with fcntl = None (simulating non-POSIX platform without fcntl)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_log_dir = Path(tmp_dir) / "tool-events"
+            with patch.object(mod, "log_directory_for", return_value=tmp_log_dir), \
+                 patch.object(mod, "fcntl", None):
+                mod.append_record(event)
+                jsonl_file = tmp_log_dir / "test-conv-123.jsonl"
+                self.assertTrue(jsonl_file.is_file())
+                lines = jsonl_file.read_text(encoding="utf-8").strip().splitlines()
+                self.assertEqual(len(lines), 1)
+                data = json.loads(lines[0])
+                self.assertEqual(data["tool_name"], "Shell")
 
 
 if __name__ == "__main__":

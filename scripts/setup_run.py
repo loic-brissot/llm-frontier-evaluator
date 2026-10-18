@@ -171,7 +171,7 @@ def install_cursor_hook(workspace: Path) -> None:
     if not source_config.is_file() or not source_script.is_file():
         raise FileNotFoundError("Cursor hook template files are missing from templates/cursor/.")
     hook_dir = workspace / ".cursor" / "hooks"
-    hook_dir.mkdir(parents=True)
+    hook_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source_config, workspace / ".cursor" / "hooks.json")
     script = hook_dir / "log-tool-event.py"
     shutil.copy2(source_script, script)
