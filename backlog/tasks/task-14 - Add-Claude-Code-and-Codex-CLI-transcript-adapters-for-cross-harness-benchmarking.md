@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-18 02:19'
+updated_date: '2026-10-19 23:50'
 labels:
   - harnesses
   - metrology
@@ -17,7 +18,8 @@ references:
 documentation:
   - docs/protocol.md
   - docs/metrics.md
-priority: medium
+  - docs/design-run-isolation.md
+priority: high
 type: feature
 ordinal: 14000
 ---
@@ -25,7 +27,7 @@ ordinal: 14000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-All local runs recorded so far use Cursor, which does not expose reasoning vs. visible token splits in its usage CSV (leaving Tokens generated as n/a in every local row). Adding automated transcript/usage parsers for Claude Code (~/.claude/projects/ JSONL) and Codex CLI allows finish_run.py to extract exact reasoning token splits, per-turn request durations, and tool calls across multiple harnesses.
+All local runs recorded so far use Cursor GUI, which does not expose reasoning vs. visible token splits in its usage CSV (leaving Tokens generated as n/a in every local row). Adding automated transcript and stream-json parsers for Claude Code (claude -p --output-format stream-json and ~/.claude/projects/ JSONL), Cursor CLI (cursor-agent -p --output-format stream-json), and Codex CLI allows finish_run.py to extract exact reasoning token splits, per-turn request durations, and tool calls across headless CLI harnesses.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria

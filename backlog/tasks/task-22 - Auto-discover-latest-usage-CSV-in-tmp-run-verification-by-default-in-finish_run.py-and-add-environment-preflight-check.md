@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-19 12:52'
+updated_date: '2026-10-19 23:49'
 labels:
   - dx
   - workflow
@@ -27,7 +28,7 @@ ordinal: 22000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-During the Muse Wonder run, two workflow friction points occurred: (1) the operator downloaded tmp/team-usage-events-7984357-2026-10-19.csv, but finish_run.py prompted 'Path to harness usage export (Enter to use hook log / existing usage/)' with an empty default instead of auto-discovering the newest CSV in tmp/ that has a matching event in the run's wall-clock window; (2) setup_run.py did not warn upfront that Playwright/Chromium was missing before the run started, and finish_run.py only runs verify_run.py if --verify is explicitly passed (unless artifacts/runtime.json already exists).
+During the Muse Wonder and Gemini 4 Argon runs, three workflow friction points occurred: (1) the operator downloaded tmp/team-usage-events-*.csv, but finish_run.py prompted with an empty default instead of auto-discovering the newest CSV in tmp/ that has a matching event in the run's wall-clock window; (2) setup_run.py did not warn upfront that Playwright/Chromium was missing before the run started, and finish_run.py only runs verify_run.py if --verify is explicitly passed; (3) re-running finish_run.py appended duplicate tool-event notes to run.json observations (e.g. repeating 'The logged prompt bytes differ...' twice).
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
@@ -36,4 +37,5 @@ During the Muse Wonder run, two workflow friction points occurred: (1) the opera
 - [ ] #2 finish_run.py automatically runs verify_run() when artifacts/runtime.json does not exist yet (unless --skip-verify is passed), removing the need to run verify_run.py as a separate manual command before finish_run.py
 - [ ] #3 setup_run.py (or a --check / preflight helper) prints a non-blocking warning if optional verification dependencies (Playwright + Chromium) or jsonschema are missing from the environment
 - [ ] #4 Unit tests verify tmp/ usage CSV auto-discovery and automatic verify_run execution in finish_run.py
+- [ ] #5 Deduplicate observations notes in finish_run.py (observation_default) so re-running finish_run.py on an existing run does not append duplicate warning strings
 <!-- AC:END -->
