@@ -3,7 +3,7 @@ id: TASK-19
 title: >-
   Remove paris-3d-atlas prompt and local run data while keeping Charles de
   Lassence's blogpost as inspiration in README
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 04:17'
 labels:
@@ -37,8 +37,8 @@ Charles de Lassence's blogpost (https://lassence.net/posts/personal-benchmark-3d
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Remove prompt/paris-3d-atlas.txt, runs/paris-3d-atlas/, and the paris-3d-atlas entry in prompt/README.md and reference/prompt-probes.json (and remove or decouple reference/2026-10-11-lassence.json)
-- [ ] #2 Update DEFAULT_PROMPT_ID in scripts/run_common.py, scripts/probe_data.py, scripts/setup_run.py, and templates/run.json to an original repository prompt (e.g. france-road-accidents)
-- [ ] #3 Update README.md, docs/protocol.md, and runs/README.md to keep the credit/link to Charles de Lassence's blogpost as inspiration while removing the copied paris-3d-atlas prompt and comparison tables
-- [ ] #4 Update all unit tests in tests/ to use original prompt IDs and verify python3 -m pytest and python3 scripts/compare_runs.py pass
+- [x] #1 Remove prompt/paris-3d-atlas.txt, runs/paris-3d-atlas/, and the paris-3d-atlas entry in prompt/README.md and reference/prompt-probes.json (and remove or decouple reference/2026-10-11-lassence.json)
+- [x] #2 Update DEFAULT_PROMPT_ID in scripts/run_common.py, scripts/probe_data.py, scripts/setup_run.py, and templates/run.json to an original repository prompt (e.g. france-road-accidents)
+- [x] #3 Update README.md, docs/protocol.md, and runs/README.md to keep the credit/link to Charles de Lassence's blogpost as inspiration while removing the copied paris-3d-atlas prompt and comparison tables
+- [x] #4 Update all unit tests in tests/ to use original prompt IDs and verify python3 -m pytest and python3 scripts/compare_runs.py pass
 <!-- AC:END -->

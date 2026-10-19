@@ -153,7 +153,7 @@ class TestVerifyRun(unittest.TestCase):
 
     def test_verify_run_and_schema_validation(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            run_dir = Path(tmpdir) / "runs" / "paris-3d-atlas" / "test-run"
+            run_dir = Path(tmpdir) / "runs" / "france-road-accidents" / "test-run"
             workspace = run_dir / "workspace"
             workspace.mkdir(parents=True)
             (workspace / "index.html").write_text(
@@ -166,8 +166,8 @@ class TestVerifyRun(unittest.TestCase):
             run_json = {
                 "rules_version": 2,
                 "run_id": "test-run",
-                "series_id": "paris-3d-atlas-cursor",
-                "prompt_id": "paris-3d-atlas",
+                "series_id": "france-road-accidents-cursor",
+                "prompt_id": "france-road-accidents",
                 "prompt_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
                 "shot": "primary",
                 "parent_run_id": None,
@@ -239,7 +239,7 @@ class TestVerifyRun(unittest.TestCase):
 
     def test_finish_run_integration_reads_runtime_telemetry(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            run_dir = Path(tmpdir) / "runs" / "paris-3d-atlas" / "test-run"
+            run_dir = Path(tmpdir) / "runs" / "france-road-accidents" / "test-run"
             artifacts = run_dir / "artifacts"
             artifacts.mkdir(parents=True)
 
@@ -262,8 +262,8 @@ class TestVerifyRun(unittest.TestCase):
             run_json = {
                 "rules_version": 2,
                 "run_id": "test-run",
-                "series_id": "paris-3d-atlas-cursor",
-                "prompt_id": "paris-3d-atlas",
+                "series_id": "france-road-accidents-cursor",
+                "prompt_id": "france-road-accidents",
                 "prompt_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
                 "shot": "primary",
                 "parent_run_id": None,
@@ -319,7 +319,7 @@ class TestVerifyRun(unittest.TestCase):
             "verified_at": "2026-10-19T00:00:00Z",
         }
         with tempfile.TemporaryDirectory() as tmpdir:
-            run_dir = Path(tmpdir) / "runs" / "paris-3d-atlas" / "test-run"
+            run_dir = Path(tmpdir) / "runs" / "france-road-accidents" / "test-run"
             run_dir.mkdir(parents=True)
             with (
                 patch("verify_run.select_run_dir", return_value=run_dir),
@@ -350,7 +350,7 @@ class TestVerifyRun(unittest.TestCase):
 
     def test_finish_run_playwright_env_error_does_not_default_operator_saw_a_page_to_false(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            run_dir = Path(tmpdir) / "runs" / "paris-3d-atlas" / "test-run"
+            run_dir = Path(tmpdir) / "runs" / "france-road-accidents" / "test-run"
             artifacts = run_dir / "artifacts"
             artifacts.mkdir(parents=True)
 
@@ -374,8 +374,8 @@ class TestVerifyRun(unittest.TestCase):
             run_json = {
                 "rules_version": 2,
                 "run_id": "test-run",
-                "series_id": "paris-3d-atlas-cursor",
-                "prompt_id": "paris-3d-atlas",
+                "series_id": "france-road-accidents-cursor",
+                "prompt_id": "france-road-accidents",
                 "prompt_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
                 "shot": "primary",
                 "parent_run_id": None,

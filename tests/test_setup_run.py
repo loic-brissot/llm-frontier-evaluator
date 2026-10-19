@@ -58,7 +58,7 @@ class TestSetupRun(unittest.TestCase):
                     harness="cursor",
                     model="gemini-3.1-pro",
                     reasoning="unknown",
-                    prompt_id="paris-3d-atlas",
+                    prompt_id="france-road-accidents",
                     series_id="test-series",
                     provider="google",
                     harness_version="1.0.0",
@@ -68,8 +68,8 @@ class TestSetupRun(unittest.TestCase):
                 prompt_txt = run_dir / "workspace" / "prompt.txt"
                 self.assertTrue(prompt_txt.is_file(), "workspace/prompt.txt must exist")
                 actual_sha256 = hashlib.sha256(prompt_txt.read_bytes()).hexdigest()
-                self.assertEqual(actual_sha256, prompt_sha256("paris-3d-atlas"))
-                self.assertEqual(prompt_txt.read_bytes(), prompt_path("paris-3d-atlas").read_bytes())
+                self.assertEqual(actual_sha256, prompt_sha256("france-road-accidents"))
+                self.assertEqual(prompt_txt.read_bytes(), prompt_path("france-road-accidents").read_bytes())
 
     def test_create_run_directory_follow_up(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -80,7 +80,7 @@ class TestSetupRun(unittest.TestCase):
                     harness="cursor",
                     model="gemini-3.1-pro",
                     reasoning="unknown",
-                    prompt_id="paris-3d-atlas",
+                    prompt_id="france-road-accidents",
                     series_id="test-series",
                     provider="google",
                     harness_version="1.0.0",
@@ -142,7 +142,7 @@ class TestSetupRun(unittest.TestCase):
                     model="gemini-3.1-pro",
                     reasoning="high",
                     context="500k",
-                    prompt_id="paris-3d-atlas",
+                    prompt_id="france-road-accidents",
                     series_id="custom-series",
                     provider="google",
                     harness_version="1.2.3",
@@ -162,7 +162,7 @@ class TestSetupRun(unittest.TestCase):
                     exit_code = main()
                     self.assertEqual(exit_code, 0)
 
-                follow_up_dir = tmp_runs / "paris-3d-atlas" / f"{parent_run_id}-follow-up"
+                follow_up_dir = tmp_runs / "france-road-accidents" / f"{parent_run_id}-follow-up"
                 self.assertTrue(follow_up_dir.is_dir())
                 f_data = load_json(follow_up_dir / "run.json")
                 self.assertEqual(f_data["shot"], "follow-up")
@@ -182,7 +182,7 @@ class TestSetupRun(unittest.TestCase):
                     exit_code = main()
                     self.assertEqual(exit_code, 0)
 
-                follow_up_2_dir = tmp_runs / "paris-3d-atlas" / f"{parent_run_id}-2-follow-up"
+                follow_up_2_dir = tmp_runs / "france-road-accidents" / f"{parent_run_id}-2-follow-up"
                 self.assertTrue(follow_up_2_dir.is_dir())
                 f2_data = load_json(follow_up_2_dir / "run.json")
                 self.assertEqual(f2_data["shot"], "follow-up")
@@ -210,7 +210,7 @@ class TestSetupRun(unittest.TestCase):
                     exit_code = main()
                     self.assertEqual(exit_code, 0)
 
-                created_dirs = list(tmp_runs.glob("paris-3d-atlas/*"))
+                created_dirs = list(tmp_runs.glob("france-road-accidents/*"))
                 self.assertEqual(len(created_dirs), 1)
                 run_data = load_json(created_dirs[0] / "run.json")
                 self.assertEqual(run_data["model"]["name"], "Muse Wonder")

@@ -2,8 +2,8 @@
   "rules_version": 2,
   "run_id": "",
   "series_id": "",
-  "prompt_id": "paris-3d-atlas",
-  "prompt_sha256": "19387b5a175db8f74b22515f1fce112c653d2286a5ab47fb46c4763176e64c1d",
+  "prompt_id": "france-road-accidents",
+  "prompt_sha256": "982eebe095732d52f4ca2e904d1cc284b76e9522d3f6f634c571f60ee96747a9",
   "shot": "primary",
   "parent_run_id": null,
   "model": {

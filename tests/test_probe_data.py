@@ -16,7 +16,7 @@ class TestProbeData(unittest.TestCase):
     def test_probe_specs_cover_all_prompts(self):
         specs = load_probe_specs()
         prompt_files = sorted(PROMPTS_DIR.glob("*.txt"))
-        self.assertEqual(len(prompt_files), 7, "Expected exactly 7 prompt files in prompt/")
+        self.assertEqual(len(prompt_files), 6, "Expected exactly 6 prompt files in prompt/")
 
         for prompt_file in prompt_files:
             prompt_id = prompt_file.stem
@@ -31,13 +31,47 @@ class TestProbeData(unittest.TestCase):
             self.assertIsInstance(spec.get("checks"), list)
             self.assertGreater(len(spec["checks"]), 0, f"No checks defined for {prompt_id}")
 
-    def test_genuine_open_data_paris_3d_atlas(self):
+    def test_genuine_open_data_custom_spec(self):
+        specs = {
+            "custom-open-data": {
+                "prompt_id": "custom-open-data",
+                "type": "open_data",
+                "description": "Custom open data prompt",
+                "checks": [
+                    {
+                        "id": "buildings_dataset",
+                        "description": "Buildings footprints",
+                        "file_patterns": ["*building*"],
+                        "required_markers": ["hauteur"],
+                        "min_records": 1000,
+                    },
+                    {
+                        "id": "trees_dataset",
+                        "description": "Trees dataset",
+                        "file_patterns": ["*tree*"],
+                        "min_records": 1000,
+                    },
+                    {
+                        "id": "arrondissements_dataset",
+                        "description": "Arrondissements",
+                        "file_patterns": ["*arrondissement*"],
+                        "min_records": 20,
+                    },
+                    {
+                        "id": "waterways_green_spaces_dataset",
+                        "description": "Waterways and green spaces",
+                        "file_patterns": ["*waterway*"],
+                        "min_records": 5,
+                    },
+                ],
+                "synthetic_patterns": [],
+            }
+        }
         with tempfile.TemporaryDirectory() as tmpdir:
             workspace = Path(tmpdir) / "workspace"
             data_dir = workspace / "data"
             data_dir.mkdir(parents=True)
 
-            # 1. Buildings GeoJSON with real Paris coordinates and attributes
             buildings = {
                 "type": "FeatureCollection",
                 "features": [
@@ -53,26 +87,24 @@ class TestProbeData(unittest.TestCase):
             }
             (data_dir / "buildings.geojson").write_text(json.dumps(buildings), encoding="utf-8")
 
-            # 2. Trees GeoJSON
             trees = {
                 "type": "FeatureCollection",
                 "features": [
                     {
                         "type": "Feature",
                         "geometry": {"type": "Point", "coordinates": [2.34, 48.85]},
-                        "properties": {"hauteur": 12, "genre": "Platanus", "espece": "x hispanica", "libellefrancais": "Platane"},
+                        "properties": {"hauteur": 12, "genre": "Platanus"},
                     }
                 ] * 1100,
             }
             (data_dir / "trees.geojson").write_text(json.dumps(trees), encoding="utf-8")
 
-            # 3. Arrondissements GeoJSON
             arrondissements = {
                 "type": "FeatureCollection",
                 "features": [
                     {
                         "type": "Feature",
-                        "properties": {"c_ar": i, "l_ar": f"{i}e Ardt", "c_arond": 75100 + i},
+                        "properties": {"c_ar": i, "l_ar": f"{i}e Ardt"},
                         "geometry": {"type": "Polygon", "coordinates": [[[2.3, 48.8], [2.4, 48.8], [2.4, 48.9], [2.3, 48.9], [2.3, 48.8]]]},
                     }
                     for i in range(1, 21)
@@ -80,23 +112,21 @@ class TestProbeData(unittest.TestCase):
             }
             (data_dir / "arrondissements.geojson").write_text(json.dumps(arrondissements), encoding="utf-8")
 
-            # 4. Waterways GeoJSON
             waterways = {
                 "type": "FeatureCollection",
                 "features": [
                     {
                         "type": "Feature",
-                        "properties": {"nom": "La Seine", "espace": "vert"},
+                        "properties": {"nom": "La Seine"},
                         "geometry": {"type": "LineString", "coordinates": [[2.25, 48.83], [2.40, 48.88]]},
                     }
                 ] * 10,
             }
             (data_dir / "waterways.geojson").write_text(json.dumps(waterways), encoding="utf-8")
 
-            # Source code using standard MapLibre / Three.js
-            (workspace / "main.js").write_text("console.log('Loading Paris 3D atlas');", encoding="utf-8")
+            (workspace / "main.js").write_text("console.log('Loading custom atlas');", encoding="utf-8")
 
-            scorecard = probe_workspace("paris-3d-atlas", workspace)
+            scorecard = probe_workspace("custom-open-data", workspace, specs=specs)
             self.assertTrue(scorecard["passed"])
             self.assertEqual(scorecard["authenticity"], "real_open_data")
             self.assertEqual(scorecard["score"], 1.0)
@@ -222,7 +252,7 @@ class TestProbeData(unittest.TestCase):
             """
             (workspace / "app.js").write_text(mock_code, encoding="utf-8")
 
-            scorecard = probe_workspace("paris-3d-atlas", workspace)
+            scorecard = probe_workspace("france-road-accidents", workspace)
             self.assertFalse(scorecard["passed"])
             self.assertEqual(scorecard["authenticity"], "synthetic_fallback")
             self.assertEqual(scorecard["score"], 0.0)
@@ -238,7 +268,7 @@ class TestProbeData(unittest.TestCase):
                 "Banister, CTL, ATL, TSB, calcTSS, calcCSS, generateMockBuildings"
             )
             (workspace / "prompt.txt").write_text(prompt_content, encoding="utf-8")
-            (workspace / "paris-3d-atlas.txt").write_text(prompt_content, encoding="utf-8")
+            (workspace / "france-road-accidents.txt").write_text(prompt_content, encoding="utf-8")
 
             scan_res = scan_workspace(workspace)
             self.assertEqual(scan_res["total_data_files"], 0)
@@ -246,7 +276,7 @@ class TestProbeData(unittest.TestCase):
             self.assertEqual(len(scan_res["code_files"]), 0)
             self.assertEqual(len(scan_res["data_files"]), 0)
 
-            scorecard = probe_workspace("paris-3d-atlas", workspace)
+            scorecard = probe_workspace("france-road-accidents", workspace)
             self.assertFalse(scorecard["passed"])
             self.assertEqual(scorecard["total_data_files"], 0)
             self.assertEqual(scorecard["total_records"], 0)
@@ -261,7 +291,7 @@ class TestProbeData(unittest.TestCase):
             mtime_before = data_file.stat().st_mtime
             files_before = set(workspace.rglob("*"))
 
-            probe_workspace("paris-3d-atlas", workspace)
+            probe_workspace("france-road-accidents", workspace)
 
             files_after = set(workspace.rglob("*"))
             self.assertEqual(files_before, files_after)
@@ -269,65 +299,35 @@ class TestProbeData(unittest.TestCase):
 
     def test_probe_run_and_schema_validation(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            run_dir = Path(tmpdir) / "runs" / "paris-3d-atlas" / "test-run"
+            run_dir = Path(tmpdir) / "runs" / "france-road-accidents" / "test-run"
             workspace = run_dir / "workspace"
-            workspace.mkdir(parents=True)
+            data_dir = workspace / "data"
+            data_dir.mkdir(parents=True)
 
-            buildings = {
+            csv_lines = ["Num_Acc,num_acc,grav,catv,catu"] + [
+                f"20240000{i},20240000{i},3,1,1" for i in range(5200)
+            ]
+            (data_dir / "caracteristiques_usagers_baac.csv").write_text("\n".join(csv_lines), encoding="utf-8")
+
+            depts = {
                 "type": "FeatureCollection",
                 "features": [
                     {
                         "type": "Feature",
-                        "geometry": {"type": "Point", "coordinates": [2.34, 48.85]},
-                        "properties": {"hauteur": 15, "periode": "1900", "annee": 1900},
+                        "properties": {"code_dep": f"{i:02d}", "code": f"{i:02d}", "nom": f"Dept {i}"},
+                        "geometry": {"type": "Polygon", "coordinates": [[[2.0, 46.0], [2.1, 46.0], [2.1, 46.1], [2.0, 46.1], [2.0, 46.0]]]},
                     }
-                ] * 1050,
-            }
-            (workspace / "buildings.geojson").write_text(json.dumps(buildings), encoding="utf-8")
-
-            trees = {
-                "type": "FeatureCollection",
-                "features": [
-                    {
-                        "type": "Feature",
-                        "geometry": {"type": "Point", "coordinates": [2.34, 48.85]},
-                        "properties": {"hauteur": 10, "genre": "Tilia", "libellefrancais": "Tilleul"},
-                    }
-                ] * 1050,
-            }
-            (workspace / "trees.geojson").write_text(json.dumps(trees), encoding="utf-8")
-
-            arrondissements = {
-                "type": "FeatureCollection",
-                "features": [
-                    {
-                        "type": "Feature",
-                        "geometry": {"type": "Polygon", "coordinates": [[[2.3, 48.8], [2.4, 48.8], [2.4, 48.9], [2.3, 48.9], [2.3, 48.8]]]},
-                        "properties": {"c_ar": i, "l_ar": f"{i}e Ardt"},
-                    }
-                    for i in range(1, 21)
+                    for i in range(1, 96)
                 ],
             }
-            (workspace / "arrondissements.geojson").write_text(json.dumps(arrondissements), encoding="utf-8")
-
-            waterways = {
-                "type": "FeatureCollection",
-                "features": [
-                    {
-                        "type": "Feature",
-                        "geometry": {"type": "LineString", "coordinates": [[2.3, 48.8], [2.4, 48.8]]},
-                        "properties": {"nom": "Seine", "espace": "vert"},
-                    }
-                ] * 10,
-            }
-            (workspace / "waterways.geojson").write_text(json.dumps(waterways), encoding="utf-8")
+            (data_dir / "departements.geojson").write_text(json.dumps(depts), encoding="utf-8")
 
             run_json = {
                 "rules_version": 2,
                 "run_id": "test-run",
-                "series_id": "paris-3d-atlas-cursor",
-                "prompt_id": "paris-3d-atlas",
-                "prompt_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "series_id": "france-road-accidents-cursor",
+                "prompt_id": "france-road-accidents",
+                "prompt_sha256": "982eebe095732d52f4ca2e904d1cc284b76e9522d3f6f634c571f60ee96747a9",
                 "shot": "primary",
                 "parent_run_id": None,
                 "model": {"provider": "google", "name": "gemini-3.1-pro"},
@@ -354,7 +354,7 @@ class TestProbeData(unittest.TestCase):
                     "uncached_input_tokens": None,
                     "raw": {},
                 },
-                "outcome": {"model_stopped": True, "operator_saw_a_page": None, "summary": "3D Map"},
+                "outcome": {"model_stopped": True, "operator_saw_a_page": None, "summary": "Map"},
                 "observations": "",
             }
             (run_dir / "run.json").write_text(json.dumps(run_json, indent=2), encoding="utf-8")
@@ -366,7 +366,7 @@ class TestProbeData(unittest.TestCase):
             updated_run = load_json(run_dir / "run.json")
             self.assertIn("verification", updated_run)
             self.assertIn("data_pipeline", updated_run["verification"])
-            self.assertEqual(updated_run["verification"]["data_pipeline"]["total_records"], 2130)
+            self.assertEqual(updated_run["verification"]["data_pipeline"]["total_records"], 5295)
 
             errors = run_schema_errors(updated_run)
             self.assertEqual(errors, [], f"Schema errors: {errors}")

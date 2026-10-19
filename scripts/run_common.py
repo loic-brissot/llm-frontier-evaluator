@@ -32,7 +32,7 @@ def _schema_enum(name: str) -> tuple[str, ...]:
 
 
 # A prompt id is the stem of a file in prompt/: prompt/<prompt-id>.txt.
-DEFAULT_PROMPT_ID = "paris-3d-atlas"
+DEFAULT_PROMPT_ID = "france-road-accidents"
 _PROMPT_ID_RE = re.compile(RUN_SCHEMA["properties"]["prompt_id"]["pattern"])
 RULES_VERSION = RUN_SCHEMA["properties"]["rules_version"]["default"]
 HOOK_TIME_SOURCE = "wall_clock_minus_tool_time"

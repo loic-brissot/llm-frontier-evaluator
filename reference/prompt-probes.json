@@ -220,46 +220,5 @@
       "fake_flood",
       "mockData"
     ]
-  },
-  "paris-3d-atlas": {
-    "prompt_id": "paris-3d-atlas",
-    "type": "open_data",
-    "description": "Paris 3D building volume map by construction period",
-    "checks": [
-      {
-        "id": "buildings_dataset",
-        "description": "Paris building footprints with height and construction period/year",
-        "file_patterns": ["*building*", "*batie*", "*emprise*", "*apur*", "*batiment*"],
-        "required_markers": ["hauteur", "height", "periode", "annee", "year"],
-        "spatial_bbox": [2.22, 48.81, 2.47, 48.91],
-        "min_records": 1000
-      },
-      {
-        "id": "trees_dataset",
-        "description": "Paris trees dataset (les-arbres)",
-        "file_patterns": ["*arbre*", "*tree*", "*les-arbres*"],
-        "min_records": 1000
-      },
-      {
-        "id": "arrondissements_dataset",
-        "description": "Paris 20 arrondissements district boundaries",
-        "file_patterns": ["*arrondissement*", "*district*"],
-        "min_records": 20
-      },
-      {
-        "id": "waterways_green_spaces_dataset",
-        "description": "Paris waterways and green spaces",
-        "file_patterns": ["*eau*", "*water*", "*espace*", "*vert*", "*green*"],
-        "min_records": 5
-      }
-    ],
-    "synthetic_patterns": [
-      "generateMockBuildings",
-      "fakeBuildings",
-      "generateRandomBuildings",
-      "mockBuildings",
-      "fake_buildings",
-      "createMockData"
-    ]
   }
 }

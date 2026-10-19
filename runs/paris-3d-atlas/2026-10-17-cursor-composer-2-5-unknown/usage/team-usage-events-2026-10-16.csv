@@ -1,3 +1,0 @@
-Date,User,PR Author,Repo,PR Number,Cloud Agent ID,Automation ID,Kind,Model,Max Mode,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost
-"2026-10-16T23:45:18.896Z","null","","","","","","Included","composer-2.5-fast","No","0","47083","1060332","25867","1133282","1.01"
-

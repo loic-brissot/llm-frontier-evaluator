@@ -41,7 +41,7 @@ class TestCompareRuns(unittest.TestCase):
     def test_local_row_tool_calls_null_vs_zero_vs_nonzero(self):
         # Case 1: buckets are null (calls is None) -> tool_cell should be "n/a"
         run_null = {
-            "prompt_id": "paris-3d-atlas",
+            "prompt_id": "france-road-accidents",
             "series_id": "2026-10-17-init",
             "rules_version": 1,
             "harness": {"name": "cursor"},
@@ -65,7 +65,7 @@ class TestCompareRuns(unittest.TestCase):
 
         # Case 2: buckets are 0 calls -> tool_cell should be "0"
         run_zero = {
-            "prompt_id": "paris-3d-atlas",
+            "prompt_id": "france-road-accidents",
             "series_id": "2026-10-17-init",
             "rules_version": 1,
             "harness": {"name": "cursor"},
@@ -88,7 +88,7 @@ class TestCompareRuns(unittest.TestCase):
 
         # Case 3: non-zero calls and failures
         run_nonzero = {
-            "prompt_id": "paris-3d-atlas",
+            "prompt_id": "france-road-accidents",
             "series_id": "2026-10-17-init",
             "rules_version": 1,
             "harness": {"name": "cursor"},
@@ -121,8 +121,8 @@ class TestCompareRuns(unittest.TestCase):
     def test_check_readme_detects_drift_when_cell_differs(self):
         # Create a temporary copy of README.md and introduce drift in a table cell
         original_content = README_PATH.read_text(encoding="utf-8")
-        # Tamper with a cell in the local series table (e.g. change $2.05 to $9.99)
-        tampered_content = original_content.replace("$2.05", "$9.99")
+        # Tamper with a cell in the local series table (e.g. change $1.76 to $9.99)
+        tampered_content = original_content.replace("$1.76", "$9.99")
         self.assertNotEqual(original_content, tampered_content)
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -141,7 +141,7 @@ class TestCompareRuns(unittest.TestCase):
             output = captured_output.getvalue()
             self.assertIn("README.md comparison tables are out of sync", output)
             self.assertIn("$9.99", output)
-            self.assertIn("$2.05", output)
+            self.assertIn("$1.76", output)
 
             # Test that --sync-readme repairs the tampered README
             captured_sync = io.StringIO()
@@ -286,7 +286,7 @@ class TestCompareRuns(unittest.TestCase):
         # Valid reference
         valid_ref = {
             "series_id": "ref-1",
-            "prompt_id": "paris-3d-atlas",
+            "prompt_id": "france-road-accidents",
             "runs": [
                 {
                     "run_id": "r1",
@@ -305,7 +305,7 @@ class TestCompareRuns(unittest.TestCase):
         # Reference with failures > calls
         invalid_ref_tools = {
             "series_id": "ref-1",
-            "prompt_id": "paris-3d-atlas",
+            "prompt_id": "france-road-accidents",
             "runs": [
                 {
                     "run_id": "r1",

@@ -209,8 +209,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--prompt",
         dest="prompt_id",
-        help="Prompt id: the stem of a file in prompt/, e.g. paris-3d-atlas "
-        f"for prompt/paris-3d-atlas.txt (default: {DEFAULT_PROMPT_ID}).",
+        help="Prompt id: the stem of a file in prompt/, e.g. france-road-accidents "
+        f"for prompt/france-road-accidents.txt (default: {DEFAULT_PROMPT_ID}).",
     )
     parser.add_argument("--harness", help="Harness name (default: cursor).")
     parser.add_argument("--model", help="Model name as you will record it in run.json.")
