@@ -3,7 +3,7 @@ id: TASK-18
 title: >-
   Copy frozen prompt into workspace/ (gitignored) during setup_run.py to
   streamline test preparation
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 04:17'
 labels:
@@ -31,7 +31,7 @@ When preparing a new benchmark run with scripts/setup_run.py, the operator opens
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 setup_run.py copies prompt/<prompt-id>.txt into the newly created workspace/ directory and updates the printed next-step instructions
-- [ ] #2 probe_data.py and any workspace scanners exclude the copied prompt file so its contents/keywords do not trigger false-positive data or code marker matches
-- [ ] #3 docs/protocol.md, README.md, and tests/test_setup_run.py are updated to reflect the workspace prompt file
+- [x] #1 setup_run.py copies prompt/<prompt-id>.txt into the newly created workspace/ directory and updates the printed next-step instructions
+- [x] #2 probe_data.py and any workspace scanners exclude the copied prompt file so its contents/keywords do not trigger false-positive data or code marker matches
+- [x] #3 docs/protocol.md, README.md, and tests/test_setup_run.py are updated to reflect the workspace prompt file
 <!-- AC:END -->

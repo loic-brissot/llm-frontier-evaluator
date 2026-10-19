@@ -14,8 +14,10 @@ from typing import Any
 
 from run_common import (
     ROOT,
+    WORKSPACE_PROMPT_FILENAME,
     discover_run_dirs,
     find_run_dir,
+    is_valid_prompt_id,
     load_json,
     utc_now_iso,
     write_json,
@@ -32,6 +34,11 @@ EXCLUDED_DIRS = {
     "__pycache__",
     "dist",
     "build",
+}
+
+EXCLUDED_FILES = {
+    WORKSPACE_PROMPT_FILENAME,
+    "prompt.md",
 }
 
 DATA_EXTENSIONS = {
@@ -133,6 +140,14 @@ def scan_workspace(workspace_dir: Path) -> dict[str, Any]:
 
         # Skip excluded directory trees
         if any(part in EXCLUDED_DIRS for part in path.parts):
+            continue
+
+        # Skip excluded prompt files (prompt.txt, prompt.md, or <prompt-id>.txt at workspace root)
+        if path.name in EXCLUDED_FILES or (
+            path.parent == workspace_dir
+            and (path.name.endswith(".txt") or path.name.endswith(".md"))
+            and is_valid_prompt_id(path.stem)
+        ):
             continue
 
         rel_path = str(path.relative_to(workspace_dir))

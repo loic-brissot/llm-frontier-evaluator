@@ -8,7 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from probe_data import load_probe_specs, probe_run, probe_workspace
+from probe_data import load_probe_specs, probe_run, probe_workspace, scan_workspace
 from run_common import PROMPTS_DIR, load_json, run_schema_errors
 
 
@@ -227,6 +227,29 @@ class TestProbeData(unittest.TestCase):
             self.assertEqual(scorecard["authenticity"], "synthetic_fallback")
             self.assertEqual(scorecard["score"], 0.0)
             self.assertGreater(len(scorecard["synthetic_signals"]), 0)
+
+    def test_scan_workspace_and_probe_workspace_ignore_prompt_txt(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir(parents=True)
+
+            prompt_content = (
+                "hauteur, periode, annee, trees, arrondissements, waterways, "
+                "Banister, CTL, ATL, TSB, calcTSS, calcCSS, generateMockBuildings"
+            )
+            (workspace / "prompt.txt").write_text(prompt_content, encoding="utf-8")
+            (workspace / "paris-3d-atlas.txt").write_text(prompt_content, encoding="utf-8")
+
+            scan_res = scan_workspace(workspace)
+            self.assertEqual(scan_res["total_data_files"], 0)
+            self.assertEqual(scan_res["total_records"], 0)
+            self.assertEqual(len(scan_res["code_files"]), 0)
+            self.assertEqual(len(scan_res["data_files"]), 0)
+
+            scorecard = probe_workspace("paris-3d-atlas", workspace)
+            self.assertFalse(scorecard["passed"])
+            self.assertEqual(scorecard["total_data_files"], 0)
+            self.assertEqual(scorecard["total_records"], 0)
 
     def test_non_mutation_guarantee_on_workspace(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -18,6 +18,7 @@ README_PATH = ROOT / "README.md"
 RUNS_DIR = ROOT / "runs"
 TEMPLATES_DIR = ROOT / "templates"
 PROMPTS_DIR = ROOT / "prompt"
+WORKSPACE_PROMPT_FILENAME = "prompt.txt"
 SCHEMA_PATH = ROOT / "schema" / "run.schema.json"
 PRICING_PATH = ROOT / "reference" / "pricing-2026-10-18.json"
 

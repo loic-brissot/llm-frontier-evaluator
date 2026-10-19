@@ -16,6 +16,7 @@ from run_common import (
     ROOT,
     RULES_VERSION,
     UNKNOWN_REASONING,
+    WORKSPACE_PROMPT_FILENAME,
     allocate_run_id,
     available_prompt_ids,
     canonical_harness,
@@ -143,6 +144,8 @@ def create_run_directory(
     if harness == "cursor":
         install_cursor_hook(workspace)
 
+    shutil.copy2(prompt_path(prompt_id), workspace / WORKSPACE_PROMPT_FILENAME)
+
     shutil.copy2(ROOT / "templates" / "run.json", run_dir / "run.json")
 
     run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
@@ -188,7 +191,7 @@ def print_next_steps(run_dir: Path, *, harness: str) -> None:
     print()
     print("During the run:")
     print(f"  1. Open the harness with {workspace}/ as the working directory.")
-    print(f"  2. Paste the exact bytes of {prompt_file}.")
+    print(f"  2. Paste the exact bytes of {workspace / WORKSPACE_PROMPT_FILENAME} (copied from {prompt_file}).")
     print("  3. Send that message as the only user message.")
     print("  4. Wait until the model stops.")
     print("  5. Leave the workspace unchanged.")

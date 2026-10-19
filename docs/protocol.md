@@ -22,7 +22,7 @@ Run `python3 scripts/setup_run.py --prompt <prompt-id>` (or `--follow-up --paren
 1. Create `runs/<prompt-id>/<run-id>/`.
 2. Use a run id of the form `YYYY-MM-DD-<harness>-<model>-<context>-<reasoning>` on a Cursor run that has a context, and `YYYY-MM-DD-<harness>-<model>-<reasoning>` on every other run. The `<context>` segment, such as `500k`, appears only when the harness is Cursor and a context was filled in. Context is optional even for Cursor — it cannot be tuned in every configuration — so omit `--context` (or leave the prompt blank) when it is not set: `model.context` is then null and the run id has no `<context>` segment. `setup_run.py` rejects a filled context for other harnesses.
 3. Copy `templates/run.json` to `runs/<prompt-id>/<run-id>/run.json`.
-4. Create an empty `runs/<prompt-id>/<run-id>/workspace/` directory.
+4. Create a `runs/<prompt-id>/<run-id>/workspace/` directory and copy `prompt/<prompt-id>.txt` into `workspace/prompt.txt` for convenience when opening `workspace/` in the harness.
 5. Record the model name, the reasoning setting, the harness name, and the harness version. On a Cursor run, record a filled context in `model.context`; leave it null when no context was set, and on other runs. Reasoning is optional too: when it is not set, `model.reasoning` defaults to `unknown` (null is accepted as the same not-set value) and the run id ends in `-unknown`.
 6. Choose a `series_id`. Reuse it for every run that must share one table.
 
@@ -43,7 +43,7 @@ Add `-2`, `-3`, and so on when the id is already used. A follow-up uses the same
 ## During the run
 
 1. Open the harness with `workspace/` as its working directory. A Cursor run writes one JSONL file per conversation to `runs/<prompt-id>/<run-id>/tool-events/`. That log gives tool counts, wall clock, and model time (`docs/metrics.md`).
-2. Paste the exact bytes of `prompt/<prompt-id>.txt`.
+2. Paste the exact bytes of `prompt/<prompt-id>.txt` (copied into `workspace/prompt.txt` for convenience when opening `workspace/` in the harness).
 3. Send that message.
 4. Wait until the model stops.
 5. Leave the workspace unchanged after the model stops.
