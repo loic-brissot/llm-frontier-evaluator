@@ -10,6 +10,12 @@ A run sends one model one frozen prompt from `prompt/` and records how that mode
 
 Rows compare only inside one series, so each series has its own table ([`docs/protocol.md`](docs/protocol.md)).
 
+**Local series `france-electricity-carbon-flow-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
+
+| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost | Outcome |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `france-electricity-carbon-flow` | Gemini 4 Argon 1m medium | Cursor | n/a | 17.7 min | 28 7✗ | 1.0M | $2.55 | Flashy colors but contains all the information |
+
 **Local series `france-rail-24h-pulse-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
 | Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost | Outcome |
