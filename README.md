@@ -27,28 +27,28 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost | Outcome |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `france-road-accidents` | Muse Wonder 300k medium | Cursor | n/a | 4.8 min | 41 7✗ | 1.7M | $1.30 | Good visualization with dynamic cluster metrics |
+| `france-road-accidents` | Muse Wonder 300k medium | Cursor | n/a | 4.8 min | 41 7✗ | 1.7M | $1.76 | Good visualization with dynamic cluster metrics |
 
 **Local series `2026-10-17-init`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
 | Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost | Outcome |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `paris-3d-atlas` | composer-2.5-fast unknown | Cursor | n/a | n/a | n/a | 1.1M | $1.06 | Stuck on a loading page |
-| `paris-3d-atlas` | gemini-3.1-pro unknown | Cursor | n/a | n/a | 56 13✗ | 1.9M | $1.46 | Working one-page visualization |
+| `paris-3d-atlas` | gemini-3.1-pro unknown | Cursor | n/a | n/a | 56 13✗ | 1.9M | $2.05 | Working one-page visualization |
 | `paris-3d-atlas` | grok-4.7 500k xhigh | Cursor | n/a | n/a | n/a | 39.3M | $51.68 | Working one-page visualization |
 
 **Local series `paris-3d-atlas-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
 | Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost | Outcome |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `paris-3d-atlas` | Gemini 4 Argon 1m medium | Cursor | n/a | 22.8 min | 89 19✗ | 6.1M | $5.37 | Great visualization with the option to deep-dive on each borough |
+| `paris-3d-atlas` | Gemini 4 Argon 1m medium | Cursor | n/a | 22.8 min | 89 19✗ | 6.1M | $7.05 | Great visualization with the option to deep-dive on each borough |
 
 ### Glossary
 1. Tokens generated: Reasoning tokens and visible tokens, in thousands. The percent is the reasoning share.
 2. Model time: Minutes spent generating. Tool time is excluded.
 3. Tool calls: Shell, files, visual checks, and web. Failures stay inside that total and are marked in red.
 4. Context re-read: Tokens read from the prompt cache, in millions.
-5. Est. cost: Estimated USD token cost at public list prices ([`reference/pricing-2026-10-18.json`](reference/pricing-2026-10-18.json)). Reference rows only include published generated + cache-read tokens.
+5. Est. cost: Estimated USD token cost at public list prices ([`reference/pricing-2026-10-18.json`](reference/pricing-2026-10-18.json)). Local rows include applicable harness token surcharges (such as Cursor's `$0.25/1M` third-party token rate). Reference rows only include published generated + cache-read tokens.
 
 ### Prompts
 

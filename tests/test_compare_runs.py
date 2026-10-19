@@ -18,6 +18,7 @@ from compare_runs import (
     format_tokens,
     format_minutes,
     format_millions,
+    format_local_cost,
     check_local_run,
     check_bucket_counts,
     check_series_versions,
@@ -120,8 +121,8 @@ class TestCompareRuns(unittest.TestCase):
     def test_check_readme_detects_drift_when_cell_differs(self):
         # Create a temporary copy of README.md and introduce drift in a table cell
         original_content = README_PATH.read_text(encoding="utf-8")
-        # Tamper with a cell in the local series table (e.g. change $1.46 to $9.99)
-        tampered_content = original_content.replace("$1.46", "$9.99")
+        # Tamper with a cell in the local series table (e.g. change $2.05 to $9.99)
+        tampered_content = original_content.replace("$2.05", "$9.99")
         self.assertNotEqual(original_content, tampered_content)
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -140,7 +141,7 @@ class TestCompareRuns(unittest.TestCase):
             output = captured_output.getvalue()
             self.assertIn("README.md comparison tables are out of sync", output)
             self.assertIn("$9.99", output)
-            self.assertIn("$1.46", output)
+            self.assertIn("$2.05", output)
 
             # Test that --sync-readme repairs the tampered README
             captured_sync = io.StringIO()
@@ -178,6 +179,71 @@ class TestCompareRuns(unittest.TestCase):
         # format_millions
         self.assertEqual(format_millions(1_000_000), "1.0M")
         self.assertEqual(format_millions(1_500_000), "1.5M")
+
+    def test_format_local_cost(self):
+        # Reads estimated_cost_with_harness_usd from tokens.raw.pricing when present
+        run_with_harness_pricing = {
+            "harness": {"name": "cursor"},
+            "model": {"name": "muse-wonder-1.0-medium"},
+            "tokens": {
+                "raw": {
+                    "pricing": {
+                        "estimated_cost_usd": "1.30",
+                        "estimated_cost_with_harness_usd": "1.76",
+                    }
+                }
+            },
+        }
+        self.assertEqual(format_local_cost(run_with_harness_pricing), "$1.76")
+
+        # Falls back to estimated_cost_usd when estimated_cost_with_harness_usd is absent or empty
+        run_fallback_pricing = {
+            "harness": {"name": "cursor"},
+            "model": {"name": "composer-2.5-fast"},
+            "tokens": {
+                "raw": {
+                    "pricing": {
+                        "estimated_cost_usd": "1.06",
+                        "estimated_cost_with_harness_usd": "",
+                    }
+                }
+            },
+        }
+        self.assertEqual(format_local_cost(run_fallback_pricing), "$1.06")
+
+        # Third-party models on Cursor calculated on the fly display estimated_cost_with_harness_usd
+        run_third_party_fly = {
+            "harness": {"name": "cursor"},
+            "model": {"name": "gemini-4-argon", "context": "1m"},
+            "tokens": {
+                "reasoning_tokens": 0,
+                "visible_tokens": 100000,
+            },
+            "context_reread": {
+                "uncached_input_tokens": 1000000,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+            },
+        }
+        cost_third_party = format_local_cost(run_third_party_fly)
+        self.assertEqual(cost_third_party, "$5.78")
+
+        # First-party models on Cursor have no surcharge (estimated_cost_with_harness_usd == estimated_cost_usd)
+        run_first_party_fly = {
+            "harness": {"name": "cursor"},
+            "model": {"name": "composer-2.5-fast"},
+            "tokens": {
+                "reasoning_tokens": 0,
+                "visible_tokens": 100000,
+            },
+            "context_reread": {
+                "uncached_input_tokens": 1000000,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+            },
+        }
+        cost_first_party = format_local_cost(run_first_party_fly)
+        self.assertEqual(cost_first_party, "$4.50")
 
     def test_check_bucket_counts(self):
         errors = []
