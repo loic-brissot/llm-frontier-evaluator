@@ -67,8 +67,8 @@ class TestRunCommon(unittest.TestCase):
 
     def test_run_schema_errors_valid_run(self):
         valid_run = {
-            "prompt_id": "paris-3d-atlas",
-            "prompt_sha256": "19387b5a175db8f74b22515f1fce112c653d2286a5ab47fb46c4763176e64c1d",
+            "prompt_id": "france-road-accidents",
+            "prompt_sha256": "982eebe095732d52f4ca2e904d1cc284b76e9522d3f6f634c571f60ee96747a9",
             "run_id": "2026-10-17-cursor-composer-2-5-unknown",
             "series_id": "2026-10-17-init",
             "rules_version": 1,
@@ -110,8 +110,8 @@ class TestRunCommon(unittest.TestCase):
 
     def test_run_schema_errors_invalid_shot_parent_relationship(self):
         base_run = {
-            "prompt_id": "paris-3d-atlas",
-            "prompt_sha256": "19387b5a175db8f74b22515f1fce112c653d2286a5ab47fb46c4763176e64c1d",
+            "prompt_id": "france-road-accidents",
+            "prompt_sha256": "982eebe095732d52f4ca2e904d1cc284b76e9522d3f6f634c571f60ee96747a9",
             "run_id": "2026-10-17-cursor-composer-2-5-unknown",
             "series_id": "2026-10-17-init",
             "rules_version": 1,

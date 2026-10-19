@@ -20,6 +20,7 @@ from pathlib import Path
 from run_common import (
     BUCKETS,
     CHART_BUCKETS,
+    DEFAULT_PROMPT_ID,
     PROMPTS_DIR,
     README_PATH,
     ROOT,
@@ -470,7 +471,7 @@ def generate_readme_comparisons(
             "| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost |"
         )
         lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
-        prompt_id = reference.get("prompt_id", "paris-3d-atlas")
+        prompt_id = reference.get("prompt_id", DEFAULT_PROMPT_ID)
         for run in reference.get("runs", []):
             model_name = run.get("model_name", "")
             reasoning = run.get("reasoning", "")
@@ -658,15 +659,13 @@ def main() -> int:
 
     errors = check_prompt()
     reference = None
-    if not REFERENCE_PATH.is_file():
-        errors.append(f"Missing reference file: {REFERENCE_PATH}")
-    else:
+    if REFERENCE_PATH.is_file():
         try:
             reference = load_json(REFERENCE_PATH)
         except (OSError, json.JSONDecodeError, ValueError) as exc:
             errors.append(f"Cannot read reference file: {exc}")
-    if reference is not None:
-        errors.extend(check_reference(reference))
+        if reference is not None:
+            errors.extend(check_reference(reference))
 
     local_errors: list[str] = []
     incomplete: list[str] = []

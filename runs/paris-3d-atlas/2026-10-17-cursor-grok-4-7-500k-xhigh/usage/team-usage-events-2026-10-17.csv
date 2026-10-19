@@ -1,7 +1,0 @@
-Date,User,PR Author,Repo,PR Number,Cloud Agent ID,Automation ID,Kind,Model,Max Mode,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost
-"2026-10-17T01:44:57.751Z","null","","","","","","Included","grok-4.7-xhigh","No","0","7585","639877","1634","649096","0.65"
-"2026-10-17T01:31:34.948Z","null","","","","","","Included","grok-4.7-xhigh","No","0","914346","10954179","23124","11891649","14.59"
-"2026-10-17T01:30:08.876Z","null","","","","","","Included","grok-4.7-xhigh","No","0","540544","13863479","32144","14436167","12.03"
-"2026-10-17T01:18:37.534Z","null","","","","","","Included","grok-4.7-xhigh","No","0","70825","4221184","60633","4352642","2.58"
-"2026-10-17T01:05:39.113Z","null","","","","","","Included","grok-4.7-xhigh","No","0","139537","519168","40091","698796","0.77"
-"2026-10-17T00:42:36.039Z","null","","","","","","Included","grok-4.7-xhigh","No","0","366394","9098496","194600","9659490","7.95"

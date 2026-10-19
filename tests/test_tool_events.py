@@ -275,7 +275,7 @@ class TestToolEvents(unittest.TestCase):
                 "logged_at": "2026-10-18T00:05:01.000Z",
             },
         ]
-        prompt_file = Path(__file__).resolve().parent.parent / "prompt" / "paris-3d-atlas.txt"
+        prompt_file = Path(__file__).resolve().parent.parent / "prompt" / "france-road-accidents.txt"
         summary = summarize_records(records, expected_prompt_path=prompt_file)
 
         self.assertEqual(summary.buckets["files"]["calls"], 1)

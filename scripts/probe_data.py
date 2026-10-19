@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from run_common import (
+    DEFAULT_PROMPT_ID,
     ROOT,
     WORKSPACE_PROMPT_FILENAME,
     discover_run_dirs,
@@ -498,7 +499,7 @@ def main() -> int:
 
     if args.workspace:
         workspace_dir = args.workspace.resolve()
-        prompt_id = args.prompt_id or "paris-3d-atlas"
+        prompt_id = args.prompt_id or DEFAULT_PROMPT_ID
         scorecard = probe_workspace(prompt_id, workspace_dir)
 
         output_path = args.output

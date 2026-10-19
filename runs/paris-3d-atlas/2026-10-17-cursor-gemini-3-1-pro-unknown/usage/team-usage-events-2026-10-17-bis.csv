@@ -1,3 +1,0 @@
-Date,User,PR Author,Repo,PR Number,Cloud Agent ID,Automation ID,Kind,Model,Max Mode,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost
-"2026-10-17T02:53:59.581Z","null","","","","","","Included","gemini-3.1-pro","No","0","41394","19357","1486","62237","0.10"
-"2026-10-17T02:47:31.079Z","null","","","","","","Included","gemini-3.1-pro","No","0","349822","1923820","22351","2295993","1.88"

@@ -1,8 +1,8 @@
 # Run protocol
 
-A run is one model, one harness, and one delivery of one prompt, `prompt/<prompt-id>.txt`. The prompt id is the file name without `.txt` (for example `paris-3d-atlas`).
+A run is one model, one harness, and one delivery of one prompt, `prompt/<prompt-id>.txt`. The prompt id is the file name without `.txt` (for example `france-road-accidents`).
 
-A series is the set of runs that share the prompt, the harness family, and the same `rules_version`. Compare rows inside one series. The October 2026 chart is the reference series `2026-10-11-lassence`. It used Claude Code and the Codex app. A Cursor series is a different series. Show both tables, and keep the series name on each table.
+A series is the set of runs that share the prompt, the harness family, and the same `rules_version`. Compare rows inside one series. The benchmark protocol and four process columns are inspired by [bench.lassence.net](https://bench.lassence.net/). Show each series table, and keep the series name on each table.
 
 ## What stays fixed
 
@@ -12,8 +12,6 @@ A series is the set of runs that share the prompt, the harness family, and the s
 - The operator leaves the model’s files unchanged during a primary run.
 - Metric rules stay at the `rules_version` written in the run file.
 - The model builds in `runs/<prompt-id>/<run-id>/workspace/`.
-
-The post describes the task in five parts. Download the data. Prepare it. Build volumes for about 128,000 buildings and about 175,000 trees. Build the interface. Debug it. Those counts are the author’s description of scale.
 
 ## Before you start
 
@@ -76,8 +74,6 @@ Record a follow-up only when the user asks for one.
 
 The comparison table prints primary runs. It prints a follow-up only with `--follow-ups`.
 
-The post says a follow-up fixed a minor GPT-6 Luna bug. The gallery does not say whether the Luna row includes that follow-up. The reference file keeps that limit visible.
-
 ## What this framework measures
 
 The four process columns, plus a short outcome note:
@@ -86,7 +82,7 @@ The four process columns, plus a short outcome note:
 - The operator saw a page.
 - One sentence on what that page was.
 
-Visual quality, the gallery tiers, and taste are outside the score. The reference file copies the published tiers so the chart stays complete. Those tiers are not a scoring method for our runs.
+Visual quality and taste are outside the score.
 
 ## What breaks a comparison
 
