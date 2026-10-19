@@ -6,7 +6,7 @@ import sys
 # Add scripts directory to module path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from run_common import scrub_text, scrub_path, run_schema_errors, load_json, SCHEMA_PATH, ROOT
+from run_common import scrub_text, scrub_path, run_schema_errors, load_json, infer_provider, load_pricing, SCHEMA_PATH, ROOT
 
 
 class TestRunCommon(unittest.TestCase):
@@ -141,6 +141,41 @@ class TestRunCommon(unittest.TestCase):
         invalid_followup = dict(base_run, shot="follow-up", parent_run_id=None)
         errors_followup = run_schema_errors(invalid_followup)
         self.assertTrue(any("parent_run_id" in err for err in errors_followup))
+
+    def test_infer_provider_pricing_table_and_heuristics(self):
+        pricing = load_pricing()
+        models = pricing.get("models", [])
+        self.assertGreater(len(models), 0)
+
+        for model in models:
+            expected_provider = model["provider"]
+            model_id = model["id"]
+            self.assertEqual(
+                infer_provider(model_id),
+                expected_provider,
+                f"Failed for model id {model_id!r}",
+            )
+            for name in model.get("names", []):
+                self.assertEqual(
+                    infer_provider(name),
+                    expected_provider,
+                    f"Failed for model name {name!r}",
+                )
+
+        self.assertEqual(infer_provider("Muse Wonder"), "meta")
+        self.assertEqual(infer_provider("muse-wonder-1.0-medium"), "meta")
+        self.assertEqual(infer_provider("Kimi K3"), "moonshot")
+        self.assertEqual(infer_provider("GLM 5.3"), "zai")
+        self.assertEqual(infer_provider("composer-2.5-fast"), "cursor")
+        self.assertEqual(infer_provider("claude-sonnet-5-5"), "anthropic")
+        self.assertEqual(infer_provider("gpt-5.6-sol-high-fast"), "openai")
+        self.assertEqual(infer_provider("gemini-4-argon-medium"), "google")
+        self.assertEqual(infer_provider("grok-4.7-xhigh-fast"), "xai")
+        self.assertEqual(infer_provider("llama-3-70b"), "meta")
+
+        self.assertIsNone(infer_provider(""))
+        self.assertIsNone(infer_provider("   "))
+        self.assertIsNone(infer_provider("unknown_nonexistent_model"))
 
 
 if __name__ == "__main__":

@@ -176,6 +176,38 @@ def slugify(value: str) -> str:
 
 
 def infer_provider(model_name: str) -> str | None:
+    if not model_name or not isinstance(model_name, str) or not model_name.strip():
+        return None
+
+    pricing_match = lookup_model_pricing(model_name)
+    if pricing_match and pricing_match.get("provider"):
+        prov = str(pricing_match["provider"]).strip().lower()
+        if prov:
+            return prov
+
+    pricing_data = load_pricing()
+    models = pricing_data.get("models")
+    if isinstance(models, list):
+        target_lower = model_name.strip().lower()
+        target_slug = slugify(model_name)
+        for entry in models:
+            if not isinstance(entry, dict) or not entry.get("provider"):
+                continue
+            provider = str(entry["provider"]).strip().lower()
+            names = [entry.get("id", "")] + list(entry.get("names") or [])
+            for candidate in names:
+                if not isinstance(candidate, str) or not candidate:
+                    continue
+                cand_lower = candidate.strip().lower()
+                cand_slug = slugify(candidate)
+                if (
+                    cand_lower in target_lower
+                    or target_lower in cand_lower
+                    or cand_slug in target_slug
+                    or target_slug in cand_slug
+                ):
+                    return provider
+
     lower = model_name.lower()
     if "composer" in lower:
         return "cursor"
@@ -187,6 +219,13 @@ def infer_provider(model_name: str) -> str | None:
         return "google"
     if "grok" in lower:
         return "xai"
+    if any(token in lower for token in ("muse", "llama")):
+        return "meta"
+    if "kimi" in lower:
+        return "moonshot"
+    if "glm" in lower:
+        return "zai"
+
     return None
 
 

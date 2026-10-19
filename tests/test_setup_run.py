@@ -175,6 +175,25 @@ class TestSetupRun(unittest.TestCase):
                     exit_code = main()
                     self.assertNotEqual(exit_code, 0)
 
+    def test_cli_non_interactive_infers_provider_from_pricing(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_runs = Path(tmp_dir) / "runs"
+            with patch("run_common.RUNS_DIR", tmp_runs), patch("setup_run.RUNS_DIR", tmp_runs):
+                with patch("sys.argv", [
+                    "setup_run.py",
+                    "--harness", "cursor",
+                    "--model", "Muse Wonder",
+                    "--non-interactive",
+                ]):
+                    exit_code = main()
+                    self.assertEqual(exit_code, 0)
+
+                created_dirs = list(tmp_runs.glob("paris-3d-atlas/*"))
+                self.assertEqual(len(created_dirs), 1)
+                run_data = load_json(created_dirs[0] / "run.json")
+                self.assertEqual(run_data["model"]["name"], "Muse Wonder")
+                self.assertEqual(run_data["model"]["provider"], "meta")
+
     def test_log_tool_event_record_from_and_file_locking_fallback(self):
         script_path = ROOT / "templates" / "cursor" / "hooks" / "log-tool-event.py"
         spec = importlib.util.spec_from_file_location("log_tool_event", script_path)
