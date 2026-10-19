@@ -1,0 +1,75 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-19-cursor-gemini-4-argon-1m-medium",
+  "series_id": "france-electricity-carbon-flow-cursor",
+  "prompt_id": "france-electricity-carbon-flow",
+  "prompt_sha256": "57a1e54a95748b46db8e356d12fbf94d14e8fa6c99942c01acb5e033a728af70",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "google",
+    "name": "Gemini 4 Argon",
+    "context": "1m",
+    "reasoning": "medium"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": null,
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-19T17:35:27.184Z",
+    "ended_at": null
+  },
+  "tokens": {
+    "split_rule": "unavailable",
+    "reasoning_tokens": null,
+    "visible_tokens": null,
+    "raw": {}
+  },
+  "model_time": {
+    "source": "unavailable",
+    "generating_seconds": null,
+    "raw": {}
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    },
+    "files": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    },
+    "visual_checks": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    }
+  },
+  "context_reread": {
+    "source": "unavailable",
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "uncached_input_tokens": null,
+    "raw": {}
+  },
+  "outcome": {
+    "model_stopped": null,
+    "operator_saw_a_page": null,
+    "summary": ""
+  },
+  "observations": ""
+}
