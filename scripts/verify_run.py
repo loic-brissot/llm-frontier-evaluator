@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Callable
 
 from run_common import (
+    _add_venv_site_packages,
     discover_run_dirs,
     find_run_dir,
     load_json,
@@ -258,20 +259,26 @@ def run_playwright_telemetry(
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
-        return {
-            "passed": False,
-            "http_status": None,
-            "url": url,
-            "server_mode": server_mode,
-            "load_time_ms": None,
-            "console_errors": [],
-            "console_warnings_count": 0,
-            "page_errors": ["Playwright Python package is not installed"],
-            "failed_requests": [],
-            "dom": None,
-            "screenshot_path": None,
-            "verified_at": verified_at,
-        }
+        _add_venv_site_packages()
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            return {
+                "passed": False,
+                "http_status": None,
+                "url": url,
+                "server_mode": server_mode,
+                "load_time_ms": None,
+                "console_errors": [],
+                "console_warnings_count": 0,
+                "page_errors": [
+                    "Playwright Python package is not installed (run: python3 -m pip install playwright && python3 -m playwright install chromium)"
+                ],
+                "failed_requests": [],
+                "dom": None,
+                "screenshot_path": None,
+                "verified_at": verified_at,
+            }
 
     try:
         with sync_playwright() as p:
@@ -321,7 +328,13 @@ def run_playwright_telemetry(
             screenshot_path = "artifacts/screenshot.png"
             browser.close()
     except Exception as exc:
-        page_errors.append(f"Playwright run error: {exc}")
+        err_msg = str(exc)
+        if "Executable doesn't exist" in err_msg or "playwright install" in err_msg:
+            page_errors.append(
+                f"Playwright browser executable is missing (run: python3 -m playwright install chromium): {exc}"
+            )
+        else:
+            page_errors.append(f"Playwright run error: {exc}")
         if load_time_ms is None:
             load_time_ms = round((time.time() - start_time) * 1000, 2)
 
@@ -481,7 +494,11 @@ def main() -> int:
         print(f"  URL: {telemetry['url']} (mode: {telemetry['server_mode']})")
         print(f"  HTTP Status: {telemetry['http_status']}")
         print(f"  Page Errors: {len(telemetry['page_errors'])}")
+        for err in telemetry["page_errors"]:
+            print(f"    - {err}")
         print(f"  Console Errors: {len(telemetry['console_errors'])}")
+        for err in telemetry["console_errors"]:
+            print(f"    - {err}")
         print(f"  DOM: {telemetry['dom']}")
         print(f"  Screenshot: {telemetry['screenshot_path']}")
         print(f"Saved runtime telemetry to {run_dir / 'artifacts' / 'runtime.json'}")

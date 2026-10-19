@@ -1,1 +1,3 @@
 jsonschema>=4.18
+# Optional verification dependency (for automated Playwright smoke tests in scripts/verify_run.py):
+# python3 -m pip install playwright && python3 -m playwright install chromium

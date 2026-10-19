@@ -62,7 +62,7 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 ## Record a run
 
-1. Install the one dependency: `python3 -m pip install -r requirements.txt` (`jsonschema`, used to validate run records).
+1. Install the core dependency: `python3 -m pip install -r requirements.txt` (`jsonschema`, used to validate run records). For automated Playwright verification (`scripts/verify_run.py`), install Playwright and Chromium: `python3 -m pip install playwright && python3 -m playwright install chromium`.
 2. Read [`docs/protocol.md`](docs/protocol.md).
 3. Send `prompt/<prompt-id>.txt` as the only user message (e.g. [`prompt/paris-3d-atlas.txt`](prompt/paris-3d-atlas.txt)).
 4. Copy [`templates/run.json`](templates/run.json) to `runs/<prompt-id>/<run-id>/run.json`.

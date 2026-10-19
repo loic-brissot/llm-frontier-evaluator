@@ -3,7 +3,7 @@ id: TASK-16
 title: >-
   Surface Playwright error details, auto-load .venv, and document browser setup
   in verify_run.py
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 04:17'
 labels:
@@ -35,8 +35,8 @@ During the 2026-10-19-cursor-muse-wonder-300k-medium run, scripts/verify_run.py 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 verify_run.py and finish_run.py print the actual error messages from page_errors / console_errors (and any setup/environment error) in terminal output when a smoke test fails
-- [ ] #2 verify_run.py calls _add_venv_site_packages() before importing playwright and prints actionable remediation instructions ('python3 -m pip install playwright && python3 -m playwright install chromium') when Playwright or its Chromium binary is missing
-- [ ] #3 Missing Playwright / browser setup errors do not falsely default outcome.operator_saw_a_page to false in finish_run.py (keep default as 'unknown' when verification could not execute)
-- [ ] #4 README.md, docs/protocol.md, and requirements.txt document Playwright installation and usage for verify_run.py
+- [x] #1 verify_run.py and finish_run.py print the actual error messages from page_errors / console_errors (and any setup/environment error) in terminal output when a smoke test fails
+- [x] #2 verify_run.py calls _add_venv_site_packages() before importing playwright and prints actionable remediation instructions ('python3 -m pip install playwright && python3 -m playwright install chromium') when Playwright or its Chromium binary is missing
+- [x] #3 Missing Playwright / browser setup errors do not falsely default outcome.operator_saw_a_page to false in finish_run.py (keep default as 'unknown' when verification could not execute)
+- [x] #4 README.md, docs/protocol.md, and requirements.txt document Playwright installation and usage for verify_run.py
 <!-- AC:END -->
