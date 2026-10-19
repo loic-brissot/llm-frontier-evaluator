@@ -23,6 +23,12 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 | `paris-3d-atlas` | GPT-6.1 Sol high | Codex app | 43k · 36% | 27.5 min | 109 11✗ | 11.8M | $1.61 |
 | `paris-3d-atlas` | GPT-6 Luna high | Codex app | 65k · 63% | 12.2 min | 77 8✗ | 11.0M | $0.14 |
 
+**Local series `france-road-accidents-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
+
+| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost | Outcome |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `france-road-accidents` | Muse Wonder 300k medium | Cursor | n/a | 4.8 min | 41 7✗ | 1.7M | $1.30 | Good visualization with dynamic cluster metrics |
+
 **Local series `2026-10-17-init`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
 | Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost | Outcome |
