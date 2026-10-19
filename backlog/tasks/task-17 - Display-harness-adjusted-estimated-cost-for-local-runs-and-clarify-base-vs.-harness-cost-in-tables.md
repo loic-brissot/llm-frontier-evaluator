@@ -3,7 +3,7 @@ id: TASK-17
 title: >-
   Display harness-adjusted estimated cost for local runs and clarify base vs.
   harness cost in tables
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 04:17'
 labels:
@@ -34,7 +34,7 @@ For the 2026-10-19-cursor-muse-wonder-300k-medium run, the comparison table in R
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Evaluate and update format_local_cost() in scripts/compare_runs.py (and README.md / docs/metrics.md) so local runs on harnesses with a token surcharge either display estimated_cost_with_harness_usd (or show both / actual billed cost when available)
-- [ ] #2 Update 2026-10-19-cursor-muse-wonder-300k-medium (and any other hook-only runs) with the usage CSV export if desired, or document the minor hook vs. CSV token delta in docs/metrics.md
-- [ ] #3 Unit tests in tests/test_compare_runs.py verify the updated cost display logic
+- [x] #1 Evaluate and update format_local_cost() in scripts/compare_runs.py (and README.md / docs/metrics.md) so local runs on harnesses with a token surcharge either display estimated_cost_with_harness_usd (or show both / actual billed cost when available)
+- [x] #2 Update 2026-10-19-cursor-muse-wonder-300k-medium (and any other hook-only runs) with the usage CSV export if desired, or document the minor hook vs. CSV token delta in docs/metrics.md
+- [x] #3 Unit tests in tests/test_compare_runs.py verify the updated cost display logic
 <!-- AC:END -->

@@ -113,17 +113,19 @@ def format_reference_cost(run: dict) -> str:
 
 
 def format_local_cost(run: dict) -> str:
-    """Format estimated public API list-price cost for a local run.
+    """Format estimated token cost for a local run.
 
     Est. cost reflects public per-1M-token API list prices (including context variants
-    and long-context thresholds). Actual harness-billed CSV costs (which include harness
-    surcharges or plan rates) are recorded in tokens.raw.usage_csv.cost.
+    and long-context thresholds) plus any applicable harness token rate/surcharge
+    from reference/pricing-2026-10-18.json. Actual harness-billed CSV costs (which include
+    harness surcharges or plan rates) are recorded in tokens.raw.usage_csv.cost.
     """
     tokens = run.get("tokens") or {}
     raw = tokens.get("raw") if isinstance(tokens.get("raw"), dict) else {}
     pricing_block = raw.get("pricing") if isinstance(raw.get("pricing"), dict) else {}
-    if isinstance(pricing_block.get("estimated_cost_usd"), str) and pricing_block["estimated_cost_usd"]:
-        return f"${pricing_block['estimated_cost_usd']}"
+    cost_val = pricing_block.get("estimated_cost_with_harness_usd") or pricing_block.get("estimated_cost_usd")
+    if isinstance(cost_val, str) and cost_val:
+        return f"${cost_val}"
 
     output_tokens: int | None = None
     if isinstance(tokens.get("reasoning_tokens"), int) and isinstance(tokens.get("visible_tokens"), int):
@@ -161,7 +163,10 @@ def format_local_cost(run: dict) -> str:
     )
     if est is None:
         return "n/a"
-    return f"${est['estimated_cost_usd']}"
+    est_cost = est.get("estimated_cost_with_harness_usd") or est.get("estimated_cost_usd")
+    if isinstance(est_cost, str) and est_cost:
+        return f"${est_cost}"
+    return "n/a"
 
 
 def check_prompt(prompts_dir: Path = PROMPTS_DIR) -> list[str]:
