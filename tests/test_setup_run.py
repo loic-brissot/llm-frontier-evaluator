@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import json
 import os
@@ -11,7 +12,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from compare_runs import check_local_run
-from run_common import ROOT, load_json, run_schema_errors
+from run_common import ROOT, load_json, prompt_path, prompt_sha256, run_schema_errors
 from setup_run import create_run_directory, install_cursor_hook, main
 
 
@@ -48,6 +49,27 @@ class TestSetupRun(unittest.TestCase):
             self.assertEqual(dest_script.read_text(encoding="utf-8"), template_script.read_text(encoding="utf-8"))
 
             self.assertTrue(os.access(dest_script, os.X_OK), "log-tool-event.py must be executable")
+
+    def test_create_run_directory_copies_prompt(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_runs = Path(tmp_dir) / "runs"
+            with patch("run_common.RUNS_DIR", tmp_runs), patch("setup_run.RUNS_DIR", tmp_runs):
+                run_dir = create_run_directory(
+                    harness="cursor",
+                    model="gemini-3.1-pro",
+                    reasoning="unknown",
+                    prompt_id="paris-3d-atlas",
+                    series_id="test-series",
+                    provider="google",
+                    harness_version="1.0.0",
+                    harness_detail="",
+                    shot="primary",
+                )
+                prompt_txt = run_dir / "workspace" / "prompt.txt"
+                self.assertTrue(prompt_txt.is_file(), "workspace/prompt.txt must exist")
+                actual_sha256 = hashlib.sha256(prompt_txt.read_bytes()).hexdigest()
+                self.assertEqual(actual_sha256, prompt_sha256("paris-3d-atlas"))
+                self.assertEqual(prompt_txt.read_bytes(), prompt_path("paris-3d-atlas").read_bytes())
 
     def test_create_run_directory_follow_up(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
