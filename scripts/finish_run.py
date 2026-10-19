@@ -44,6 +44,23 @@ from verify_run import verify_run
 from probe_data import probe_run
 
 
+def is_playwright_env_error(runtime_data: dict | None) -> bool:
+    if not runtime_data:
+        return False
+    if runtime_data.get("http_status") is not None or runtime_data.get("dom") is not None:
+        return False
+    page_errors = runtime_data.get("page_errors") or []
+    for err in page_errors:
+        err_str = str(err)
+        if (
+            "Playwright Python package is not installed" in err_str
+            or "playwright install" in err_str
+            or "Executable doesn't exist" in err_str
+        ):
+            return True
+    return False
+
+
 def prompt(label: str, default: str | None = None) -> str:
     if default is not None:
         value = input(f"{label} [{default}]: ").strip()
@@ -1250,11 +1267,17 @@ def complete_run_json(
             run["verification"] = {}
         run["verification"]["runtime"] = runtime_data
         passed_str = "PASSED" if runtime_data.get("passed") else "FAILED"
+        page_errors = runtime_data.get("page_errors") or []
+        console_errors = runtime_data.get("console_errors") or []
         print(f"\nPlaywright smoke test ({passed_str}):")
         print(f"  URL: {runtime_data.get('url')} (mode: {runtime_data.get('server_mode')})")
         print(f"  HTTP Status: {runtime_data.get('http_status')}")
-        print(f"  Page errors: {len(runtime_data.get('page_errors') or [])}")
-        print(f"  Console errors: {len(runtime_data.get('console_errors') or [])}")
+        print(f"  Page errors: {len(page_errors)}")
+        for err in page_errors:
+            print(f"    - {err}")
+        print(f"  Console errors: {len(console_errors)}")
+        for err in console_errors:
+            print(f"    - {err}")
 
     data_pipeline_file = run_dir / "artifacts" / "data_pipeline.json"
     data_pipeline_data: dict | None = None
@@ -1390,7 +1413,7 @@ def complete_run_json(
             page_default = "true"
         elif outcome["operator_saw_a_page"] is False:
             page_default = "false"
-        elif runtime_data and isinstance(runtime_data.get("passed"), bool):
+        elif runtime_data and isinstance(runtime_data.get("passed"), bool) and not is_playwright_env_error(runtime_data):
             page_default = "true" if runtime_data["passed"] else "false"
         else:
             page_default = "unknown"
@@ -1408,7 +1431,12 @@ def complete_run_json(
             observation_default(run, tool_summary, include_other=tool_counts_applied),
         )
 
-    if outcome.get("operator_saw_a_page") is None and runtime_data and isinstance(runtime_data.get("passed"), bool):
+    if (
+        outcome.get("operator_saw_a_page") is None
+        and runtime_data
+        and isinstance(runtime_data.get("passed"), bool)
+        and not is_playwright_env_error(runtime_data)
+    ):
         outcome["operator_saw_a_page"] = runtime_data["passed"]
 
     if not isinstance(run.get("observations"), str):

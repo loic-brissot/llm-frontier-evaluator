@@ -52,7 +52,7 @@ Operator messages, hints, and manual edits belong to a follow-up. They do not be
 
 ## After the model stops
 
-Run `python3 scripts/finish_run.py --prompt <prompt-id> --run-id <run-id>` (add `--verify` to execute the automated Playwright smoke test during completion). Alternatively, run `python3 scripts/verify_run.py --prompt <prompt-id> --run-id <run-id> --update-run-json`.
+Run `python3 scripts/finish_run.py --prompt <prompt-id> --run-id <run-id>` (add `--verify` to execute the automated Playwright smoke test during completion). Alternatively, run `python3 scripts/verify_run.py --prompt <prompt-id> --run-id <run-id> --update-run-json`. For Playwright verification, install the Python package and browser binary once: `python3 -m pip install playwright && python3 -m playwright install chromium`.
 
 1. Save the harness usage export in `runs/<prompt-id>/<run-id>/usage/`.
 2. Remove credentials from that export before you commit it.

@@ -1,3 +1,4 @@
+import io
 import json
 import tempfile
 import unittest
@@ -301,6 +302,126 @@ class TestVerifyRun(unittest.TestCase):
             updated_run = load_json(run_dir / "run.json")
             self.assertEqual(updated_run["verification"]["runtime"]["passed"], True)
             self.assertEqual(updated_run["outcome"]["operator_saw_a_page"], True)
+
+    def test_verify_run_cli_prints_errors(self):
+        mock_telemetry = {
+            "passed": False,
+            "http_status": None,
+            "url": "http://127.0.0.1:8000/",
+            "server_mode": "static",
+            "load_time_ms": None,
+            "console_errors": ["Uncaught ReferenceError: foo is not defined"],
+            "console_warnings_count": 0,
+            "page_errors": ["Playwright Python package is not installed (run: python3 -m pip install playwright && python3 -m playwright install chromium)"],
+            "failed_requests": [],
+            "dom": None,
+            "screenshot_path": None,
+            "verified_at": "2026-10-19T00:00:00Z",
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = Path(tmpdir) / "runs" / "paris-3d-atlas" / "test-run"
+            run_dir.mkdir(parents=True)
+            with (
+                patch("verify_run.select_run_dir", return_value=run_dir),
+                patch("verify_run.verify_run", return_value=mock_telemetry),
+                patch("sys.argv", ["verify_run.py", "--run-id", "test-run"]),
+                patch("sys.stdout", new_callable=io.StringIO) as mock_stdout,
+            ):
+                from verify_run import main
+                exit_code = main()
+                self.assertEqual(exit_code, 1)
+                output = mock_stdout.getvalue()
+                self.assertIn("Page Errors: 1", output)
+                self.assertIn("- Playwright Python package is not installed", output)
+                self.assertIn("Console Errors: 1", output)
+                self.assertIn("- Uncaught ReferenceError: foo is not defined", output)
+
+    def test_add_venv_site_packages_called_when_importing_playwright(self):
+        artifacts_dir = Path(tempfile.mkdtemp()) / "artifacts"
+        with (
+            patch("verify_run._add_venv_site_packages") as mock_add_venv,
+            patch.dict("sys.modules", {"playwright.sync_api": None}),
+        ):
+            telemetry = run_playwright_telemetry("http://127.0.0.1:8000", "static", artifacts_dir)
+            mock_add_venv.assert_called_once()
+            self.assertFalse(telemetry["passed"])
+            self.assertIn("Playwright Python package is not installed", telemetry["page_errors"][0])
+            self.assertIn("python3 -m pip install playwright", telemetry["page_errors"][0])
+
+    def test_finish_run_playwright_env_error_does_not_default_operator_saw_a_page_to_false(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = Path(tmpdir) / "runs" / "paris-3d-atlas" / "test-run"
+            artifacts = run_dir / "artifacts"
+            artifacts.mkdir(parents=True)
+
+            # Case 1: Playwright environment error
+            runtime_data_env_err = {
+                "passed": False,
+                "http_status": None,
+                "url": "http://127.0.0.1:8000/",
+                "server_mode": "static",
+                "load_time_ms": None,
+                "console_errors": [],
+                "console_warnings_count": 0,
+                "page_errors": ["Playwright Python package is not installed (run: python3 -m pip install playwright && python3 -m playwright install chromium)"],
+                "failed_requests": [],
+                "dom": None,
+                "screenshot_path": None,
+                "verified_at": "2026-10-19T00:00:00Z",
+            }
+            (artifacts / "runtime.json").write_text(json.dumps(runtime_data_env_err), encoding="utf-8")
+
+            run_json = {
+                "rules_version": 2,
+                "run_id": "test-run",
+                "series_id": "paris-3d-atlas-cursor",
+                "prompt_id": "paris-3d-atlas",
+                "prompt_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "shot": "primary",
+                "parent_run_id": None,
+                "model": {"provider": "google", "name": "gemini-3.1-pro"},
+                "harness": {"name": "cursor", "version": "1.0.0", "detail": ""},
+                "wall_clock": {"started_at": "2026-10-18T10:00:00Z", "ended_at": "2026-10-18T10:05:00Z"},
+                "tokens": {"split_rule": "unavailable", "reasoning_tokens": 0, "visible_tokens": 0, "raw": {}},
+                "model_time": {"source": "unavailable", "generating_seconds": 0.0, "raw": {}},
+                "tool_calls": {
+                    "shell": {"calls": 0, "failures": 0, "by_tool": {}},
+                    "files": {"calls": 0, "failures": 0, "by_tool": {}},
+                    "visual_checks": {"calls": 0, "failures": 0, "by_tool": {}},
+                    "web": {"calls": 0, "failures": 0, "by_tool": {}},
+                    "other": {"calls": 0, "failures": 0, "by_tool": {}},
+                },
+                "context_reread": {"source": "unavailable", "cache_read_tokens": 0, "cache_write_tokens": 0, "uncached_input_tokens": 0, "raw": {}},
+                "outcome": {"model_stopped": True, "operator_saw_a_page": None, "summary": "Done"},
+                "observations": "",
+            }
+            (run_dir / "run.json").write_text(json.dumps(run_json), encoding="utf-8")
+
+            complete_run_json(run_dir, usage_paths=[], interactive=False)
+            updated_run = load_json(run_dir / "run.json")
+            self.assertIsNone(updated_run["outcome"]["operator_saw_a_page"])
+
+            # Case 2: Actual browser run failure (HTTP 200 but empty DOM)
+            runtime_data_actual_fail = {
+                "passed": False,
+                "http_status": 200,
+                "url": "http://127.0.0.1:8000/",
+                "server_mode": "static",
+                "load_time_ms": 150.0,
+                "console_errors": ["Error loading app"],
+                "console_warnings_count": 0,
+                "page_errors": [],
+                "failed_requests": [],
+                "dom": {"canvas_count": 0, "svg_count": 0, "webgl_context": False, "text_length": 0},
+                "screenshot_path": "artifacts/screenshot.png",
+                "verified_at": "2026-10-19T00:00:00Z",
+            }
+            (artifacts / "runtime.json").write_text(json.dumps(runtime_data_actual_fail), encoding="utf-8")
+            (run_dir / "run.json").write_text(json.dumps(run_json), encoding="utf-8")
+
+            complete_run_json(run_dir, usage_paths=[], interactive=False)
+            updated_run_2 = load_json(run_dir / "run.json")
+            self.assertFalse(updated_run_2["outcome"]["operator_saw_a_page"])
 
 
 if __name__ == "__main__":
