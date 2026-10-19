@@ -3,9 +3,10 @@ id: TASK-15
 title: >-
   Infer model provider from reference/pricing-2026-10-18.json in
   infer_provider()
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 04:16'
+updated_date: '2026-10-19 12:15'
 labels:
   - setup
   - pricing
@@ -31,7 +32,7 @@ infer_provider(model_name) in scripts/run_common.py uses a hardcoded substring m
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 infer_provider() consults reference/pricing-2026-10-18.json (via lookup_model_pricing() or model list matching) before falling back to substring heuristics
-- [ ] #2 Models in the pricing table (including Muse Wonder -> meta, Kimi K3 -> moonshot, GLM 5.3 -> zai) automatically resolve their provider in setup_run.py
-- [ ] #3 Unit tests in tests/test_run_common.py and tests/test_setup_run.py verify provider inference for all providers in reference/pricing-2026-10-18.json
+- [x] #1 infer_provider() consults reference/pricing-2026-10-18.json (via lookup_model_pricing() or model list matching) before falling back to substring heuristics
+- [x] #2 Models in the pricing table (including Muse Wonder -> meta, Kimi K3 -> moonshot, GLM 5.3 -> zai) automatically resolve their provider in setup_run.py
+- [x] #3 Unit tests in tests/test_run_common.py and tests/test_setup_run.py verify provider inference for all providers in reference/pricing-2026-10-18.json
 <!-- AC:END -->
