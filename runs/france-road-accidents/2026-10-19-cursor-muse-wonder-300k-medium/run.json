@@ -1,0 +1,183 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-19-cursor-muse-wonder-300k-medium",
+  "series_id": "france-road-accidents-cursor",
+  "prompt_id": "france-road-accidents",
+  "prompt_sha256": "982eebe095732d52f4ca2e904d1cc284b76e9522d3f6f634c571f60ee96747a9",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "meta",
+    "name": "Muse Wonder",
+    "context": "300k",
+    "reasoning": "medium"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": "3.23.23",
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-19T03:33:40.099Z",
+    "ended_at": "2026-10-19T03:40:45.950Z"
+  },
+  "tokens": {
+    "split_rule": "unavailable",
+    "reasoning_tokens": null,
+    "visible_tokens": null,
+    "raw": {
+      "hook_tokens": {
+        "source": "cursor_stop_hook",
+        "model": "muse-wonder-1.0-medium",
+        "input_tokens": 1800824,
+        "uncached_input_tokens": 115812,
+        "cache_read_tokens": 1685012,
+        "cache_write_tokens": 0,
+        "output_tokens": 25021
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "muse-wonder",
+        "context_variant": null,
+        "long_context_applied": false,
+        "harness": "cursor",
+        "harness_token_rate_per_1m": "0.25",
+        "harness_surcharge_usd": "0.46",
+        "rates_per_1m_usd": {
+          "input": "4.00",
+          "cache_write": "0.00",
+          "cache_read": "0.20",
+          "output": "20.00"
+        },
+        "estimated_cost_usd": "1.30",
+        "estimated_cost_with_harness_usd": "1.76"
+      }
+    }
+  },
+  "model_time": {
+    "source": "wall_clock_minus_tool_time",
+    "generating_seconds": 287.9,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 425.9,
+        "tool_seconds_merged": 137.9,
+        "tool_seconds_summed": 137.9,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": 287.9,
+        "thinking_seconds": null,
+        "thought_blocks": 0
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 28,
+      "failures": 4,
+      "by_tool": {
+        "Shell": {
+          "calls": 28,
+          "failures": 4
+        }
+      }
+    },
+    "files": {
+      "calls": 13,
+      "failures": 3,
+      "by_tool": {
+        "Read": {
+          "calls": 13,
+          "failures": 3
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    }
+  },
+  "context_reread": {
+    "source": "provider_cache_read",
+    "cache_read_tokens": 1685012,
+    "cache_write_tokens": 0,
+    "uncached_input_tokens": 115812,
+    "raw": {
+      "source": "cursor_stop_hook",
+      "model": "muse-wonder-1.0-medium",
+      "input_tokens": 1800824,
+      "uncached_input_tokens": 115812,
+      "cache_read_tokens": 1685012,
+      "cache_write_tokens": 0,
+      "output_tokens": 25021
+    }
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": true,
+    "summary": "Good visualization with dynamic cluster metrics"
+  },
+  "observations": "",
+  "verification": {
+    "runtime": {
+      "passed": false,
+      "http_status": null,
+      "url": "http://127.0.0.1:50229",
+      "server_mode": "static",
+      "load_time_ms": null,
+      "console_errors": [],
+      "console_warnings_count": 0,
+      "page_errors": [
+        "Playwright Python package is not installed"
+      ],
+      "failed_requests": [],
+      "dom": null,
+      "screenshot_path": null,
+      "verified_at": "2026-10-19T03:50:41.562Z"
+    },
+    "data_pipeline": {
+      "prompt_id": "france-road-accidents",
+      "passed": true,
+      "authenticity": "real_open_data",
+      "score": 1.0,
+      "total_data_files": 8,
+      "total_records": 393781,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "baac_relational_tables",
+          "description": "ONISR BAAC relational tables (caracteristiques, lieux, vehicules, usagers) or joined dataset",
+          "passed": true,
+          "observed_records": 288113,
+          "matched_files": [
+            "data_raw/usagers-2024.csv",
+            "data_raw/lieux-2024.csv",
+            "data_raw/vehicules-2024.csv"
+          ],
+          "detail": "Matched 3 file(s) with 288113 observed records (min: 5000)"
+        },
+        {
+          "id": "departments_dataset",
+          "description": "Metropolitan France department boundaries",
+          "passed": true,
+          "observed_records": 210,
+          "matched_files": [
+            "data/departements-pop.json",
+            "data/departements.geojson"
+          ],
+          "detail": "Matched 2 file(s) with 210 observed records (min: 90)"
+        }
+      ],
+      "verified_at": "2026-10-19T03:50:42.095Z"
+    }
+  }
+}

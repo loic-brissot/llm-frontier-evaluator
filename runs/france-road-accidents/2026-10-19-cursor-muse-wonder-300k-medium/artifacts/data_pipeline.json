@@ -1,0 +1,35 @@
+{
+  "prompt_id": "france-road-accidents",
+  "passed": true,
+  "authenticity": "real_open_data",
+  "score": 1.0,
+  "total_data_files": 8,
+  "total_records": 393781,
+  "synthetic_signals": [],
+  "checks": [
+    {
+      "id": "baac_relational_tables",
+      "description": "ONISR BAAC relational tables (caracteristiques, lieux, vehicules, usagers) or joined dataset",
+      "passed": true,
+      "observed_records": 288113,
+      "matched_files": [
+        "data_raw/usagers-2024.csv",
+        "data_raw/lieux-2024.csv",
+        "data_raw/vehicules-2024.csv"
+      ],
+      "detail": "Matched 3 file(s) with 288113 observed records (min: 5000)"
+    },
+    {
+      "id": "departments_dataset",
+      "description": "Metropolitan France department boundaries",
+      "passed": true,
+      "observed_records": 210,
+      "matched_files": [
+        "data/departements-pop.json",
+        "data/departements.geojson"
+      ],
+      "detail": "Matched 2 file(s) with 210 observed records (min: 90)"
+    }
+  ],
+  "verified_at": "2026-10-19T03:50:42.095Z"
+}

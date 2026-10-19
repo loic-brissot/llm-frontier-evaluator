@@ -1,0 +1,16 @@
+{
+  "passed": false,
+  "http_status": null,
+  "url": "http://127.0.0.1:50229",
+  "server_mode": "static",
+  "load_time_ms": null,
+  "console_errors": [],
+  "console_warnings_count": 0,
+  "page_errors": [
+    "Playwright Python package is not installed"
+  ],
+  "failed_requests": [],
+  "dom": null,
+  "screenshot_path": null,
+  "verified_at": "2026-10-19T03:50:41.562Z"
+}
