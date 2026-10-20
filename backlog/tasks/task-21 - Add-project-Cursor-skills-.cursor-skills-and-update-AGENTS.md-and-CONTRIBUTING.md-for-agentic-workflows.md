@@ -3,9 +3,10 @@ id: TASK-21
 title: >-
   Add project Cursor skills (.cursor/skills/) and update AGENTS.md and
   CONTRIBUTING.md for agentic workflows
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 12:52'
+updated_date: '2026-10-20 00:29'
 labels:
   - skills
   - docs
@@ -31,7 +32,7 @@ Subagents and maintainer sessions rely on AGENTS.md and CONTRIBUTING.md, which a
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Update CONTRIBUTING.md and AGENTS.md with explicit instructions on using npx backlog.md CLI (instead of global MCP), running tests and ruff locally, subagent PR review/squash-merge workflow, and checklist for adding/removing prompts or models
-- [ ] #2 Create a repo-local skill .cursor/skills/benchmark-run/SKILL.md covering setup_run.py, verify_run.py, finish_run.py, usage CSV ingestion from tmp/, and opening a run/<prompt>-<model> PR
-- [ ] #3 Create a repo-local skill .cursor/skills/catalog-maintenance/SKILL.md covering adding/updating prompts, data-pipeline probes (reference/prompt-probes.json), and model pricing entries (reference/pricing-2026-10-18.json)
+- [x] #1 Update CONTRIBUTING.md and AGENTS.md with explicit instructions on using npx backlog.md CLI (instead of global MCP), running tests and ruff locally, subagent PR review/squash-merge workflow, and checklist for adding/removing prompts or models
+- [x] #2 Create a repo-local skill .cursor/skills/benchmark-run/SKILL.md covering setup_run.py, verify_run.py, finish_run.py, usage CSV ingestion from tmp/, and opening a run/<prompt>-<model> PR
+- [x] #3 Create a repo-local skill .cursor/skills/catalog-maintenance/SKILL.md covering adding/updating prompts, data-pipeline probes (reference/prompt-probes.json), and model pricing entries (reference/pricing-2026-10-18.json)
 <!-- AC:END -->
