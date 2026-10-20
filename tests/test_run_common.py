@@ -6,7 +6,7 @@ import sys
 # Add scripts directory to module path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from run_common import scrub_text, scrub_path, run_schema_errors, load_json, infer_provider, load_pricing, SCHEMA_PATH, ROOT
+from run_common import scrub_text, scrub_path, run_schema_errors, infer_provider, load_pricing
 
 
 class TestRunCommon(unittest.TestCase):

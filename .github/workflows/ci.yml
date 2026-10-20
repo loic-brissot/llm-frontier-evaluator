@@ -21,7 +21,10 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements.txt pytest
+          python3 -m pip install -r requirements.txt pytest ruff
+
+      - name: Run linter (ruff)
+        run: ruff check scripts tests
 
       - name: Run unit tests (unittest)
         run: python3 -m unittest discover -s tests -v

@@ -3,9 +3,10 @@ id: TASK-20
 title: >-
   Add CI linting (ruff), cross-catalog integrity checks, and sandbox-safe hook
   tests
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 12:52'
+updated_date: '2026-10-20 00:24'
 labels:
   - ci
   - testing
@@ -31,7 +32,7 @@ Several bugs we fixed (TASK-15 provider drift vs pricing JSON, TASK-19 prompt re
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 .github/workflows/ci.yml installs and runs ruff check scripts tests in addition to unittest, pytest, and compare_runs.py
-- [ ] #2 compare_runs.py (and unit tests) verifies cross-catalog consistency: prompt/*.txt <-> prompt/README.md <-> reference/prompt-probes.json <-> README.md ### Prompts list, plus structural validation of reference/pricing-2026-10-18.json
-- [ ] #3 tests/test_setup_run.py handles or parameterizes the .cursor hook directory when running inside a Cursor agent sandbox where creating .cursor/ raises PermissionError, so all unit tests pass both inside the Cursor sandbox and in CI
+- [x] #1 .github/workflows/ci.yml installs and runs ruff check scripts tests in addition to unittest, pytest, and compare_runs.py
+- [x] #2 compare_runs.py (and unit tests) verifies cross-catalog consistency: prompt/*.txt <-> prompt/README.md <-> reference/prompt-probes.json <-> README.md ### Prompts list, plus structural validation of reference/pricing-2026-10-18.json
+- [x] #3 tests/test_setup_run.py handles or parameterizes the .cursor hook directory when running inside a Cursor agent sandbox where creating .cursor/ raises PermissionError, so all unit tests pass both inside the Cursor sandbox and in CI
 <!-- AC:END -->

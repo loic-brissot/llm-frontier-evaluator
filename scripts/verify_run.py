@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import functools
-import json
 import os
 import signal
 import socket
@@ -117,7 +116,7 @@ def discover_and_start_server(
     # Auto-detection
     pkg_json = workspace_dir / "package.json"
     node_modules = workspace_dir / "node_modules"
-    
+
     # Check static directory availability first
     static_dir: Path | None = None
     if (workspace_dir / "dist" / "index.html").is_file():

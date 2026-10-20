@@ -1,5 +1,4 @@
 import hashlib
-import json
 import unittest
 from pathlib import Path
 import sys
@@ -8,7 +7,7 @@ import sys
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from run_common import PROMPTS_DIR, README_PATH, RUNS_DIR, discover_run_dirs, load_json
+from run_common import PROMPTS_DIR, discover_run_dirs, load_json
 
 
 class TestPrompts(unittest.TestCase):

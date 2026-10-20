@@ -2,7 +2,6 @@ import hashlib
 import importlib.util
 import json
 import os
-import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,10 +12,27 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from compare_runs import check_local_run
 from run_common import ROOT, load_json, prompt_path, prompt_sha256, run_schema_errors
-from setup_run import create_run_directory, install_cursor_hook, main
+from setup_run import CURSOR_HOOK_DIR_NAME, create_run_directory, install_cursor_hook, main
+
+
+def _sandbox_blocks_dot_cursor() -> bool:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        try:
+            (Path(tmp_dir) / ".cursor").mkdir()
+            return False
+        except PermissionError:
+            return True
 
 
 class TestSetupRun(unittest.TestCase):
+    def setUp(self):
+        if _sandbox_blocks_dot_cursor():
+            self.hook_dir_name = "_cursor_sandbox_test"
+            patcher = patch("setup_run.CURSOR_HOOK_DIR_NAME", self.hook_dir_name)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        else:
+            self.hook_dir_name = ".cursor"
     def test_root_cursor_hooks_not_present(self):
         root_config = ROOT / ".cursor" / "hooks.json"
         root_script = ROOT / ".cursor" / "hooks" / "log-tool-event.py"
@@ -30,14 +46,15 @@ class TestSetupRun(unittest.TestCase):
         self.assertTrue(template_script.is_file(), "templates/cursor/hooks/log-tool-event.py must exist")
 
     def test_install_cursor_hook_copies_from_templates(self):
+        self.assertEqual(CURSOR_HOOK_DIR_NAME, ".cursor")
         with tempfile.TemporaryDirectory() as tmp_dir:
             workspace = Path(tmp_dir) / "workspace"
             workspace.mkdir()
 
             install_cursor_hook(workspace)
 
-            dest_config = workspace / ".cursor" / "hooks.json"
-            dest_script = workspace / ".cursor" / "hooks" / "log-tool-event.py"
+            dest_config = workspace / self.hook_dir_name / "hooks.json"
+            dest_script = workspace / self.hook_dir_name / "hooks" / "log-tool-event.py"
 
             self.assertTrue(dest_config.is_file())
             self.assertTrue(dest_script.is_file())
@@ -49,6 +66,19 @@ class TestSetupRun(unittest.TestCase):
             self.assertEqual(dest_script.read_text(encoding="utf-8"), template_script.read_text(encoding="utf-8"))
 
             self.assertTrue(os.access(dest_script, os.X_OK), "log-tool-event.py must be executable")
+
+    def test_install_cursor_hook_custom_hook_dir_name(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            workspace = Path(tmp_dir) / "workspace"
+            workspace.mkdir()
+
+            install_cursor_hook(workspace, hook_dir_name="_custom_cursor")
+
+            dest_config = workspace / "_custom_cursor" / "hooks.json"
+            dest_script = workspace / "_custom_cursor" / "hooks" / "log-tool-event.py"
+
+            self.assertTrue(dest_config.is_file())
+            self.assertTrue(dest_script.is_file())
 
     def test_create_run_directory_copies_prompt(self):
         with tempfile.TemporaryDirectory() as tmp_dir:

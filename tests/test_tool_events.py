@@ -11,12 +11,9 @@ from tool_events import (
     bucket_for,
     effective_tool_name,
     _dedupe_thoughts,
-    _are_thoughts_duplicate,
     _dedupe_tools,
     _merged_seconds,
     _tool_intervals,
-    parse_time,
-    ToolEventSummary,
     format_time,
 )
 
