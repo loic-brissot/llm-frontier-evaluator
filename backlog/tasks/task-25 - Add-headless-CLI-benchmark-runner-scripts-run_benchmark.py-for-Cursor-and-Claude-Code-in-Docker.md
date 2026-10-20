@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-10-19 23:50'
+updated_date: '2026-10-20 17:58'
 labels:
   - cli
   - runner
@@ -16,6 +17,9 @@ milestone: m-3
 dependencies:
   - TASK-23
   - TASK-14
+  - TASK-26
+  - TASK-27
+  - TASK-28
 references:
   - scripts/setup_run.py
   - scripts/finish_run.py
