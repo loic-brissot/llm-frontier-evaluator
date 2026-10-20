@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -9,8 +10,10 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from run_benchmark import (
+    check_preflight,
     detect_container_harness_version,
     fetch_cursor_available_models,
+    main,
     record_container_harness_version,
     resolve_claude_code_model_and_effort,
     resolve_cursor_model_slug,
@@ -149,6 +152,7 @@ class TestRunBenchmark(unittest.TestCase):
                  patch("run_benchmark.find_run_dir", return_value=run_dir), \
                  patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19-6bbf2c4"), \
                  patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
                  patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=0)
 
@@ -207,7 +211,10 @@ class TestRunBenchmark(unittest.TestCase):
             )
 
             with patch("run_benchmark.STAGING_PARENT", Path(tmp_dir)), \
-                 patch("run_benchmark.find_run_dir", return_value=run_dir):
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0)
 
                 # Without allow_cli_context_override -> should raise ValueError with launch script reference
                 with self.assertRaises(ValueError) as ctx:
@@ -243,6 +250,7 @@ class TestRunBenchmark(unittest.TestCase):
                  patch("run_benchmark.find_run_dir", return_value=run_dir), \
                  patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19-6bbf2c4"), \
                  patch("run_benchmark.fetch_cursor_available_models", return_value=["gemini-4-argon-medium"]), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
                  patch("subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=0)
 
@@ -260,6 +268,114 @@ class TestRunBenchmark(unittest.TestCase):
                     "Requested context 300k cleared to null because headless CLI cannot select context window",
                     updated_data["harness"]["detail"],
                 )
+
+    def test_preflight_docker_daemon_unreachable(self):
+        def mock_run(cmd, **kwargs):
+            if cmd[:2] == ["docker", "info"]:
+                return MagicMock(returncode=1)
+            return MagicMock(returncode=0)
+
+        with patch("subprocess.run", side_effect=mock_run):
+            errors = check_preflight(harness="cursor")
+            self.assertTrue(any("Docker daemon is not running or unreachable" in e for e in errors))
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            staging_dir = Path(tmp_dir) / "frontier-workspace-test-run"
+            staging_dir.mkdir(parents=True)
+            run_dir = Path(tmp_dir) / "runs" / "france-road-accidents" / "test-run"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "cursor"},
+                "model": {"name": "Claude Opus 5.5"},
+            }), encoding="utf-8")
+
+            with patch("run_benchmark.STAGING_PARENT", Path(tmp_dir)), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("subprocess.run", side_effect=mock_run), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}):
+                with self.assertRaises(RuntimeError) as ctx:
+                    run_benchmark_container(prompt_id="france-road-accidents", run_id="test-run")
+                self.assertIn("Docker daemon is not running or unreachable", str(ctx.exception))
+
+    def test_preflight_docker_image_missing(self):
+        def mock_run(cmd, **kwargs):
+            if cmd[:3] == ["docker", "image", "inspect"]:
+                return MagicMock(returncode=1)
+            return MagicMock(returncode=0)
+
+        with patch("subprocess.run", side_effect=mock_run):
+            errors = check_preflight(harness="cursor")
+            self.assertTrue(any("Docker image 'llm-frontier-evaluator-runner:latest' not found" in e for e in errors))
+
+    def test_preflight_missing_api_keys(self):
+        def mock_run(cmd, **kwargs):
+            return MagicMock(returncode=0)
+
+        with patch("subprocess.run", side_effect=mock_run), patch.dict(os.environ, {}, clear=True):
+            # Harness = cursor
+            errors_cursor = check_preflight(harness="cursor")
+            self.assertTrue(any("Missing required environment variable CURSOR_API_KEY for harness 'cursor'" in e for e in errors_cursor))
+
+            # Harness = claude-code
+            errors_claude = check_preflight(harness="claude-code")
+            self.assertTrue(any("Missing required environment variable ANTHROPIC_API_KEY for harness 'claude-code'" in e for e in errors_claude))
+
+            # No harness specified
+            errors_none = check_preflight(harness=None)
+            self.assertTrue(any("Missing required environment variable CURSOR_API_KEY or ANTHROPIC_API_KEY" in e for e in errors_none))
+
+    def test_preflight_missing_or_repo_workspace(self):
+        def mock_run(cmd, **kwargs):
+            return MagicMock(returncode=0)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            run_dir = Path(tmp_dir) / "runs" / "france-road-accidents" / "test-workspace-run"
+            run_dir.mkdir(parents=True)
+            repo_workspace = run_dir / "workspace"
+            repo_workspace.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "cursor"},
+                "model": {"name": "Claude Opus 5.5"},
+            }), encoding="utf-8")
+
+            # Missing /tmp/frontier-workspace-<run-id>
+            with patch("run_benchmark.STAGING_PARENT", Path(tmp_dir)), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("subprocess.run", side_effect=mock_run), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}):
+                with self.assertRaises(RuntimeError) as ctx:
+                    run_benchmark_container(prompt_id="france-road-accidents", run_id="test-workspace-run")
+                self.assertIn("Staged workspace not found at", str(ctx.exception))
+
+            # Verify check_preflight directly
+            with patch("run_benchmark.STAGING_PARENT", Path(tmp_dir)), \
+                 patch("subprocess.run", side_effect=mock_run), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}):
+                errors = check_preflight(harness="cursor", run_id="test-workspace-run")
+                self.assertTrue(any("Staged workspace not found at" in e for e in errors))
+
+    def test_cli_check_flag(self):
+        def mock_run_success(cmd, **kwargs):
+            return MagicMock(returncode=0)
+
+        def mock_run_daemon_fail(cmd, **kwargs):
+            if cmd[:2] == ["docker", "info"]:
+                return MagicMock(returncode=1)
+            return MagicMock(returncode=0)
+
+        with patch("subprocess.run", side_effect=mock_run_success), \
+             patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}):
+            with patch("sys.argv", ["run_benchmark.py", "--check"]):
+                exit_code = main()
+                self.assertEqual(exit_code, 0)
+
+        with patch("subprocess.run", side_effect=mock_run_daemon_fail), \
+             patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}):
+            with patch("sys.argv", ["run_benchmark.py", "--check"]):
+                exit_code = main()
+                self.assertEqual(exit_code, 1)
 
 
 if __name__ == "__main__":
