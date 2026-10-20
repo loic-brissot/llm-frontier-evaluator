@@ -44,7 +44,7 @@ HARNESS_LABELS = {
     "codex": "Codex",
     "other": "Other",
 }
-LOCAL_TABLE_HEADER = "| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost | Outcome |"
+LOCAL_TABLE_HEADER = "| Prompt | Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Outcome |"
 LOCAL_TABLE_RULE = "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
 
 
@@ -57,10 +57,15 @@ def model_label(run: dict) -> str:
     model = run["model"]
     # Reasoning is optional: null (and the stored default) read as unknown.
     reasoning = model.get("reasoning") or UNKNOWN_REASONING
-    label = f"{model['name']} {reasoning}"
-    if model.get("context"):
-        label = f"{model['name']} {model['context']} {reasoning}"
-    return label
+    name = str(model.get("name") or "")
+    if reasoning and name:
+        words = name.split()
+        if words and words[-1].lower() == reasoning.lower():
+            name = " ".join(words[:-1])
+    context = model.get("context")
+    if context:
+        return f"{name} {context} {reasoning}".strip()
+    return f"{name} {reasoning}".strip()
 
 
 def round_half_up(value: Decimal, places: int) -> Decimal:
@@ -320,7 +325,7 @@ def check_prompt(
             prompts_section_lines: list[str] = []
             in_section = False
             for line in readme_lines:
-                if line.strip() == "### Prompts":
+                if line.strip() in {"## Prompts", "### Prompts"}:
                     in_section = True
                     continue
                 if in_section:
@@ -329,7 +334,7 @@ def check_prompt(
                     prompts_section_lines.append(line)
 
             if not in_section:
-                errors.append(f"Section '### Prompts' not found in {root_readme_path}")
+                errors.append(f"Section '## Prompts' not found in {root_readme_path}")
             else:
                 section_text = "\n".join(prompts_section_lines)
                 link_pattern = re.compile(r"\[`([^`]+)`\]\(([^)]+)\)")
@@ -344,7 +349,7 @@ def check_prompt(
                             f"{root_readme_path}: Prompt link for {label!r} points to {target!r}, expected {expected_target!r}"
                         )
                     if label in seen_listed:
-                        errors.append(f"{root_readme_path}: Duplicate prompt id {label!r} under ### Prompts")
+                        errors.append(f"{root_readme_path}: Duplicate prompt id {label!r} under ## Prompts")
                     else:
                         seen_listed.add(label)
                         listed_ids.append(label)
@@ -352,13 +357,13 @@ def check_prompt(
                 for prompt_id in sorted(prompt_ids):
                     if prompt_id not in seen_listed:
                         errors.append(
-                            f"Prompt id {prompt_id!r} is missing from {root_readme_path} ### Prompts section"
+                            f"Prompt id {prompt_id!r} is missing from {root_readme_path} ## Prompts section"
                         )
 
                 for label in listed_ids:
                     if label not in prompt_ids:
                         errors.append(
-                            f"Orphan prompt id {label!r} under ### Prompts in {root_readme_path}"
+                            f"Orphan prompt id {label!r} under ## Prompts in {root_readme_path}"
                         )
 
     return errors
@@ -680,7 +685,7 @@ def generate_readme_comparisons(
     lines = [
         "## Comparisons",
         "",
-        "Rows compare only inside one series, so each series has its own table ([`docs/protocol.md`](docs/protocol.md)).",
+        "Rows compare only inside one series, so each series has its own table ([`docs/protocol.md`](docs/protocol.md)). Metric details and tool classifications are documented in [`docs/metrics.md`](docs/metrics.md) and [`docs/tool-buckets.md`](docs/tool-buckets.md); pricing rates use [`reference/pricing-2026-10-18.json`](reference/pricing-2026-10-18.json).",
         "",
     ]
 
@@ -698,7 +703,7 @@ def generate_readme_comparisons(
         )
         lines.append("")
         lines.append(
-            "| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost |"
+            "| Prompt | Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) |"
         )
         lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
         prompt_id = reference.get("prompt_id", DEFAULT_PROMPT_ID)

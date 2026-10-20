@@ -56,7 +56,7 @@ When adding or removing a prompt, all 4 of the following files must be updated s
      ```
 
 4. **`README.md`**:
-   - Add/remove entry under the `### Prompts` numbered list:
+   - Add/remove entry under the `## Prompts` numbered list:
      `N. [`<prompt-id>`](prompt/<prompt-id>.txt): Short summary of prompt objectives.`
 
 ### Checking Default Prompt References
