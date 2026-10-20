@@ -14,14 +14,18 @@ from run_common import (
     DEFAULT_PROMPT_ID,
     ROOT,
     canonical_harness,
+    default_series_id,
     find_run_dir,
+    infer_provider,
     is_cursor_harness,
     load_pricing,
+    preferred_python,
     prompt_path,
     reasoning_levels_for_harness,
     require_prompt_id,
     slugify,
 )
+from setup_run import create_run_directory
 
 DOCKER_IMAGE = "llm-frontier-evaluator-runner:latest"
 STAGING_PARENT = Path("/tmp")
@@ -29,6 +33,81 @@ STAGING_PARENT = Path("/tmp")
 
 def staging_workspace_for(run_id: str) -> Path:
     return STAGING_PARENT / f"frontier-workspace-{run_id}"
+
+
+def trigger_finish_run(prompt_id: str, run_id: str) -> subprocess.CompletedProcess:
+    """Trigger finish_run.py --verify --skip-usage-copy for the given run."""
+    cmd = [
+        preferred_python(),
+        str(ROOT / "scripts" / "finish_run.py"),
+        "--prompt",
+        prompt_id,
+        "--run-id",
+        run_id,
+        "--verify",
+        "--skip-usage-copy",
+    ]
+    return subprocess.run(cmd)
+
+
+def build_container_command(
+    *,
+    staging_dir: Path,
+    docker_image: str,
+    harness: str,
+    resolved_model: str,
+    effort: str | None,
+    prompt_text: str,
+    env: dict,
+    container_name: str | None = None,
+) -> list[str]:
+    """Construct docker run command for running harness CLI in container."""
+    norm_harness = canonical_harness(harness)
+    cmd = ["docker", "run", "--rm", "-i"]
+    if container_name:
+        cmd.extend(["--name", container_name])
+    cmd.extend([
+        "-v",
+        f"{staging_dir.resolve()}:/workspace:rw",
+        "-w",
+        "/workspace",
+    ])
+
+    if norm_harness == "cursor" or is_cursor_harness(norm_harness):
+        if "CURSOR_API_KEY" in env:
+            cmd.extend(["-e", "CURSOR_API_KEY"])
+        cmd.extend([
+            docker_image,
+            "cursor-agent",
+            "-p",
+            "--workspace",
+            "/workspace",
+            "--model",
+            resolved_model,
+            "--trust",
+            "--force",
+            "--output-format",
+            "stream-json",
+            prompt_text,
+        ])
+    else:  # claude-code
+        if "ANTHROPIC_API_KEY" in env:
+            cmd.extend(["-e", "ANTHROPIC_API_KEY"])
+        effort_flag = ["--effort", effort] if effort else []
+        cmd.extend([
+            docker_image,
+            "claude",
+            "-p",
+            "--model",
+            resolved_model,
+            *effort_flag,
+            "--dangerously-skip-permissions",
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            prompt_text,
+        ])
+    return cmd
 
 
 def check_preflight(
@@ -279,8 +358,7 @@ def resolve_claude_code_model_and_effort(
         allowed = reasoning_levels_for_harness("claude-code")
         if r_clean not in allowed:
             raise ValueError(
-                f"Invalid reasoning level '{reasoning}' for claude-code harness. "
-                f"Allowed levels: {allowed}"
+                f"Invalid reasoning level '{reasoning}' for claude-code harness. Allowed levels: {allowed}"
             )
         effort = r_clean
 
@@ -290,7 +368,7 @@ def resolve_claude_code_model_and_effort(
 def run_benchmark_container(
     *,
     prompt_id: str = DEFAULT_PROMPT_ID,
-    run_id: str,
+    run_id: str | None = None,
     harness: str | None = None,
     model: str | None = None,
     reasoning: str | None = None,
@@ -298,16 +376,38 @@ def run_benchmark_container(
     allow_cli_context_override: bool = False,
     docker_image: str = DOCKER_IMAGE,
     check_models: bool = True,
+    timeout_seconds: int | float | None = None,
+    auto_finish: bool = True,
 ) -> int:
     run_dir: Path | None = None
     recorded_run_json: dict | None = None
-    try:
-        run_dir = find_run_dir(run_id, prompt_id=prompt_id)
-        run_json_path = run_dir / "run.json"
-        if run_json_path.is_file():
-            recorded_run_json = json.loads(run_json_path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        run_dir = None
+
+    if run_id is None:
+        if not model:
+            raise ValueError("Model must be specified when run_id is omitted for automatic run scaffolding")
+        scaffold_harness = canonical_harness(harness) if harness else "cursor"
+        scaffold_context = None if allow_cli_context_override else context
+        run_dir = create_run_directory(
+            harness=scaffold_harness,
+            model=model,
+            reasoning=reasoning,
+            context=scaffold_context,
+            prompt_id=prompt_id,
+            series_id=default_series_id(scaffold_harness, prompt_id),
+            provider=infer_provider(model) or "unknown",
+            harness_version=None,
+            harness_detail="",
+        )
+        run_id = run_dir.name
+        recorded_run_json = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    else:
+        try:
+            run_dir = find_run_dir(run_id, prompt_id=prompt_id)
+            run_json_path = run_dir / "run.json"
+            if run_json_path.is_file():
+                recorded_run_json = json.loads(run_json_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            run_dir = None
 
     rec_prompt_id = recorded_run_json.get("prompt_id") if recorded_run_json else None
     rec_harness = (
@@ -429,7 +529,7 @@ def run_benchmark_container(
     if not prompt_file.is_file():
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
 
-    prompt_text = prompt_file.read_text(encoding="utf-8")
+    prompt_text = prompt_file.read_bytes().decode("utf-8")
     staging_dir = staging_workspace_for(run_id)
 
     is_inside_root = False
@@ -446,46 +546,67 @@ def run_benchmark_container(
     if harness_version and run_dir is not None:
         record_container_harness_version(run_dir, harness_version)
 
-    cmd = [
-        "docker", "run", "--rm", "-i",
-        "-v", f"{staging_dir.resolve()}:/workspace:rw",
-        "-w", "/workspace",
-    ]
-
     env = dict(os.environ)
 
     if final_harness == "cursor" or is_cursor_harness(final_harness):
-        if "CURSOR_API_KEY" in env:
-            cmd.extend(["-e", "CURSOR_API_KEY"])
         avail_models = fetch_cursor_available_models(docker_image, env) if check_models else None
         resolved_model = resolve_cursor_model_slug(final_model, reasoning=final_reasoning, available_models=avail_models)
-        container_cmd = [
-            "cursor-agent", "-p",
-            "--workspace", "/workspace",
-            "--model", resolved_model,
-            "--trust", "--force",
-            "--output-format", "stream-json",
-            prompt_text,
-        ]
+        effort = None
     else:  # claude-code
-        if "ANTHROPIC_API_KEY" in env:
-            cmd.extend(["-e", "ANTHROPIC_API_KEY"])
         resolved_model, effort = resolve_claude_code_model_and_effort(final_model, reasoning=final_reasoning)
-        effort_flag = ["--effort", effort] if effort else []
-        container_cmd = [
-            "claude", "-p",
-            "--model", resolved_model,
-            *effort_flag,
-            "--dangerously-skip-permissions",
-            "--output-format", "stream-json",
-            "--verbose",
-            prompt_text,
-        ]
 
-    full_cmd = cmd + [docker_image] + container_cmd
+    container_name = f"frontier-runner-{run_id}"
+    full_cmd = build_container_command(
+        staging_dir=staging_dir,
+        docker_image=docker_image,
+        harness=final_harness,
+        resolved_model=resolved_model,
+        effort=effort,
+        prompt_text=prompt_text,
+        env=env,
+        container_name=container_name,
+    )
+
     print(f"Running benchmark container for run {run_id} ({final_harness})...")
-    res = subprocess.run(full_cmd, env=env)
-    return res.returncode
+
+    tool_events_dir: Path | None = None
+    if run_dir is not None:
+        tool_events_dir = run_dir / "tool-events"
+        tool_events_dir.mkdir(parents=True, exist_ok=True)
+
+    stdout_content: str | None = None
+    return_code: int = 0
+
+    try:
+        res = subprocess.run(
+            full_cmd,
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=timeout_seconds,
+        )
+        return_code = res.returncode
+        stdout_content = res.stdout
+    except subprocess.TimeoutExpired as exc:
+        return_code = 124
+        if isinstance(exc.stdout, str):
+            stdout_content = exc.stdout
+        elif isinstance(exc.stdout, bytes):
+            stdout_content = exc.stdout.decode("utf-8")
+        else:
+            stdout_content = ""
+        print(f"Timeout expired after {timeout_seconds}s for container {container_name}. Cleaning up...", file=sys.stderr)
+        subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True)
+
+    if tool_events_dir is not None and stdout_content is not None and isinstance(stdout_content, str):
+        cli_stream_file = tool_events_dir / "cli-stream.jsonl"
+        cli_stream_file.write_text(stdout_content, encoding="utf-8")
+
+    if auto_finish and run_dir is not None:
+        print(f"Triggering finish_run.py --verify for run {run_id}...")
+        trigger_finish_run(prompt_id, run_id)
+
+    return return_code
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -514,6 +635,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run preflight checks for Docker daemon, image, credentials, and staged workspace, then exit.",
     )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="Execution timeout in seconds for container run.",
+    )
+    parser.add_argument(
+        "--no-finish",
+        dest="auto_finish",
+        action="store_false",
+        default=True,
+        help="Disable automatic trigger of finish_run.py --verify upon completion.",
+    )
     return parser
 
 
@@ -521,8 +655,8 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
 
-    if not args.check and not args.run_id:
-        parser.error("the following arguments are required: --run-id")
+    if not args.check and not args.run_id and not args.model:
+        parser.error("one of the following arguments is required: --run-id or --model")
 
     if args.check:
         errors = check_preflight(
@@ -549,6 +683,8 @@ def main() -> int:
             allow_cli_context_override=args.allow_cli_context_override,
             docker_image=args.docker_image,
             check_models=args.check_models,
+            timeout_seconds=args.timeout,
+            auto_finish=args.auto_finish,
         )
     except Exception as exc:
         print(f"Error executing benchmark run: {exc}", file=sys.stderr)
