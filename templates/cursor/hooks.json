@@ -8,6 +8,13 @@
         "failClosed": false
       }
     ],
+    "preToolUse": [
+      {
+        "command": ".cursor/hooks/log-tool-event.py",
+        "timeout": 5,
+        "failClosed": false
+      }
+    ],
     "postToolUse": [
       {
         "command": ".cursor/hooks/log-tool-event.py",

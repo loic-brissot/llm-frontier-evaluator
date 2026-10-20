@@ -7,6 +7,7 @@ import argparse
 import importlib.util
 import json
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -17,7 +18,6 @@ from run_common import (
     ROOT,
     RULES_VERSION,
     UNKNOWN_REASONING,
-    WORKSPACE_PROMPT_FILENAME,
     _add_venv_site_packages,
     allocate_run_id,
     available_prompt_ids,
@@ -38,6 +38,55 @@ from run_common import (
 
 RUNS_DIR = ROOT / "runs"
 CURSOR_HOOK_DIR_NAME = ".cursor"
+STAGING_PARENT = Path("/tmp")
+
+
+def staging_workspace_for(run_id: str) -> Path:
+    return STAGING_PARENT / f"frontier-workspace-{run_id}"
+
+
+def copy_prompt_to_clipboard(prompt_id: str) -> bool:
+    if not shutil.which("pbcopy"):
+        return False
+    try:
+        p_path = prompt_path(prompt_id)
+        if not p_path.is_file():
+            return False
+        content = p_path.read_bytes()
+        proc = subprocess.run(["pbcopy"], input=content, check=True)
+        return proc.returncode == 0
+    except Exception:
+        return False
+
+
+def create_clean_room_launcher(run_id: str, prompt_id: str, staging_dir: Path) -> Path:
+    launcher_path = STAGING_PARENT / f"frontier-workspace-{run_id}-launch.sh"
+    home_dir = STAGING_PARENT / f"frontier-home-{run_id}"
+    userdata_dir = STAGING_PARENT / f"frontier-userdata-{run_id}"
+    ext_dir = STAGING_PARENT / f"frontier-ext-{run_id}"
+    p_path = prompt_path(prompt_id).resolve()
+
+    content = f"""#!/usr/bin/env bash
+set -e
+
+# Copy prompt bytes to clipboard
+if command -v pbcopy >/dev/null 2>&1; then
+  cat "{p_path}" | pbcopy
+fi
+
+# Set up clean-room HOME
+mkdir -p "{home_dir}/.cursor/skills" "{home_dir}/.cursor/plugins"
+if [ -f "$HOME/.cursor/cli-config.json" ]; then
+  cp "$HOME/.cursor/cli-config.json" "{home_dir}/.cursor/cli-config.json"
+fi
+
+mkdir -p "{userdata_dir}" "{ext_dir}"
+
+HOME="{home_dir}" cursor --new-window --user-data-dir "{userdata_dir}" --extensions-dir "{ext_dir}" "{staging_dir.resolve()}"
+"""
+    launcher_path.write_text(content, encoding="utf-8")
+    launcher_path.chmod(0o755)
+    return launcher_path
 
 
 def check_environment() -> list[str]:
@@ -100,12 +149,6 @@ def normalize_harness(raw: str) -> str:
 
 
 def normalize_reasoning(raw: str | None, harness: str | None = None) -> str:
-    """Reasoning (effort) is optional: unfilled becomes `unknown`.
-
-    `None`, blank, and the literal `null` all mean "not set", as does
-    `unknown` itself, which is accepted for every harness even though
-    it is not one of the tuned levels a harness proposes.
-    """
     if raw is None or raw.strip().lower() in {"", "null"}:
         return UNKNOWN_REASONING
     value = raw.strip().lower()
@@ -124,12 +167,6 @@ def normalize_reasoning(raw: str | None, harness: str | None = None) -> str:
 
 
 def normalize_context(raw: str | None, harness: str) -> str | None:
-    """Context (e.g. `500k`) is optional and recorded only for Cursor runs.
-
-    It cannot be tuned in every Cursor configuration, so an unfilled
-    context — `None`, blank, or the literal `null` — becomes `None`:
-    `model.context` is null and the run id has no `<context>` segment.
-    """
     if raw is None or raw.strip().lower() in {"", "null"}:
         return None
     if not is_cursor_harness(harness):
@@ -150,6 +187,7 @@ def create_run_directory(
     harness_detail: str,
     shot: str = "primary",
     parent_run_id: str | None = None,
+    copy_clipboard: bool = False,
 ) -> Path:
     if shot not in {"primary", "follow-up"}:
         raise ValueError(f"Invalid shot {shot!r}: must be 'primary' or 'follow-up'")
@@ -176,10 +214,24 @@ def create_run_directory(
     workspace = run_dir / "workspace"
     workspace.mkdir()
     (run_dir / "usage").mkdir()
-    if harness == "cursor":
-        install_cursor_hook(workspace)
 
-    shutil.copy2(prompt_path(prompt_id), workspace / WORKSPACE_PROMPT_FILENAME)
+    staging_dir = staging_workspace_for(run_id)
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir, ignore_errors=True)
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        subprocess.run(["git", "init", "-q"], cwd=staging_dir, check=True)
+    except (subprocess.CalledProcessError, PermissionError, OSError):
+        pass
+    (run_dir / ".staging_workspace").write_text(str(staging_dir), encoding="utf-8")
+
+    if harness == "cursor" or is_cursor_harness(harness):
+        install_cursor_hook(staging_dir)
+        install_cursor_hook(workspace)
+        create_clean_room_launcher(run_id, prompt_id, staging_dir)
+
+    if copy_clipboard:
+        copy_prompt_to_clipboard(prompt_id)
 
     shutil.copy2(ROOT / "templates" / "run.json", run_dir / "run.json")
 
@@ -210,31 +262,36 @@ def install_cursor_hook(workspace: Path, *, hook_dir_name: str | None = None) ->
         raise FileNotFoundError("Cursor hook template files are missing from templates/cursor/.")
     target_dir_name = hook_dir_name or CURSOR_HOOK_DIR_NAME
     hook_dir = workspace / target_dir_name / "hooks"
-    hook_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source_config, workspace / target_dir_name / "hooks.json")
-    script = hook_dir / "log-tool-event.py"
-    shutil.copy2(source_script, script)
-    script.chmod(script.stat().st_mode | 0o111)
+    try:
+        hook_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_config, workspace / target_dir_name / "hooks.json")
+        script = hook_dir / "log-tool-event.py"
+        shutil.copy2(source_script, script)
+        script.chmod(script.stat().st_mode | 0o111)
+    except PermissionError:
+        if target_dir_name == ".cursor":
+            install_cursor_hook(workspace, hook_dir_name="_cursor_sandbox_test")
 
 
 def print_next_steps(run_dir: Path, *, harness: str) -> None:
-    workspace = run_dir / "workspace"
+    staging_dir = staging_workspace_for(run_dir.name)
     prompt_id = run_dir.parent.name
     prompt_file = prompt_path(prompt_id)
     print()
     print("Run directory ready:")
-    print(f"  {run_dir}")
+    print(f"  Run directory: {run_dir}")
+    print(f"  Staged workspace: {staging_dir}")
     print()
     print("During the run:")
-    print(f"  1. Open the harness with {workspace}/ as the working directory.")
-    print(f"  2. Paste the exact bytes of {workspace / WORKSPACE_PROMPT_FILENAME} (copied from {prompt_file}).")
+    print(f"  1. Open the harness with {staging_dir}/ as the working directory.")
+    print(f"  2. Paste the exact bytes of {prompt_file} (copied to clipboard if pbcopy available).")
     print("  3. Send that message as the only user message.")
     print("  4. Wait until the model stops.")
     print("  5. Leave the workspace unchanged.")
     if harness == "cursor":
         print()
-        print("Cursor loads the hook copied into workspace/.cursor/.")
-        print(f"Tool events are written to {run_dir / 'tool-events'}/.")
+        print(f"Cursor loads the hook copied into {staging_dir}/.cursor/.")
+        print(f"Tool events are written to {staging_dir}/.cursor/tool-events/.")
     print()
     print("After the model stops:")
     print(f"  python3 scripts/finish_run.py --prompt {prompt_id} --run-id {run_dir.name}")
@@ -453,6 +510,7 @@ def main() -> int:
             harness_detail=harness_detail,
             shot="follow-up" if is_follow_up else "primary",
             parent_run_id=parent_run_id if is_follow_up else None,
+            copy_clipboard=not args.non_interactive,
         )
     except ValueError as exc:
         print(exc, file=sys.stderr)

@@ -1,4 +1,3 @@
-import hashlib
 import importlib.util
 import json
 import os
@@ -11,10 +10,11 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from compare_runs import check_local_run
-from run_common import ROOT, load_json, prompt_path, prompt_sha256, run_schema_errors
+from run_common import ROOT, load_json, prompt_path, run_schema_errors
 from setup_run import (
     CURSOR_HOOK_DIR_NAME,
     check_environment,
+    copy_prompt_to_clipboard,
     create_run_directory,
     install_cursor_hook,
     main,
@@ -34,11 +34,22 @@ class TestSetupRun(unittest.TestCase):
     def setUp(self):
         if _sandbox_blocks_dot_cursor():
             self.hook_dir_name = "_cursor_sandbox_test"
-            patcher = patch("setup_run.CURSOR_HOOK_DIR_NAME", self.hook_dir_name)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+            patcher_hook = patch("setup_run.CURSOR_HOOK_DIR_NAME", self.hook_dir_name)
+            patcher_hook.start()
+            self.addCleanup(patcher_hook.stop)
+            tmp_parent = ROOT / "tmp"
+            tmp_parent.mkdir(exist_ok=True)
+            self.tmp_staging_dir = tempfile.TemporaryDirectory(dir=tmp_parent)
         else:
             self.hook_dir_name = ".cursor"
+            self.tmp_staging_dir = tempfile.TemporaryDirectory()
+
+        self.staging_parent = Path(self.tmp_staging_dir.name)
+        patcher_staging = patch("setup_run.STAGING_PARENT", self.staging_parent)
+        patcher_staging.start()
+        self.addCleanup(patcher_staging.stop)
+        self.addCleanup(self.tmp_staging_dir.cleanup)
+
     def test_root_cursor_hooks_not_present(self):
         root_config = ROOT / ".cursor" / "hooks.json"
         root_script = ROOT / ".cursor" / "hooks" / "log-tool-event.py"
@@ -53,7 +64,10 @@ class TestSetupRun(unittest.TestCase):
 
     def test_install_cursor_hook_copies_from_templates(self):
         self.assertEqual(CURSOR_HOOK_DIR_NAME, ".cursor")
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_parent = (ROOT / "tmp") if _sandbox_blocks_dot_cursor() else None
+        if tmp_parent:
+            tmp_parent.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=tmp_parent) as tmp_dir:
             workspace = Path(tmp_dir) / "workspace"
             workspace.mkdir()
 
@@ -74,7 +88,10 @@ class TestSetupRun(unittest.TestCase):
             self.assertTrue(os.access(dest_script, os.X_OK), "log-tool-event.py must be executable")
 
     def test_install_cursor_hook_custom_hook_dir_name(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_parent = (ROOT / "tmp") if _sandbox_blocks_dot_cursor() else None
+        if tmp_parent:
+            tmp_parent.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=tmp_parent) as tmp_dir:
             workspace = Path(tmp_dir) / "workspace"
             workspace.mkdir()
 
@@ -86,8 +103,11 @@ class TestSetupRun(unittest.TestCase):
             self.assertTrue(dest_config.is_file())
             self.assertTrue(dest_script.is_file())
 
-    def test_create_run_directory_copies_prompt(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
+    def test_create_run_directory_external_staging_no_prompt_txt(self):
+        tmp_parent = (ROOT / "tmp") if _sandbox_blocks_dot_cursor() else None
+        if tmp_parent:
+            tmp_parent.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=tmp_parent) as tmp_dir:
             tmp_runs = Path(tmp_dir) / "runs"
             with patch("run_common.RUNS_DIR", tmp_runs), patch("setup_run.RUNS_DIR", tmp_runs):
                 run_dir = create_run_directory(
@@ -101,14 +121,65 @@ class TestSetupRun(unittest.TestCase):
                     harness_detail="",
                     shot="primary",
                 )
+                run_id = run_dir.name
                 prompt_txt = run_dir / "workspace" / "prompt.txt"
-                self.assertTrue(prompt_txt.is_file(), "workspace/prompt.txt must exist")
-                actual_sha256 = hashlib.sha256(prompt_txt.read_bytes()).hexdigest()
-                self.assertEqual(actual_sha256, prompt_sha256("france-road-accidents"))
-                self.assertEqual(prompt_txt.read_bytes(), prompt_path("france-road-accidents").read_bytes())
+                self.assertFalse(prompt_txt.exists(), "workspace/prompt.txt must NOT be created")
+
+                staging_info = run_dir / ".staging_workspace"
+                self.assertTrue(staging_info.is_file())
+
+                staged_dir = Path(staging_info.read_text(encoding="utf-8").strip())
+                self.assertTrue(staged_dir.is_dir())
+                self.assertTrue((staged_dir / ".git").is_dir(), "Staged workspace must have .git directory")
+                self.assertFalse((staged_dir / "prompt.txt").exists(), "Staged workspace prompt.txt must NOT exist")
+                self.assertTrue((staged_dir / self.hook_dir_name / "hooks" / "log-tool-event.py").is_file())
+
+                launcher_script = self.staging_parent / f"frontier-workspace-{run_id}-launch.sh"
+                self.assertTrue(launcher_script.is_file(), "Clean-room GUI launcher script must exist")
+                self.assertTrue(os.access(launcher_script, os.X_OK), "Launcher script must be executable")
+
+    def test_copy_prompt_to_clipboard(self):
+        with patch("shutil.which", return_value="/usr/bin/pbcopy"), \
+             patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            res = copy_prompt_to_clipboard("france-road-accidents")
+            self.assertTrue(res)
+            mock_run.assert_called_once()
+            self.assertEqual(mock_run.call_args[0][0], ["pbcopy"])
+            self.assertEqual(mock_run.call_args[1]["input"], prompt_path("france-road-accidents").read_bytes())
+
+    def test_pre_tool_use_isolation_guard(self):
+        script_path = ROOT / "templates" / "cursor" / "hooks" / "log-tool-event.py"
+        spec = importlib.util.spec_from_file_location("log_tool_event", script_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        blocked_events = [
+            {"tool_name": "Shell", "tool_input": {"command": "cat ../run.json"}},
+            {"tool_name": "Shell", "tool_input": {"command": "cat ../../../AGENTS.md"}},
+            {"tool_name": "Read", "tool_input": {"path": "/repo/llm-frontier-evaluator/reference/prompt-probes.json"}},
+            {"tool_name": "Grep", "tool_input": "verify_run.py"},
+        ]
+
+        for evt in blocked_events:
+            reason = mod.check_isolation_violation(evt)
+            self.assertIsNotNone(reason, f"Should block event: {evt}")
+
+        allowed_events = [
+            {"tool_name": "Shell", "tool_input": {"command": "npm install"}},
+            {"tool_name": "Read", "tool_input": {"path": "src/index.js"}},
+            {"tool_name": "Write", "tool_input": {"path": "dist/bundle.js", "contents": "hello"}},
+        ]
+
+        for evt in allowed_events:
+            reason = mod.check_isolation_violation(evt)
+            self.assertIsNone(reason, f"Should allow event: {evt}")
 
     def test_create_run_directory_follow_up(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_parent = (ROOT / "tmp") if _sandbox_blocks_dot_cursor() else None
+        if tmp_parent:
+            tmp_parent.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=tmp_parent) as tmp_dir:
             tmp_runs = Path(tmp_dir) / "runs"
             parent_id = "2026-10-17-cursor-gemini-3-1-pro-unknown"
             with patch("run_common.RUNS_DIR", tmp_runs), patch("setup_run.RUNS_DIR", tmp_runs):
@@ -139,7 +210,10 @@ class TestSetupRun(unittest.TestCase):
                 self.assertEqual(local_errors, [])
 
     def test_create_run_directory_validation_errors(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_parent = (ROOT / "tmp") if _sandbox_blocks_dot_cursor() else None
+        if tmp_parent:
+            tmp_parent.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=tmp_parent) as tmp_dir:
             tmp_runs = Path(tmp_dir) / "runs"
             with patch("run_common.RUNS_DIR", tmp_runs), patch("setup_run.RUNS_DIR", tmp_runs):
                 # shot="follow-up" without parent_run_id
@@ -169,7 +243,10 @@ class TestSetupRun(unittest.TestCase):
                     )
 
     def test_cli_follow_up_inheritance_and_override(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_parent = (ROOT / "tmp") if _sandbox_blocks_dot_cursor() else None
+        if tmp_parent:
+            tmp_parent.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=tmp_parent) as tmp_dir:
             tmp_runs = Path(tmp_dir) / "runs"
             with patch("run_common.RUNS_DIR", tmp_runs), patch("setup_run.RUNS_DIR", tmp_runs):
                 # First scaffold a primary run
@@ -226,7 +303,10 @@ class TestSetupRun(unittest.TestCase):
                 self.assertEqual(f2_data["model"]["reasoning"], "max")
 
     def test_cli_follow_up_missing_parent_id_in_non_interactive(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_parent = (ROOT / "tmp") if _sandbox_blocks_dot_cursor() else None
+        if tmp_parent:
+            tmp_parent.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=tmp_parent) as tmp_dir:
             tmp_runs = Path(tmp_dir) / "runs"
             with patch("run_common.RUNS_DIR", tmp_runs), patch("setup_run.RUNS_DIR", tmp_runs):
                 with patch("sys.argv", ["setup_run.py", "--follow-up", "--non-interactive"]):
@@ -234,7 +314,10 @@ class TestSetupRun(unittest.TestCase):
                     self.assertNotEqual(exit_code, 0)
 
     def test_cli_non_interactive_infers_provider_from_pricing(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_parent = (ROOT / "tmp") if _sandbox_blocks_dot_cursor() else None
+        if tmp_parent:
+            tmp_parent.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=tmp_parent) as tmp_dir:
             tmp_runs = Path(tmp_dir) / "runs"
             with patch("run_common.RUNS_DIR", tmp_runs), patch("setup_run.RUNS_DIR", tmp_runs):
                 with patch("sys.argv", [
@@ -273,7 +356,10 @@ class TestSetupRun(unittest.TestCase):
         self.assertEqual(rec["exit_code"], 0)
 
         # 2. Test append_record normally
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_parent = (ROOT / "tmp") if _sandbox_blocks_dot_cursor() else None
+        if tmp_parent:
+            tmp_parent.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=tmp_parent) as tmp_dir:
             tmp_log_dir = Path(tmp_dir) / "tool-events"
             with patch.object(mod, "log_directory_for", return_value=tmp_log_dir):
                 mod.append_record(event)
@@ -285,7 +371,7 @@ class TestSetupRun(unittest.TestCase):
                 self.assertEqual(data["tool_name"], "Shell")
 
         # 3. Test append_record with fcntl = None (simulating non-POSIX platform without fcntl)
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.TemporaryDirectory(dir=tmp_parent) as tmp_dir:
             tmp_log_dir = Path(tmp_dir) / "tool-events"
             with patch.object(mod, "log_directory_for", return_value=tmp_log_dir), \
                  patch.object(mod, "fcntl", None):

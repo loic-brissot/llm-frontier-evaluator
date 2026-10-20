@@ -53,24 +53,35 @@ python3 scripts/setup_run.py \
 #### What `setup_run.py` does:
 1. Allocates a unique `run_id` under `runs/<prompt-id>/<run-id>/`.
 2. Copies `templates/run.json` to `runs/<prompt-id>/<run-id>/run.json`.
-3. Creates `runs/<prompt-id>/<run-id>/workspace/` and copies `prompt/<prompt-id>.txt` to `workspace/prompt.txt`.
-4. For Cursor runs, copies hook templates from `templates/cursor/` (`hooks.json` and `hooks/log-tool-event.py`) into `workspace/.cursor/hooks/`.
+3. Stages the active workspace in an external neutral directory `/tmp/frontier-workspace-<run-id>/` (initialized with `git init -q` to isolate from parent repository metadata) and writes its path to `runs/<prompt-id>/<run-id>/.staging_workspace`.
+4. Copies prompt exact bytes to system clipboard (`pbcopy`) when interactive.
+5. For Cursor runs, copies hook templates from `templates/cursor/` (`hooks.json` and `hooks/log-tool-event.py`) into `/tmp/frontier-workspace-<run-id>/.cursor/hooks/` and creates a clean-room GUI launcher script.
 
 ---
 
 ### 2. Executing the Run
 
-1. Open the harness with `runs/<prompt-id>/<run-id>/workspace/` as its working directory.
-2. Send the exact bytes of `workspace/prompt.txt` as the **single user message**.
+1. Run the benchmark inside an isolated Docker container:
+   ```bash
+   python3 scripts/run_benchmark.py --prompt <prompt-id> --run-id <run-id> --harness cursor --model "<Model Name>"
+   ```
+   Or open the staged workspace `/tmp/frontier-workspace-<run-id>/` in the harness / clean-room GUI fallback launcher script.
+2. Send the exact bytes of `prompt/<prompt-id>.txt` (copied to clipboard during setup) as the **single user message**.
 3. Do not add additional instructions or text.
 4. Wait until the model completes its work and stops.
-5. Leave the `workspace/` directory untouched after the model stops (no manual edits or file cleanups).
+5. Leave the staged workspace directory untouched after the model stops (no manual edits or file cleanups).
 
 ---
 
-### 3. Automated Verification (`scripts/verify_run.py` & `scripts/probe_data.py`)
+### 3. Automated Verification (`scripts/finish_run.py`, `scripts/verify_run.py` & `scripts/probe_data.py`)
 
-Run headless verification to generate screenshots, runtime telemetry, and data-pipeline scorecards without mutating `workspace/`:
+When the model stops, run `finish_run.py` to automatically repatriate the staged workspace and `.cursor/tool-events/*.jsonl` back into `runs/<prompt-id>/<run-id>/workspace/` and `runs/<prompt-id>/<run-id>/tool-events/`:
+
+```bash
+python3 scripts/finish_run.py --prompt <prompt-id> --run-id <run-id>
+```
+
+You can also run headless Playwright verification directly:
 
 ```bash
 python3 scripts/verify_run.py --prompt <prompt-id> --run-id <run-id> --update-run-json

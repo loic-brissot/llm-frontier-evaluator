@@ -9,6 +9,7 @@ from pathlib import Path
 # Add scripts directory to module path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
+from run_common import ROOT
 from finish_run import (
     UsageEvent,
     complete_run_json,
@@ -20,6 +21,7 @@ from finish_run import (
     parse_timestamp,
     parse_token_count,
     read_usage_csv,
+    repatriate_staged_workspace,
     summarize_events,
 )
 from tool_events import ToolEventSummary
@@ -330,6 +332,50 @@ class TestFinishRun(unittest.TestCase):
         run["observations"] = "Note 1"
         partial_call = observation_default(run, summary, include_other=True)
         self.assertEqual(partial_call, "Note 1 Note 2 other tools: custom_tool.")
+
+    def test_repatriate_staged_workspace(self):
+        tmp_parent = ROOT / "tmp"
+        tmp_parent.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=tmp_parent) as tmp_dir_str:
+            root = Path(tmp_dir_str)
+            run_dir = root / "runs" / "test-prompt" / "2026-10-20-cursor-test-run"
+            run_dir.mkdir(parents=True)
+            workspace = run_dir / "workspace"
+            workspace.mkdir()
+
+            staging_dir = root / "staging" / "frontier-workspace-2026-10-20-cursor-test-run"
+            staging_dir.mkdir(parents=True)
+            try:
+                (staging_dir / ".git").mkdir()
+            except PermissionError:
+                pass
+            (staging_dir / "index.html").write_text("<h1>Hello</h1>", encoding="utf-8")
+
+            tool_events_dir = staging_dir / "_cursor_sandbox_test" / "tool-events"
+            try:
+                tool_events_dir.mkdir(parents=True)
+                (tool_events_dir / "conv123.jsonl").write_text('{"hook_event_name": "stop"}\n', encoding="utf-8")
+            except PermissionError:
+                pass
+
+            (run_dir / ".staging_workspace").write_text(str(staging_dir), encoding="utf-8")
+
+            launcher_script = staging_dir.parent / "frontier-workspace-2026-10-20-cursor-test-run-launch.sh"
+            launcher_script.write_text("#!/bin/sh\necho hi", encoding="utf-8")
+            home_dir = staging_dir.parent / "frontier-home-2026-10-20-cursor-test-run"
+            home_dir.mkdir()
+
+            repatriated = repatriate_staged_workspace(run_dir)
+            self.assertTrue(repatriated)
+
+            self.assertFalse((run_dir / ".staging_workspace").exists())
+            self.assertFalse(staging_dir.exists())
+            self.assertFalse(launcher_script.exists())
+            self.assertFalse(home_dir.exists())
+
+            self.assertTrue((workspace / "index.html").is_file())
+            self.assertEqual((workspace / "index.html").read_text(encoding="utf-8"), "<h1>Hello</h1>")
+            self.assertTrue((run_dir / "tool-events" / "conv123.jsonl").is_file())
 
 
 if __name__ == "__main__":

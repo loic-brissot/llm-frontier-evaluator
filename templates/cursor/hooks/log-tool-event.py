@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Append one JSONL record per Cursor hook event.
 
-Handles beforeSubmitPrompt, postToolUse, postToolUseFailure, afterAgentThought,
-and stop.
+Handles beforeSubmitPrompt, preToolUse, postToolUse, postToolUseFailure,
+afterAgentThought, and stop.
 Stdout is empty for the agent: a prompt submission gets {"continue": true},
+preToolUse gets {"decision": "allow", "permission": "allow"} or {"decision": "deny", "permission": "deny", "reason": "..."},
 and every other event gets {}. No additional_context and no follow-up message.
 """
 
@@ -11,6 +12,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -33,6 +35,28 @@ def log_directory_for(script_path: Path) -> Path:
     if project_root.name == "workspace" and (run_dir / "run.json").is_file():
         return run_dir / "tool-events"
     return project_root / ".cursor" / "tool-events"
+
+
+def check_isolation_violation(event: dict) -> str | None:
+    tool_input = event.get("tool_input")
+    if tool_input is None:
+        return None
+
+    if isinstance(tool_input, (dict, list)):
+        input_str = json.dumps(tool_input)
+    else:
+        input_str = str(tool_input)
+
+    if "llm-frontier-evaluator" in input_str:
+        return "Access to llm-frontier-evaluator is blocked by isolation policy"
+    if "prompt-probes.json" in input_str:
+        return "Access to prompt-probes.json is blocked by isolation policy"
+    if "verify_run.py" in input_str:
+        return "Access to verify_run.py is blocked by isolation policy"
+    if "../run.json" in input_str or re.search(r"\.\.[/\\]", input_str):
+        return "Parent directory traversal outside workspace is blocked by isolation policy"
+
+    return None
 
 
 def cap(value: object) -> tuple[object, bool]:
@@ -81,7 +105,9 @@ def record_from(event: dict) -> dict:
     tool_output, output_truncated = cap(event.get("tool_output"))
     code = exit_code(event.get("tool_output"))
     hook = event.get("hook_event_name")
-    failed = hook == "postToolUseFailure" or (code is not None and code != 0)
+    failed = event.get("failed")
+    if not isinstance(failed, bool):
+        failed = hook == "postToolUseFailure" or (code is not None and code != 0)
     prompt_text, prompt_truncated = cap(event.get("prompt"))
     return {
         "logged_at": datetime.now(timezone.utc).isoformat(),
@@ -171,8 +197,22 @@ def main() -> None:
         event = {"hook_event_name": "unparsed", "tool_output": raw}
     if not isinstance(event, dict):
         event = {"hook_event_name": "unparsed", "tool_output": raw}
+
+    hook_name = event.get("hook_event_name")
+    if hook_name == "preToolUse":
+        reason = check_isolation_violation(event)
+        if reason:
+            event["failed"] = True
+            event["failure_type"] = "isolation_blocked"
+            event["error_message"] = reason
+            append_record(event)
+            sys.stdout.write(json.dumps({"decision": "deny", "permission": "deny", "reason": reason}) + "\n")
+        else:
+            sys.stdout.write(json.dumps({"decision": "allow", "permission": "allow"}) + "\n")
+        return
+
     append_record(event)
-    if event.get("hook_event_name") == "beforeSubmitPrompt":
+    if hook_name == "beforeSubmitPrompt":
         sys.stdout.write('{"continue": true}\n')
     else:
         sys.stdout.write("{}\n")
