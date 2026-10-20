@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import shutil
 import sys
@@ -17,6 +18,7 @@ from run_common import (
     RULES_VERSION,
     UNKNOWN_REASONING,
     WORKSPACE_PROMPT_FILENAME,
+    _add_venv_site_packages,
     allocate_run_id,
     available_prompt_ids,
     canonical_harness,
@@ -36,6 +38,38 @@ from run_common import (
 
 RUNS_DIR = ROOT / "runs"
 CURSOR_HOOK_DIR_NAME = ".cursor"
+
+
+def check_environment() -> list[str]:
+    """Check optional verification/schema dependencies without blocking execution."""
+    warnings: list[str] = []
+    _add_venv_site_packages()
+
+    if importlib.util.find_spec("jsonschema") is None:
+        warnings.append(
+            "jsonschema Python package is not installed (run: python3 -m pip install -r requirements.txt)"
+        )
+
+    if importlib.util.find_spec("playwright") is None:
+        warnings.append(
+            "Playwright Python package is not installed (run: python3 -m pip install playwright && python3 -m playwright install chromium)"
+        )
+    else:
+        try:
+            from playwright.sync_api import sync_playwright
+
+            with sync_playwright() as p:
+                executable = Path(p.chromium.executable_path)
+                if not executable.exists():
+                    warnings.append(
+                        f"Playwright Chromium browser binary is missing at {executable} (run: python3 -m playwright install chromium)"
+                    )
+        except Exception as exc:
+            warnings.append(
+                f"Playwright Chromium browser check failed (run: python3 -m playwright install chromium): {exc}"
+            )
+
+    return warnings
 
 
 def prompt(label: str, default: str | None = None) -> str:
@@ -245,11 +279,29 @@ def build_parser() -> argparse.ArgumentParser:
         help="Parent run id for a follow-up run.",
     )
     parser.add_argument("--non-interactive", action="store_true", help="Fail when a required value is missing.")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Run environment preflight checks for optional dependencies and exit.",
+    )
     return parser
 
 
 def main() -> int:
     args = build_parser().parse_args()
+
+    if args.check:
+        warnings = check_environment()
+        if warnings:
+            for w in warnings:
+                print(f"Warning: {w}")
+        else:
+            print("Environment check OK: all optional dependencies are installed.")
+        return 0
+
+    warnings = check_environment()
+    for w in warnings:
+        print(f"Preflight warning: {w}", file=sys.stderr)
 
     try:
         is_follow_up = False

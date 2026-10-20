@@ -92,7 +92,15 @@ python3 scripts/probe_data.py --prompt <prompt-id> --run-id <run-id>
 
 ### 4. Usage CSV Ingestion & Completing `run.json` (`scripts/finish_run.py`)
 
-Locate usage exports in `tmp/` (such as `tmp/team-usage-events-*.csv`) and complete the run record:
+`finish_run.py` automatically auto-discovers matching usage CSVs in `tmp/` (such as `tmp/team-usage-events-*.csv`) and runs verification if `artifacts/runtime.json` is missing (unless `--skip-verify` is passed):
+
+```bash
+python3 scripts/finish_run.py \
+  --prompt <prompt-id> \
+  --run-id <run-id>
+```
+
+You can also explicitly specify a usage export or force verification:
 
 ```bash
 python3 scripts/finish_run.py \
