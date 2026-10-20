@@ -1,5 +1,8 @@
 FROM node:22-bookworm
 
+ARG CURSOR_AGENT_VERSION=2026.10.19-6bbf2c4
+ARG CLAUDE_CODE_VERSION=latest
+
 # Install required system packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
@@ -15,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt-get/lists/*
 
 # Install Claude Code globally via npm
-RUN npm install -g @anthropic-ai/claude-code
+RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
 # Reconfigure UID 1000 user as 'benchmark' with home /home/benchmark
 RUN if id -u node >/dev/null 2>&1; then \
@@ -25,18 +28,25 @@ RUN if id -u node >/dev/null 2>&1; then \
         useradd -m -s /bin/bash -u 1000 benchmark ; \
     fi
 
-# Pre-create clean-room directories under /home/benchmark
+# Pre-create clean-room directories under /home/benchmark and ensure PATH includes ~/.local/bin
+ENV PATH="/home/benchmark/.local/bin:${PATH}"
+
 RUN mkdir -p /home/benchmark/.cursor/skills \
              /home/benchmark/.cursor/plugins \
              /home/benchmark/.claude \
              /home/benchmark/.local/bin \
+             /home/benchmark/.local/share/cursor-agent/versions \
     && chown -R benchmark:benchmark /home/benchmark
 
-# Provide cursor-agent helper / installer path in PATH if not installed via curl
-RUN echo '#!/bin/sh\nif command -v cursor-agent >/dev/null 2>&1; then exec cursor-agent "$@"; else echo "cursor-agent not installed or installer path missing" >&2; exit 1; fi' > /usr/local/bin/cursor-agent \
-    && chmod +x /usr/local/bin/cursor-agent
+# Install cursor-agent for user benchmark
+USER benchmark
+RUN curl -fSL "https://downloads.cursor.com/lab/${CURSOR_AGENT_VERSION}/linux/x64/agent-cli-package.tar.gz" \
+    | tar --strip-components=1 -xzf - -C /home/benchmark/.local/share/cursor-agent/versions/default \
+    && ln -s /home/benchmark/.local/share/cursor-agent/versions/default/cursor-agent /home/benchmark/.local/bin/agent \
+    && ln -s /home/benchmark/.local/share/cursor-agent/versions/default/cursor-agent /home/benchmark/.local/bin/cursor-agent
 
 # Create staged workspace directory owned by benchmark
+USER root
 RUN mkdir -p /workspace && chown benchmark:benchmark /workspace
 
 WORKDIR /workspace
