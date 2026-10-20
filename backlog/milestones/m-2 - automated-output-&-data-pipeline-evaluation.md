@@ -5,4 +5,4 @@ title: "Automated Output & Data Pipeline Evaluation"
 
 ## Description
 
-Verify not only how a model worked (tokens/time/tools) but whether its data pipeline and rendered application actually meet the prompt specification.
+Verify not only how a model worked (tokens/time/tools) but whether its data pipeline and rendered application actually meet the prompt specification, while isolating benchmark execution in clean-room containers and external staged workspaces (`docs/design-run-isolation.md`).

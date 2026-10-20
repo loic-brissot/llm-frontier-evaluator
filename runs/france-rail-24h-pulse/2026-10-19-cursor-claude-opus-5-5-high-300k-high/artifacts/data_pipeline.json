@@ -1,0 +1,51 @@
+{
+  "prompt_id": "france-rail-24h-pulse",
+  "passed": false,
+  "authenticity": "partial_or_filtered",
+  "score": 0.67,
+  "total_data_files": 12,
+  "total_records": 29096,
+  "synthetic_signals": [],
+  "checks": [
+    {
+      "id": "sncf_stations_dataset",
+      "description": "SNCF stations list with UIC codes or coordinates",
+      "passed": true,
+      "observed_records": 11678,
+      "matched_files": [
+        "data/stations.json",
+        "data/raw/liste-des-gares.geojson",
+        "data/raw/gares-de-voyageurs.geojson"
+      ],
+      "detail": "Matched 3 file(s) with 11678 observed records (min: 200)"
+    },
+    {
+      "id": "rail_network_lines_dataset",
+      "description": "RFN rail line shapes / geometries",
+      "passed": true,
+      "observed_records": 1638,
+      "matched_files": [
+        "data/raw/rfn.geojson"
+      ],
+      "detail": "Matched 1 file(s) with 1638 observed records (min: 10)"
+    },
+    {
+      "id": "gtfs_timetables_trips_dataset",
+      "description": "GTFS schedules or processed timetables/trips for TGV, Intercit\u00e9s, TER",
+      "passed": false,
+      "observed_records": 1,
+      "matched_files": [
+        "scripts/build_data.py",
+        "scripts/shot.py",
+        "vendor/deck.min.js",
+        "src/styles.css",
+        "src/charts.js",
+        "src/main.js",
+        "src/router.js",
+        "src/data.js"
+      ],
+      "detail": "Matched 8 file(s) but observed 1 records < min threshold 200"
+    }
+  ],
+  "verified_at": "2026-10-19T15:29:17.738Z"
+}

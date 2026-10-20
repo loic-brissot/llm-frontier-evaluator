@@ -10,6 +10,18 @@ A run sends one model one frozen prompt from `prompt/` and records how that mode
 
 Rows compare only inside one series, so each series has its own table ([`docs/protocol.md`](docs/protocol.md)).
 
+**Local series `france-electricity-carbon-flow-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
+
+| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost | Outcome |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `france-electricity-carbon-flow` | Gemini 4 Argon 1m medium | Cursor | n/a | 17.7 min | 28 7✗ | 1.0M | $2.55 | Flashy colors but contains all the information |
+
+**Local series `france-rail-24h-pulse-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
+
+| Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost | Outcome |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `france-rail-24h-pulse` | Claude Opus 5.5 High 300k high | Cursor | n/a | 20.1 min | 50 10✗ | 5.5M | $6.53 | Kickass visualization of the trains running across France |
+
 **Local series `france-road-accidents-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
 | Prompt | Model | Harness | Tokens generated | Model time | Tool calls | Context re-read | Est. cost | Outcome |
@@ -58,5 +70,3 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 | `scripts/compare_runs.py` | Validates the records against the schema and prints the four columns. |
 | `requirements.txt` | `jsonschema`, the only dependency. |
 | `CONTRIBUTING.md` | Branching, pull request template, and squash-and-merge workflow. |
-
-[^dev]: Developed with [Cursor](https://cursor.com) on macOS. The Cursor tool-event hook uses `fcntl`, so it runs on macOS and Linux only.

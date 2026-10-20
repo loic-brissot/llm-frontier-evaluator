@@ -1,0 +1,251 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-19-cursor-gemini-4-argon-1m-medium",
+  "series_id": "france-electricity-carbon-flow-cursor",
+  "prompt_id": "france-electricity-carbon-flow",
+  "prompt_sha256": "57a1e54a95748b46db8e356d12fbf94d14e8fa6c99942c01acb5e033a728af70",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "google",
+    "name": "Gemini 4 Argon",
+    "context": "1m",
+    "reasoning": "medium"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": "3.23.23",
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-19T17:36:28.347Z",
+    "ended_at": "2026-10-19T17:54:49.920Z"
+  },
+  "tokens": {
+    "split_rule": "unavailable",
+    "reasoning_tokens": null,
+    "visible_tokens": null,
+    "raw": {
+      "usage_csv": {
+        "events_in_file": 235,
+        "events_selected": 1,
+        "selection": "1 of 235 events. gemini-4-argon-medium matches run model Gemini 4 Argon. Events from 2026-10-19T17:36:28.347000+00:00 through 2026-10-19T17:54:49.920000+00:00.",
+        "files": [
+          "team-usage-events-2026-10-19.csv"
+        ],
+        "models": {
+          "gemini-4-argon-medium": 1
+        },
+        "kinds": {
+          "Included": 1
+        },
+        "users": 1,
+        "fields": {
+          "cache_write_tokens": "Input (w/ Cache Write)",
+          "uncached_input_tokens": "Input (w/o Cache Write)",
+          "cache_read_tokens": "Cache Read",
+          "output_tokens": "Output Tokens",
+          "total_tokens": "Total Tokens"
+        },
+        "max_mode": {
+          "No": 1
+        },
+        "first_event_at": "2026-10-19T17:36:28.890Z",
+        "last_event_at": "2026-10-19T17:36:28.890Z",
+        "cache_read_tokens": 985752,
+        "cache_write_tokens": 0,
+        "uncached_input_tokens": 234204,
+        "output_tokens": 72556,
+        "total_tokens": 1292512,
+        "total_tokens_checked": 1,
+        "total_tokens_mismatches": 0,
+        "total_tokens_check": "matches",
+        "cost": "1.6"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "gemini-4-argon",
+        "context_variant": "1m",
+        "long_context_applied": true,
+        "harness": "cursor",
+        "harness_token_rate_per_1m": "0.25",
+        "harness_surcharge_usd": "0.32",
+        "rates_per_1m_usd": {
+          "input": "4.00",
+          "cache_write": "0.00",
+          "cache_read": "0.20",
+          "output": "15.00"
+        },
+        "estimated_cost_usd": "2.22",
+        "estimated_cost_with_harness_usd": "2.55"
+      }
+    }
+  },
+  "model_time": {
+    "source": "wall_clock_minus_tool_time",
+    "generating_seconds": 1059.0,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 1101.6,
+        "tool_seconds_merged": 42.5,
+        "tool_seconds_summed": 42.5,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": 1059.0,
+        "thinking_seconds": 875.1,
+        "thought_blocks": 25
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 24,
+      "failures": 5,
+      "by_tool": {
+        "Shell": {
+          "calls": 24,
+          "failures": 5
+        }
+      }
+    },
+    "files": {
+      "calls": 4,
+      "failures": 2,
+      "by_tool": {
+        "Read": {
+          "calls": 3,
+          "failures": 2
+        },
+        "Grep": {
+          "calls": 1,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    }
+  },
+  "context_reread": {
+    "source": "provider_cache_read",
+    "cache_read_tokens": 985752,
+    "cache_write_tokens": 0,
+    "uncached_input_tokens": 234204,
+    "raw": {
+      "selection": "1 of 235 events. gemini-4-argon-medium matches run model Gemini 4 Argon. Events from 2026-10-19T17:36:28.347000+00:00 through 2026-10-19T17:54:49.920000+00:00.",
+      "events_selected": 1,
+      "fields": {
+        "cache_write_tokens": "Input (w/ Cache Write)",
+        "uncached_input_tokens": "Input (w/o Cache Write)",
+        "cache_read_tokens": "Cache Read",
+        "output_tokens": "Output Tokens",
+        "total_tokens": "Total Tokens"
+      },
+      "cache_read_tokens": 985752,
+      "cache_write_tokens": 0,
+      "uncached_input_tokens": 234204,
+      "total_tokens_check": "matches"
+    }
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": true,
+    "summary": "Flashy colors but contains all the information"
+  },
+  "observations": "Ignored 2 extra conversation(s) in tool-events log (5328df27-0b60-4acb-984e-0cb1d0a5240c, e3642e3d-a6b4-46d6-984a-d9f0a88b1fbc). The logged prompt bytes differ from prompt/france-electricity-carbon-flow.txt. Ignored 3 extra conversation(s) in tool-events log (2ee0304f-3439-462b-a2b2-2ce9d506ede3, 5328df27-0b60-4acb-984e-0cb1d0a5240c, e3642e3d-a6b4-46d6-984a-d9f0a88b1fbc). The logged prompt bytes differ from prompt/france-electricity-carbon-flow.txt.",
+  "verification": {
+    "data_pipeline": {
+      "prompt_id": "france-electricity-carbon-flow",
+      "passed": false,
+      "authenticity": "partial_or_filtered",
+      "score": 0.5,
+      "total_data_files": 6,
+      "total_records": 3292,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "regions_dataset",
+          "description": "12 French administrative regions boundaries or dataset",
+          "passed": true,
+          "observed_records": 12,
+          "matched_files": [
+            "public/data/regions.geojson"
+          ],
+          "detail": "Matched 1 file(s) with 12 observed records (min: 12)"
+        },
+        {
+          "id": "eco2mix_timeseries_dataset",
+          "description": "eCO2mix national/regional generation time series with technology mix & carbon intensity",
+          "passed": false,
+          "observed_records": 1,
+          "matched_files": [
+            "scripts/fetch_odre_data.py",
+            "src/App.tsx",
+            "src/main.tsx",
+            "src/index.css",
+            "src/types/grid.ts",
+            "src/utils/gridPhysics.ts",
+            "src/components/TechLegendAndFilter.tsx",
+            "src/components/RightControlAndInspectorPanel.tsx",
+            "src/components/FranceGridMap.tsx",
+            "src/components/TimelineScrubber.tsx",
+            "src/components/TopTelemetryBar.tsx"
+          ],
+          "detail": "Matched 11 file(s) but observed 1 records < min threshold 100"
+        },
+        {
+          "id": "power_plants_registry_dataset",
+          "description": "National registry of power plants and storage facilities with MW capacity",
+          "passed": false,
+          "observed_records": 1,
+          "matched_files": [
+            "scripts/fetch_odre_data.py",
+            "src/App.tsx",
+            "src/main.tsx",
+            "src/index.css",
+            "src/types/grid.ts",
+            "src/utils/gridPhysics.ts",
+            "src/components/TechLegendAndFilter.tsx",
+            "src/components/RightControlAndInspectorPanel.tsx",
+            "src/components/FranceGridMap.tsx",
+            "src/components/TimelineScrubber.tsx",
+            "src/components/TopTelemetryBar.tsx"
+          ],
+          "detail": "Matched 11 file(s) but observed 1 records < min threshold 50"
+        },
+        {
+          "id": "cross_border_interconnections",
+          "description": "Cross-border interconnections with neighboring countries (UK, BE, DE, CH, IT, ES)",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "scripts/fetch_odre_data.py",
+            "src/App.tsx",
+            "src/main.tsx",
+            "src/index.css",
+            "src/types/grid.ts",
+            "src/utils/gridPhysics.ts",
+            "src/components/TechLegendAndFilter.tsx",
+            "src/components/RightControlAndInspectorPanel.tsx",
+            "src/components/FranceGridMap.tsx",
+            "src/components/TimelineScrubber.tsx",
+            "src/components/TopTelemetryBar.tsx"
+          ],
+          "detail": "Matched 11 file(s) with 1 observed records (min: 1)"
+        }
+      ],
+      "verified_at": "2026-10-19T21:28:01.896Z"
+    }
+  }
+}
