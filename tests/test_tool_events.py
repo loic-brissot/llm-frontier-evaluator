@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from tool_events import (
     summarize_records,
+    audit_isolation,
     bucket_for,
     effective_tool_name,
     _dedupe_thoughts,
@@ -474,6 +475,33 @@ class TestToolEvents(unittest.TestCase):
         self.assertEqual(bucket_for("ReadLints"), "other")
         self.assertEqual(bucket_for("GetDynamicTools"), "other")
         self.assertEqual(bucket_for("unknown_custom_tool"), "other")
+
+    def test_audit_isolation_flagging(self):
+        records = [
+            {"hook_event_name": "postToolUse", "tool_name": "Shell", "tool_input": "cat ../run.json"},
+            {"hook_event_name": "postToolUse", "tool_name": "Read", "tool_input": {"path": "/Users/.../llm-frontier-evaluator/docs/protocol.md"}},
+            {"hook_event_name": "postToolUse", "tool_name": "Grep", "tool_input": {"pattern": "verify_run.py"}},
+            {"hook_event_name": "postToolUse", "tool_name": "Read", "tool_input": "reference/prompt-probes.json"},
+            {"hook_event_name": "postToolUse", "tool_name": "Shell", "tool_input": "npm test"},
+        ]
+        breaches = audit_isolation(records)
+        self.assertEqual(len(breaches), 4)
+
+        summary = summarize_records(records)
+        self.assertEqual(len(summary.isolation_breaches), 4)
+        self.assertTrue(any("Isolation audit flagged 4 potential contamination event(s)" in note for note in summary.notes))
+
+    def test_audit_isolation_clean_run(self):
+        records = [
+            {"hook_event_name": "postToolUse", "tool_name": "Shell", "tool_input": "npm install"},
+            {"hook_event_name": "postToolUse", "tool_name": "Write", "tool_input": {"path": "src/app.js", "contents": "console.log('hi');"}},
+        ]
+        breaches = audit_isolation(records)
+        self.assertEqual(len(breaches), 0)
+
+        summary = summarize_records(records)
+        self.assertEqual(len(summary.isolation_breaches), 0)
+        self.assertFalse(any("Isolation audit flagged" in note for note in summary.notes))
 
 
 if __name__ == "__main__":

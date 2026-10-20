@@ -20,9 +20,10 @@ Run `python3 scripts/setup_run.py --prompt <prompt-id>` (or `--follow-up --paren
 1. Create `runs/<prompt-id>/<run-id>/`.
 2. Use a run id of the form `YYYY-MM-DD-<harness>-<model>-<context>-<reasoning>` on a Cursor run that has a context, and `YYYY-MM-DD-<harness>-<model>-<reasoning>` on every other run. The `<context>` segment, such as `500k`, appears only when the harness is Cursor and a context was filled in. Context is optional even for Cursor — it cannot be tuned in every configuration — so omit `--context` (or leave the prompt blank) when it is not set: `model.context` is then null and the run id has no `<context>` segment. `setup_run.py` rejects a filled context for other harnesses.
 3. Copy `templates/run.json` to `runs/<prompt-id>/<run-id>/run.json`.
-4. Create a `runs/<prompt-id>/<run-id>/workspace/` directory and copy `prompt/<prompt-id>.txt` into `workspace/prompt.txt` for convenience when opening `workspace/` in the harness.
-5. Record the model name, the reasoning setting, the harness name, and the harness version. On a Cursor run, record a filled context in `model.context`; leave it null when no context was set, and on other runs. Reasoning is optional too: when it is not set, `model.reasoning` defaults to `unknown` (null is accepted as the same not-set value) and the run id ends in `-unknown`.
-6. Choose a `series_id`. Reuse it for every run that must share one table.
+4. Stage the active workspace in an external neutral directory `/tmp/frontier-workspace-<run-id>/` (initialized with `git init -q` to isolate from parent repository metadata) and write its path to `runs/<prompt-id>/<run-id>/.staging_workspace`.
+5. Stop writing `workspace/prompt.txt`. Copy the exact bytes of `prompt/<prompt-id>.txt` to system clipboard (`pbcopy`) when interactive.
+6. Record the model name, the reasoning setting, the harness name, and the harness version. On a Cursor run, record a filled context in `model.context`; leave it null when no context was set, and on other runs. Reasoning is optional too: when it is not set, `model.reasoning` defaults to `unknown` (null is accepted as the same not-set value) and the run id ends in `-unknown`.
+7. Choose a `series_id`. Reuse it for every run that must share one table.
 
 The effort levels `setup_run.py` proposes depend on the harness. Every harness also accepts `unknown`, the default when no level is set:
 
@@ -32,7 +33,7 @@ The effort levels `setup_run.py` proposes depend on the harness. Every harness a
 | Claude (`claude-code`) | `low`, `medium`, `high`, `ultra`, `max`, `ultracode` |
 | Other harnesses | `low`, `medium`, `high`, `xhigh`, `none`, `unknown` |
 
-For a Cursor harness, `setup_run.py` copies the hook template from `templates/cursor/` (`templates/cursor/hooks.json` and `templates/cursor/hooks/log-tool-event.py`) into `workspace/.cursor/`. Cursor loads project hooks from the folder you open.
+For a Cursor harness, `setup_run.py` copies the hook template from `templates/cursor/` (`templates/cursor/hooks.json` and `templates/cursor/hooks/log-tool-event.py`) into the staged workspace `.cursor/` and generates a clean-room GUI fallback launcher script `/tmp/frontier-workspace-<run-id>-launch.sh` with a `preToolUse` path-blocking guard.
 
 Example run ids: `2026-10-17-cursor-claude-opus-4-7-500k-high` (Cursor, with context), `2026-10-17-cursor-claude-opus-4-7-high` (Cursor, context not set — null), `2026-10-17-cursor-composer-2-5-unknown` (reasoning not set — `unknown`), and `2026-10-17-claude-code-claude-opus-4-7-ultra` (Claude, no context).
 
@@ -40,17 +41,17 @@ Add `-2`, `-3`, and so on when the id is already used. A follow-up uses the same
 
 ## During the run
 
-1. Open the harness with `workspace/` as its working directory. A Cursor run writes one JSONL file per conversation to `runs/<prompt-id>/<run-id>/tool-events/`. That log gives tool counts, wall clock, and model time (`docs/metrics.md`).
-2. Paste the exact bytes of `prompt/<prompt-id>.txt` (copied into `workspace/prompt.txt` for convenience when opening `workspace/` in the harness).
+1. Execute the run in an isolated Docker container via `python3 scripts/run_benchmark.py --prompt <prompt-id> --run-id <run-id> ...` (or open the staged workspace `/tmp/frontier-workspace-<run-id>/` in the harness / clean-room launcher). A Cursor run writes one JSONL file per conversation to `.cursor/tool-events/`. That log gives tool counts, wall clock, and model time (`docs/metrics.md`).
+2. Send the exact bytes of `prompt/<prompt-id>.txt` (copied to clipboard during setup) as the single user message.
 3. Send that message.
 4. Wait until the model stops.
-5. Leave the workspace unchanged after the model stops.
+5. Leave the staged workspace unchanged after the model stops.
 
 Operator messages, hints, and manual edits belong to a follow-up. They do not belong to the primary run.
 
 ## After the model stops
 
-Run `python3 scripts/finish_run.py --prompt <prompt-id> --run-id <run-id>`. By default, `finish_run.py` automatically auto-discovers matching usage CSVs in `tmp/` and runs verification if `artifacts/runtime.json` is not present (unless `--skip-verify` is passed). Use `--verify` to force re-running verification or `--skip-verify` to skip it. Alternatively, run `python3 scripts/verify_run.py --prompt <prompt-id> --run-id <run-id> --update-run-json`. For Playwright verification, install the Python package and browser binary once: `python3 -m pip install playwright && python3 -m playwright install chromium`.
+Run `python3 scripts/finish_run.py --prompt <prompt-id> --run-id <run-id>`. `finish_run.py` automatically repatriates the staged workspace and `.cursor/tool-events/*.jsonl` back into `runs/<prompt-id>/<run-id>/workspace/` and `runs/<prompt-id>/<run-id>/tool-events/`, removes temporary `.git` boundaries and clean-room launcher scripts, auto-discovers matching usage CSVs in `tmp/`, runs post-run isolation auditing in `tool_events.py`, and runs verification if `artifacts/runtime.json` is not present (unless `--skip-verify` is passed). Use `--verify` to force re-running verification or `--skip-verify` to skip it. Alternatively, run `python3 scripts/verify_run.py --prompt <prompt-id> --run-id <run-id> --update-run-json`. For Playwright verification, install the Python package and browser binary once: `python3 -m pip install playwright && python3 -m playwright install chromium`.
 
 1. Save the harness usage export in `runs/<prompt-id>/<run-id>/usage/` or in `tmp/` (for auto-discovery by `finish_run.py`).
 2. Remove credentials from that export before you commit it.

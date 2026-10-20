@@ -71,6 +71,33 @@ class ToolEventSummary:
     model_slug: str | None = None
     notes: list[str] = field(default_factory=list)
     other_tools: list[str] = field(default_factory=list)
+    isolation_breaches: list[str] = field(default_factory=list)
+
+
+def audit_isolation(records: list[dict]) -> list[str]:
+    breaches: list[str] = []
+    for record in records:
+        hook = record.get("hook_event_name")
+        if hook not in {"postToolUse", "postToolUseFailure", "preToolUse"}:
+            continue
+        tool_input = record.get("tool_input")
+        if tool_input is None:
+            continue
+        if isinstance(tool_input, (dict, list)):
+            input_str = json.dumps(tool_input)
+        else:
+            input_str = str(tool_input)
+
+        tool_name = record.get("tool_name") or "tool"
+        if "llm-frontier-evaluator" in input_str:
+            breaches.append(f"{tool_name} referenced 'llm-frontier-evaluator'")
+        elif "prompt-probes.json" in input_str:
+            breaches.append(f"{tool_name} referenced 'prompt-probes.json'")
+        elif "verify_run.py" in input_str:
+            breaches.append(f"{tool_name} referenced 'verify_run.py'")
+        elif "../run.json" in input_str or re.search(r"\.\.[/\\]", input_str):
+            breaches.append(f"{tool_name} attempted parent traversal ('..')")
+    return breaches
 
 
 def effective_tool_name(tool_name: str, tool_input: object = None) -> str:
@@ -519,6 +546,12 @@ def summarize_records(
     summary.buckets = buckets
     summary.tool_duration_ms = duration_ms
     summary.other_tools = sorted(buckets["other"]["by_tool"])
+    summary.isolation_breaches = audit_isolation(records)
+    if summary.isolation_breaches:
+        summary.notes.append(
+            f"Isolation audit flagged {len(summary.isolation_breaches)} potential contamination event(s): "
+            + ", ".join(summary.isolation_breaches)
+        )
     if start is not None and end is not None:
         _apply_timing(summary, tools, thoughts, start, end)
     return summary

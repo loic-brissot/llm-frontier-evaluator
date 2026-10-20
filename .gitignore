@@ -6,6 +6,7 @@ __pycache__/
 # The atlas a model builds, and the open-data files it downloads.
 # Metrics and notes stay in git. The build does not.
 runs/*/*/workspace/
+runs/*/*/.staging_workspace
 tmp/*
 
 # Tool-event logs can contain command output and file contents.

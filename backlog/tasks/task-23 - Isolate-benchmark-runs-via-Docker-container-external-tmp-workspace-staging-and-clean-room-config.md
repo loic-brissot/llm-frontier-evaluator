@@ -3,9 +3,10 @@ id: TASK-23
 title: >-
   Isolate benchmark runs via Docker container, external /tmp workspace staging,
   and clean-room config
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 23:49'
+updated_date: '2026-10-20 00:58'
 labels:
   - isolation
   - docker
@@ -35,8 +36,8 @@ Early benchmark runs revealed four sources of contamination when agents execute 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Dockerfile.benchmark defines a reproducible container image (Node 22, Python 3.12, cursor-agent, claude) running as an unprivileged user with empty ~/.cursor/skills, ~/.cursor/plugins, and ~/.claude/ directories and no personal MCP servers
-- [ ] #2 setup_run.py stages the active workspace in an external neutral directory (/tmp/frontier-workspace-<run-id>/) initialized with git init -q and .cursor/hooks/, stops writing workspace/prompt.txt, copies the exact bytes of prompt/<prompt-id>.txt to the system clipboard (pbcopy) when interactive, and generates a clean-room launcher (HOME/--user-data-dir + preToolUse path-blocking guard) for Cursor GUI fallback runs
-- [ ] #3 finish_run.py automatically moves <staging>/.cursor/tool-events/*.jsonl into runs/<prompt-id>/<run-id>/tool-events/ and moves <staging>/ into runs/<prompt-id>/<run-id>/workspace/ (removing the ephemeral .git/ and staging directories), and tool_events.py audits logged tool calls to flag any attempted access to llm-frontier-evaluator or parent paths
-- [ ] #4 Unit tests in tests/test_setup_run.py, tests/test_finish_run.py, and tests/test_tool_events.py verify external staging, clipboard prompt delivery without workspace/prompt.txt, workspace repatriation on finish, and contamination auditing
+- [x] #1 Dockerfile.benchmark defines a reproducible container image (Node 22, Python 3.12, cursor-agent, claude) running as an unprivileged user with empty ~/.cursor/skills, ~/.cursor/plugins, and ~/.claude/ directories and no personal MCP servers
+- [x] #2 setup_run.py stages the active workspace in an external neutral directory (/tmp/frontier-workspace-<run-id>/) initialized with git init -q and .cursor/hooks/, stops writing workspace/prompt.txt, copies the exact bytes of prompt/<prompt-id>.txt to the system clipboard (pbcopy) when interactive, and generates a clean-room launcher (HOME/--user-data-dir + preToolUse path-blocking guard) for Cursor GUI fallback runs
+- [x] #3 finish_run.py automatically moves <staging>/.cursor/tool-events/*.jsonl into runs/<prompt-id>/<run-id>/tool-events/ and moves <staging>/ into runs/<prompt-id>/<run-id>/workspace/ (removing the ephemeral .git/ and staging directories), and tool_events.py audits logged tool calls to flag any attempted access to llm-frontier-evaluator or parent paths
+- [x] #4 Unit tests in tests/test_setup_run.py, tests/test_finish_run.py, and tests/test_tool_events.py verify external staging, clipboard prompt delivery without workspace/prompt.txt, workspace repatriation on finish, and contamination auditing
 <!-- AC:END -->

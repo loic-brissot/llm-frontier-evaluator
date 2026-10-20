@@ -42,6 +42,64 @@ from run_common import (
 from tool_events import ToolEventSummary, summarize_run
 from verify_run import verify_run
 from probe_data import probe_run
+import shutil
+
+
+def repatriate_staged_workspace(run_dir: Path) -> bool:
+    staging_file = run_dir / ".staging_workspace"
+    if not staging_file.is_file():
+        return False
+
+    staged_path_str = staging_file.read_text(encoding="utf-8").strip()
+    staging_dir = Path(staged_path_str) if staged_path_str else Path("/tmp") / f"frontier-workspace-{run_dir.name}"
+
+    if not staging_dir.is_dir():
+        if staging_file.is_file():
+            staging_file.unlink()
+        return False
+
+    dest_tool_events = run_dir / "tool-events"
+    dest_tool_events.mkdir(parents=True, exist_ok=True)
+
+    for tool_events_dir in staging_dir.rglob("tool-events"):
+        if tool_events_dir.is_dir():
+            for jsonl_file in tool_events_dir.glob("*.jsonl"):
+                shutil.move(str(jsonl_file), str(dest_tool_events / jsonl_file.name))
+
+    git_dir = staging_dir / ".git"
+    if git_dir.exists():
+        shutil.rmtree(git_dir, ignore_errors=True)
+
+    dest_workspace = run_dir / "workspace"
+    dest_workspace.mkdir(parents=True, exist_ok=True)
+
+    for item in list(staging_dir.iterdir()):
+        target = dest_workspace / item.name
+        if target.exists():
+            if target.is_dir():
+                shutil.rmtree(target, ignore_errors=True)
+            else:
+                target.unlink()
+        shutil.move(str(item), str(target))
+
+    shutil.rmtree(staging_dir, ignore_errors=True)
+
+    if staging_file.is_file():
+        staging_file.unlink()
+
+    staging_parent = staging_dir.parent
+    run_id = run_dir.name
+    launcher_script = staging_parent / f"frontier-workspace-{run_id}-launch.sh"
+    if launcher_script.is_file():
+        launcher_script.unlink()
+
+    for dir_suffix in ("home", "userdata", "ext"):
+        clean_dir = staging_parent / f"frontier-{dir_suffix}-{run_id}"
+        if clean_dir.exists():
+            shutil.rmtree(clean_dir, ignore_errors=True)
+
+    return True
+
 
 
 def is_playwright_env_error(runtime_data: dict | None) -> bool:
@@ -1342,6 +1400,7 @@ def complete_run_json(
     verify: bool = False,
     skip_verify: bool = False,
 ) -> None:
+    repatriate_staged_workspace(run_dir)
     runtime_file = run_dir / "artifacts" / "runtime.json"
     if (verify or not runtime_file.is_file()) and not skip_verify:
         try:
@@ -1578,6 +1637,7 @@ def main() -> int:
 
     try:
         run_dir = select_run_id(args.run_id, args.prompt_id)
+        repatriate_staged_workspace(run_dir)
     except (FileNotFoundError, ValueError) as exc:
         print(exc, file=sys.stderr)
         return 1
