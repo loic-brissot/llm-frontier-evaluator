@@ -371,6 +371,81 @@ class TestProbeData(unittest.TestCase):
             errors = run_schema_errors(updated_run)
             self.assertEqual(errors, [], f"Schema errors: {errors}")
 
+    def test_gtfs_txt_tabular_files_and_exclusions(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            gtfs_dir = workspace / "gtfs"
+            gtfs_dir.mkdir(parents=True)
+
+            (gtfs_dir / "stops.txt").write_text(
+                "gare,uic,latitude,longitude\n" + "\n".join([f"Gare {i},87000{i:03d},48.8,2.3" for i in range(250)]),
+                encoding="utf-8",
+            )
+            (gtfs_dir / "shapes.txt").write_text(
+                "shape_id,shape_pt_lat,shape_pt_lon\n" + "\n".join([f"S1,48.{i},2.{i}" for i in range(20)]),
+                encoding="utf-8",
+            )
+            (gtfs_dir / "trips.txt").write_text(
+                "route_id,service_id,trip_id\n" + "\n".join([f"R1,S1,T{i}" for i in range(500)]),
+                encoding="utf-8",
+            )
+            (gtfs_dir / "stop_times.txt").write_text(
+                "trip_id,arrival_time,departure_time,stop_id,stop_sequence\n" + "\n".join([f"T1,08:00,08:01,S{i},{i}" for i in range(1000)]),
+                encoding="utf-8",
+            )
+            (workspace / "requirements.txt").write_text("vite==4.0.0\nplaywright==1.40.0\n", encoding="utf-8")
+            (workspace / "france-rail-24h-pulse.txt").write_text("Prompt instructions", encoding="utf-8")
+
+            scorecard = probe_workspace("france-rail-24h-pulse", workspace)
+            self.assertEqual(scorecard["total_data_files"], 4)
+            self.assertEqual(scorecard["total_records"], 250 + 20 + 500 + 1000)
+            self.assertTrue(scorecard["passed"])
+
+    def test_nested_json_data_record_counting(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            public_data = workspace / "public" / "data"
+            public_data.mkdir(parents=True)
+
+            nested_json = {
+                "national": {
+                    "hourly": [{"timestamp": f"2024-01-01T{h:02d}:00:00Z", "co2": 45} for h in range(500)],
+                },
+                "regions": {
+                    f"R{i}": [{"val": i}] for i in range(13)
+                },
+            }
+            (public_data / "eco2mix.json").write_text(json.dumps(nested_json), encoding="utf-8")
+            (workspace / "App.tsx").write_text("const keys = ['nucleaire', 'hydro', 'eolien', 'solaire', 'co2'];", encoding="utf-8")
+
+            scorecard = probe_workspace("france-electricity-carbon-flow", workspace)
+            check_map = {c["id"]: c for c in scorecard["checks"]}
+            self.assertIn("eco2mix_timeseries_dataset", check_map)
+            self.assertEqual(check_map["eco2mix_timeseries_dataset"]["observed_records"], 500)
+            self.assertTrue(check_map["eco2mix_timeseries_dataset"]["passed"])
+
+    def test_prioritize_data_file_records_over_code_marker_matches(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            data_dir = workspace / "data"
+            data_dir.mkdir(parents=True)
+
+            (data_dir / "grid_data.json").write_text(
+                json.dumps([{"nucleaire": 100, "hydro": 50, "eolien": 20, "solaire": 10, "co2": 30}] * 300),
+                encoding="utf-8",
+            )
+            (workspace / "index.js").write_text(
+                "// nucleaire, hydro, eolien, solaire, co2 markers present in code\nfunction render() {}",
+                encoding="utf-8",
+            )
+
+            scorecard = probe_workspace("france-electricity-carbon-flow", workspace)
+            check_map = {c["id"]: c for c in scorecard["checks"]}
+            eco_check = check_map.get("eco2mix_timeseries_dataset")
+            self.assertIsNotNone(eco_check)
+            self.assertEqual(eco_check["observed_records"], 300)
+            self.assertTrue(eco_check["passed"])
+
 
 if __name__ == "__main__":
     unittest.main()

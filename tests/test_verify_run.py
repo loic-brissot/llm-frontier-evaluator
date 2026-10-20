@@ -13,7 +13,11 @@ from run_common import load_json, run_schema_errors
 from verify_run import (
     EphemeralStaticServer,
     discover_and_start_server,
+    extract_listening_url,
+    is_uncompiled_source_html,
     run_playwright_telemetry,
+    select_static_dir,
+    serve_run,
     verify_run,
 )
 
@@ -422,6 +426,75 @@ class TestVerifyRun(unittest.TestCase):
             complete_run_json(run_dir, usage_paths=[], interactive=False)
             updated_run_2 = load_json(run_dir / "run.json")
             self.assertFalse(updated_run_2["outcome"]["operator_saw_a_page"])
+
+    def test_vite_cmd_construction_passes_host_and_port(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir(parents=True)
+            (workspace / "node_modules").mkdir()
+            (workspace / "package.json").write_text(
+                json.dumps({"scripts": {"preview": "vite preview", "dev": "vite"}}), encoding="utf-8"
+            )
+
+            with (
+                patch("verify_run.subprocess.Popen") as mock_popen,
+                patch("verify_run.wait_for_server", return_value=True),
+                patch("verify_run.os.getpgid", return_value=99999),
+                patch("verify_run.os.killpg"),
+            ):
+                proc_mock = MagicMock()
+                proc_mock.pid = 99999
+                proc_mock.poll.return_value = None
+                mock_popen.return_value = proc_mock
+
+                url, mode, cleanup = discover_and_start_server(workspace, port=4173)
+                cleanup()
+                mock_popen.assert_called_once()
+                cmd = mock_popen.call_args[0][0]
+                self.assertIn("npm run preview -- --host 127.0.0.1 --port 4173", cmd)
+
+    def test_extract_listening_url_handles_ansi_and_hosts(self):
+        ansi_text = "\x1b[32m  Local: \x1b[39m \x1b[36mhttp://localhost:5173/\x1b[39m\n"
+        self.assertEqual(extract_listening_url(ansi_text), "http://localhost:5173/")
+
+        ipv6_text = "  Local:   http://[::1]:4173/\n"
+        self.assertEqual(extract_listening_url(ipv6_text), "http://127.0.0.1:4173/")
+
+        zero_text = "  Local:   http://0.0.0.0:3000/\n"
+        self.assertEqual(extract_listening_url(zero_text), "http://127.0.0.1:3000/")
+
+    def test_select_static_dir_and_uncompiled_source_html_guard(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+
+            root_html = workspace / "index.html"
+            root_html.write_text('<html><body><script type="module" src="/src/main.tsx"></script></body></html>')
+            self.assertTrue(is_uncompiled_source_html(root_html))
+            self.assertIsNone(select_static_dir(workspace))
+
+            dist = workspace / "dist"
+            dist.mkdir()
+            (dist / "index.html").write_text('<html><body><script src="/assets/index.js"></script></body></html>')
+            self.assertEqual(select_static_dir(workspace), dist)
+
+            dist_html = dist / "index.html"
+            dist_html.unlink()
+            dist.rmdir()
+            root_html.write_text('<html><body><script src="./bundle.js"></script></body></html>')
+            self.assertFalse(is_uncompiled_source_html(root_html))
+            self.assertEqual(select_static_dir(workspace), workspace)
+
+    def test_serve_run_helper(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = Path(tmpdir) / "runs" / "test-prompt" / "test-run"
+            workspace = run_dir / "workspace"
+            workspace.mkdir(parents=True)
+            (workspace / "index.html").write_text("<html><body>Hello</body></html>")
+
+            with patch("time.sleep", side_effect=KeyboardInterrupt):
+                exit_code = serve_run(run_dir)
+                self.assertEqual(exit_code, 0)
 
 
 if __name__ == "__main__":

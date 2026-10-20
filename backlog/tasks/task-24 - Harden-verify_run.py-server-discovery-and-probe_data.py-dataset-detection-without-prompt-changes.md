@@ -3,9 +3,10 @@ id: TASK-24
 title: >-
   Harden verify_run.py server discovery and probe_data.py dataset detection
   without prompt changes
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 23:49'
+updated_date: '2026-10-20 01:10'
 labels:
   - verification
   - playwright
@@ -32,8 +33,8 @@ Keep prompt/*.txt byte-frozen without adding framework/port instructions, and fi
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 verify_run.py passes --host 127.0.0.1 --port <port> to Vite preview/dev scripts, parses child process stdout/stderr for the actual listening URL (supporting both 127.0.0.1 and localhost), and prioritizes compiled dist/index.html or build/index.html over unbundled root index.html (which references .tsx/.ts/.jsx) when static serving is used
-- [ ] #2 Add a scripts/serve_run.py (or verify_run.py --serve) helper so the operator can launch and inspect any completed run's web app locally in one command
-- [ ] #3 probe_data.py includes .txt tabular files in DATA_EXTENSIONS (counting GTFS CSV rows in trips.txt, stop_times.txt, stops.txt), counts nested records in structured JSON data files under public/data/ or data/, and prioritizes data-file record counts over source-code marker matches when evaluating min_records
-- [ ] #4 Unit tests in tests/test_verify_run.py and tests/test_probe_data.py cover Vite IPv4 binding, dist/ priority over uncompiled root index.html, GTFS .txt tables, and structured JSON dataset record counting
+- [x] #1 verify_run.py passes --host 127.0.0.1 --port <port> to Vite preview/dev scripts, parses child process stdout/stderr for the actual listening URL (supporting both 127.0.0.1 and localhost), and prioritizes compiled dist/index.html or build/index.html over unbundled root index.html (which references .tsx/.ts/.jsx) when static serving is used
+- [x] #2 Add a scripts/serve_run.py (or verify_run.py --serve) helper so the operator can launch and inspect any completed run's web app locally in one command
+- [x] #3 probe_data.py includes .txt tabular files in DATA_EXTENSIONS (counting GTFS CSV rows in trips.txt, stop_times.txt, stops.txt), counts nested records in structured JSON data files under public/data/ or data/, and prioritizes data-file record counts over source-code marker matches when evaluating min_records
+- [x] #4 Unit tests in tests/test_verify_run.py and tests/test_probe_data.py cover Vite IPv4 binding, dist/ priority over uncompiled root index.html, GTFS .txt tables, and structured JSON dataset record counting
 <!-- AC:END -->

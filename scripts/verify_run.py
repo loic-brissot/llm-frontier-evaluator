@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import functools
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -15,7 +16,7 @@ import time
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from run_common import (
     _add_venv_site_packages,
@@ -26,6 +27,73 @@ from run_common import (
     write_json,
 )
 from probe_data import probe_run
+
+
+def is_uncompiled_source_html(html_path: Path) -> bool:
+    if not html_path.is_file():
+        return False
+    try:
+        content = html_path.read_text(encoding="utf-8", errors="ignore")
+        matches = re.findall(r'<script\b[^>]*\bsrc\s*=\s*["\']([^"\']+)["\']', content, re.IGNORECASE)
+        for src in matches:
+            src_lower = src.lower().split("?")[0]
+            if src_lower.endswith((".ts", ".tsx", ".jsx")):
+                return True
+        return False
+    except Exception:
+        return False
+
+
+def select_static_dir(workspace_dir: Path) -> Path | None:
+    if (workspace_dir / "dist" / "index.html").is_file():
+        return workspace_dir / "dist"
+    if (workspace_dir / "build" / "index.html").is_file():
+        return workspace_dir / "build"
+    root_html = workspace_dir / "index.html"
+    if root_html.is_file() and not is_uncompiled_source_html(root_html):
+        return workspace_dir
+    return None
+
+
+def extract_listening_url(text: str) -> str | None:
+    clean_text = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", text)
+    match = re.search(r"https?://(?:127\.0\.0\.1|localhost|\[::1\]|0\.0\.0\.0):\d+(?:/[^\s\x1b]*)?", clean_text)
+    if match:
+        raw_url = match.group(0)
+        return raw_url.replace("0.0.0.0", "127.0.0.1").replace("[::1]", "127.0.0.1")
+    return None
+
+
+def _start_output_collector(proc: subprocess.Popen) -> tuple[Callable[[], str], Callable[[], None]]:
+    lines: list[str] = []
+
+    def _read(stream: Any) -> None:
+        if stream is None or type(stream).__name__ == "MagicMock":
+            return
+        if not hasattr(stream, "readline"):
+            return
+        try:
+            for line in iter(stream.readline, b""):
+                if isinstance(line, bytes):
+                    line = line.decode("utf-8", errors="ignore")
+                lines.append(line)
+                if not line:
+                    break
+        except Exception:
+            pass
+
+    t1 = threading.Thread(target=_read, args=(getattr(proc, "stdout", None),), daemon=True)
+    t2 = threading.Thread(target=_read, args=(getattr(proc, "stderr", None),), daemon=True)
+    t1.start()
+    t2.start()
+
+    def get_output() -> str:
+        return "".join(lines)
+
+    def stop() -> None:
+        pass
+
+    return get_output, stop
 
 
 class EphemeralStaticServer:
@@ -51,15 +119,45 @@ def find_free_port() -> int:
 
 
 def wait_for_server(url: str, timeout: float = 10.0) -> bool:
+    urls_to_try = [url]
+    if "127.0.0.1" in url:
+        urls_to_try.append(url.replace("127.0.0.1", "localhost"))
+    elif "localhost" in url:
+        urls_to_try.append(url.replace("localhost", "127.0.0.1"))
+
     start_time = time.time()
     while time.time() - start_time < timeout:
-        try:
-            with urllib.request.urlopen(url, timeout=1.0) as resp:
-                if resp.status < 500:
-                    return True
-        except Exception:
-            time.sleep(0.2)
+        for target in urls_to_try:
+            try:
+                with urllib.request.urlopen(target, timeout=1.0) as resp:
+                    if resp.status < 500:
+                        return True
+            except Exception:
+                pass
+        time.sleep(0.2)
     return False
+
+
+def poll_for_reachable_url(
+    target_urls: list[str],
+    get_output: Callable[[], str] | None = None,
+    timeout: float = 10.0,
+) -> str | None:
+    start_time = time.time()
+    candidates = list(target_urls)
+
+    while time.time() - start_time < timeout:
+        if get_output:
+            out_text = get_output()
+            discovered = extract_listening_url(out_text)
+            if discovered and discovered not in candidates:
+                candidates.append(discovered)
+
+        for u in list(candidates):
+            if wait_for_server(u, timeout=0.2):
+                return u
+        time.sleep(0.2)
+    return None
 
 
 def discover_and_start_server(
@@ -82,6 +180,7 @@ def discover_and_start_server(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        get_output, _ = _start_output_collector(proc)
 
         def cleanup_cmd() -> None:
             if proc.poll() is None and isinstance(proc.pid, int) and proc.pid > 0:
@@ -104,12 +203,9 @@ def discover_and_start_server(
 
         target_port = port or 3000
         target_url = f"http://127.0.0.1:{target_port}"
-        if wait_for_server(target_url, timeout=timeout):
-            return target_url, "command", cleanup_cmd
-
-        # Try alternative port 5173 (Vite default)
-        if not port and wait_for_server("http://127.0.0.1:5173", timeout=2.0):
-            return "http://127.0.0.1:5173", "command", cleanup_cmd
+        reachable_url = poll_for_reachable_url([target_url, "http://127.0.0.1:5173"], get_output=get_output, timeout=timeout)
+        if reachable_url:
+            return reachable_url, "command", cleanup_cmd
 
         return target_url, "command", cleanup_cmd
 
@@ -118,13 +214,7 @@ def discover_and_start_server(
     node_modules = workspace_dir / "node_modules"
 
     # Check static directory availability first
-    static_dir: Path | None = None
-    if (workspace_dir / "dist" / "index.html").is_file():
-        static_dir = workspace_dir / "dist"
-    elif (workspace_dir / "build" / "index.html").is_file():
-        static_dir = workspace_dir / "build"
-    elif (workspace_dir / "index.html").is_file():
-        static_dir = workspace_dir
+    static_dir = select_static_dir(workspace_dir)
 
     if pkg_json.is_file() and node_modules.is_dir():
         try:
@@ -139,9 +229,9 @@ def discover_and_start_server(
             if chosen_script:
                 cmd_port = port or find_free_port()
                 if chosen_script == "preview":
-                    run_cmd = f"npm run preview -- --port {cmd_port}"
+                    run_cmd = f"npm run preview -- --host 127.0.0.1 --port {cmd_port}"
                 elif chosen_script == "dev":
-                    run_cmd = f"npm run dev -- --port {cmd_port}"
+                    run_cmd = f"npm run dev -- --host 127.0.0.1 --port {cmd_port}"
                 else:
                     run_cmd = f"PORT={cmd_port} npm start"
 
@@ -153,6 +243,7 @@ def discover_and_start_server(
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                 )
+                get_output, _ = _start_output_collector(proc)
 
                 def cleanup_pkg() -> None:
                     if proc.poll() is None and isinstance(proc.pid, int) and proc.pid > 0:
@@ -174,8 +265,9 @@ def discover_and_start_server(
                                 pass
 
                 target_url = f"http://127.0.0.1:{cmd_port}"
-                if wait_for_server(target_url, timeout=min(timeout, 8.0)):
-                    return target_url, "command", cleanup_pkg
+                reachable_url = poll_for_reachable_url([target_url], get_output=get_output, timeout=min(timeout, 8.0))
+                if reachable_url:
+                    return reachable_url, "command", cleanup_pkg
 
                 cleanup_pkg()
         except Exception:
@@ -432,6 +524,35 @@ def verify_run(
     return telemetry
 
 
+def serve_run(
+    run_dir: Path,
+    *,
+    start_cmd: str | None = None,
+    port: int | None = None,
+    timeout: float = 30.0,
+) -> int:
+    workspace_dir = run_dir / "workspace"
+    target_url, server_mode, cleanup = discover_and_start_server(
+        workspace_dir,
+        start_cmd=start_cmd,
+        port=port,
+        timeout=timeout,
+    )
+    if not target_url or server_mode == "none":
+        print(f"Error: Could not discover or start server for {run_dir}", file=sys.stderr)
+        return 1
+
+    print(f"Serving {run_dir} at {target_url} (mode: {server_mode}). Press Ctrl+C to stop.")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\nStopping server...")
+    finally:
+        cleanup()
+    return 0
+
+
 def select_run_dir(explicit_run_id: str | None = None, prompt_id: str | None = None) -> Path:
     if explicit_run_id:
         return find_run_dir(explicit_run_id, prompt_id)
@@ -464,6 +585,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--wait-ms", type=int, default=2500, help="Settle wait time after load in ms (default 2500).")
     parser.add_argument("--update-run-json", action="store_true", help="Update run.json with verification results.")
     parser.add_argument("--skip-data-probe", action="store_true", help="Skip running data pipeline probe.")
+    parser.add_argument(
+        "--serve",
+        action="store_true",
+        help="Start the local server for the run's workspace and keep it running until interrupted (Ctrl+C).",
+    )
     return parser
 
 
@@ -476,6 +602,14 @@ def main() -> int:
     except (FileNotFoundError, ValueError) as exc:
         print(exc, file=sys.stderr)
         return 1
+
+    if args.serve:
+        return serve_run(
+            run_dir,
+            start_cmd=args.start_cmd,
+            port=args.port,
+            timeout=args.timeout,
+        )
 
     try:
         telemetry = verify_run(
