@@ -3,10 +3,10 @@ id: TASK-14
 title: >-
   Add Claude Code and Codex CLI transcript adapters for cross-harness
   benchmarking
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-18 02:19'
-updated_date: '2026-10-19 23:50'
+updated_date: '2026-10-20 18:47'
 labels:
   - harnesses
   - metrology
@@ -32,7 +32,7 @@ All local runs recorded so far use Cursor GUI, which does not expose reasoning v
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 finish_run.py automatically parses Claude Code and Codex session transcripts/usage logs into tokens (with reasoning/visible split), model_time, tool_calls, and context_reread
-- [ ] #2 Tool names from Claude Code and Codex map deterministically to the 4 chart buckets in docs/tool-buckets.md
-- [ ] #3 Unit tests verify ingestion using anonymized fixture transcripts from Claude Code and Codex
+- [x] #1 finish_run.py automatically parses Claude Code and Codex session transcripts/usage logs into tokens (with reasoning/visible split), model_time, tool_calls, and context_reread
+- [x] #2 Tool names from Claude Code and Codex map deterministically to the 4 chart buckets in docs/tool-buckets.md
+- [x] #3 Unit tests verify ingestion using anonymized fixture transcripts from Claude Code and Codex
 <!-- AC:END -->

@@ -1259,7 +1259,7 @@ def apply_logged_time(run: dict, summary: ToolEventSummary, hints: dict) -> None
 
     A usage export with its own generation duration keeps priority.
     """
-    if summary.wall_seconds is None:
+    if summary.wall_seconds is None and summary.model_time_seconds is None:
         return
     run["model_time"].setdefault("raw", {})["tool_events"] = {
         "wall_seconds": summary.wall_seconds,
@@ -1272,18 +1272,19 @@ def apply_logged_time(run: dict, summary: ToolEventSummary, hints: dict) -> None
     }
     if summary.model_time_seconds is None or hints.get("model_time_source"):
         return
-    if run.get("rules_version") != 2:
-        print(f"  rules_version {run.get('rules_version')} has no {HOOK_TIME_SOURCE} source; model time stays as recorded.")
-        return
-    hints["model_time_source"] = HOOK_TIME_SOURCE
-    hints["generating_seconds"] = summary.model_time_seconds
+    if summary.wall_seconds is not None and summary.tool_busy_seconds is not None:
+        hints["model_time_source"] = HOOK_TIME_SOURCE
+        hints["generating_seconds"] = summary.model_time_seconds
+    else:
+        hints["model_time_source"] = "sum_of_llm_request_durations"
+        hints["generating_seconds"] = summary.model_time_seconds
 
 
 def apply_logged_tokens(run: dict, summary: ToolEventSummary, hints: dict) -> None:
-    """Store hook stop-event token totals in tokens.raw and context_reread.raw, and offer as defaults."""
-    if not summary.token_turns:
+    """Store transcript/hook stop-event token totals in tokens.raw and context_reread.raw, and offer as defaults."""
+    if not summary.token_turns and summary.input_tokens is None and summary.output_tokens is None:
         return
-    hook_tokens: dict[str, object] = {"source": "cursor_stop_hook"}
+    hook_tokens: dict[str, object] = {"source": "transcript_or_hook"}
     if summary.model_slug:
         hook_tokens["model"] = summary.model_slug
     for key in (
@@ -1292,8 +1293,11 @@ def apply_logged_tokens(run: dict, summary: ToolEventSummary, hints: dict) -> No
         "cache_read_tokens",
         "cache_write_tokens",
         "output_tokens",
+        "reasoning_tokens",
+        "visible_tokens",
+        "split_rule",
     ):
-        val = getattr(summary, key)
+        val = getattr(summary, key, None)
         if val is not None:
             hook_tokens[key] = val
     run["tokens"].setdefault("raw", {})["hook_tokens"] = hook_tokens
@@ -1308,12 +1312,16 @@ def apply_logged_tokens(run: dict, summary: ToolEventSummary, hints: dict) -> No
         hints["cache_write_field"] = "stop.cache_write_tokens"
     if summary.uncached_input_tokens is not None and hints.get("uncached_input_tokens") is None:
         hints["uncached_input_tokens"] = summary.uncached_input_tokens
-        hints["uncached_input_field"] = "stop.input_tokens - stop.cache_read_tokens - stop.cache_write_tokens"
+        hints["uncached_input_field"] = "stop.uncached_input_tokens"
     if summary.output_tokens is not None and hints.get("output_tokens") is None:
         hints["output_tokens"] = summary.output_tokens
         hints["output_field"] = "stop.output_tokens"
-        if not hints.get("split_rule"):
-            hints["split_rule"] = "unavailable"
+    if summary.reasoning_tokens is not None and hints.get("reasoning_tokens") is None:
+        hints["reasoning_tokens"] = summary.reasoning_tokens
+    if summary.visible_tokens is not None and hints.get("visible_tokens") is None:
+        hints["visible_tokens"] = summary.visible_tokens
+    if summary.split_rule is not None and hints.get("split_rule") is None:
+        hints["split_rule"] = summary.split_rule
 
 
 def apply_pricing_estimate(run: dict, summary: ToolEventSummary | None = None) -> None:
@@ -1487,6 +1495,13 @@ def complete_run_json(
     apply_logged_time(run, tool_summary, hints)
 
     tokens = run["tokens"]
+    if not interactive:
+        if tokens["reasoning_tokens"] is None and hints.get("reasoning_tokens") is not None:
+            tokens["reasoning_tokens"] = hints["reasoning_tokens"]
+        if tokens["visible_tokens"] is None and hints.get("visible_tokens") is not None:
+            tokens["visible_tokens"] = hints["visible_tokens"]
+        if (tokens["split_rule"] is None or tokens["split_rule"] == "unavailable") and hints.get("split_rule") is not None:
+            tokens["split_rule"] = hints["split_rule"]
     if interactive or tokens["reasoning_tokens"] is None:
         print("\nTokens generated (see docs/metrics.md)")
         split_default = str(hints.get("split_rule") or tokens["split_rule"])
@@ -1506,6 +1521,11 @@ def complete_run_json(
             )
 
     model_time = run["model_time"]
+    if not interactive:
+        if model_time["generating_seconds"] is None and hints.get("generating_seconds") is not None:
+            model_time["generating_seconds"] = hints["generating_seconds"]
+            if hints.get("model_time_source"):
+                model_time["source"] = hints["model_time_source"]
     if interactive or model_time["generating_seconds"] is None:
         print("\nModel time")
         source_default = str(hints.get("model_time_source", model_time["source"]))
@@ -1524,6 +1544,29 @@ def complete_run_json(
             model_time["generating_seconds"] = prompt_float("  generating_seconds", default_seconds)
 
     cache = run["context_reread"]
+    cache.setdefault("cache_write_tokens", None)
+    cache.setdefault("uncached_input_tokens", None)
+    if not interactive:
+        if cache["cache_read_tokens"] is None and hints.get("cache_read_tokens") is None and tool_summary.cache_read_tokens is not None:
+            cache["cache_read_tokens"] = tool_summary.cache_read_tokens
+        elif cache["cache_read_tokens"] is None and hints.get("cache_read_tokens") is not None:
+            cache["cache_read_tokens"] = hints["cache_read_tokens"]
+
+        if cache["cache_write_tokens"] is None and tool_summary.cache_write_tokens is not None:
+            cache["cache_write_tokens"] = tool_summary.cache_write_tokens
+        elif cache["cache_write_tokens"] is None and hints.get("cache_write_tokens") is not None:
+            cache["cache_write_tokens"] = hints["cache_write_tokens"]
+
+        if cache["uncached_input_tokens"] is None and tool_summary.uncached_input_tokens is not None:
+            cache["uncached_input_tokens"] = tool_summary.uncached_input_tokens
+        elif cache["uncached_input_tokens"] is None and hints.get("uncached_input_tokens") is not None:
+            cache["uncached_input_tokens"] = hints["uncached_input_tokens"]
+
+        if (cache["source"] is None or cache["source"] == "unavailable") and hints.get("cache_source") is not None:
+            cache["source"] = hints["cache_source"]
+        elif (cache["source"] is None or cache["source"] == "unavailable") and cache["cache_read_tokens"] is not None:
+            cache["source"] = "provider_cache_read"
+
     if interactive or cache["cache_read_tokens"] is None:
         print("\nContext re-read")
         cache_default = str(hints.get("cache_source", cache["source"]))

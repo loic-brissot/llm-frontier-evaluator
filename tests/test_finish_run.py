@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -376,6 +377,80 @@ class TestFinishRun(unittest.TestCase):
             self.assertTrue((workspace / "index.html").is_file())
             self.assertEqual((workspace / "index.html").read_text(encoding="utf-8"), "<h1>Hello</h1>")
             self.assertTrue((run_dir / "tool-events" / "conv123.jsonl").is_file())
+
+    def test_complete_run_json_claude_code_end_to_end(self):
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            run_dir = Path(tmp_dir_str)
+            run_json = run_dir / "run.json"
+            run_json.write_text(
+                '{"rules_version": 2, "harness": {"name": "claude-code"}, "model": {"name": "claude-3-7-sonnet"}, '
+                '"tokens": {"split_rule": "unavailable", "reasoning_tokens": null, "visible_tokens": null}, '
+                '"model_time": {"source": "unavailable", "generating_seconds": null}, '
+                '"context_reread": {"source": "unavailable", "cache_read_tokens": null}, '
+                '"tool_calls": {"shell": {"calls": null, "failures": null}, "files": {"calls": null, "failures": null}, '
+                '"visual_checks": {"calls": null, "failures": null}, "web": {"calls": null, "failures": null}, "other": {"calls": null, "failures": null}}, '
+                '"outcome": {"model_stopped": true, "operator_saw_a_page": true, "summary": "test"}, '
+                '"wall_clock": {"started_at": null, "ended_at": null}, "observations": ""}',
+                encoding="utf-8",
+            )
+            usage_dir = run_dir / "usage"
+            usage_dir.mkdir()
+            jsonl_file = usage_dir / "cli-stream.jsonl"
+            jsonl_file.write_text(
+                '{"type": "assistant", "timestamp": "2026-10-20T10:00:00Z", "message": {"model": "claude-3-7-sonnet", "usage": {"input_tokens": 1000, "cache_read_input_tokens": 800, "output_tokens": 500, "output_tokens_details": {"reasoning_tokens": 200}}, "content": [{"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": "ls"}}, {"type": "tool_use", "id": "t2", "name": "Read", "input": {"file": "a.txt"}}]}}\n'
+                '{"type": "user", "timestamp": "2026-10-20T10:00:02Z", "content": [{"type": "tool_result", "tool_use_id": "t1", "is_error": false}, {"type": "tool_result", "tool_use_id": "t2", "is_error": true}]}\n'
+                '{"type": "result", "timestamp": "2026-10-20T10:00:05Z", "duration_api_ms": 5000, "usage": {"input_tokens": 1000, "cache_read_input_tokens": 800, "output_tokens": 500, "output_tokens_details": {"reasoning_tokens": 200}}}\n',
+                encoding="utf-8",
+            )
+
+            complete_run_json(run_dir, [jsonl_file], interactive=False, skip_verify=True)
+
+            updated = json.loads(run_json.read_text(encoding="utf-8"))
+            self.assertEqual(updated["tokens"]["reasoning_tokens"], 200)
+            self.assertEqual(updated["tokens"]["visible_tokens"], 300)
+            self.assertEqual(updated["tokens"]["split_rule"], "output_includes_reasoning")
+            self.assertEqual(updated["model_time"]["generating_seconds"], 5.0)
+            self.assertEqual(updated["model_time"]["source"], "sum_of_llm_request_durations")
+            self.assertEqual(updated["context_reread"]["cache_read_tokens"], 800)
+            self.assertEqual(updated["context_reread"]["source"], "provider_cache_read")
+            self.assertEqual(updated["tool_calls"]["shell"]["calls"], 1)
+            self.assertEqual(updated["tool_calls"]["files"]["calls"], 1)
+            self.assertEqual(updated["tool_calls"]["files"]["failures"], 1)
+
+    def test_complete_run_json_codex_cli_end_to_end(self):
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            run_dir = Path(tmp_dir_str)
+            run_json = run_dir / "run.json"
+            run_json.write_text(
+                '{"rules_version": 2, "harness": {"name": "codex"}, "model": {"name": "codex-gpt-5"}, '
+                '"tokens": {"split_rule": "unavailable", "reasoning_tokens": null, "visible_tokens": null}, '
+                '"model_time": {"source": "unavailable", "generating_seconds": null}, '
+                '"context_reread": {"source": "unavailable", "cache_read_tokens": null}, '
+                '"tool_calls": {"shell": {"calls": null, "failures": null}, "files": {"calls": null, "failures": null}, '
+                '"visual_checks": {"calls": null, "failures": null}, "web": {"calls": null, "failures": null}, "other": {"calls": null, "failures": null}}, '
+                '"outcome": {"model_stopped": true, "operator_saw_a_page": true, "summary": "test"}, '
+                '"wall_clock": {"started_at": null, "ended_at": null}, "observations": ""}',
+                encoding="utf-8",
+            )
+            usage_dir = run_dir / "usage"
+            usage_dir.mkdir()
+            jsonl_file = usage_dir / "session.jsonl"
+            jsonl_file.write_text(
+                '{"event_msg": "function_call", "timestamp": "2026-10-20T12:00:00Z", "call_id": "c1", "name": "exec_command", "parameters": {"cmd": "make"}}\n'
+                '{"event_msg": "function_call_output", "timestamp": "2026-10-20T12:00:02Z", "call_id": "c1", "exit_code": 0}\n'
+                '{"event_msg": "turn.completed", "timestamp": "2026-10-20T12:00:10Z", "model": "codex-gpt-5", "duration_ms": 10000, "usage": {"prompt_tokens": 5000, "prompt_tokens_details": {"cached_tokens": 4000}, "completion_tokens": 1000, "output_tokens_details": {"reasoning_tokens": 600}}}\n',
+                encoding="utf-8",
+            )
+
+            complete_run_json(run_dir, [jsonl_file], interactive=False, skip_verify=True)
+
+            updated = json.loads(run_json.read_text(encoding="utf-8"))
+            self.assertEqual(updated["tokens"]["reasoning_tokens"], 600)
+            self.assertEqual(updated["tokens"]["visible_tokens"], 400)
+            self.assertEqual(updated["tokens"]["split_rule"], "output_includes_reasoning")
+            self.assertEqual(updated["model_time"]["generating_seconds"], 10.0)
+            self.assertEqual(updated["context_reread"]["cache_read_tokens"], 4000)
+            self.assertEqual(updated["tool_calls"]["shell"]["calls"], 1)
 
 
 if __name__ == "__main__":

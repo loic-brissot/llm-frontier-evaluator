@@ -23,20 +23,47 @@ NAME_BUCKETS = {
     "bash": "shell",
     "localshell": "shell",
     "awaitshell": "shell",
+    "execcommand": "shell",
+    "writestdin": "shell",
+    "containerexec": "shell",
+    "runterminalcmd": "shell",
+
     "read": "files",
     "write": "files",
     "edit": "files",
+    "multiedit": "files",
+    "notebookedit": "files",
+    "notebookread": "files",
+    "ls": "files",
+    "glob": "files",
+    "grep": "files",
     "strreplace": "files",
     "delete": "files",
     "editnotebook": "files",
-    "glob": "files",
-    "grep": "files",
+    "applypatch": "files",
+    "readfile": "files",
+    "writefile": "files",
+    "listdir": "files",
+    "findbyname": "files",
+    "grepsearch": "files",
+    "viewfile": "files",
+
     "websearch": "web",
     "webfetch": "web",
+    "openurl": "web",
+
     "todowrite": "other",
+    "todoread": "other",
     "task": "other",
+    "agent": "other",
     "switchmode": "other",
     "askquestion": "other",
+    "exitplanmode": "other",
+    "enterplanmode": "other",
+    "skill": "other",
+    "slashcommand": "other",
+    "updateplan": "other",
+    "requestuserinput": "other",
     "generateimage": "other",
     "readlints": "other",
     "creategoal": "other",
@@ -64,6 +91,9 @@ class ToolEventSummary:
     thought_blocks: int = 0
     input_tokens: int | None = None
     output_tokens: int | None = None
+    reasoning_tokens: int | None = None
+    visible_tokens: int | None = None
+    split_rule: str | None = None
     cache_read_tokens: int | None = None
     cache_write_tokens: int | None = None
     uncached_input_tokens: int | None = None
@@ -168,27 +198,40 @@ def is_failed(record: dict) -> bool:
 
 
 def load_records(run_dir: Path) -> tuple[list[dict], list[str]]:
-    log_dir = run_dir / "tool-events"
     notes: list[str] = []
-    if not log_dir.is_dir():
-        return [], notes
     records: list[dict] = []
     bad_lines = 0
-    for path in sorted(log_dir.glob("*.jsonl")):
-        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-            if not line.strip():
+    seen_paths: set[Path] = set()
+
+    for dir_name in ("tool-events", "usage"):
+        log_dir = run_dir / dir_name
+        if not log_dir.is_dir():
+            continue
+        for path in sorted(log_dir.glob("*.jsonl")):
+            resolved = path.resolve()
+            if resolved in seen_paths:
                 continue
+            seen_paths.add(resolved)
             try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                bad_lines += 1
+                content = path.read_text(encoding="utf-8")
+            except OSError as exc:
+                notes.append(f"Could not read {path.name}: {exc}")
                 continue
-            if isinstance(record, dict):
-                records.append(record)
-            else:
-                bad_lines += 1
+            for line in content.splitlines():
+                if not line.strip():
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    bad_lines += 1
+                    continue
+                if isinstance(record, dict):
+                    records.append(record)
+                else:
+                    bad_lines += 1
+
     if bad_lines:
-        notes.append(f"{bad_lines} tool-event lines were not JSON objects.")
+        notes.append(f"{bad_lines} transcript/tool-event lines were not JSON objects.")
     return records, notes
 
 
@@ -380,6 +423,260 @@ def _prompt_matches(record: dict, expected_path: Path) -> bool:
 
 
 def summarize_records(
+    records: list[dict],
+    notes: list[str] | None = None,
+    *,
+    expected_prompt_path: Path | None = None,
+) -> ToolEventSummary:
+    summary = ToolEventSummary(notes=list(notes or []))
+    if not records:
+        return summary
+
+    hook_records = [r for r in records if r.get("hook_event_name") is not None]
+    if hook_records:
+        return _summarize_cursor_hook_records(
+            records, notes=notes, expected_prompt_path=expected_prompt_path
+        )
+    return _process_transcript_records(records, summary)
+
+
+def _process_transcript_records(
+    records: list[dict],
+    summary: ToolEventSummary,
+) -> ToolEventSummary:
+    if not records:
+        return summary
+    summary.present = True
+
+    timestamps: list[datetime] = []
+    for r in records:
+        for key in ("timestamp", "created_at", "logged_at", "time", "date"):
+            val = r.get(key)
+            if isinstance(val, str):
+                dt = parse_time(val)
+                if dt:
+                    timestamps.append(dt)
+            elif isinstance(val, (int, float)) and not isinstance(val, bool) and val > 1000000000:
+                dt = datetime.fromtimestamp(val if val < 10000000000 else val / 1000.0, tz=timezone.utc)
+                timestamps.append(dt)
+
+        if not summary.model_slug:
+            m = (
+                r.get("model")
+                or r.get("model_slug")
+                or r.get("model_id")
+                or (r.get("message", {}).get("model") if isinstance(r.get("message"), dict) else None)
+            )
+            if isinstance(m, str) and m.strip() and m.strip() != "default":
+                summary.model_slug = m.strip()
+
+        if not summary.stop_status:
+            st = r.get("subtype") or r.get("status") or r.get("stop_reason")
+            if isinstance(st, str) and st.strip():
+                summary.stop_status = st.strip()
+
+    if timestamps:
+        start = min(timestamps)
+        end = max(timestamps)
+        summary.wall_started_at = format_time(start)
+        summary.wall_ended_at = format_time(end)
+        summary.wall_seconds = round((end - start).total_seconds(), 1)
+
+    summary_usage = None
+    summary_duration_ms = None
+
+    for r in records:
+        if r.get("type") in ("result", "session_summary") or r.get("event_msg") == "session_summary":
+            u = r.get("usage")
+            if isinstance(u, dict):
+                summary_usage = u
+            d = r.get("duration_api_ms") or r.get("duration_ms") or r.get("duration")
+            if isinstance(d, (int, float)) and d > 0:
+                summary_duration_ms = float(d)
+
+    if summary_duration_ms is not None:
+        summary.model_time_seconds = round(summary_duration_ms / 1000.0, 1)
+
+    if summary_usage is not None:
+        u = summary_usage
+        uncached_input = u.get("input_tokens") or u.get("uncached_input_tokens") or u.get("prompt_tokens")
+        cache_read = (
+            u.get("cache_read_input_tokens")
+            or u.get("cache_read_tokens")
+            or u.get("cached_input_tokens")
+            or (u.get("prompt_tokens_details", {}).get("cached_tokens") if isinstance(u.get("prompt_tokens_details"), dict) else None)
+        )
+        cache_write = u.get("cache_creation_input_tokens") or u.get("cache_write_tokens")
+        output = u.get("output_tokens") or u.get("completion_tokens")
+        reasoning = (
+            u.get("reasoning_tokens")
+            or u.get("thinking_tokens")
+            or u.get("reasoning_output_tokens")
+            or (u.get("output_tokens_details", {}).get("reasoning_tokens") if isinstance(u.get("output_tokens_details"), dict) else None)
+        )
+
+        uncached_input = _nonneg_int(uncached_input)
+        cache_read = _nonneg_int(cache_read)
+        cache_write = _nonneg_int(cache_write)
+        output = _nonneg_int(output)
+        reasoning = _nonneg_int(reasoning)
+
+        if u.get("cache_read_input_tokens") is not None or u.get("cache_creation_input_tokens") is not None:
+            # Claude Code stream-json format: input_tokens is uncached input tokens
+            summary.uncached_input_tokens = uncached_input
+        elif cache_read and uncached_input and uncached_input >= cache_read + (cache_write or 0):
+            summary.uncached_input_tokens = max(0, uncached_input - cache_read - (cache_write or 0))
+        else:
+            summary.uncached_input_tokens = uncached_input
+        summary.cache_read_tokens = cache_read
+        summary.cache_write_tokens = cache_write
+        summary.output_tokens = output
+        summary.input_tokens = (uncached_input or 0) + (cache_read or 0) + (cache_write or 0) if (uncached_input is not None or cache_read is not None) else None
+        summary.token_turns = 1
+
+        if reasoning is not None and output is not None:
+            summary.reasoning_tokens = reasoning
+            summary.visible_tokens = max(0, output - reasoning)
+            summary.split_rule = "output_includes_reasoning"
+        elif output is not None:
+            summary.split_rule = "unavailable"
+    else:
+        tot_uncached, tot_cache_read, tot_cache_write, tot_output, tot_reasoning = 0, 0, 0, 0, 0
+        has_usage = False
+        turn_count = 0
+        tot_api_ms = 0.0
+
+        for r in records:
+            u = r.get("usage") or (r.get("message", {}).get("usage") if isinstance(r.get("message"), dict) else None) or r.get("token_count")
+            d = r.get("duration_api_ms") or r.get("duration_ms") or r.get("duration")
+            if isinstance(d, (int, float)) and d > 0:
+                tot_api_ms += float(d)
+
+            if isinstance(u, dict):
+                has_usage = True
+                turn_count += 1
+                inp = u.get("input_tokens") or u.get("uncached_input_tokens") or u.get("prompt_tokens") or 0
+                cr = (
+                    u.get("cache_read_input_tokens")
+                    or u.get("cache_read_tokens")
+                    or u.get("cached_input_tokens")
+                    or (u.get("prompt_tokens_details", {}).get("cached_tokens") if isinstance(u.get("prompt_tokens_details"), dict) else 0)
+                ) or 0
+                cw = u.get("cache_creation_input_tokens") or u.get("cache_write_tokens") or 0
+                out = u.get("output_tokens") or u.get("completion_tokens") or 0
+                reas = (
+                    u.get("reasoning_tokens")
+                    or u.get("thinking_tokens")
+                    or u.get("reasoning_output_tokens")
+                    or (u.get("output_tokens_details", {}).get("reasoning_tokens") if isinstance(u.get("output_tokens_details"), dict) else 0)
+                ) or 0
+
+                un_in = inp
+                if u.get("cache_read_input_tokens") is not None or u.get("cache_creation_input_tokens") is not None:
+                    # Claude Code stream-json format: input_tokens is uncached input tokens
+                    un_in = inp
+                elif cr > 0 and inp >= cr + cw:
+                    un_in = max(0, inp - cr - cw)
+
+                tot_uncached += un_in
+                tot_cache_read += cr
+                tot_cache_write += cw
+                tot_output += out
+                tot_reasoning += reas
+
+        if tot_api_ms > 0 and summary.model_time_seconds is None:
+            summary.model_time_seconds = round(tot_api_ms / 1000.0, 1)
+
+        if has_usage:
+            summary.uncached_input_tokens = tot_uncached
+            summary.cache_read_tokens = tot_cache_read
+            summary.cache_write_tokens = tot_cache_write
+            summary.output_tokens = tot_output
+            summary.input_tokens = tot_uncached + tot_cache_read + tot_cache_write
+            summary.token_turns = turn_count
+
+            if tot_reasoning > 0:
+                summary.reasoning_tokens = tot_reasoning
+                summary.visible_tokens = max(0, tot_output - tot_reasoning)
+                summary.split_rule = "output_includes_reasoning"
+            else:
+                summary.split_rule = "unavailable"
+
+    call_map: dict[str, tuple[str, str]] = {}
+    buckets = _empty_buckets()
+
+    def record_call(tool_id: str | None, tool_name: str, tool_input: object = None) -> None:
+        eff_name = effective_tool_name(tool_name, tool_input)
+        bucket = bucket_for(tool_name, tool_input)
+        if tool_id:
+            call_map[str(tool_id)] = (eff_name, bucket)
+        entry = buckets[bucket]
+        entry["calls"] += 1
+        tc = entry["by_tool"].setdefault(eff_name, {"calls": 0, "failures": 0})
+        tc["calls"] += 1
+
+    def record_failure(tool_id: str | None, tool_name: str | None = None, tool_input: object = None) -> None:
+        eff_name = None
+        bucket = None
+        if tool_id and str(tool_id) in call_map:
+            eff_name, bucket = call_map[str(tool_id)]
+        elif tool_name:
+            eff_name = effective_tool_name(tool_name, tool_input)
+            bucket = bucket_for(tool_name, tool_input)
+
+        if bucket and eff_name:
+            entry = buckets[bucket]
+            entry["failures"] += 1
+            tc = entry["by_tool"].setdefault(eff_name, {"calls": 0, "failures": 0})
+            tc["failures"] += 1
+
+    for r in records:
+        content = r.get("content") or (r.get("message", {}).get("content") if isinstance(r.get("message"), dict) else None)
+        if isinstance(content, list):
+            for item in content:
+                if not isinstance(item, dict):
+                    continue
+                itype = item.get("type")
+                if itype == "tool_use":
+                    t_id = item.get("id")
+                    t_name = item.get("name")
+                    t_input = item.get("input")
+                    if t_name:
+                        record_call(t_id, t_name, t_input)
+                elif itype == "tool_result":
+                    t_id = item.get("tool_use_id")
+                    is_err = item.get("is_error") is True or item.get("status") in ("error", "failed")
+                    if is_err:
+                        record_failure(t_id)
+
+        rtype = r.get("type") or r.get("event_msg")
+        if rtype in ("function_call", "tool_call", "custom_tool_call", "local_shell_call"):
+            t_id = r.get("call_id") or r.get("id") or r.get("tool_use_id")
+            t_name = r.get("name") or (r.get("function", {}).get("name") if isinstance(r.get("function"), dict) else None) or r.get("event_msg") or r.get("tool_name")
+            t_input = r.get("parameters") or r.get("arguments") or r.get("command") or r.get("tool_input")
+            if t_name:
+                record_call(t_id, t_name, t_input)
+
+        elif rtype in ("function_call_output", "tool_result", "local_shell_call_output"):
+            t_id = r.get("call_id") or r.get("id") or r.get("tool_use_id")
+            exit_code = r.get("exit_code")
+            status = r.get("status")
+            is_err = r.get("is_error") is True or (isinstance(exit_code, int) and not isinstance(exit_code, bool) and exit_code != 0) or status in ("error", "failed")
+            if is_err:
+                record_failure(t_id, r.get("name") or r.get("tool_name"), r.get("tool_input"))
+
+    summary.buckets = buckets
+    summary.other_tools = sorted(buckets["other"]["by_tool"])
+    summary.isolation_breaches = audit_isolation(records)
+    if summary.isolation_breaches:
+        summary.notes.append(
+            f"Isolation audit flagged {len(summary.isolation_breaches)} potential contamination event(s): "
+            + ", ".join(summary.isolation_breaches)
+        )
+    return summary
+
+
+def _summarize_cursor_hook_records(
     records: list[dict],
     notes: list[str] | None = None,
     *,
