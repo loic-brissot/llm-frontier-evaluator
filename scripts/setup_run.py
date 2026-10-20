@@ -35,6 +35,7 @@ from run_common import (
 )
 
 RUNS_DIR = ROOT / "runs"
+CURSOR_HOOK_DIR_NAME = ".cursor"
 
 
 def prompt(label: str, default: str | None = None) -> str:
@@ -168,14 +169,15 @@ def create_run_directory(
     return run_dir
 
 
-def install_cursor_hook(workspace: Path) -> None:
+def install_cursor_hook(workspace: Path, *, hook_dir_name: str | None = None) -> None:
     source_config = ROOT / "templates" / "cursor" / "hooks.json"
     source_script = ROOT / "templates" / "cursor" / "hooks" / "log-tool-event.py"
     if not source_config.is_file() or not source_script.is_file():
         raise FileNotFoundError("Cursor hook template files are missing from templates/cursor/.")
-    hook_dir = workspace / ".cursor" / "hooks"
+    target_dir_name = hook_dir_name or CURSOR_HOOK_DIR_NAME
+    hook_dir = workspace / target_dir_name / "hooks"
     hook_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source_config, workspace / ".cursor" / "hooks.json")
+    shutil.copy2(source_config, workspace / target_dir_name / "hooks.json")
     script = hook_dir / "log-tool-event.py"
     shutil.copy2(source_script, script)
     script.chmod(script.stat().st_mode | 0o111)

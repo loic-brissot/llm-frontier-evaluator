@@ -13,6 +13,7 @@ import argparse
 import difflib
 import hashlib
 import json
+import re
 import sys
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
@@ -21,11 +22,12 @@ from run_common import (
     BUCKETS,
     CHART_BUCKETS,
     DEFAULT_PROMPT_ID,
+    HARNESS_NAMES,
+    PRICING_PATH,
     PROMPTS_DIR,
     README_PATH,
     ROOT,
     UNKNOWN_REASONING,
-    available_prompt_ids,
     canonical_harness,
     discover_run_dirs,
     estimate_token_cost,
@@ -170,7 +172,17 @@ def format_local_cost(run: dict) -> str:
     return "n/a"
 
 
-def check_prompt(prompts_dir: Path = PROMPTS_DIR) -> list[str]:
+def check_prompt(
+    prompts_dir: Path = PROMPTS_DIR,
+    *,
+    probes_path: Path | None = None,
+    root_readme_path: Path | None = None,
+) -> list[str]:
+    if prompts_dir == PROMPTS_DIR:
+        if probes_path is None:
+            probes_path = ROOT / "reference" / "prompt-probes.json"
+        if root_readme_path is None:
+            root_readme_path = README_PATH
     errors: list[str] = []
     if not prompts_dir.is_dir():
         return [f"Prompts directory does not exist: {prompts_dir}"]
@@ -259,6 +271,224 @@ def check_prompt(prompts_dir: Path = PROMPTS_DIR) -> list[str]:
             errors.append(
                 f"Table entry {prompt_id!r} in {readme_path} references missing file {expected_file.name}"
             )
+
+    prompt_ids = {path.stem for path in prompt_files}
+
+    if probes_path is not None:
+        if not probes_path.is_file():
+            errors.append(f"Probes file does not exist: {probes_path}")
+        else:
+            probes_data = None
+            try:
+                probes_data = load_json(probes_path)
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                errors.append(f"Cannot read probes file {probes_path}: {exc}")
+
+            if isinstance(probes_data, dict):
+                for prompt_id in sorted(prompt_ids):
+                    if prompt_id not in probes_data:
+                        errors.append(f"Prompt id {prompt_id!r} is missing from {probes_path}")
+                    else:
+                        spec = probes_data[prompt_id]
+                        if not isinstance(spec, dict):
+                            errors.append(f"{probes_path}: Entry for {prompt_id!r} must be a JSON object")
+                            continue
+                        if spec.get("prompt_id") != prompt_id:
+                            errors.append(
+                                f"{probes_path}: Entry for {prompt_id!r} has prompt_id {spec.get('prompt_id')!r}"
+                            )
+                        if spec.get("type") not in {"open_data", "domain_model"}:
+                            errors.append(
+                                f"{probes_path}: Entry for {prompt_id!r} has invalid type {spec.get('type')!r}"
+                            )
+                        checks = spec.get("checks")
+                        if not isinstance(checks, list) or len(checks) == 0:
+                            errors.append(
+                                f"{probes_path}: Entry for {prompt_id!r} must have a non-empty checks list"
+                            )
+
+                for probe_key in sorted(probes_data.keys()):
+                    if probe_key not in prompt_ids:
+                        errors.append(f"Orphan prompt id {probe_key!r} in {probes_path}")
+
+    if root_readme_path is not None:
+        if not root_readme_path.is_file():
+            errors.append(f"Root README does not exist: {root_readme_path}")
+        else:
+            readme_text = root_readme_path.read_text(encoding="utf-8")
+            readme_lines = readme_text.splitlines()
+            prompts_section_lines: list[str] = []
+            in_section = False
+            for line in readme_lines:
+                if line.strip() == "### Prompts":
+                    in_section = True
+                    continue
+                if in_section:
+                    if line.startswith("## ") or line.startswith("### "):
+                        break
+                    prompts_section_lines.append(line)
+
+            if not in_section:
+                errors.append(f"Section '### Prompts' not found in {root_readme_path}")
+            else:
+                section_text = "\n".join(prompts_section_lines)
+                link_pattern = re.compile(r"\[`([^`]+)`\]\(([^)]+)\)")
+                matches = link_pattern.findall(section_text)
+                listed_ids: list[str] = []
+                seen_listed: set[str] = set()
+
+                for label, target in matches:
+                    expected_target = f"prompt/{label}.txt"
+                    if target != expected_target:
+                        errors.append(
+                            f"{root_readme_path}: Prompt link for {label!r} points to {target!r}, expected {expected_target!r}"
+                        )
+                    if label in seen_listed:
+                        errors.append(f"{root_readme_path}: Duplicate prompt id {label!r} under ### Prompts")
+                    else:
+                        seen_listed.add(label)
+                        listed_ids.append(label)
+
+                for prompt_id in sorted(prompt_ids):
+                    if prompt_id not in seen_listed:
+                        errors.append(
+                            f"Prompt id {prompt_id!r} is missing from {root_readme_path} ### Prompts section"
+                        )
+
+                for label in listed_ids:
+                    if label not in prompt_ids:
+                        errors.append(
+                            f"Orphan prompt id {label!r} under ### Prompts in {root_readme_path}"
+                        )
+
+    return errors
+
+
+def check_pricing(pricing_path: Path = PRICING_PATH) -> list[str]:
+    errors: list[str] = []
+    if not pricing_path.is_file():
+        return [f"Pricing file does not exist: {pricing_path}"]
+
+    try:
+        data = load_json(pricing_path)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return [f"Cannot read pricing file {pricing_path}: {exc}"]
+
+    as_of = data.get("as_of")
+    if not isinstance(as_of, str) or not as_of.strip():
+        errors.append(f"{pricing_path}: missing or empty 'as_of' field")
+
+    currency = data.get("currency")
+    if not isinstance(currency, str) or not currency.strip():
+        errors.append(f"{pricing_path}: missing or empty 'currency' field")
+
+    unit = data.get("unit")
+    if not isinstance(unit, str) or not unit.strip():
+        errors.append(f"{pricing_path}: missing or empty 'unit' field")
+
+    harnesses = data.get("harnesses")
+    if not isinstance(harnesses, dict) or not harnesses:
+        errors.append(f"{pricing_path}: 'harnesses' must be a non-empty dict")
+
+    models = data.get("models")
+    if not isinstance(models, list) or not models:
+        errors.append(f"{pricing_path}: 'models' must be a non-empty list")
+        return errors
+
+    seen_model_ids: set[str] = set()
+    for idx, entry in enumerate(models):
+        if not isinstance(entry, dict):
+            errors.append(f"{pricing_path}: models[{idx}] must be a dict")
+            continue
+
+        model_id = entry.get("id")
+        if not isinstance(model_id, str) or not model_id.strip():
+            errors.append(f"{pricing_path}: models[{idx}] has missing or invalid 'id'")
+        elif model_id in seen_model_ids:
+            errors.append(f"{pricing_path}: duplicate model id {model_id!r}")
+        else:
+            seen_model_ids.add(model_id)
+
+        names = entry.get("names")
+        if not isinstance(names, list) or not names or not all(isinstance(n, str) and n.strip() for n in names):
+            errors.append(f"{pricing_path}: model {model_id!r} has invalid 'names' list")
+
+        provider = entry.get("provider")
+        if not isinstance(provider, str) or not provider.strip():
+            errors.append(f"{pricing_path}: model {model_id!r} has missing or invalid 'provider'")
+
+        harnesses_list = entry.get("harnesses")
+        if (
+            not isinstance(harnesses_list, list)
+            or not harnesses_list
+            or not all(isinstance(h, str) and h in HARNESS_NAMES for h in harnesses_list)
+        ):
+            errors.append(
+                f"{pricing_path}: model {model_id!r} has invalid 'harnesses' list (must contain valid harness names)"
+            )
+
+        for rate_field in ("input", "cache_write", "cache_read", "output"):
+            val = entry.get(rate_field)
+            if val is None:
+                errors.append(f"{pricing_path}: model {model_id!r} missing required rate field {rate_field!r}")
+            else:
+                try:
+                    dec = Decimal(str(val))
+                    if dec < 0:
+                        errors.append(
+                            f"{pricing_path}: model {model_id!r} has negative rate {rate_field}={val!r}"
+                        )
+                except Exception:
+                    errors.append(
+                        f"{pricing_path}: model {model_id!r} has invalid Decimal rate {rate_field}={val!r}"
+                    )
+
+        if "context_variants" in entry:
+            cv = entry.get("context_variants")
+            if not isinstance(cv, dict) or not cv:
+                errors.append(f"{pricing_path}: model {model_id!r} 'context_variants' must be a non-empty dict")
+            else:
+                for var_key, var_val in cv.items():
+                    if not isinstance(var_val, dict):
+                        errors.append(
+                            f"{pricing_path}: model {model_id!r} context_variant {var_key!r} must be a dict"
+                        )
+                    else:
+                        for rate_field in ("input", "cache_write", "cache_read", "output"):
+                            if rate_field in var_val:
+                                try:
+                                    dec = Decimal(str(var_val[rate_field]))
+                                    if dec < 0:
+                                        errors.append(
+                                            f"{pricing_path}: model {model_id!r} context_variant {var_key!r} has negative rate {rate_field}={var_val[rate_field]!r}"
+                                        )
+                                except Exception:
+                                    errors.append(
+                                        f"{pricing_path}: model {model_id!r} context_variant {var_key!r} has invalid Decimal rate {rate_field}={var_val[rate_field]!r}"
+                                    )
+
+        if "long_context" in entry:
+            lc = entry.get("long_context")
+            if not isinstance(lc, dict):
+                errors.append(f"{pricing_path}: model {model_id!r} 'long_context' must be a dict")
+            else:
+                thresh = lc.get("threshold_input_tokens")
+                if not isinstance(thresh, int) or isinstance(thresh, bool) or thresh <= 0:
+                    errors.append(
+                        f"{pricing_path}: model {model_id!r} long_context 'threshold_input_tokens' must be a positive integer"
+                    )
+                for rate_field in ("input", "cache_write", "cache_read", "output"):
+                    if rate_field in lc:
+                        try:
+                            dec = Decimal(str(lc[rate_field]))
+                            if dec < 0:
+                                errors.append(
+                                    f"{pricing_path}: model {model_id!r} long_context has negative rate {rate_field}={lc[rate_field]!r}"
+                                )
+                        except Exception:
+                            errors.append(
+                                f"{pricing_path}: model {model_id!r} long_context has invalid Decimal rate {rate_field}={lc[rate_field]!r}"
+                            )
 
     return errors
 
@@ -658,6 +888,7 @@ def main() -> int:
     args = parser.parse_args()
 
     errors = check_prompt()
+    errors.extend(check_pricing())
     reference = None
     if REFERENCE_PATH.is_file():
         try:

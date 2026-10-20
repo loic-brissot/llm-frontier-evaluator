@@ -1,5 +1,5 @@
-import difflib
 import io
+import json
 import sys
 import tempfile
 import unittest
@@ -19,13 +19,12 @@ from compare_runs import (
     format_minutes,
     format_millions,
     format_local_cost,
-    check_local_run,
     check_bucket_counts,
     check_series_versions,
     check_reference,
     check_prompt,
+    check_pricing,
     README_PATH,
-    REFERENCE_PATH,
 )
 
 
@@ -394,6 +393,113 @@ class TestCompareRuns(unittest.TestCase):
             )
             errors = check_prompt(prompts_dir)
             self.assertTrue(any("Final newline flag mismatch" in err for err in errors))
+
+    def test_check_prompt_detects_probes_and_root_readme_mismatches(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            base = Path(tmp_dir)
+            prompts_dir = base / "prompt"
+            prompts_dir.mkdir()
+            prompt_file = prompts_dir / "test-prompt.txt"
+            prompt_file.write_bytes(b"hello\n")
+
+            prompt_readme = prompts_dir / "README.md"
+            prompt_readme.write_text(
+                "| Prompt id | File | SHA-256 | Bytes | Final newline |\n"
+                "| --- | --- | --- | --- | --- |\n"
+                "| `test-prompt` | `test-prompt.txt` | `2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824` | 6 | Yes |\n",
+                encoding="utf-8",
+            )
+
+            # 1. Probes file missing prompt
+            probes_file = base / "prompt-probes.json"
+            probes_file.write_text(
+                json.dumps({
+                    "other-prompt": {
+                        "prompt_id": "other-prompt",
+                        "type": "open_data",
+                        "checks": [{"id": "c1"}],
+                    }
+                }),
+                encoding="utf-8",
+            )
+
+            root_readme = base / "README.md"
+            root_readme.write_text(
+                "### Prompts\n\n1. [`test-prompt`](prompt/test-prompt.txt): description\n",
+                encoding="utf-8",
+            )
+
+            errors = check_prompt(prompts_dir, probes_path=probes_file, root_readme_path=root_readme)
+            self.assertTrue(any("missing from" in err for err in errors))
+            self.assertTrue(any("Orphan prompt id 'other-prompt'" in err for err in errors))
+
+            # 2. Root README missing prompt & wrong link target
+            probes_file.write_text(
+                json.dumps({
+                    "test-prompt": {
+                        "prompt_id": "test-prompt",
+                        "type": "open_data",
+                        "checks": [{"id": "c1"}],
+                    }
+                }),
+                encoding="utf-8",
+            )
+            root_readme.write_text(
+                "### Prompts\n\n1. [`test-prompt`](prompt/wrong.txt): description\n2. [`orphan-prompt`](prompt/orphan-prompt.txt): text\n",
+                encoding="utf-8",
+            )
+
+            errors = check_prompt(prompts_dir, probes_path=probes_file, root_readme_path=root_readme)
+            self.assertTrue(any("expected 'prompt/test-prompt.txt'" in err for err in errors))
+            self.assertTrue(any("Orphan prompt id 'orphan-prompt'" in err for err in errors))
+
+    def test_check_pricing_passes_on_real_pricing_file(self):
+        errors = check_pricing()
+        self.assertEqual(errors, [])
+
+    def test_check_pricing_detects_structural_and_validation_errors(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            pricing_path = Path(tmp_dir) / "pricing.json"
+
+            # Missing required top-level fields
+            pricing_path.write_text(json.dumps({"as_of": "2026-10-18"}), encoding="utf-8")
+            errors = check_pricing(pricing_path)
+            self.assertTrue(any("currency" in err for err in errors))
+
+            # Duplicate model ID and unknown harness
+            bad_data = {
+                "as_of": "2026-10-18",
+                "currency": "USD",
+                "unit": "per_1m_tokens",
+                "harnesses": {"cursor": {}},
+                "models": [
+                    {
+                        "id": "model-1",
+                        "names": ["Model 1"],
+                        "provider": "test",
+                        "harnesses": ["unknown-harness"],
+                        "input": "1.00",
+                        "cache_write": "1.00",
+                        "cache_read": "1.00",
+                        "output": "1.00",
+                    },
+                    {
+                        "id": "model-1",
+                        "names": ["Model 1 Dup"],
+                        "provider": "test",
+                        "harnesses": ["cursor"],
+                        "input": "-5.00",
+                        "cache_write": "1.00",
+                        "cache_read": "1.00",
+                        "output": "1.00",
+                    },
+                ],
+            }
+            pricing_path.write_text(json.dumps(bad_data), encoding="utf-8")
+            errors = check_pricing(pricing_path)
+            self.assertTrue(any("unknown-harness" in err or "invalid 'harnesses'" in err for err in errors))
+            self.assertTrue(any("duplicate model id 'model-1'" in err for err in errors))
+            self.assertTrue(any("negative rate" in err for err in errors))
 
 
 if __name__ == "__main__":
