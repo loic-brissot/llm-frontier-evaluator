@@ -3,9 +3,10 @@ id: TASK-27
 title: >-
   Pass reasoning effort and context from run.json to the headless CLI in
   run_benchmark.py
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-20 17:58'
+updated_date: '2026-10-20 18:56'
 labels:
   - cli
   - runner
@@ -33,9 +34,9 @@ run_benchmark.py accepts --reasoning and --context but drops both for Cursor: cu
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 run_benchmark.py reads harness, model name, reasoning, and context from runs/<prompt-id>/<run-id>/run.json; CLI flags only override them and a mismatch is an error
-- [ ] #2 For Cursor, the model name plus reasoning resolves to a cursor-agent model slug (for example Claude Opus 5.5 + high -> claude-opus-5-5-high) and the slug is checked against cursor-agent models before the container starts
-- [ ] #3 For Claude Code, reasoning maps to claude --effort and the model name maps to the claude --model id
-- [ ] #4 A run with a context that the CLI cannot select fails before launch with a message that points to the clean-room GUI launcher, unless an explicit flag accepts it and records context as null plus a harness.detail note
-- [ ] #5 Unit tests cover slug resolution, effort mapping, and the context rejection path with mocked subprocesses
+- [x] #1 run_benchmark.py reads harness, model name, reasoning, and context from runs/<prompt-id>/<run-id>/run.json; CLI flags only override them and a mismatch is an error
+- [x] #2 For Cursor, the model name plus reasoning resolves to a cursor-agent model slug (for example Claude Opus 5.5 + high -> claude-opus-5-5-high) and the slug is checked against cursor-agent models before the container starts
+- [x] #3 For Claude Code, reasoning maps to claude --effort and the model name maps to the claude --model id
+- [x] #4 A run with a context that the CLI cannot select fails before launch with a message that points to the clean-room GUI launcher, unless an explicit flag accepts it and records context as null plus a harness.detail note
+- [x] #5 Unit tests cover slug resolution, effort mapping, and the context rejection path with mocked subprocesses
 <!-- AC:END -->
