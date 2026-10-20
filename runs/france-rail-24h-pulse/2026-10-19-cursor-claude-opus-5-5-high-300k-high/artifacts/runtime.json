@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "http_status": 200,
+  "url": "http://127.0.0.1:63584",
+  "server_mode": "static",
+  "load_time_ms": 4731.56,
+  "console_errors": [],
+  "console_warnings_count": 4,
+  "page_errors": [],
+  "failed_requests": [],
+  "dom": {
+    "title": "Rail Pulse France \u2014 24-hour atlas of TGV, Intercit\u00e9s & TER",
+    "canvas_count": 2,
+    "svg_count": 1,
+    "webgl_context": true,
+    "text_length": 1008
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "verified_at": "2026-10-20T19:25:13.971Z"
+}

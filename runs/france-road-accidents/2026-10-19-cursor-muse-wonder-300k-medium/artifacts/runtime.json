@@ -1,16 +1,20 @@
 {
-  "passed": false,
-  "http_status": null,
-  "url": "http://127.0.0.1:50229",
+  "passed": true,
+  "http_status": 200,
+  "url": "http://127.0.0.1:63643",
   "server_mode": "static",
-  "load_time_ms": null,
+  "load_time_ms": 3241.29,
   "console_errors": [],
   "console_warnings_count": 0,
-  "page_errors": [
-    "Playwright Python package is not installed"
-  ],
+  "page_errors": [],
   "failed_requests": [],
-  "dom": null,
-  "screenshot_path": null,
-  "verified_at": "2026-10-19T03:50:41.562Z"
+  "dom": {
+    "title": "Qui percute qui ? \u2014 Observatoire des accidents corporels \u00b7 France m\u00e9tropolitaine 2024",
+    "canvas_count": 3,
+    "svg_count": 2,
+    "webgl_context": false,
+    "text_length": 5986
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "verified_at": "2026-10-20T19:25:35.309Z"
 }

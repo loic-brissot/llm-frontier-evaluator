@@ -1,10 +1,10 @@
 {
   "prompt_id": "france-rail-24h-pulse",
-  "passed": false,
-  "authenticity": "partial_or_filtered",
-  "score": 0.67,
-  "total_data_files": 12,
-  "total_records": 29096,
+  "passed": true,
+  "authenticity": "real_open_data",
+  "score": 1.0,
+  "total_data_files": 21,
+  "total_records": 819599,
   "synthetic_signals": [],
   "checks": [
     {
@@ -32,20 +32,16 @@
     {
       "id": "gtfs_timetables_trips_dataset",
       "description": "GTFS schedules or processed timetables/trips for TGV, Intercit\u00e9s, TER",
-      "passed": false,
-      "observed_records": 1,
+      "passed": true,
+      "observed_records": 579592,
       "matched_files": [
-        "scripts/build_data.py",
-        "scripts/shot.py",
-        "vendor/deck.min.js",
-        "src/styles.css",
-        "src/charts.js",
-        "src/main.js",
-        "src/router.js",
-        "src/data.js"
+        "data/raw/gtfs/transfers.txt",
+        "data/raw/gtfs/stop_times.txt",
+        "data/raw/gtfs/trips.txt",
+        "data/raw/gtfs/stops.txt"
       ],
-      "detail": "Matched 8 file(s) but observed 1 records < min threshold 200"
+      "detail": "Matched 4 file(s) with 579592 observed records (min: 200)"
     }
   ],
-  "verified_at": "2026-10-19T15:29:17.738Z"
+  "verified_at": "2026-10-20T19:25:34.227Z"
 }

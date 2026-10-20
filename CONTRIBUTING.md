@@ -69,7 +69,7 @@ Updating frozen prompts requires synchronized updates across four locations:
 - `prompt/<prompt-id>.txt`: Prompt file text (frozen; never mutate existing prompts).
 - `prompt/README.md`: SHA-256 hash, exact byte count, and final newline (`Yes`/`No`) entry.
 - `reference/prompt-probes.json`: Data pipeline verification checks (`id`, `description`, `file_patterns`, `required_markers`, `min_records`, optional `spatial_bbox`, and `synthetic_patterns`).
-- `README.md`: `### Prompts` section entry (`1. [`<prompt-id>`](prompt/<prompt-id>.txt): ...`).
+- `README.md`: `## Prompts` section entry (`1. [`<prompt-id>`](prompt/<prompt-id>.txt): ...`).
 
 ### Adding or updating models
 Updating model pricing requires updating `reference/pricing-2026-10-18.json`:

@@ -54,7 +54,7 @@ Synchronize changes across four locations:
 1. `prompt/<prompt-id>.txt`: Frozen prompt text (never mutate existing prompts once runs reference them).
 2. `prompt/README.md`: Update summary table with SHA-256 hash, exact byte count, and final newline status (`Yes`/`No`).
 3. `reference/prompt-probes.json`: Define verification checks (`id`, `description`, `file_patterns`, `required_markers`, `min_records`, optional `spatial_bbox`, and `synthetic_patterns`).
-4. `README.md`: Update `### Prompts` section list (`1. [`<prompt-id>`](prompt/<prompt-id>.txt): ...`).
+4. `README.md`: Update `## Prompts` section list (`1. [`<prompt-id>`](prompt/<prompt-id>.txt): ...`).
 
 ### Adding or Updating Models
 Synchronize model definitions in `reference/pricing-2026-10-18.json`:

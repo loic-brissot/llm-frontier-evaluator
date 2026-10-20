@@ -13,6 +13,7 @@ from decimal import Decimal
 from compare_runs import (
     format_tools,
     local_row,
+    model_label,
     sync_readme,
     round_half_up,
     format_tokens,
@@ -29,6 +30,27 @@ from compare_runs import (
 
 
 class TestCompareRuns(unittest.TestCase):
+    def test_model_label(self):
+        # Claude Opus 5.5 High with 300k context and high reasoning -> deduplicated
+        run_opus = {
+            "model": {
+                "name": "Claude Opus 5.5 High",
+                "context": "300k",
+                "reasoning": "high",
+            }
+        }
+        self.assertEqual(model_label(run_opus), "Claude Opus 5.5 300k high")
+
+        # Muse Wonder with 300k context and medium reasoning
+        run_muse = {
+            "model": {
+                "name": "Muse Wonder",
+                "context": "300k",
+                "reasoning": "medium",
+            }
+        }
+        self.assertEqual(model_label(run_muse), "Muse Wonder 300k medium")
+
     def test_format_tools(self):
         # 0 failures
         self.assertEqual(format_tools(0, 0), "0")
@@ -425,7 +447,7 @@ class TestCompareRuns(unittest.TestCase):
 
             root_readme = base / "README.md"
             root_readme.write_text(
-                "### Prompts\n\n1. [`test-prompt`](prompt/test-prompt.txt): description\n",
+                "## Prompts\n\n1. [`test-prompt`](prompt/test-prompt.txt): description\n",
                 encoding="utf-8",
             )
 
@@ -445,7 +467,7 @@ class TestCompareRuns(unittest.TestCase):
                 encoding="utf-8",
             )
             root_readme.write_text(
-                "### Prompts\n\n1. [`test-prompt`](prompt/wrong.txt): description\n2. [`orphan-prompt`](prompt/orphan-prompt.txt): text\n",
+                "## Prompts\n\n1. [`test-prompt`](prompt/wrong.txt): description\n2. [`orphan-prompt`](prompt/orphan-prompt.txt): text\n",
                 encoding="utf-8",
             )
 
