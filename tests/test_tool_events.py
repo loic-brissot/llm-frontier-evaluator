@@ -438,7 +438,12 @@ class TestToolEvents(unittest.TestCase):
         # Shell bucket
         self.assertEqual(bucket_for("Shell"), "shell")
         self.assertEqual(bucket_for("bash"), "shell")
+        self.assertEqual(bucket_for("Bash"), "shell")
         self.assertEqual(bucket_for("LocalShell"), "shell")
+        self.assertEqual(bucket_for("exec_command"), "shell")
+        self.assertEqual(bucket_for("write_stdin"), "shell")
+        self.assertEqual(bucket_for("container.exec"), "shell")
+        self.assertEqual(bucket_for("run_terminal_cmd"), "shell")
         self.assertEqual(bucket_for("AwaitShell"), "shell")
         self.assertEqual(bucket_for("mcp:shell"), "shell")
 
@@ -446,12 +451,22 @@ class TestToolEvents(unittest.TestCase):
         self.assertEqual(bucket_for("Read"), "files")
         self.assertEqual(bucket_for("Write"), "files")
         self.assertEqual(bucket_for("Edit"), "files")
+        self.assertEqual(bucket_for("MultiEdit"), "files")
+        self.assertEqual(bucket_for("NotebookEdit"), "files")
+        self.assertEqual(bucket_for("NotebookRead"), "files")
+        self.assertEqual(bucket_for("LS"), "files")
+        self.assertEqual(bucket_for("Glob"), "files")
+        self.assertEqual(bucket_for("Grep"), "files")
         self.assertEqual(bucket_for("StrReplace"), "files")
         self.assertEqual(bucket_for("Delete"), "files")
         self.assertEqual(bucket_for("EditNotebook"), "files")
-        self.assertEqual(bucket_for("Glob"), "files")
-        self.assertEqual(bucket_for("Grep"), "files")
-        self.assertEqual(bucket_for("mcp:read"), "files")
+        self.assertEqual(bucket_for("apply_patch"), "files")
+        self.assertEqual(bucket_for("read_file"), "files")
+        self.assertEqual(bucket_for("write_file"), "files")
+        self.assertEqual(bucket_for("list_dir"), "files")
+        self.assertEqual(bucket_for("find_by_name"), "files")
+        self.assertEqual(bucket_for("grep_search"), "files")
+        self.assertEqual(bucket_for("view_file"), "files")
 
         # Visual checks bucket
         self.assertEqual(bucket_for("playwright_screenshot"), "visual_checks")
@@ -463,18 +478,145 @@ class TestToolEvents(unittest.TestCase):
         # Web bucket
         self.assertEqual(bucket_for("WebSearch"), "web")
         self.assertEqual(bucket_for("WebFetch"), "web")
+        self.assertEqual(bucket_for("web_search"), "web")
+        self.assertEqual(bucket_for("web_fetch"), "web")
+        self.assertEqual(bucket_for("open_url"), "web")
         self.assertEqual(bucket_for("deploy"), "web")
         self.assertEqual(bucket_for("publish_app"), "web")
 
         # Other bucket
         self.assertEqual(bucket_for("TodoWrite"), "other")
+        self.assertEqual(bucket_for("TodoRead"), "other")
         self.assertEqual(bucket_for("Task"), "other")
+        self.assertEqual(bucket_for("Agent"), "other")
         self.assertEqual(bucket_for("SwitchMode"), "other")
         self.assertEqual(bucket_for("AskQuestion"), "other")
+        self.assertEqual(bucket_for("ExitPlanMode"), "other")
+        self.assertEqual(bucket_for("EnterPlanMode"), "other")
+        self.assertEqual(bucket_for("Skill"), "other")
+        self.assertEqual(bucket_for("SlashCommand"), "other")
+        self.assertEqual(bucket_for("update_plan"), "other")
+        self.assertEqual(bucket_for("request_user_input"), "other")
         self.assertEqual(bucket_for("GenerateImage"), "other")
         self.assertEqual(bucket_for("ReadLints"), "other")
         self.assertEqual(bucket_for("GetDynamicTools"), "other")
         self.assertEqual(bucket_for("unknown_custom_tool"), "other")
+
+    def test_claude_code_transcript_parsing(self):
+        records = [
+            {
+                "type": "assistant",
+                "timestamp": "2026-10-20T10:00:00.000Z",
+                "message": {
+                    "model": "claude-3-7-sonnet",
+                    "usage": {
+                        "input_tokens": 1000,
+                        "cache_read_input_tokens": 800,
+                        "cache_creation_input_tokens": 100,
+                        "output_tokens": 500,
+                        "output_tokens_details": {"reasoning_tokens": 200},
+                    },
+                    "content": [
+                        {"type": "tool_use", "id": "tu-1", "name": "Bash", "input": {"command": "ls"}},
+                        {"type": "tool_use", "id": "tu-2", "name": "Read", "input": {"file": "README.md"}},
+                    ],
+                },
+            },
+            {
+                "type": "user",
+                "timestamp": "2026-10-20T10:00:02.000Z",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "tu-1", "is_error": False},
+                    {"type": "tool_result", "tool_use_id": "tu-2", "is_error": True},
+                ],
+            },
+            {
+                "type": "result",
+                "timestamp": "2026-10-20T10:00:05.000Z",
+                "duration_api_ms": 4500,
+                "usage": {
+                    "input_tokens": 1200,
+                    "cache_read_input_tokens": 800,
+                    "cache_creation_input_tokens": 100,
+                    "output_tokens": 500,
+                    "output_tokens_details": {"reasoning_tokens": 200},
+                },
+            },
+        ]
+        summary = summarize_records(records)
+        self.assertTrue(summary.present)
+        self.assertEqual(summary.model_slug, "claude-3-7-sonnet")
+        self.assertEqual(summary.model_time_seconds, 4.5)
+        self.assertEqual(summary.input_tokens, 2100)
+        self.assertEqual(summary.uncached_input_tokens, 1200)
+        self.assertEqual(summary.cache_read_tokens, 800)
+        self.assertEqual(summary.cache_write_tokens, 100)
+        self.assertEqual(summary.output_tokens, 500)
+        self.assertEqual(summary.reasoning_tokens, 200)
+        self.assertEqual(summary.visible_tokens, 300)
+        self.assertEqual(summary.split_rule, "output_includes_reasoning")
+
+        self.assertEqual(summary.buckets["shell"]["calls"], 1)
+        self.assertEqual(summary.buckets["shell"]["failures"], 0)
+        self.assertEqual(summary.buckets["files"]["calls"], 1)
+        self.assertEqual(summary.buckets["files"]["failures"], 1)
+
+    def test_codex_cli_transcript_parsing(self):
+        records = [
+            {
+                "event_msg": "function_call",
+                "timestamp": "2026-10-20T12:00:00.000Z",
+                "call_id": "call-100",
+                "name": "exec_command",
+                "parameters": {"cmd": "pytest"},
+            },
+            {
+                "event_msg": "function_call_output",
+                "timestamp": "2026-10-20T12:00:02.000Z",
+                "call_id": "call-100",
+                "exit_code": 1,
+            },
+            {
+                "event_msg": "function_call",
+                "timestamp": "2026-10-20T12:00:03.000Z",
+                "call_id": "call-101",
+                "name": "apply_patch",
+                "parameters": {"patch": "diff..."},
+            },
+            {
+                "event_msg": "function_call_output",
+                "timestamp": "2026-10-20T12:00:04.000Z",
+                "call_id": "call-101",
+                "exit_code": 0,
+            },
+            {
+                "event_msg": "turn.completed",
+                "timestamp": "2026-10-20T12:00:10.000Z",
+                "model": "codex-gpt-5",
+                "duration_ms": 8000,
+                "usage": {
+                    "prompt_tokens": 5000,
+                    "prompt_tokens_details": {"cached_tokens": 4000},
+                    "completion_tokens": 1000,
+                    "output_tokens_details": {"reasoning_tokens": 600},
+                },
+            },
+        ]
+        summary = summarize_records(records)
+        self.assertTrue(summary.present)
+        self.assertEqual(summary.model_slug, "codex-gpt-5")
+        self.assertEqual(summary.model_time_seconds, 8.0)
+        self.assertEqual(summary.uncached_input_tokens, 1000)
+        self.assertEqual(summary.cache_read_tokens, 4000)
+        self.assertEqual(summary.output_tokens, 1000)
+        self.assertEqual(summary.reasoning_tokens, 600)
+        self.assertEqual(summary.visible_tokens, 400)
+        self.assertEqual(summary.split_rule, "output_includes_reasoning")
+
+        self.assertEqual(summary.buckets["shell"]["calls"], 1)
+        self.assertEqual(summary.buckets["shell"]["failures"], 1)
+        self.assertEqual(summary.buckets["files"]["calls"], 1)
+        self.assertEqual(summary.buckets["files"]["failures"], 0)
 
     def test_audit_isolation_flagging(self):
         records = [

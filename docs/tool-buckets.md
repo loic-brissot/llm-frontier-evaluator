@@ -61,11 +61,11 @@ Use the purpose rules above when a name is missing from this map.
 
 | Harness tool | Bucket |
 | --- | --- |
-| `Shell`, `Bash`, `shell`, `local_shell`, `AwaitShell` | shell |
-| `Read`, `Write`, `Edit`, `StrReplace`, `Delete`, `EditNotebook`, `Glob`, `Grep` | files |
-| `WebSearch`, `WebFetch` | web |
+| `Shell`, `Bash`, `shell`, `local_shell`, `exec_command`, `write_stdin`, `container.exec`, `run_terminal_cmd`, `AwaitShell` | shell |
+| `Read`, `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `NotebookRead`, `LS`, `Glob`, `Grep`, `StrReplace`, `Delete`, `EditNotebook`, `apply_patch`, `read_file`, `write_file`, `list_dir`, `find_by_name`, `grep_search`, `view_file` | files |
+| `WebSearch`, `WebFetch`, `web_search`, `web_fetch`, `open_url` | web |
 | Browser screenshot, page snapshot, browser console read, `playwright_*`, `browser_*`, `computer` | visual checks |
-| `TodoWrite`, `Task`, `SwitchMode`, `AskQuestion`, `GenerateImage`, `ReadLints`, `GetDynamicTools` | other |
+| `TodoWrite`, `TodoRead`, `Task`, `Agent`, `SwitchMode`, `AskQuestion`, `ExitPlanMode`, `EnterPlanMode`, `Skill`, `SlashCommand`, `update_plan`, `request_user_input`, `GenerateImage`, `ReadLints`, `GetDynamicTools` | other |
 
 An MCP tool follows the same purpose rules. Record its full tool name in `by_tool`. For `CallDynamicTool` / `call_dynamic_tool`, the classifier inspects `tool_input.toolName` (or `tool_name` / `name`) to classify the unwrapped inner tool into its documented bucket (e.g., dynamic `WebSearch` and `WebFetch` map to `web`, dynamic `Delete` maps to `files`, dynamic Playwright/browser tools map to `visual_checks`, `AwaitShell` maps to `shell`, and `GetDynamicTools` stays in `other`).
 
