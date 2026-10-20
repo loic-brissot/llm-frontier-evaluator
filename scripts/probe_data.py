@@ -48,6 +48,7 @@ DATA_EXTENSIONS = {
     ".jsonl",
     ".csv",
     ".tsv",
+    ".txt",
     ".parquet",
     ".sqlite",
     ".db",
@@ -65,11 +66,102 @@ CODE_EXTENSIONS = {
     ".sh",
 }
 
+GTFS_TXT_FILES = {
+    "stops.txt",
+    "routes.txt",
+    "trips.txt",
+    "stop_times.txt",
+    "calendar.txt",
+    "calendar_dates.txt",
+    "shapes.txt",
+    "agency.txt",
+    "transfers.txt",
+    "frequencies.txt",
+    "pathways.txt",
+    "levels.txt",
+    "feed_info.txt",
+}
+
+EXCLUDED_TXT_FILES = {
+    "requirements.txt",
+    "robots.txt",
+    "license.txt",
+    "cmakelists.txt",
+    "readme.txt",
+    "notice.txt",
+    "changelog.txt",
+    "authors.txt",
+    "contributing.txt",
+    "security.txt",
+    "todo.txt",
+}
+
+
+def is_excluded_txt_file(path: Path) -> bool:
+    name_lower = path.name.lower()
+    if name_lower in EXCLUDED_TXT_FILES:
+        return True
+    if name_lower.startswith("readme") or name_lower.startswith("license"):
+        return True
+    return False
+
+
+def is_tabular_txt_file(path: Path) -> bool:
+    name_lower = path.name.lower()
+    if name_lower in GTFS_TXT_FILES:
+        return True
+    try:
+        with path.open("r", encoding="utf-8", errors="ignore") as f:
+            first_line = None
+            line_count = 0
+            for line in f:
+                if line.strip():
+                    if first_line is None:
+                        first_line = line
+                    line_count += 1
+                    if line_count > 1:
+                        break
+            if line_count > 1 and first_line is not None:
+                return any(sep in first_line for sep in (",", "\t", ";"))
+    except Exception:
+        pass
+    return False
+
 
 def load_probe_specs() -> dict[str, Any]:
     if not PROBES_SPEC_PATH.is_file():
         raise FileNotFoundError(f"Probe specs file not found at {PROBES_SPEC_PATH}")
     return load_json(PROBES_SPEC_PATH)
+
+
+def count_json_records(data: Any, max_depth: int = 4) -> int:
+    if isinstance(data, list):
+        return len(data)
+    if not isinstance(data, dict) or not data:
+        return 0
+    if data.get("type") == "FeatureCollection" and isinstance(data.get("features"), list):
+        return len(data["features"])
+
+    max_count = 1
+
+    def _walk(obj: Any, depth: int) -> None:
+        nonlocal max_count
+        if depth > max_depth or obj is None:
+            return
+        if isinstance(obj, list):
+            if len(obj) > max_count:
+                max_count = len(obj)
+            return
+        if isinstance(obj, dict):
+            if len(obj) >= 10 and all(isinstance(v, (dict, list)) for v in obj.values()):
+                if len(obj) > max_count:
+                    max_count = len(obj)
+            for v in obj.values():
+                if isinstance(v, (dict, list)):
+                    _walk(v, depth + 1)
+
+    _walk(data, 1)
+    return max_count
 
 
 def count_records_in_file(path: Path) -> int:
@@ -78,17 +170,7 @@ def count_records_in_file(path: Path) -> int:
         try:
             with path.open("r", encoding="utf-8", errors="ignore") as f:
                 data = json.load(f)
-            if isinstance(data, dict):
-                if data.get("type") == "FeatureCollection" and isinstance(data.get("features"), list):
-                    return len(data["features"])
-                # Look for list properties in dict
-                list_lens = [len(v) for v in data.values() if isinstance(v, list)]
-                if list_lens:
-                    return max(list_lens)
-                return 1
-            elif isinstance(data, list):
-                return len(data)
-            return 1
+            return count_json_records(data)
         except Exception:
             return 0
     elif ext == ".jsonl":
@@ -97,11 +179,14 @@ def count_records_in_file(path: Path) -> int:
                 return sum(1 for line in f if line.strip())
         except Exception:
             return 0
-    elif ext in (".csv", ".tsv"):
+    elif ext in (".csv", ".tsv", ".txt"):
+        if ext == ".txt":
+            if is_excluded_txt_file(path) or not is_tabular_txt_file(path):
+                return 0
         try:
             with path.open("r", encoding="utf-8", errors="ignore") as f:
-                lines = [line for line in f if line.strip()]
-                return max(0, len(lines) - 1)
+                non_empty = sum(1 for line in f if line.strip())
+                return max(0, non_empty - 1)
         except Exception:
             return 0
     elif ext in (".sqlite", ".db"):
@@ -154,11 +239,14 @@ def scan_workspace(workspace_dir: Path) -> dict[str, Any]:
         rel_path = str(path.relative_to(workspace_dir))
         ext = path.suffix.lower()
 
+        if ext == ".txt" and (is_excluded_txt_file(path) or not is_tabular_txt_file(path)):
+            continue
+
         if ext in DATA_EXTENSIONS:
             records = count_records_in_file(path)
             content_snippet = ""
             try:
-                if ext in (".json", ".geojson", ".jsonl", ".csv", ".tsv"):
+                if ext in (".json", ".geojson", ".jsonl", ".csv", ".tsv", ".txt"):
                     content_snippet = path.read_text(encoding="utf-8", errors="ignore")[:50000]
             except Exception:
                 pass
@@ -285,6 +373,23 @@ def evaluate_check(
     data_files = scan_results["data_files"]
     code_files = scan_results["code_files"]
 
+    # Collect markers found across the entire workspace (code + data)
+    workspace_markers: set[str] = set()
+    if required_markers:
+        req_lower = [m.lower() for m in required_markers]
+        for df in data_files:
+            snip = df["snippet"].lower()
+            rel = df["rel_path"].lower()
+            for m, orig in zip(req_lower, required_markers):
+                if m in snip or m in rel:
+                    workspace_markers.add(orig)
+        for cf in code_files:
+            cont = cf["content"].lower()
+            rel = cf["rel_path"].lower()
+            for m, orig in zip(req_lower, required_markers):
+                if m in cont or m in rel:
+                    workspace_markers.add(orig)
+
     # 1. Inspect data files for file pattern & marker matches
     for df in data_files:
         rel_path = df["rel_path"]
@@ -317,10 +422,48 @@ def evaluate_check(
             spatial_ok = check_spatial_bbox(path, spatial_bbox)
 
         if match_pattern and match_markers and spatial_ok:
-            matched_files.append(rel_path)
+            if rel_path not in matched_files:
+                matched_files.append(rel_path)
             observed_records += df["records"]
 
-    # 2. If no data files matched or it's a code/domain check, check code files for required markers
+    # 2. Fallback / dataset priority check for data files when step 1 yields < min_records
+    if observed_records < min_records and data_files:
+        for df in data_files:
+            rel_path = df["rel_path"]
+            path = df["path"]
+            if df["records"] < min_records:
+                continue
+
+            spatial_ok = True
+            if spatial_bbox:
+                spatial_ok = check_spatial_bbox(path, spatial_bbox)
+            if not spatial_ok:
+                continue
+
+            match_pat = False
+            if file_patterns:
+                for pat in file_patterns:
+                    if fnmatch.fnmatch(rel_path.lower(), pat.lower()) or fnmatch.fnmatch(path.name.lower(), pat.lower()):
+                        match_pat = True
+                        break
+
+            data_file_has_markers = False
+            snippet = df["snippet"].lower()
+            if required_markers:
+                for marker in required_markers:
+                    if marker.lower() in snippet or marker.lower() in rel_path.lower():
+                        data_file_has_markers = True
+                        markers_found.add(marker)
+
+            is_data_dir = any(part in ("data", "public") for part in path.parts)
+            has_workspace_markers = len(workspace_markers) > 0 if required_markers else True
+
+            if (match_pat and has_workspace_markers) or data_file_has_markers or (is_data_dir and has_workspace_markers):
+                if rel_path not in matched_files:
+                    matched_files.append(rel_path)
+                observed_records = max(observed_records, df["records"])
+
+    # 3. If no data files matched or records < min_records, check code files for required markers
     if not matched_files and required_markers:
         for cf in code_files:
             content = cf["content"].lower()
@@ -332,8 +475,10 @@ def evaluate_check(
                 else:
                     all_found = False
             if all_found or len(markers_found) >= len(required_markers):
-                matched_files.append(rel_path)
-                observed_records = max(observed_records, 1)
+                if rel_path not in matched_files:
+                    matched_files.append(rel_path)
+                if observed_records == 0:
+                    observed_records = 1
 
     passed = False
     detail = ""
@@ -357,7 +502,7 @@ def evaluate_check(
         "id": check_id,
         "description": description,
         "passed": passed,
-        "observed_records": observed_records if data_files else None,
+        "observed_records": observed_records if (data_files or observed_records > 0) else None,
         "matched_files": matched_files,
         "detail": detail,
     }
