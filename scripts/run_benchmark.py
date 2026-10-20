@@ -12,6 +12,7 @@ from pathlib import Path
 
 from run_common import (
     DEFAULT_PROMPT_ID,
+    ROOT,
     canonical_harness,
     find_run_dir,
     is_cursor_harness,
@@ -28,6 +29,68 @@ STAGING_PARENT = Path("/tmp")
 
 def staging_workspace_for(run_id: str) -> Path:
     return STAGING_PARENT / f"frontier-workspace-{run_id}"
+
+
+def check_preflight(
+    *,
+    docker_image: str = DOCKER_IMAGE,
+    harness: str | None = None,
+    run_id: str | None = None,
+    prompt_id: str = DEFAULT_PROMPT_ID,
+    env: dict | None = None,
+) -> list[str]:
+    """Run preflight checks for Docker daemon, image, harness API keys, and staged workspace.
+
+    Returns a list of actionable error messages. An empty list means all checks passed.
+    """
+    if env is None:
+        env = dict(os.environ)
+
+    errors: list[str] = []
+
+    # Check 1: Docker daemon reachable
+    try:
+        res = subprocess.run(["docker", "info"], capture_output=True, text=True)
+        if res.returncode != 0:
+            errors.append("Docker daemon is not running or unreachable (run: open -a Docker or start the Docker daemon).")
+    except Exception:
+        errors.append("Docker daemon is not running or unreachable (run: open -a Docker or start the Docker daemon).")
+
+    # Check 2: Docker image tag exists
+    try:
+        res = subprocess.run(["docker", "image", "inspect", docker_image], capture_output=True, text=True)
+        if res.returncode != 0:
+            errors.append(f"Docker image '{docker_image}' not found (run: docker build -f Dockerfile.benchmark -t {docker_image} .).")
+    except Exception:
+        errors.append(f"Docker image '{docker_image}' not found (run: docker build -f Dockerfile.benchmark -t {docker_image} .).")
+
+    # Check 3: API key for the harness is set
+    if harness:
+        norm_harness = canonical_harness(harness)
+        if norm_harness == "cursor" or is_cursor_harness(norm_harness):
+            if not env.get("CURSOR_API_KEY"):
+                errors.append(f"Missing required environment variable CURSOR_API_KEY for harness '{norm_harness}' (export CURSOR_API_KEY=...).")
+        elif norm_harness == "claude-code":
+            if not env.get("ANTHROPIC_API_KEY"):
+                errors.append("Missing required environment variable ANTHROPIC_API_KEY for harness 'claude-code' (export ANTHROPIC_API_KEY=...).")
+    else:
+        if not env.get("CURSOR_API_KEY") and not env.get("ANTHROPIC_API_KEY"):
+            errors.append("Missing required environment variable CURSOR_API_KEY or ANTHROPIC_API_KEY (export CURSOR_API_KEY=... or export ANTHROPIC_API_KEY=...).")
+
+    # Check 4: Staged workspace exists
+    if run_id:
+        staging_dir = staging_workspace_for(run_id)
+        is_inside_root = False
+        try:
+            staging_dir.resolve().relative_to(ROOT.resolve())
+            is_inside_root = True
+        except ValueError:
+            is_inside_root = False
+
+        if not staging_dir.is_dir() or is_inside_root:
+            errors.append(f"Staged workspace not found at {staging_dir} (run: python3 scripts/setup_run.py --prompt {prompt_id} ...).")
+
+    return errors
 
 
 def detect_container_harness_version(docker_image: str, harness: str) -> str | None:
@@ -351,6 +414,17 @@ def run_benchmark_container(
                 run_json_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
             final_context = None
 
+    errors = check_preflight(
+        docker_image=docker_image,
+        harness=final_harness,
+        run_id=run_id,
+        prompt_id=prompt_id,
+    )
+    if errors:
+        for err in errors:
+            print(f"Preflight error: {err}", file=sys.stderr)
+        raise RuntimeError("\n".join(errors))
+
     prompt_file = prompt_path(prompt_id)
     if not prompt_file.is_file():
         raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
@@ -358,11 +432,15 @@ def run_benchmark_container(
     prompt_text = prompt_file.read_text(encoding="utf-8")
     staging_dir = staging_workspace_for(run_id)
 
-    if not staging_dir.is_dir():
-        if run_dir is not None and (run_dir / "workspace").is_dir():
-            staging_dir = run_dir / "workspace"
-        else:
-            raise FileNotFoundError(f"Staging workspace not found at {staging_dir}")
+    is_inside_root = False
+    try:
+        staging_dir.resolve().relative_to(ROOT.resolve())
+        is_inside_root = True
+    except ValueError:
+        is_inside_root = False
+
+    if not staging_dir.is_dir() or is_inside_root:
+        raise FileNotFoundError(f"Staged workspace not found at {staging_dir}")
 
     harness_version = detect_container_harness_version(docker_image, final_harness)
     if harness_version and run_dir is not None:
@@ -413,7 +491,7 @@ def run_benchmark_container(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run benchmark prompt inside isolated Docker container.")
     parser.add_argument("--prompt", dest="prompt_id", default=DEFAULT_PROMPT_ID, help="Prompt ID stem.")
-    parser.add_argument("--run-id", required=True, help="Run ID.")
+    parser.add_argument("--run-id", default=None, help="Run ID.")
     parser.add_argument("--harness", default=None, help="Harness name (cursor or claude-code).")
     parser.add_argument("--model", default=None, help="Model name / slug.")
     parser.add_argument("--reasoning", default=None, help="Reasoning / effort level.")
@@ -431,11 +509,35 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
         help="Skip checking cursor-agent models in container.",
     )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Run preflight checks for Docker daemon, image, credentials, and staged workspace, then exit.",
+    )
     return parser
 
 
 def main() -> int:
-    args = build_parser().parse_args()
+    parser = build_parser()
+    args = parser.parse_args()
+
+    if not args.check and not args.run_id:
+        parser.error("the following arguments are required: --run-id")
+
+    if args.check:
+        errors = check_preflight(
+            docker_image=args.docker_image,
+            harness=args.harness,
+            run_id=args.run_id,
+            prompt_id=args.prompt_id,
+        )
+        if errors:
+            for err in errors:
+                print(f"Preflight error: {err}", file=sys.stderr)
+            return 1
+        print("Preflight check OK: Docker daemon, image, credentials, and staged workspace are ready.")
+        return 0
+
     try:
         return run_benchmark_container(
             prompt_id=args.prompt_id,

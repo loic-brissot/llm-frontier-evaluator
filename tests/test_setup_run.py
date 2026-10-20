@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import sys
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
@@ -397,6 +397,29 @@ class TestSetupRun(unittest.TestCase):
         with patch("importlib.util.find_spec", side_effect=mock_find_spec):
             warns = check_environment()
             self.assertTrue(any("jsonschema" in w for w in warns))
+
+    def test_check_environment_docker_and_keys(self):
+        def mock_run_fail_daemon(cmd, **kwargs):
+            if cmd[:2] == ["docker", "info"]:
+                return MagicMock(returncode=1)
+            return MagicMock(returncode=0)
+
+        with patch("subprocess.run", side_effect=mock_run_fail_daemon):
+            warns = check_environment()
+            self.assertTrue(any("Docker daemon is not running or unreachable" in w for w in warns))
+
+        def mock_run_fail_image(cmd, **kwargs):
+            if cmd[:3] == ["docker", "image", "inspect"]:
+                return MagicMock(returncode=1)
+            return MagicMock(returncode=0)
+
+        with patch("subprocess.run", side_effect=mock_run_fail_image):
+            warns = check_environment()
+            self.assertTrue(any("Docker image 'llm-frontier-evaluator-runner:latest' not found" in w for w in warns))
+
+        with patch.dict(os.environ, {}, clear=True):
+            warns = check_environment()
+            self.assertTrue(any("Neither CURSOR_API_KEY nor ANTHROPIC_API_KEY" in w for w in warns))
 
     def test_cli_check_flag(self):
         with patch("sys.argv", ["setup_run.py", "--check"]):

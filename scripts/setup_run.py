@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -90,7 +91,7 @@ HOME="{home_dir}" cursor --new-window --user-data-dir "{userdata_dir}" --extensi
 
 
 def check_environment() -> list[str]:
-    """Check optional verification/schema dependencies without blocking execution."""
+    """Check optional verification/schema dependencies and Docker items without blocking execution."""
     warnings: list[str] = []
     _add_venv_site_packages()
 
@@ -117,6 +118,37 @@ def check_environment() -> list[str]:
             warnings.append(
                 f"Playwright Chromium browser check failed (run: python3 -m playwright install chromium): {exc}"
             )
+
+    try:
+        res = subprocess.run(["docker", "info"], capture_output=True, text=True)
+        if res.returncode != 0:
+            warnings.append(
+                "Docker daemon is not running or unreachable (run: open -a Docker or start the Docker daemon)."
+            )
+    except Exception:
+        warnings.append(
+            "Docker daemon is not running or unreachable (run: open -a Docker or start the Docker daemon)."
+        )
+
+    try:
+        res = subprocess.run(
+            ["docker", "image", "inspect", "llm-frontier-evaluator-runner:latest"],
+            capture_output=True,
+            text=True,
+        )
+        if res.returncode != 0:
+            warnings.append(
+                "Docker image 'llm-frontier-evaluator-runner:latest' not found (run: docker build -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .)."
+            )
+    except Exception:
+        warnings.append(
+            "Docker image 'llm-frontier-evaluator-runner:latest' not found (run: docker build -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .)."
+        )
+
+    if not os.environ.get("CURSOR_API_KEY") and not os.environ.get("ANTHROPIC_API_KEY"):
+        warnings.append(
+            "Neither CURSOR_API_KEY nor ANTHROPIC_API_KEY environment variable is set (export CURSOR_API_KEY=... or export ANTHROPIC_API_KEY=...)."
+        )
 
     return warnings
 
