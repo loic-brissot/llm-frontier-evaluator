@@ -35,12 +35,13 @@ RUN mkdir -p /home/benchmark/.cursor/skills \
              /home/benchmark/.cursor/plugins \
              /home/benchmark/.claude \
              /home/benchmark/.local/bin \
-             /home/benchmark/.local/share/cursor-agent/versions \
+             /home/benchmark/.local/share/cursor-agent/versions/default \
     && chown -R benchmark:benchmark /home/benchmark
 
 # Install cursor-agent for user benchmark
 USER benchmark
-RUN curl -fSL "https://downloads.cursor.com/lab/${CURSOR_AGENT_VERSION}/linux/x64/agent-cli-package.tar.gz" \
+RUN mkdir -p /home/benchmark/.local/share/cursor-agent/versions/default \
+    && curl -fSL "https://downloads.cursor.com/lab/${CURSOR_AGENT_VERSION}/linux/x64/agent-cli-package.tar.gz" \
     | tar --strip-components=1 -xzf - -C /home/benchmark/.local/share/cursor-agent/versions/default \
     && ln -s /home/benchmark/.local/share/cursor-agent/versions/default/cursor-agent /home/benchmark/.local/bin/agent \
     && ln -s /home/benchmark/.local/share/cursor-agent/versions/default/cursor-agent /home/benchmark/.local/bin/cursor-agent
