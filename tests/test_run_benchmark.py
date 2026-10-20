@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from run_benchmark import (
+    build_container_command,
     check_preflight,
     detect_container_harness_version,
     fetch_cursor_available_models,
@@ -376,6 +377,243 @@ class TestRunBenchmark(unittest.TestCase):
             with patch("sys.argv", ["run_benchmark.py", "--check"]):
                 exit_code = main()
                 self.assertEqual(exit_code, 1)
+
+    def test_build_container_command_cursor(self):
+        staging_dir = Path("/tmp/frontier-workspace-test-run")
+        prompt_text = "Analyze france road accidents data.\n"
+        env = {"CURSOR_API_KEY": "test-cursor-key"}
+
+        cmd = build_container_command(
+            staging_dir=staging_dir,
+            docker_image="llm-frontier-evaluator-runner:latest",
+            harness="cursor",
+            resolved_model="claude-opus-5-5-high",
+            effort=None,
+            prompt_text=prompt_text,
+            env=env,
+            container_name="frontier-runner-test-run",
+        )
+
+        self.assertIn("docker", cmd)
+        self.assertIn("run", cmd)
+        self.assertIn("--rm", cmd)
+        self.assertIn("-i", cmd)
+        self.assertIn("--name", cmd)
+        self.assertIn("frontier-runner-test-run", cmd)
+        self.assertIn("-v", cmd)
+        self.assertIn(f"{staging_dir.resolve()}:/workspace:rw", cmd)
+        self.assertIn("-w", cmd)
+        self.assertIn("/workspace", cmd)
+        self.assertIn("-e", cmd)
+        self.assertIn("CURSOR_API_KEY", cmd)
+        self.assertIn("cursor-agent", cmd)
+        self.assertIn("-p", cmd)
+        self.assertIn("--workspace", cmd)
+        self.assertIn("/workspace", cmd)
+        self.assertIn("--model", cmd)
+        self.assertIn("claude-opus-5-5-high", cmd)
+        self.assertIn("--trust", cmd)
+        self.assertIn("--force", cmd)
+        self.assertIn("--output-format", cmd)
+        self.assertIn("stream-json", cmd)
+        self.assertEqual(cmd[-1], prompt_text)
+
+    def test_build_container_command_claude(self):
+        staging_dir = Path("/tmp/frontier-workspace-test-claude")
+        prompt_text = "Analyze open data.\n"
+        env = {"ANTHROPIC_API_KEY": "test-anthropic-key"}
+
+        cmd = build_container_command(
+            staging_dir=staging_dir,
+            docker_image="llm-frontier-evaluator-runner:latest",
+            harness="claude-code",
+            resolved_model="claude-opus-5-5",
+            effort="high",
+            prompt_text=prompt_text,
+            env=env,
+            container_name="frontier-runner-test-claude",
+        )
+
+        self.assertIn("docker", cmd)
+        self.assertIn("run", cmd)
+        self.assertIn("--rm", cmd)
+        self.assertIn("-i", cmd)
+        self.assertIn("--name", cmd)
+        self.assertIn("frontier-runner-test-claude", cmd)
+        self.assertIn("-v", cmd)
+        self.assertIn(f"{staging_dir.resolve()}:/workspace:rw", cmd)
+        self.assertIn("-w", cmd)
+        self.assertIn("/workspace", cmd)
+        self.assertIn("-e", cmd)
+        self.assertIn("ANTHROPIC_API_KEY", cmd)
+        self.assertIn("claude", cmd)
+        self.assertIn("-p", cmd)
+        self.assertIn("--model", cmd)
+        self.assertIn("claude-opus-5-5", cmd)
+        self.assertIn("--effort", cmd)
+        self.assertIn("high", cmd)
+        self.assertIn("--dangerously-skip-permissions", cmd)
+        self.assertIn("--output-format", cmd)
+        self.assertIn("stream-json", cmd)
+        self.assertIn("--verbose", cmd)
+        self.assertEqual(cmd[-1], prompt_text)
+
+    def test_automatic_run_scaffolding(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            runs_tmp = tmp_path / "runs"
+            runs_tmp.mkdir(parents=True)
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.RUNS_DIR", runs_tmp), \
+                 patch("run_common.RUNS_DIR", runs_tmp), \
+                 patch("run_benchmark.find_run_dir", side_effect=lambda run_id, prompt_id: runs_tmp / prompt_id / run_id), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19-test"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run") as mock_finish, \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.run") as mock_run:
+
+                mock_run.return_value = MagicMock(returncode=0, stdout='{"event":"start"}\n')
+
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id=None,
+                    harness="cursor",
+                    model="Claude Opus 5.5",
+                    reasoning="high",
+                    check_models=True,
+                )
+
+                self.assertEqual(exit_code, 0)
+                mock_finish.assert_called_once()
+
+    def test_record_cli_stream_jsonl(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            staging_dir = tmp_path / "frontier-workspace-stream-test"
+            staging_dir.mkdir(parents=True)
+            run_dir = tmp_path / "runs" / "france-road-accidents" / "stream-test"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "cursor"},
+                "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+            }), encoding="utf-8")
+
+            stream_stdout = '{"type":"system","message":"started"}\n{"type":"tool_use","tool":"read"}\n'
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0, stdout=stream_stdout)
+
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id="stream-test",
+                )
+                self.assertEqual(exit_code, 0)
+
+                cli_stream_path = run_dir / "tool-events" / "cli-stream.jsonl"
+                self.assertTrue(cli_stream_path.is_file())
+                self.assertEqual(cli_stream_path.read_text(encoding="utf-8"), stream_stdout)
+
+    def test_timeout_handling_and_cleanup(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            staging_dir = tmp_path / "frontier-workspace-timeout-test"
+            staging_dir.mkdir(parents=True)
+            run_dir = tmp_path / "runs" / "france-road-accidents" / "timeout-test"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "cursor"},
+                "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+            }), encoding="utf-8")
+
+            partial_stdout = '{"type":"system","message":"started"}\n'
+
+            def mock_run_timeout(cmd, **kwargs):
+                if "cursor-agent" in cmd:
+                    exc = subprocess.TimeoutExpired(cmd=cmd, timeout=10)
+                    exc.stdout = partial_stdout
+                    raise exc
+                return MagicMock(returncode=0, stdout="")
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run") as mock_finish, \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.run", side_effect=mock_run_timeout) as mock_run:
+
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id="timeout-test",
+                    timeout_seconds=10,
+                    auto_finish=True,
+                )
+
+                self.assertEqual(exit_code, 124)
+                cli_stream_path = run_dir / "tool-events" / "cli-stream.jsonl"
+                self.assertTrue(cli_stream_path.is_file())
+                self.assertEqual(cli_stream_path.read_text(encoding="utf-8"), partial_stdout)
+                mock_finish.assert_called_once_with("france-road-accidents", "timeout-test")
+
+                # Verify docker rm -f was called for container cleanup
+                docker_rm_called = any(
+                    isinstance(call.args[0], list) and call.args[0][:3] == ["docker", "rm", "-f"]
+                    for call in mock_run.call_args_list
+                )
+                self.assertTrue(docker_rm_called, "docker rm -f should be called upon timeout")
+
+    def test_auto_finish_trigger(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            staging_dir = tmp_path / "frontier-workspace-autofinish-test"
+            staging_dir.mkdir(parents=True)
+            run_dir = tmp_path / "runs" / "france-road-accidents" / "autofinish-test"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "cursor"},
+                "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+            }), encoding="utf-8")
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run") as mock_finish, \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0, stdout="")
+
+                # auto_finish=True (default)
+                exit_code_1 = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id="autofinish-test",
+                    auto_finish=True,
+                )
+                self.assertEqual(exit_code_1, 0)
+                mock_finish.assert_called_once_with("france-road-accidents", "autofinish-test")
+
+                mock_finish.reset_mock()
+
+                # auto_finish=False
+                exit_code_2 = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id="autofinish-test",
+                    auto_finish=False,
+                )
+                self.assertEqual(exit_code_2, 0)
+                mock_finish.assert_not_called()
 
 
 if __name__ == "__main__":

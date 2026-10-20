@@ -3,10 +3,10 @@ id: TASK-25
 title: >-
   Add headless CLI benchmark runner (scripts/run_benchmark.py) for Cursor and
   Claude Code in Docker
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 23:50'
-updated_date: '2026-10-20 17:58'
+updated_date: '2026-10-20 19:10'
 labels:
   - cli
   - runner
@@ -39,7 +39,7 @@ Starting a benchmark run currently requires manual UI steps (opening the workspa
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 scripts/run_benchmark.py scaffolds the run via setup_run.py, executes cursor-agent -p or claude -p inside the Dockerfile.benchmark container mounting only /tmp/frontier-workspace-<run-id>:/workspace:rw, and passes the exact bytes of prompt/<prompt-id>.txt as the initial prompt argument
-- [ ] #2 run_benchmark.py streams and records CLI JSONL output (tool-events/cli-stream.jsonl) alongside hook logs, enforces configurable timeout/cleanup, and automatically triggers finish_run.py --verify when the agent stops
-- [ ] #3 Unit tests verify CLI command construction for cursor-agent and claude, exact prompt byte injection, container mount flags, and end-to-end orchestration with mocked subprocesses
+- [x] #1 scripts/run_benchmark.py scaffolds the run via setup_run.py, executes cursor-agent -p or claude -p inside the Dockerfile.benchmark container mounting only /tmp/frontier-workspace-<run-id>:/workspace:rw, and passes the exact bytes of prompt/<prompt-id>.txt as the initial prompt argument
+- [x] #2 run_benchmark.py streams and records CLI JSONL output (tool-events/cli-stream.jsonl) alongside hook logs, enforces configurable timeout/cleanup, and automatically triggers finish_run.py --verify when the agent stops
+- [x] #3 Unit tests verify CLI command construction for cursor-agent and claude, exact prompt byte injection, container mount flags, and end-to-end orchestration with mocked subprocesses
 <!-- AC:END -->
