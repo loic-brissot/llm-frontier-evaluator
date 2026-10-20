@@ -3,9 +3,10 @@ id: TASK-26
 title: >-
   Install cursor-agent in Dockerfile.benchmark and replace the self-recursive
   wrapper
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-20 17:58'
+updated_date: '2026-10-20 18:51'
 labels:
   - docker
   - runner
@@ -33,8 +34,8 @@ The image also has no Cursor login state, so headless runs depend on CURSOR_API_
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Dockerfile.benchmark installs cursor-agent for the benchmark user (official installer, pinned version recorded as a build arg) and the self-recursive /usr/local/bin/cursor-agent wrapper is removed
-- [ ] #2 docker run --rm llm-frontier-evaluator-runner:latest cursor-agent --version and claude --version both succeed and print a version
-- [ ] #3 The README run section and docs/design-run-isolation.md document the build command (docker build -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .) and the required CURSOR_API_KEY / ANTHROPIC_API_KEY variables
-- [ ] #4 The installed harness version is written to harness.version in run.json for container runs
+- [x] #1 Dockerfile.benchmark installs cursor-agent for the benchmark user (official installer, pinned version recorded as a build arg) and the self-recursive /usr/local/bin/cursor-agent wrapper is removed
+- [x] #2 docker run --rm llm-frontier-evaluator-runner:latest cursor-agent --version and claude --version both succeed and print a version
+- [x] #3 The README run section and docs/design-run-isolation.md document the build command (docker build -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .) and the required CURSOR_API_KEY / ANTHROPIC_API_KEY variables
+- [x] #4 The installed harness version is written to harness.version in run.json for container runs
 <!-- AC:END -->

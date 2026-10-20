@@ -88,13 +88,16 @@ Host Machine (macOS)                                  Docker Container (benchmar
 ```
 
 ### 3.2 Benchmark Container Image (`Dockerfile.benchmark`)
-A single, reusable Docker image (`llm-frontier-evaluator-runner:latest`) provides a deterministic Linux environment:
+A single, reusable Docker image (`llm-frontier-evaluator-runner:latest`) provides a deterministic Linux environment built via:
+```bash
+docker build -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
+```
 - **Base OS & Runtimes**: `node:22-bookworm` with `python3`, `python3-venv`, `python3-pip`, `git`, `curl`, `jq`, `unzip`, `sqlite3`, and common build tools.
 - **Harnesses Installed**:
-  - Cursor Agent CLI (`cursor-agent`)
+  - Cursor Agent CLI (`cursor-agent` pinned via `ARG CURSOR_AGENT_VERSION=2026.10.19-6bbf2c4`, installed under `/home/benchmark/.local/bin`)
   - Claude Code CLI (`@anthropic-ai/claude-code` -> `claude`)
 - **Unprivileged User (`benchmark`, UID 1000)**:
-  - `HOME=/home/benchmark` contains empty `~/.cursor/skills`, `~/.cursor/plugins`, and `~/.claude/` directories.
+  - `HOME=/home/benchmark` contains `ENV PATH="/home/benchmark/.local/bin:${PATH}"` and empty `~/.cursor/skills`, `~/.cursor/plugins`, and `~/.claude/` directories.
   - No personal MCP servers (`mcp.json`), agent transcripts, or host credentials exist inside the image.
 
 ### 3.3 Step 1: Run Setup & External Staging (`scripts/setup_run.py`)
@@ -108,7 +111,8 @@ When the operator runs `python3 scripts/setup_run.py --prompt <prompt-id> ...`:
 ### 3.4 Step 2: Headless CLI Execution in Docker (`scripts/run_benchmark.py`)
 `scripts/run_benchmark.py` orchestrates an end-to-end isolated run:
 1. Reads the exact bytes of `prompt/<prompt-id>.txt`.
-2. Launches the container mounting **only** `/tmp/frontier-workspace-<run-id>:/workspace:rw` with `--workdir /workspace`:
+2. Detects the container's installed harness version (`docker run --rm <docker_image> cursor-agent --version` or `claude --version`) and writes it to `harness.version` in `run.json`.
+3. Launches the container mounting **only** `/tmp/frontier-workspace-<run-id>:/workspace:rw` with `--workdir /workspace`, passing host environment keys (`CURSOR_API_KEY` for Cursor or `ANTHROPIC_API_KEY` for Claude Code):
    - **Cursor CLI (`cursor`)**:
      ```bash
      docker run --rm -i \

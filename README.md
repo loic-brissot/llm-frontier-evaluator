@@ -47,11 +47,13 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 ## Record a run
 
 1. Install the core dependency: `python3 -m pip install -r requirements.txt` (`jsonschema`, used to validate run records). For automated Playwright verification (`scripts/verify_run.py`), install Playwright and Chromium: `python3 -m pip install playwright && python3 -m playwright install chromium`.
-2. Read [`docs/protocol.md`](docs/protocol.md).
-3. Send `prompt/<prompt-id>.txt` as the only user message (e.g. [`prompt/france-road-accidents.txt`](prompt/france-road-accidents.txt)).
-4. Copy [`templates/run.json`](templates/run.json) to `runs/<prompt-id>/<run-id>/run.json`.
-5. Apply [`docs/metrics.md`](docs/metrics.md) and [`docs/tool-buckets.md`](docs/tool-buckets.md).
-6. Print the table with `python3 scripts/compare_runs.py` (add `--prompt <prompt-id>` for one prompt only, `--check-readme` to verify `README.md` comparison tables match run records, or `--sync-readme` to update `README.md`).
+2. Build the runner container image: `docker build -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .`
+3. Export required API key environment variables for headless container runs: `CURSOR_API_KEY` for Cursor (`cursor-agent`) or `ANTHROPIC_API_KEY` for Claude Code (`claude-code`).
+4. Read [`docs/protocol.md`](docs/protocol.md).
+5. Send `prompt/<prompt-id>.txt` as the only user message (e.g. [`prompt/france-road-accidents.txt`](prompt/france-road-accidents.txt)).
+6. Copy [`templates/run.json`](templates/run.json) to `runs/<prompt-id>/<run-id>/run.json`.
+7. Apply [`docs/metrics.md`](docs/metrics.md) and [`docs/tool-buckets.md`](docs/tool-buckets.md).
+8. Print the table with `python3 scripts/compare_runs.py` (add `--prompt <prompt-id>` for one prompt only, `--check-readme` to verify `README.md` comparison tables match run records, or `--sync-readme` to update `README.md`).
 
 `scripts/setup_run.py --prompt <prompt-id>` creates the run directory, copies the prompt into `workspace/prompt.txt`, and generates its id, `YYYY-MM-DD-<harness>-<model>-<context>-<reasoning>`. The `<context>` segment appears only on Cursor runs that have a context set; it is optional even there, and when it is not filled `model.context` is null and the segment is omitted. The effort levels it proposes are harness-specific: `minimal`, `low`, `medium`, `high`, `xhigh`, `max` for Cursor, and `low`, `medium`, `high`, `ultra`, `max`, `ultracode` for Claude (`claude-code`). Reasoning is optional: when it is not filled, `model.reasoning` defaults to `unknown` (null is accepted as the same not-set value) and the run id ends in `-unknown`.
 

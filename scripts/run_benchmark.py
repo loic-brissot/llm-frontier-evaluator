@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -26,6 +27,35 @@ def staging_workspace_for(run_id: str) -> Path:
     return STAGING_PARENT / f"frontier-workspace-{run_id}"
 
 
+def detect_container_harness_version(docker_image: str, harness: str) -> str | None:
+    """Detect the version of the installed harness inside the Docker container."""
+    harness = canonical_harness(harness)
+    cmd_binary = "cursor-agent" if (harness == "cursor" or is_cursor_harness(harness)) else "claude"
+    cmd = ["docker", "run", "--rm", docker_image, cmd_binary, "--version"]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        version = res.stdout.strip()
+        return version if version else None
+    except Exception as exc:
+        print(f"Warning: Failed to detect container harness version for {harness}: {exc}", file=sys.stderr)
+        return None
+
+
+def record_container_harness_version(run_dir: Path, version: str) -> None:
+    """Record harness version in run.json if it exists and version is non-empty."""
+    run_json_path = run_dir / "run.json"
+    if not run_json_path.is_file() or not version:
+        return
+    try:
+        data = json.loads(run_json_path.read_text(encoding="utf-8"))
+        if "harness" not in data or not isinstance(data["harness"], dict):
+            data["harness"] = {}
+        data["harness"]["version"] = version
+        run_json_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    except Exception as exc:
+        print(f"Warning: Failed to write harness.version to {run_json_path}: {exc}", file=sys.stderr)
+
+
 def run_benchmark_container(
     *,
     prompt_id: str,
@@ -44,13 +74,23 @@ def run_benchmark_container(
     prompt_text = prompt_file.read_text(encoding="utf-8")
     staging_dir = staging_workspace_for(run_id)
 
+    run_dir: Path | None = None
+    try:
+        run_dir = find_run_dir(run_id, prompt_id=prompt_id)
+    except FileNotFoundError:
+        run_dir = None
+
     if not staging_dir.is_dir():
         # Fallback to run_dir workspace if staging dir does not exist
-        try:
-            run_dir = find_run_dir(run_id, prompt_id=prompt_id)
+        if run_dir is not None and (run_dir / "workspace").is_dir():
             staging_dir = run_dir / "workspace"
-        except FileNotFoundError:
+        else:
             raise FileNotFoundError(f"Staging workspace not found at {staging_dir}")
+
+    # Record installed container harness version in run.json if available
+    harness_version = detect_container_harness_version(docker_image, harness)
+    if harness_version and run_dir is not None:
+        record_container_harness_version(run_dir, harness_version)
 
     cmd = [
         "docker", "run", "--rm", "-i",
