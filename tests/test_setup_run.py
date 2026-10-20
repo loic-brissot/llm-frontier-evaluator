@@ -12,7 +12,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from compare_runs import check_local_run
 from run_common import ROOT, load_json, prompt_path, prompt_sha256, run_schema_errors
-from setup_run import CURSOR_HOOK_DIR_NAME, create_run_directory, install_cursor_hook, main
+from setup_run import (
+    CURSOR_HOOK_DIR_NAME,
+    check_environment,
+    create_run_directory,
+    install_cursor_hook,
+    main,
+)
 
 
 def _sandbox_blocks_dot_cursor() -> bool:
@@ -290,6 +296,26 @@ class TestSetupRun(unittest.TestCase):
                 self.assertEqual(len(lines), 1)
                 data = json.loads(lines[0])
                 self.assertEqual(data["tool_name"], "Shell")
+
+    def test_check_environment(self):
+        warnings = check_environment()
+        self.assertIsInstance(warnings, list)
+
+        real_find_spec = importlib.util.find_spec
+
+        def mock_find_spec(name):
+            if name == "jsonschema":
+                return None
+            return real_find_spec(name)
+
+        with patch("importlib.util.find_spec", side_effect=mock_find_spec):
+            warns = check_environment()
+            self.assertTrue(any("jsonschema" in w for w in warns))
+
+    def test_cli_check_flag(self):
+        with patch("sys.argv", ["setup_run.py", "--check"]):
+            exit_code = main()
+            self.assertEqual(exit_code, 0)
 
 
 if __name__ == "__main__":

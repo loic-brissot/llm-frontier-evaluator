@@ -3,10 +3,10 @@ id: TASK-22
 title: >-
   Auto-discover latest usage CSV in tmp/, run verification by default in
   finish_run.py, and add environment preflight check
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-19 12:52'
-updated_date: '2026-10-19 23:49'
+updated_date: '2026-10-20 00:50'
 labels:
   - dx
   - workflow
@@ -33,9 +33,9 @@ During the Muse Wonder and Gemini 4 Argon runs, three workflow friction points o
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 finish_run.py scans tmp/ for usage CSV files containing events matching the run's model and wall_clock window and offers the best matching file path as the interactive default
-- [ ] #2 finish_run.py automatically runs verify_run() when artifacts/runtime.json does not exist yet (unless --skip-verify is passed), removing the need to run verify_run.py as a separate manual command before finish_run.py
-- [ ] #3 setup_run.py (or a --check / preflight helper) prints a non-blocking warning if optional verification dependencies (Playwright + Chromium) or jsonschema are missing from the environment
-- [ ] #4 Unit tests verify tmp/ usage CSV auto-discovery and automatic verify_run execution in finish_run.py
-- [ ] #5 Deduplicate observations notes in finish_run.py (observation_default) so re-running finish_run.py on an existing run does not append duplicate warning strings
+- [x] #1 finish_run.py scans tmp/ for usage CSV files containing events matching the run's model and wall_clock window and offers the best matching file path as the interactive default
+- [x] #2 finish_run.py automatically runs verify_run() when artifacts/runtime.json does not exist yet (unless --skip-verify is passed), removing the need to run verify_run.py as a separate manual command before finish_run.py
+- [x] #3 setup_run.py (or a --check / preflight helper) prints a non-blocking warning if optional verification dependencies (Playwright + Chromium) or jsonschema are missing from the environment
+- [x] #4 Unit tests verify tmp/ usage CSV auto-discovery and automatic verify_run execution in finish_run.py
+- [x] #5 Deduplicate observations notes in finish_run.py (observation_default) so re-running finish_run.py on an existing run does not append duplicate warning strings
 <!-- AC:END -->

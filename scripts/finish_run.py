@@ -131,6 +131,85 @@ def select_run_id(explicit: str | None, prompt_id: str | None = None) -> Path:
         print("  Enter a number from the list.")
 
 
+def discover_tmp_usage_csv(run_dir: Path, tmp_dir: Path | None = None) -> Path | None:
+    """Discover the newest usage CSV in tmp_dir matching the run's model and wall clock window."""
+    if tmp_dir is None:
+        tmp_dir = ROOT / "tmp"
+    if not tmp_dir.is_dir():
+        return None
+
+    run_path = run_dir / "run.json"
+    if not run_path.is_file():
+        return None
+
+    run = load_json(run_path)
+    run_effective = dict(run)
+    wall_clock = dict(run.get("wall_clock") or {})
+    tool_summary = summarize_run(run_dir)
+    if tool_summary.wall_started_at:
+        wall_clock["started_at"] = tool_summary.wall_started_at
+    if tool_summary.wall_ended_at:
+        wall_clock["ended_at"] = tool_summary.wall_ended_at
+    run_effective["wall_clock"] = wall_clock
+
+    run_model = str((run_effective.get("model") or {}).get("name") or "")
+    started = parse_timestamp(wall_clock.get("started_at"))
+    ended = parse_timestamp(wall_clock.get("ended_at"))
+    window_known = bool(started or ended)
+
+    candidates = [p for p in tmp_dir.glob("*.csv") if p.is_file()]
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda p: (p.stat().st_mtime, p.name), reverse=True)
+
+    best_path: Path | None = None
+    best_tier = 99
+
+    for csv_path in candidates:
+        events, _ = read_usage_csv(csv_path)
+        if not events:
+            continue
+
+        has_exact_longer_window = False
+        has_shorter_window = False
+        has_exact_longer_model = False
+        has_shorter_model = False
+
+        for event in events:
+            m_match = models_match(run_model, event.model) if run_model else None
+            if m_match is None:
+                continue
+            in_win = event_in_window(event, started, ended) if window_known else False
+            if m_match in {"exact", "longer"}:
+                has_exact_longer_model = True
+                if in_win:
+                    has_exact_longer_window = True
+            elif m_match == "shorter":
+                has_shorter_model = True
+                if in_win:
+                    has_shorter_window = True
+
+        if has_exact_longer_window:
+            tier = 1
+        elif has_shorter_window:
+            tier = 2
+        elif has_exact_longer_model:
+            tier = 3
+        elif has_shorter_model:
+            tier = 4
+        else:
+            continue
+
+        if tier < best_tier:
+            best_tier = tier
+            best_path = csv_path
+            if best_tier == 1:
+                break
+
+    return best_path
+
+
 def ingest_usage(run_dir: Path, source: Path | None, *, skip_copy: bool) -> list[Path]:
     usage_dir = run_dir / "usage"
     usage_dir.mkdir(exist_ok=True)
@@ -141,15 +220,22 @@ def ingest_usage(run_dir: Path, source: Path | None, *, skip_copy: bool) -> list
         existing = sorted(path for path in usage_dir.iterdir() if path.is_file())
         tool_summary = summarize_run(run_dir)
         has_hook_tokens = bool(tool_summary.token_turns)
+        discovered = discover_tmp_usage_csv(run_dir)
         if existing or has_hook_tokens:
-            raw = prompt_optional(
-                "Path to harness usage export (Enter to use hook log / existing usage/)"
-            )
+            if discovered:
+                raw = prompt_optional("Path to harness usage export", default=str(discovered))
+            else:
+                raw = prompt_optional(
+                    "Path to harness usage export (Enter to use hook log / existing usage/)"
+                )
             if not raw:
                 return existing
             source = Path(raw).expanduser()
         else:
-            raw = prompt("Path to harness usage export (file or directory)")
+            if discovered:
+                raw = prompt("Path to harness usage export (file or directory)", default=str(discovered))
+            else:
+                raw = prompt("Path to harness usage export (file or directory)")
             source = Path(raw).expanduser()
     if not source.exists():
         raise FileNotFoundError(f"Usage export not found: {source}")
@@ -1234,8 +1320,18 @@ def observation_default(run: dict, summary: ToolEventSummary, *, include_other: 
         extra.append("other tools: " + ", ".join(summary.other_tools) + ".")
     if not extra:
         return existing
-    note = " ".join(extra)
-    return f"{existing} {note}".strip() if existing else note
+    new_notes: list[str] = []
+    for note in extra:
+        note_str = note.strip()
+        if not note_str:
+            continue
+        if note_str in existing or note_str in new_notes:
+            continue
+        new_notes.append(note_str)
+    if not new_notes:
+        return existing
+    note_text = " ".join(new_notes)
+    return f"{existing} {note_text}".strip() if existing else note_text
 
 
 def complete_run_json(
@@ -1246,7 +1342,8 @@ def complete_run_json(
     verify: bool = False,
     skip_verify: bool = False,
 ) -> None:
-    if verify and not skip_verify:
+    runtime_file = run_dir / "artifacts" / "runtime.json"
+    if (verify or not runtime_file.is_file()) and not skip_verify:
         try:
             verify_run(run_dir, update_run_json=True)
         except Exception as exc:

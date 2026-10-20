@@ -1,6 +1,8 @@
+import os
 import tempfile
 import unittest
 from decimal import Decimal
+from unittest.mock import patch
 import sys
 from pathlib import Path
 
@@ -9,14 +11,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from finish_run import (
     UsageEvent,
+    complete_run_json,
     default_csv_selection,
+    discover_tmp_usage_csv,
     event_in_window,
+    observation_default,
     parse_decimal,
     parse_timestamp,
     parse_token_count,
     read_usage_csv,
     summarize_events,
 )
+from tool_events import ToolEventSummary
 
 
 def make_event(timestamp_str: str) -> UsageEvent:
@@ -225,6 +231,105 @@ class TestFinishRun(unittest.TestCase):
         self.assertEqual(len(chosen), 1)
         self.assertEqual(chosen[0], ev1)
         self.assertEqual(kind, "exact")
+
+    def test_discover_tmp_usage_csv(self):
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            run_dir = tmp_dir / "run_dir"
+            run_dir.mkdir()
+            run_json = run_dir / "run.json"
+            run_json.write_text(
+                '{"model": {"name": "gemini-3.1-pro"}, "wall_clock": {"started_at": "2026-10-17T02:00:00Z", "ended_at": "2026-10-17T02:10:00Z"}}',
+                encoding="utf-8",
+            )
+
+            csv_old = tmp_dir / "old_match.csv"
+            csv_old.write_text(
+                "Date,Model,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost (USD)\n"
+                "2026-10-17T02:05:00Z,gemini-3.1-pro,100,500,200,300,1100,$0.25\n",
+                encoding="utf-8",
+            )
+            # Ensure mtime difference
+            os.utime(csv_old, (1000, 1000))
+
+            csv_new = tmp_dir / "new_match.csv"
+            csv_new.write_text(
+                "Date,Model,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost (USD)\n"
+                "2026-10-17T02:06:00Z,gemini-3.1-pro,100,500,200,300,1100,$0.25\n",
+                encoding="utf-8",
+            )
+            os.utime(csv_new, (2000, 2000))
+
+            csv_other = tmp_dir / "other_model.csv"
+            csv_other.write_text(
+                "Date,Model,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost (USD)\n"
+                "2026-10-17T02:07:00Z,claude-3-5-sonnet,100,500,200,300,1100,$0.25\n",
+                encoding="utf-8",
+            )
+            os.utime(csv_other, (3000, 3000))
+
+            discovered = discover_tmp_usage_csv(run_dir, tmp_dir=tmp_dir)
+            self.assertEqual(discovered, csv_new)
+
+    def test_complete_run_json_verification_triggers(self):
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            run_dir = Path(tmp_dir_str)
+            run_json = run_dir / "run.json"
+            run_json.write_text(
+                '{"rules_version": 2, "harness": {"name": "cursor"}, "model": {"name": "gemini-3.1-pro"}, '
+                '"tokens": {"split_rule": "unavailable", "reasoning_tokens": 0, "visible_tokens": 0}, '
+                '"model_time": {"source": "unavailable", "generating_seconds": 0}, '
+                '"context_reread": {"source": "unavailable", "cache_read_tokens": 0}, '
+                '"tool_calls": {"shell": {"calls": 0, "failures": 0}, "files": {"calls": 0, "failures": 0}, '
+                '"visual_checks": {"calls": 0, "failures": 0}, "web": {"calls": 0, "failures": 0}, "other": {"calls": 0, "failures": 0}}, '
+                '"outcome": {"model_stopped": true, "operator_saw_a_page": true, "summary": "test"}, '
+                '"wall_clock": {"started_at": "2026-10-17T02:00:00Z", "ended_at": "2026-10-17T02:10:00Z"}, "observations": ""}',
+                encoding="utf-8",
+            )
+            artifacts_dir = run_dir / "artifacts"
+            artifacts_dir.mkdir()
+            runtime_json = artifacts_dir / "runtime.json"
+
+            with patch("finish_run.verify_run") as mock_verify:
+                # 1. Missing runtime.json, verify=False, skip_verify=False -> calls verify_run
+                complete_run_json(run_dir, [], interactive=False, verify=False, skip_verify=False)
+                mock_verify.assert_called_once_with(run_dir, update_run_json=True)
+                mock_verify.reset_mock()
+
+                # 2. Missing runtime.json, skip_verify=True -> does NOT call verify_run
+                complete_run_json(run_dir, [], interactive=False, verify=False, skip_verify=True)
+                mock_verify.assert_not_called()
+                mock_verify.reset_mock()
+
+                # 3. Existing runtime.json, verify=False, skip_verify=False -> does NOT call verify_run
+                runtime_json.write_text('{"passed": true}', encoding="utf-8")
+                complete_run_json(run_dir, [], interactive=False, verify=False, skip_verify=False)
+                mock_verify.assert_not_called()
+                mock_verify.reset_mock()
+
+                # 4. Existing runtime.json, verify=True, skip_verify=False -> calls verify_run
+                complete_run_json(run_dir, [], interactive=False, verify=True, skip_verify=False)
+                mock_verify.assert_called_once_with(run_dir, update_run_json=True)
+
+    def test_observation_default_deduplication(self):
+        summary = ToolEventSummary(
+            present=True,
+            notes=["Note 1", "Note 2"],
+            other_tools=["custom_tool"],
+        )
+        run = {"observations": ""}
+        first_call = observation_default(run, summary, include_other=True)
+        self.assertEqual(first_call, "Note 1 Note 2 other tools: custom_tool.")
+
+        # Re-running with existing observations containing notes
+        run["observations"] = first_call
+        second_call = observation_default(run, summary, include_other=True)
+        self.assertEqual(second_call, "Note 1 Note 2 other tools: custom_tool.")
+
+        # Partial existing
+        run["observations"] = "Note 1"
+        partial_call = observation_default(run, summary, include_other=True)
+        self.assertEqual(partial_call, "Note 1 Note 2 other tools: custom_tool.")
 
 
 if __name__ == "__main__":
