@@ -1,16 +1,19 @@
 # LLM Frontier Evaluator
 
-Evaluating frontier LLMs and AI agent harnesses on complex, data-heavy, end-to-end engineering builds. Each benchmark run sends one model one frozen prompt from [`prompt/`](prompt/README.md) in a clean-room environment and measures how the model worked: tool usage, generation time, token consumption, cache re-reads, estimated costs, and visual/data quality.
+**A clean-room, telemetry-driven benchmark for evaluating frontier LLMs and AI agent harnesses on complex, data-heavy, end-to-end engineering builds.**
+
+Standard coding benchmarks test isolated function completions or single-PR patches. In production engineering, frontier agents are tasked with building entire data pipelines and interactive applications from messy, multi-table open data APIs—where models frequently fail silently by **synthesizing fake data** when an API or join fails, or burn millions of cached tokens in retry loops.
+
+Each run in this repository sends one model one frozen prompt from [`prompt/`](prompt/README.md) inside a hermetic environment and audits both **how the agent worked** (output tokens, active generation vs. thinking time, successful vs. failed tool calls, prompt-cache re-reads, and API list-price cost) and **what it actually built** (automated Playwright UI smoke tests + anti-cheating data authenticity probes).
 
 Inspired by Charles de Lassence's 11 October 2026 benchmark post: [Building a 3D atlas of Paris as model benchmark](https://lassence.net/posts/personal-benchmark-3d-atlas-of-paris/) / [bench.lassence.net](https://bench.lassence.net/).
 
-### Showcase Runs
+### Engineering Highlights
 
-![Rail Pulse France — 24-hour TGV, Intercités & TER animation built by Claude Opus 5.5 in Cursor](runs/france-rail-24h-pulse/2026-10-19-cursor-claude-opus-5-5-high-300k-high/artifacts/screenshot.png)
-*Rail Pulse France — 24-hour TGV, TER & Intercités animation built by Claude Opus 5.5 in Cursor (`france-rail-24h-pulse`).*
-
-![Observatoire des accidents corporels 2024 built by Muse Wonder in Cursor](runs/france-road-accidents/2026-10-19-cursor-muse-wonder-300k-medium/artifacts/screenshot.png)
-*Observatoire des accidents corporels 2024 built by Muse Wonder in Cursor (`france-road-accidents`).*
+- **Hermetic Clean-Room & Container Isolation**: Runs execute in an isolated staging workspace (`/tmp/frontier-workspace-<run-id>/`)—either headless inside a Linux Docker container (`Dockerfile.benchmark`) or in a sterile GUI profile—enforced by `preToolUse` boundary hooks and post-run transcript contamination audits (`audit_isolation`). Models cannot read grading probes, parent repo files, or sibling runs.
+- **Anti-Cheating Data Pipeline Probes (`probe_data.py`)**: Models often fall back to hardcoded or `Math.random()` data when open-data endpoints fail. Every run is audited against declarative probe specs in [`reference/prompt-probes.json`](reference/prompt-probes.json) verifying minimum record counts (up to ~394k rows), required schema markers, spatial bounding boxes, and synthetic-pattern absence.
+- **Automated Runtime Smoke Tests (`verify_run.py`)**: Boots the model's application in a local server, drives headless Chromium via Playwright, asserts HTTP 200 and zero uncaught page errors, inspects DOM/Canvas/WebGL rendering contexts, and captures deterministic `1440×900` screenshots.
+- **Zero-Estimation Telemetry & Cost Engine (`tool_events.py`, `run_common.py`)**: Computes active generation time by subtracting the interval union of parallel tool executions from wall clock (`wall_clock_minus_tool_time`), deduplicates model thinking blocks (`afterAgentThought`), reconciles hook telemetry against billing CSV exports (with automatic PII scrubbing), and prices token usage across context variants (`300k`, `500k`, `1m`), long-context step-ups, and harness surcharges.
 
 ## Comparisons
 
@@ -18,11 +21,13 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 ### `france-electricity-carbon-flow`
 
+![france-electricity-carbon-flow — Gemini 4 Argon 1m medium (2026-10-19-cursor-gemini-4-argon-1m-medium)](runs/france-electricity-carbon-flow/2026-10-19-cursor-gemini-4-argon-1m-medium/artifacts/screenshot.png)
+
 **Local series `france-electricity-carbon-flow-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
-| Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) |
-| --- | --- | --- | --- | --- | --- | --- |
-| Gemini 4 Argon 1m medium | Cursor | n/a | 17.7 min | 28 7✗ | 1.0M | $2.55 |
+| Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Gemini 4 Argon 1m medium | Cursor | 73k | 17.7 min<br>14.6 min thinking | 21 ✓<br>7 ✗ | 1.0M | $2.55 | UI ✓ · Data 4/4 ✓<br>3.5k records |
 
 ### `france-rail-24h-pulse`
 
@@ -30,9 +35,9 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 **Local series `france-rail-24h-pulse-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
-| Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) |
-| --- | --- | --- | --- | --- | --- | --- |
-| Claude Opus 5.5 300k high | Cursor | n/a | 20.1 min | 50 10✗ | 5.5M | $6.53 |
+| Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Claude Opus 5.5 300k high | Cursor | 90k | 20.1 min<br>7.7 min thinking | 40 ✓<br>10 ✗ | 5.5M | $6.53 | UI ✓ · Data 3/3 ✓<br>820k records |
 
 ### `france-road-accidents`
 
@@ -40,19 +45,21 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 **Local series `france-road-accidents-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
-| Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) |
-| --- | --- | --- | --- | --- | --- | --- |
-| Muse Wonder 300k medium | Cursor | n/a | 4.8 min | 41 7✗ | 1.7M | $1.76 |
+| Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Muse Wonder 300k medium | Cursor | 25k | 4.8 min | 34 ✓<br>7 ✗ | 1.7M | $1.76 | UI ✓ · Data 2/2 ✓<br>394k records |
 
 ### `paris-1910-flood-simulator`
 
-![paris-1910-flood-simulator — claude-opus-5-5 high (2026-10-20-cursor-claude-opus-5-5-high)](runs/paris-1910-flood-simulator/2026-10-20-cursor-claude-opus-5-5-high/artifacts/screenshot.png)
+![paris-1910-flood-simulator — Claude Opus 5.5 high (2026-10-20-cursor-claude-opus-5-5-high)](runs/paris-1910-flood-simulator/2026-10-20-cursor-claude-opus-5-5-high/artifacts/screenshot.png)
 
 **Local series `paris-1910-flood-simulator-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
-| Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) |
-| --- | --- | --- | --- | --- | --- | --- |
-| claude-opus-5-5 high | Cursor | n/a | n/a | n/a | n/a | n/a |
+| Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Claude Opus 5.5 high | Cursor | n/a | 42.2 min<br>19.6 min thinking | 113 ✓<br>31 ✗ | n/a | n/a | UI ✓ · Data 6/6 ✓<br>141k records |
+
+*Note: Token and cost columns show `n/a` for headless CLI runs until a Cursor billing CSV export is ingested (`finish_run.py --usage-export`).*
 
 ## Protocol
 
@@ -60,15 +67,15 @@ Each benchmark run evaluates one model and one agent harness on a single frozen 
 
 - **Single-prompt, zero-intervention execution**: Every primary run sends the exact byte sequence of `prompt/<prompt-id>.txt` (verified by SHA-256 hash) as a single user message with zero operator intervention, hints, or manual workspace edits during initial execution.
 - **Clean-room isolation**: Runs execute inside an external staged workspace (`/tmp/frontier-workspace-<run-id>/`) initialized with its own `.git` boundary—either headless inside a Linux Docker container (`Dockerfile.benchmark`) or via an isolated clean-room GUI profile. This prevents models from accessing parent repository files, evaluation graders (`verify_run.py`, `prompt-probes.json`), sibling runs, or host-global skills, plugins, and MCP servers ([`docs/design-run-isolation.md`](docs/design-run-isolation.md)).
-- **Token & cost accounting**: Generated tokens (`reasoning` vs. `visible` when split by provider rules) and prompt-cache reads (`Context re-read`, serving `cache_read_tokens`) are recorded strictly from harness telemetry and usage exports without estimation. Estimated cost reflects public per-1M-token API list prices from [`reference/pricing-2026-10-18.json`](reference/pricing-2026-10-18.json) (accounting for context-window variants and long-context thresholds) plus harness-adjusted rates from Cursor usage CSV exports ([`docs/metrics.md`](docs/metrics.md)).
-- **Model time & tool telemetry**: Every tool invocation is captured via harness hooks or CLI transcripts and classified into chart buckets (`shell`, `files`, `visual_checks`, `web`, plus `other`), counting total invocations and failed calls (`✗`) ([`docs/tool-buckets.md`](docs/tool-buckets.md)). Model time reports active generation time with tool execution intervals excluded (`wall_clock_minus_tool_time` or provider request durations). When the model stops, automated Playwright smoke tests (`verify_run.py`) and data-pipeline verification (`probe_data.py`) audit the output.
+- **Token & cost accounting**: Output tokens (`Output tokens (k)`) and prompt-cache reads (`Context re-read`, serving `cache_read_tokens`) are recorded strictly from harness telemetry and usage exports without estimation. Estimated cost reflects public per-1M-token API list prices from [`reference/pricing-2026-10-18.json`](reference/pricing-2026-10-18.json) (accounting for context-window variants and long-context thresholds) plus harness-adjusted rates from Cursor usage CSV exports ([`docs/metrics.md`](docs/metrics.md)).
+- **Model time & tool telemetry**: Every tool invocation is captured via harness hooks or CLI transcripts and classified into chart buckets (`shell`, `files`, `visual_checks`, `web`, plus `other`), displaying successful calls (`✓`) and failed calls (`✗`) on two lines ([`docs/tool-buckets.md`](docs/tool-buckets.md)). Model time reports active generation time with tool execution intervals excluded (`wall_clock_minus_tool_time` or provider request durations), along with deduplicated thinking time (`afterAgentThought`) when logged. When the model stops, automated Playwright smoke tests (`verify_run.py`) and data-pipeline verification (`probe_data.py`) audit the output.
 
 ## Prompts
 
 1. [`france-road-accidents`](prompt/france-road-accidents.txt): build, from the four relational ONISR BAAC open-data tables, an interactive map and "who hits whom" collision observatory of corporeal road accidents in metropolitan France across severity, transport modes, and road conditions ([runs](runs/france-road-accidents/)).
 2. [`france-socio-electoral-atlas`](prompt/france-socio-electoral-atlas.txt): build, from INSEE Filosofi, demographic, and Ministry of the Interior open data, an interactive bivariate socio-electoral atlas of metropolitan France across ~35,000 communes with a linked brushable scatterplot.
 3. [`adaptive-endurance-coach`](prompt/adaptive-endurance-coach.txt): build an adaptive training planner and physiological simulator for triathlon, running, cycling, and cross-training that derives individualized power/pace/HR/swim zones, models Banister CTL/ATL/TSB load dynamics, exports `.ics`/`.zwo` workouts, and live-recalibrates the plan when sessions are skipped or altered.
-4. [`paris-1910-flood-simulator`](prompt/paris-1910-flood-simulator.txt): build, from Apur, Paris, and Île-de-France Mobilités open data, an interactive 3D simulator of the Seine rising up to and beyond the 1910 centennial flood (+8.62 m at Austerlitz), submerging buildings, streets, and rail stations against PPRI flood risk zones.
+4. [`paris-1910-flood-simulator`](prompt/paris-1910-flood-simulator.txt): build, from Apur, Paris, and Île-de-France Mobilités open data, an interactive 3D simulator of the Seine rising up to and beyond the 1910 centennial flood (+8.62 m at Austerlitz), submerging buildings, streets, and rail stations against PPRI flood risk zones ([runs](runs/paris-1910-flood-simulator/)).
 5. [`france-rail-24h-pulse`](prompt/france-rail-24h-pulse.txt): build, from SNCF GTFS and Réseau Ferré National open data, an interactive 24-hour animated map and station-to-station travel-time accessibility atlas of the French passenger rail network (TGV, Intercités, TER) ([runs](runs/france-rail-24h-pulse/)).
 6. [`france-electricity-carbon-flow`](prompt/france-electricity-carbon-flow.txt): build, from RTE éCO2mix and ODRE open data, an interactive observatory and grid stress-test simulator of the French electricity system mapping regional generation, power plants, cross-border flows, and carbon intensity ([runs](runs/france-electricity-carbon-flow/)).
 

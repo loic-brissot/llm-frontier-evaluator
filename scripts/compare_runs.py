@@ -44,8 +44,8 @@ HARNESS_LABELS = {
     "codex": "Codex",
     "other": "Other",
 }
-LOCAL_TABLE_HEADER = "| Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) |"
-LOCAL_TABLE_RULE = "| --- | --- | --- | --- | --- | --- | --- |"
+LOCAL_TABLE_HEADER = "| Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |"
+LOCAL_TABLE_RULE = "| --- | --- | --- | --- | --- | --- | --- | --- |"
 
 
 def harness_label(harness_name: str) -> str:
@@ -82,6 +82,32 @@ def format_tokens(reasoning: int, visible: int) -> str:
     return f"{thousands}k · {percent}%"
 
 
+def format_output_tokens(total: int) -> str:
+    thousands = round_half_up(Decimal(total) / Decimal(1000), 0)
+    return f"{thousands}k"
+
+
+def extract_output_tokens(run: dict) -> int | None:
+    tokens = run.get("tokens") or {}
+    if isinstance(tokens.get("reasoning_tokens"), int) and isinstance(tokens.get("visible_tokens"), int):
+        return tokens["reasoning_tokens"] + tokens["visible_tokens"]
+    raw = tokens.get("raw") if isinstance(tokens.get("raw"), dict) else {}
+    csv_block = raw.get("usage_csv") if isinstance(raw.get("usage_csv"), dict) else {}
+    hook_block = raw.get("hook_tokens") if isinstance(raw.get("hook_tokens"), dict) else {}
+    cache = run.get("context_reread") or {}
+    cache_raw = cache.get("raw") if isinstance(cache.get("raw"), dict) else {}
+    for candidate in (
+        csv_block.get("output_tokens"),
+        hook_block.get("output_tokens"),
+        raw.get("output_tokens"),
+        raw.get("completion_tokens"),
+        cache_raw.get("output_tokens"),
+    ):
+        if isinstance(candidate, int) and not isinstance(candidate, bool):
+            return candidate
+    return None
+
+
 def format_minutes(seconds: Decimal | int | float) -> str:
     minutes = round_half_up(Decimal(str(seconds)) / Decimal(60), 1)
     return f"{minutes} min"
@@ -96,6 +122,67 @@ def format_tools(calls: int, failures: int) -> str:
     if failures == 0:
         return str(calls)
     return f"{calls} {failures}✗"
+
+
+def format_tools_readme(calls: int, failures: int) -> str:
+    succeeded = max(0, calls - failures)
+    return f"{succeeded} ✓<br>{failures} ✗"
+
+
+def format_model_time_readme(run: dict) -> str:
+    model_time = run.get("model_time") or {}
+    if model_time.get("source") == "unavailable" or model_time.get("generating_seconds") is None:
+        return "n/a"
+    base = format_minutes(model_time["generating_seconds"])
+    raw = model_time.get("raw") if isinstance(model_time.get("raw"), dict) else {}
+    te = raw.get("tool_events") if isinstance(raw.get("tool_events"), dict) else {}
+    thinking = te.get("thinking_seconds")
+    if isinstance(thinking, (int, float)) and not isinstance(thinking, bool) and thinking > 0:
+        return f"{base}<br>{format_minutes(thinking)} thinking"
+    return base
+
+
+def format_record_count(records: int) -> str:
+    if records >= 1_000_000:
+        val = round_half_up(Decimal(records) / Decimal(1_000_000), 1)
+        return f"{val}M"
+    if records >= 10_000:
+        val = round_half_up(Decimal(records) / Decimal(1000), 0)
+        return f"{val}k"
+    if records >= 1_000:
+        val = round_half_up(Decimal(records) / Decimal(1000), 1)
+        return f"{val}k"
+    return str(records)
+
+
+def format_verification_readme(run: dict) -> str:
+    ver = run.get("verification")
+    if not isinstance(ver, dict):
+        return "n/a"
+    rt = ver.get("runtime") if isinstance(ver.get("runtime"), dict) else None
+    dp = ver.get("data_pipeline") if isinstance(ver.get("data_pipeline"), dict) else None
+    if rt is None and dp is None:
+        return "n/a"
+
+    parts_line1: list[str] = []
+    if rt is not None:
+        rt_icon = "✓" if rt.get("passed") else "✗"
+        parts_line1.append(f"UI {rt_icon}")
+    if dp is not None:
+        checks = dp.get("checks") if isinstance(dp.get("checks"), list) else []
+        passed_checks = sum(1 for c in checks if isinstance(c, dict) and c.get("passed"))
+        total_checks = len(checks)
+        dp_icon = "✓" if dp.get("passed") else "⚠"
+        if total_checks > 0:
+            parts_line1.append(f"Data {passed_checks}/{total_checks} {dp_icon}")
+        else:
+            parts_line1.append(f"Data {dp_icon}")
+
+    line1 = " · ".join(parts_line1) if parts_line1 else "n/a"
+    if dp is not None and isinstance(dp.get("total_records"), int) and not isinstance(dp.get("total_records"), bool):
+        rec_str = format_record_count(dp["total_records"])
+        return f"{line1}<br>{rec_str} records"
+    return line1
 
 
 def format_reference_cost(run: dict) -> str:
@@ -618,12 +705,12 @@ def check_series_versions(runs: list[dict]) -> list[str]:
 def local_row(run: dict) -> tuple[list[str], list[str]]:
     """Return chart cells and incompleteness notes."""
     notes: list[str] = []
-    tokens = run["tokens"]
-    if tokens["split_rule"] == "unavailable":
+    out_tokens = extract_output_tokens(run)
+    if out_tokens is None:
         token_cell = "n/a"
-        notes.append("token split unavailable")
+        notes.append("output tokens unavailable")
     else:
-        token_cell = format_tokens(tokens["reasoning_tokens"], tokens["visible_tokens"])
+        token_cell = format_output_tokens(out_tokens)
 
     model_time = run["model_time"]
     if model_time["source"] == "unavailable":
@@ -661,9 +748,20 @@ def local_row(run: dict) -> tuple[list[str], list[str]]:
 def readme_row(run: dict) -> str:
     """Format one local primary run as a Markdown table row for README.md."""
     cells, _ = local_row(run)
-    _prompt_id, _series_id, harness_name, label, token_cell, time_cell, tool_cell, cache_cell, cost_cell = cells
+    _prompt_id, _series_id, harness_name, label, token_cell, _time_cell, _tool_cell, cache_cell, cost_cell = cells
     harness_display = harness_label(harness_name)
-    return f"| {label} | {harness_display} | {token_cell} | {time_cell} | {tool_cell} | {cache_cell} | {cost_cell} |"
+    time_cell = format_model_time_readme(run)
+    tool_calls = run["tool_calls"]
+    chart = [tool_calls[name] for name in CHART_BUCKETS]
+    if any(bucket["calls"] is None for bucket in chart):
+        tool_cell = "n/a"
+    else:
+        tool_cell = format_tools_readme(
+            sum(bucket["calls"] for bucket in chart),
+            sum(bucket["failures"] for bucket in chart),
+        )
+    ver_cell = format_verification_readme(run)
+    return f"| {label} | {harness_display} | {token_cell} | {time_cell} | {tool_cell} | {cache_cell} | {cost_cell} | {ver_cell} |"
 
 
 def _row_key(markdown_row: str) -> tuple[str, str] | None:
@@ -774,9 +872,17 @@ def generate_readme_comparisons(
             lines.append("")
             lines.append(LOCAL_TABLE_HEADER)
             lines.append(LOCAL_TABLE_RULE)
+            missing_tokens = False
             for run in runs:
                 lines.append(readme_row(run))
+                if extract_output_tokens(run) is None:
+                    missing_tokens = True
             lines.append("")
+            if missing_tokens:
+                lines.append(
+                    "*Note: Token and cost columns show `n/a` for headless CLI runs until a Cursor billing CSV export is ingested (`finish_run.py --usage-export`).*"
+                )
+                lines.append("")
 
     return "\n".join(lines)
 
@@ -973,7 +1079,7 @@ def main() -> int:
     elif not selected and not local_errors:
         print("No primary local runs. Pass --follow-ups to print follow-ups.")
     elif selected:
-        headers = ["Prompt", "Series", "Harness", "Model", "Tokens generated", "Model time", "Tool calls", "Context re-read", "Est. cost"]
+        headers = ["Prompt", "Series", "Harness", "Model", "Output tokens", "Model time", "Tool calls", "Context re-read", "Est. cost"]
         table_rows = []
         for run in selected:
             row, notes = local_row(run)

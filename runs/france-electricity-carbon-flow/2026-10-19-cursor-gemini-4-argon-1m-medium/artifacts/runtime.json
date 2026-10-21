@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "http_status": 200,
+  "url": "http://127.0.0.1:64765/",
+  "server_mode": "command",
+  "load_time_ms": 3664.2,
+  "console_errors": [],
+  "console_warnings_count": 0,
+  "page_errors": [],
+  "failed_requests": [],
+  "dom": {
+    "title": "RTE \u00b7 Observatoire National & Simulateur de Stress-Test du Syst\u00e8me \u00c9lectrique Fran\u00e7ais",
+    "canvas_count": 0,
+    "svg_count": 35,
+    "webgl_context": false,
+    "text_length": 3484
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "verified_at": "2026-10-21T15:13:09.563Z"
+}

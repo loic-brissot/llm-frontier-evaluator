@@ -167,11 +167,11 @@
   "verification": {
     "data_pipeline": {
       "prompt_id": "france-electricity-carbon-flow",
-      "passed": false,
-      "authenticity": "partial_or_filtered",
-      "score": 0.5,
+      "passed": true,
+      "authenticity": "real_open_data",
+      "score": 1.0,
       "total_data_files": 6,
-      "total_records": 3292,
+      "total_records": 3475,
       "synthetic_signals": [],
       "checks": [
         {
@@ -187,65 +187,60 @@
         {
           "id": "eco2mix_timeseries_dataset",
           "description": "eCO2mix national/regional generation time series with technology mix & carbon intensity",
-          "passed": false,
-          "observed_records": 1,
+          "passed": true,
+          "observed_records": 2919,
           "matched_files": [
-            "scripts/fetch_odre_data.py",
-            "src/App.tsx",
-            "src/main.tsx",
-            "src/index.css",
-            "src/types/grid.ts",
-            "src/utils/gridPhysics.ts",
-            "src/components/TechLegendAndFilter.tsx",
-            "src/components/RightControlAndInspectorPanel.tsx",
-            "src/components/FranceGridMap.tsx",
-            "src/components/TimelineScrubber.tsx",
-            "src/components/TopTelemetryBar.tsx"
+            "public/data/plants.json",
+            "public/data/timeseries_2025.json"
           ],
-          "detail": "Matched 11 file(s) but observed 1 records < min threshold 100"
+          "detail": "Matched 2 file(s) with 2919 observed records (min: 100)"
         },
         {
           "id": "power_plants_registry_dataset",
           "description": "National registry of power plants and storage facilities with MW capacity",
-          "passed": false,
-          "observed_records": 1,
+          "passed": true,
+          "observed_records": 2919,
           "matched_files": [
-            "scripts/fetch_odre_data.py",
-            "src/App.tsx",
-            "src/main.tsx",
-            "src/index.css",
-            "src/types/grid.ts",
-            "src/utils/gridPhysics.ts",
-            "src/components/TechLegendAndFilter.tsx",
-            "src/components/RightControlAndInspectorPanel.tsx",
-            "src/components/FranceGridMap.tsx",
-            "src/components/TimelineScrubber.tsx",
-            "src/components/TopTelemetryBar.tsx"
+            "package-lock.json",
+            "public/data/plants.json",
+            "public/data/timeseries_2025.json"
           ],
-          "detail": "Matched 11 file(s) but observed 1 records < min threshold 50"
+          "detail": "Matched 3 file(s) with 2919 observed records (min: 50)"
         },
         {
           "id": "cross_border_interconnections",
           "description": "Cross-border interconnections with neighboring countries (UK, BE, DE, CH, IT, ES)",
           "passed": true,
-          "observed_records": 1,
+          "observed_records": 2919,
           "matched_files": [
-            "scripts/fetch_odre_data.py",
-            "src/App.tsx",
-            "src/main.tsx",
-            "src/index.css",
-            "src/types/grid.ts",
-            "src/utils/gridPhysics.ts",
-            "src/components/TechLegendAndFilter.tsx",
-            "src/components/RightControlAndInspectorPanel.tsx",
-            "src/components/FranceGridMap.tsx",
-            "src/components/TimelineScrubber.tsx",
-            "src/components/TopTelemetryBar.tsx"
+            "public/data/plants.json",
+            "public/data/timeseries_2025.json",
+            "public/data/regions.geojson"
           ],
-          "detail": "Matched 11 file(s) with 1 observed records (min: 1)"
+          "detail": "Matched 3 file(s) with 2919 observed records (min: 1)"
         }
       ],
-      "verified_at": "2026-10-19T21:28:01.896Z"
+      "verified_at": "2026-10-21T15:13:13.384Z"
+    },
+    "runtime": {
+      "passed": true,
+      "http_status": 200,
+      "url": "http://127.0.0.1:64765/",
+      "server_mode": "command",
+      "load_time_ms": 3664.2,
+      "console_errors": [],
+      "console_warnings_count": 0,
+      "page_errors": [],
+      "failed_requests": [],
+      "dom": {
+        "title": "RTE \u00b7 Observatoire National & Simulateur de Stress-Test du Syst\u00e8me \u00c9lectrique Fran\u00e7ais",
+        "canvas_count": 0,
+        "svg_count": 35,
+        "webgl_context": false,
+        "text_length": 3484
+      },
+      "screenshot_path": "artifacts/screenshot.png",
+      "verified_at": "2026-10-21T15:13:09.563Z"
     }
   }
 }
