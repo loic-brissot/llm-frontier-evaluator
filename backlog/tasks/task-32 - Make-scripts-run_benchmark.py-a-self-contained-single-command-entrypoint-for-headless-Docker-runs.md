@@ -3,9 +3,10 @@ id: TASK-32
 title: >-
   Make scripts/run_benchmark.py a self-contained single-command entrypoint for
   headless Docker runs
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-21 05:54'
+updated_date: '2026-10-21 12:13'
 labels:
   - cli
   - runner
@@ -46,9 +47,9 @@ Furthermore, `run_benchmark.py` lacks several scaffolding options from `setup_ru
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 When --run-id is omitted, run_benchmark.py validates --context, model/reasoning parameters, and Docker/API-key preflight checks (check_preflight) before calling create_run_directory(), so failed preflight or invalid flags never leave orphan directories in runs/ or /tmp/
-- [ ] #2 run_benchmark.py defaults --harness to cursor, accepts --series-id, --provider, and --harness-detail when scaffolding a run directly, and prints the allocated run_id, run_dir, and staged workspace path before launching the container (while still supporting --run-id for pre-scaffolded runs)
-- [ ] #3 run_benchmark.py and setup_run.py preflight error/warning messages reference docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
-- [ ] #4 run_benchmark.py --help clearly documents that --context applies only to Clean-Room GUI runs (setup_run.py --context <ctx>) because headless CLIs cannot select context windows
-- [ ] #5 Unit tests in tests/test_run_benchmark.py verify single-command execution, preflight failure before directory creation (no orphan runs/ dir), and CLI parameter forwarding
+- [x] #1 When --run-id is omitted, run_benchmark.py validates --context, model/reasoning parameters, and Docker/API-key preflight checks (check_preflight) before calling create_run_directory(), so failed preflight or invalid flags never leave orphan directories in runs/ or /tmp/
+- [x] #2 run_benchmark.py defaults --harness to cursor, accepts --series-id, --provider, and --harness-detail when scaffolding a run directly, and prints the allocated run_id, run_dir, and staged workspace path before launching the container (while still supporting --run-id for pre-scaffolded runs)
+- [x] #3 run_benchmark.py and setup_run.py preflight error/warning messages reference docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
+- [x] #4 run_benchmark.py --help clearly documents that --context applies only to Clean-Room GUI runs (setup_run.py --context <ctx>) because headless CLIs cannot select context windows
+- [x] #5 Unit tests in tests/test_run_benchmark.py verify single-command execution, preflight failure before directory creation (no orphan runs/ dir), and CLI parameter forwarding
 <!-- AC:END -->

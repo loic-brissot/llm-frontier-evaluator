@@ -28,7 +28,12 @@ from run_common import (
     require_prompt_id,
     slugify,
 )
-from setup_run import create_run_directory
+from setup_run import (
+    create_run_directory,
+    normalize_context,
+    normalize_harness,
+    normalize_reasoning,
+)
 
 DOCKER_IMAGE = "llm-frontier-evaluator-runner:latest"
 STAGING_PARENT = Path("/tmp")
@@ -36,6 +41,20 @@ STAGING_PARENT = Path("/tmp")
 
 def staging_workspace_for(run_id: str) -> Path:
     return STAGING_PARENT / f"frontier-workspace-{run_id}"
+
+
+def is_staging_inside_root(staging_dir: Path) -> bool:
+    try:
+        staging_dir.resolve().relative_to(ROOT.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+class _HarnessAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, values)
+        setattr(namespace, "_harness_explicit", True)
 
 
 def trigger_finish_run(prompt_id: str, run_id: str) -> subprocess.CompletedProcess:
@@ -178,11 +197,20 @@ def check_preflight(
     try:
         res = subprocess.run(["docker", "image", "inspect", docker_image], capture_output=True, text=True)
         if res.returncode != 0:
-            errors.append(f"Docker image '{docker_image}' not found (run: docker build -f Dockerfile.benchmark -t {docker_image} .).")
+            errors.append(f"Docker image '{docker_image}' not found (run: docker build --platform linux/amd64 -f Dockerfile.benchmark -t {docker_image} .).")
     except Exception:
-        errors.append(f"Docker image '{docker_image}' not found (run: docker build -f Dockerfile.benchmark -t {docker_image} .).")
+        errors.append(f"Docker image '{docker_image}' not found (run: docker build --platform linux/amd64 -f Dockerfile.benchmark -t {docker_image} .).")
 
     # Check 3: API key for the harness is set
+    if not harness and run_id:
+        try:
+            r_dir = find_run_dir(run_id, prompt_id=prompt_id)
+            rj = json.loads((r_dir / "run.json").read_text(encoding="utf-8"))
+            if isinstance(rj.get("harness"), dict) and rj["harness"].get("name"):
+                harness = rj["harness"]["name"]
+        except Exception:
+            pass
+
     if harness:
         norm_harness = canonical_harness(harness)
         if norm_harness == "cursor" or is_cursor_harness(norm_harness):
@@ -198,14 +226,7 @@ def check_preflight(
     # Check 4: Staged workspace exists
     if run_id:
         staging_dir = staging_workspace_for(run_id)
-        is_inside_root = False
-        try:
-            staging_dir.resolve().relative_to(ROOT.resolve())
-            is_inside_root = True
-        except ValueError:
-            is_inside_root = False
-
-        if not staging_dir.is_dir() or is_inside_root:
+        if not staging_dir.is_dir() or is_staging_inside_root(staging_dir):
             errors.append(f"Staged workspace not found at {staging_dir} (run: python3 scripts/setup_run.py --prompt {prompt_id} ...).")
 
     return errors
@@ -413,186 +434,244 @@ def run_benchmark_container(
     reasoning: str | None = None,
     context: str | None = None,
     allow_cli_context_override: bool = False,
+    series_id: str | None = None,
+    provider: str | None = None,
+    harness_detail: str = "",
     docker_image: str = DOCKER_IMAGE,
     check_models: bool = True,
     timeout_seconds: int | float | None = None,
     auto_finish: bool = True,
 ) -> int:
+    env = dict(os.environ)
     run_dir: Path | None = None
-    recorded_run_json: dict | None = None
+    final_harness: str
+    resolved_model: str
+    effort: str | None = None
 
     if run_id is None:
         if not model:
             raise ValueError("Model must be specified when run_id is omitted for automatic run scaffolding")
+
+        prompt_id = require_prompt_id(prompt_id)
+        prompt_file = prompt_path(prompt_id)
+        if not prompt_file.is_file():
+            raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
+
         scaffold_harness = canonical_harness(harness) if harness else "cursor"
-        scaffold_context = None if allow_cli_context_override else context
+        scaffold_harness = normalize_harness(scaffold_harness)
+
+        # Validate context
+        if context is not None and str(context).strip().lower() not in ("unknown", "null", ""):
+            if not allow_cli_context_override:
+                raise ValueError(
+                    f"Headless CLI cannot select context window '{context}'. "
+                    f"Please run via Clean-Room GUI runs (setup_run.py --context {context}) "
+                    f"or re-run with --allow-cli-context-override to record context as null."
+                )
+            scaffold_context = None
+        else:
+            scaffold_context = normalize_context(context, scaffold_harness) if context else None
+
+        # Validate reasoning
+        normalized_reasoning = normalize_reasoning(reasoning, scaffold_harness)
+
+        # Preflight checks (Docker daemon, image tag, credentials) BEFORE creating run directory
+        errors = check_preflight(
+            docker_image=docker_image,
+            harness=scaffold_harness,
+            run_id=None,
+            prompt_id=prompt_id,
+            env=env,
+        )
+        if errors:
+            for err in errors:
+                print(f"Preflight error: {err}", file=sys.stderr)
+            raise RuntimeError("\n".join(errors))
+
+        # Model and reasoning resolution BEFORE creating run directory
+        if scaffold_harness == "cursor" or is_cursor_harness(scaffold_harness):
+            avail_models = fetch_cursor_available_models(docker_image, env) if check_models else None
+            resolved_model = resolve_cursor_model_slug(
+                model, reasoning=normalized_reasoning, available_models=avail_models
+            )
+            effort = None
+        else:  # claude-code
+            resolved_model, effort = resolve_claude_code_model_and_effort(
+                model, reasoning=normalized_reasoning
+            )
+
+        resolved_series_id = series_id.strip() if series_id else default_series_id(scaffold_harness, prompt_id)
+        resolved_provider = provider.strip() if provider else (infer_provider(model) or "unknown")
+        resolved_harness_detail = harness_detail or ""
+
         run_dir = create_run_directory(
             harness=scaffold_harness,
             model=model,
-            reasoning=reasoning,
+            reasoning=normalized_reasoning,
             context=scaffold_context,
             prompt_id=prompt_id,
-            series_id=default_series_id(scaffold_harness, prompt_id),
-            provider=infer_provider(model) or "unknown",
+            series_id=resolved_series_id,
+            provider=resolved_provider,
             harness_version=None,
-            harness_detail="",
+            harness_detail=resolved_harness_detail,
         )
         run_id = run_dir.name
-        recorded_run_json = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+        staging_dir = staging_workspace_for(run_id)
+
+        print(f"Allocated run: {run_id}")
+        print(f"  Run directory: {run_dir}")
+        print(f"  Staged workspace: {staging_dir}")
+
+        final_harness = scaffold_harness
     else:
-        try:
-            run_dir = find_run_dir(run_id, prompt_id=prompt_id)
-            run_json_path = run_dir / "run.json"
-            if run_json_path.is_file():
-                recorded_run_json = json.loads(run_json_path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            run_dir = None
+        run_dir = find_run_dir(run_id, prompt_id=prompt_id)
+        run_json_path = run_dir / "run.json"
+        recorded_run_json: dict = {}
+        if run_json_path.is_file():
+            recorded_run_json = json.loads(run_json_path.read_text(encoding="utf-8"))
 
-    rec_prompt_id = recorded_run_json.get("prompt_id") if recorded_run_json else None
-    rec_harness = (
-        recorded_run_json.get("harness", {}).get("name")
-        if recorded_run_json and isinstance(recorded_run_json.get("harness"), dict)
-        else None
-    )
-    rec_model = (
-        recorded_run_json.get("model", {}).get("name")
-        if recorded_run_json and isinstance(recorded_run_json.get("model"), dict)
-        else None
-    )
-    rec_reasoning = (
-        recorded_run_json.get("model", {}).get("reasoning")
-        if recorded_run_json and isinstance(recorded_run_json.get("model"), dict)
-        else None
-    )
-    rec_context = (
-        recorded_run_json.get("model", {}).get("context")
-        if recorded_run_json and isinstance(recorded_run_json.get("model"), dict)
-        else None
-    )
+        rec_prompt_id = recorded_run_json.get("prompt_id")
+        rec_harness = (
+            recorded_run_json.get("harness", {}).get("name")
+            if isinstance(recorded_run_json.get("harness"), dict)
+            else None
+        )
+        rec_model = (
+            recorded_run_json.get("model", {}).get("name")
+            if isinstance(recorded_run_json.get("model"), dict)
+            else None
+        )
+        rec_reasoning = (
+            recorded_run_json.get("model", {}).get("reasoning")
+            if isinstance(recorded_run_json.get("model"), dict)
+            else None
+        )
+        rec_context = (
+            recorded_run_json.get("model", {}).get("context")
+            if isinstance(recorded_run_json.get("model"), dict)
+            else None
+        )
 
-    if rec_prompt_id:
-        prompt_id = rec_prompt_id
-    prompt_id = require_prompt_id(prompt_id)
+        if rec_prompt_id:
+            prompt_id = rec_prompt_id
+        prompt_id = require_prompt_id(prompt_id)
 
-    # Validate harness
-    if harness is not None:
-        if rec_harness is not None:
-            if canonical_harness(harness) != canonical_harness(rec_harness):
-                raise ValueError(f"Harness mismatch: CLI flag '{harness}' disagrees with run.json '{rec_harness}'")
-            final_harness = canonical_harness(rec_harness)
+        prompt_file = prompt_path(prompt_id)
+        if not prompt_file.is_file():
+            raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
+
+        # Validate harness
+        if harness is not None:
+            if rec_harness is not None:
+                if canonical_harness(harness) != canonical_harness(rec_harness):
+                    raise ValueError(f"Harness mismatch: CLI flag '{harness}' disagrees with run.json '{rec_harness}'")
+                final_harness = canonical_harness(rec_harness)
+            else:
+                final_harness = canonical_harness(harness)
         else:
-            final_harness = canonical_harness(harness)
-    else:
-        if rec_harness is not None:
-            final_harness = canonical_harness(rec_harness)
-        else:
-            raise ValueError("Harness not specified in CLI flags or run.json")
+            if rec_harness is not None:
+                final_harness = canonical_harness(rec_harness)
+            else:
+                raise ValueError("Harness not specified in CLI flags or run.json")
 
-    # Validate model
-    if model is not None:
-        if rec_model is not None:
-            if model.strip() != rec_model.strip() and slugify(model) != slugify(rec_model):
-                raise ValueError(f"Model mismatch: CLI flag '{model}' disagrees with run.json '{rec_model}'")
-            final_model = rec_model
+        # Validate model
+        if model is not None:
+            if rec_model is not None:
+                if model.strip() != rec_model.strip() and slugify(model) != slugify(rec_model):
+                    raise ValueError(f"Model mismatch: CLI flag '{model}' disagrees with run.json '{rec_model}'")
+                final_model = rec_model
+            else:
+                final_model = model
         else:
-            final_model = model
-    else:
-        if rec_model is not None:
-            final_model = rec_model
-        else:
-            raise ValueError("Model not specified in CLI flags or run.json")
+            if rec_model is not None:
+                final_model = rec_model
+            else:
+                raise ValueError("Model not specified in CLI flags or run.json")
 
-    # Validate reasoning
-    if reasoning is not None:
-        if rec_reasoning is not None and str(rec_reasoning).strip().lower() not in ("unknown", "null", ""):
-            if reasoning.strip().lower() != str(rec_reasoning).strip().lower():
-                raise ValueError(f"Reasoning mismatch: CLI flag '{reasoning}' disagrees with run.json '{rec_reasoning}'")
-            final_reasoning = str(rec_reasoning)
+        # Validate reasoning
+        if reasoning is not None:
+            if rec_reasoning is not None and str(rec_reasoning).strip().lower() not in ("unknown", "null", ""):
+                if reasoning.strip().lower() != str(rec_reasoning).strip().lower():
+                    raise ValueError(f"Reasoning mismatch: CLI flag '{reasoning}' disagrees with run.json '{rec_reasoning}'")
+                final_reasoning = str(rec_reasoning)
+            else:
+                final_reasoning = reasoning
         else:
-            final_reasoning = reasoning
-    else:
-        final_reasoning = str(rec_reasoning) if rec_reasoning is not None else None
+            final_reasoning = str(rec_reasoning) if rec_reasoning is not None else None
 
-    # Validate context
-    if context is not None:
-        if rec_context is not None and str(rec_context).strip().lower() not in ("unknown", "null", ""):
-            if context.strip().lower() != str(rec_context).strip().lower():
-                raise ValueError(f"Context mismatch: CLI flag '{context}' disagrees with run.json '{rec_context}'")
-            final_context = str(rec_context)
+        # Validate context
+        if context is not None:
+            if rec_context is not None and str(rec_context).strip().lower() not in ("unknown", "null", ""):
+                if context.strip().lower() != str(rec_context).strip().lower():
+                    raise ValueError(f"Context mismatch: CLI flag '{context}' disagrees with run.json '{rec_context}'")
+                final_context = str(rec_context)
+            else:
+                final_context = context
         else:
-            final_context = context
-    else:
-        final_context = str(rec_context) if rec_context is not None else None
+            final_context = str(rec_context) if rec_context is not None else None
 
-    # Handle context window rejection / explicit acceptance
-    if final_context is not None and str(final_context).strip().lower() not in ("unknown", "null", ""):
-        if not allow_cli_context_override:
-            raise ValueError(
-                f"Headless CLI cannot select context window '{final_context}'. "
-                f"Please run via clean-room GUI launcher script /tmp/frontier-workspace-{run_id}-launch.sh "
-                f"or re-run with --allow-cli-context-override to record context as null."
+        # Handle context window rejection / explicit acceptance
+        if final_context is not None and str(final_context).strip().lower() not in ("unknown", "null", ""):
+            if not allow_cli_context_override:
+                raise ValueError(
+                    f"Headless CLI cannot select context window '{final_context}'. "
+                    f"Please run via clean-room GUI launcher script /tmp/frontier-workspace-{run_id}-launch.sh "
+                    f"or re-run with --allow-cli-context-override to record context as null."
+                )
+            else:
+                if run_dir is not None and (run_dir / "run.json").is_file():
+                    run_json_path = run_dir / "run.json"
+                    data = json.loads(run_json_path.read_text(encoding="utf-8"))
+                    if "model" not in data or not isinstance(data["model"], dict):
+                        data["model"] = {}
+                    data["model"]["context"] = None
+
+                    if "harness" not in data or not isinstance(data["harness"], dict):
+                        data["harness"] = {}
+
+                    note = f"Requested context {final_context} cleared to null because headless CLI cannot select context window"
+                    existing_detail = data["harness"].get("detail")
+                    if existing_detail:
+                        data["harness"]["detail"] = f"{existing_detail}; {note}"
+                    else:
+                        data["harness"]["detail"] = note
+
+                    run_json_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+                final_context = None
+
+        errors = check_preflight(
+            docker_image=docker_image,
+            harness=final_harness,
+            run_id=run_id,
+            prompt_id=prompt_id,
+            env=env,
+        )
+        if errors:
+            for err in errors:
+                print(f"Preflight error: {err}", file=sys.stderr)
+            raise RuntimeError("\n".join(errors))
+
+        if final_harness == "cursor" or is_cursor_harness(final_harness):
+            avail_models = fetch_cursor_available_models(docker_image, env) if check_models else None
+            resolved_model = resolve_cursor_model_slug(
+                final_model, reasoning=final_reasoning, available_models=avail_models
             )
-        else:
-            if run_dir is not None and (run_dir / "run.json").is_file():
-                run_json_path = run_dir / "run.json"
-                data = json.loads(run_json_path.read_text(encoding="utf-8"))
-                if "model" not in data or not isinstance(data["model"], dict):
-                    data["model"] = {}
-                data["model"]["context"] = None
+            effort = None
+        else:  # claude-code
+            resolved_model, effort = resolve_claude_code_model_and_effort(
+                final_model, reasoning=final_reasoning
+            )
 
-                if "harness" not in data or not isinstance(data["harness"], dict):
-                    data["harness"] = {}
-
-                note = f"Requested context {final_context} cleared to null because headless CLI cannot select context window"
-                existing_detail = data["harness"].get("detail")
-                if existing_detail:
-                    data["harness"]["detail"] = f"{existing_detail}; {note}"
-                else:
-                    data["harness"]["detail"] = note
-
-                run_json_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-            final_context = None
-
-    errors = check_preflight(
-        docker_image=docker_image,
-        harness=final_harness,
-        run_id=run_id,
-        prompt_id=prompt_id,
-    )
-    if errors:
-        for err in errors:
-            print(f"Preflight error: {err}", file=sys.stderr)
-        raise RuntimeError("\n".join(errors))
-
-    prompt_file = prompt_path(prompt_id)
-    if not prompt_file.is_file():
-        raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
+        staging_dir = staging_workspace_for(run_id)
 
     prompt_text = prompt_file.read_bytes().decode("utf-8")
-    staging_dir = staging_workspace_for(run_id)
 
-    is_inside_root = False
-    try:
-        staging_dir.resolve().relative_to(ROOT.resolve())
-        is_inside_root = True
-    except ValueError:
-        is_inside_root = False
-
-    if not staging_dir.is_dir() or is_inside_root:
+    if not staging_dir.is_dir() or is_staging_inside_root(staging_dir):
         raise FileNotFoundError(f"Staged workspace not found at {staging_dir}")
 
     harness_version = detect_container_harness_version(docker_image, final_harness)
     if harness_version and run_dir is not None:
         record_container_harness_version(run_dir, harness_version)
-
-    env = dict(os.environ)
-
-    if final_harness == "cursor" or is_cursor_harness(final_harness):
-        avail_models = fetch_cursor_available_models(docker_image, env) if check_models else None
-        resolved_model = resolve_cursor_model_slug(final_model, reasoning=final_reasoning, available_models=avail_models)
-        effort = None
-    else:  # claude-code
-        resolved_model, effort = resolve_claude_code_model_and_effort(final_model, reasoning=final_reasoning)
 
     container_name = f"frontier-runner-{run_id}"
     full_cmd = build_container_command(
@@ -717,18 +796,42 @@ def run_benchmark_container(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run benchmark prompt inside isolated Docker container.")
+    parser = argparse.ArgumentParser(
+        description="Run benchmark prompt inside isolated Docker container.",
+        epilog=(
+            "Note: Headless CLIs (cursor-agent and claude) cannot select context windows. "
+            "The --context flag applies only to Clean-Room GUI runs (setup_run.py --context <ctx>). "
+            "In headless container runs, --context is rejected unless --allow-cli-context-override is passed."
+        ),
+    )
     parser.add_argument("--prompt", dest="prompt_id", default=DEFAULT_PROMPT_ID, help="Prompt ID stem.")
     parser.add_argument("--run-id", default=None, help="Run ID.")
-    parser.add_argument("--harness", default=None, help="Harness name (cursor or claude-code).")
+    parser.add_argument(
+        "--harness",
+        default="cursor",
+        action=_HarnessAction,
+        help="Harness name: cursor or claude-code (default: cursor).",
+    )
+    parser.set_defaults(_harness_explicit=False)
     parser.add_argument("--model", default=None, help="Model name / slug.")
     parser.add_argument("--reasoning", default=None, help="Reasoning / effort level.")
-    parser.add_argument("--context", default=None, help="Context variant (e.g. 500k).")
+    parser.add_argument(
+        "--context",
+        default=None,
+        help=(
+            "Context variant (e.g. 500k). Note: applies only to Clean-Room GUI runs "
+            "(setup_run.py --context <ctx>) because headless CLIs (cursor-agent and claude) "
+            "cannot select context windows."
+        ),
+    )
     parser.add_argument(
         "--allow-cli-context-override",
         action="store_true",
         help="Allow running with context window that CLI cannot select, clearing context to null in run.json.",
     )
+    parser.add_argument("--series-id", default=None, help="Series ID for comparison tables.")
+    parser.add_argument("--provider", default=None, help="Model provider slug, e.g. anthropic, openai.")
+    parser.add_argument("--harness-detail", default="", help="Free-form harness note.")
     parser.add_argument("--docker-image", default=DOCKER_IMAGE, help="Docker image tag.")
     parser.add_argument(
         "--no-check-models",
@@ -765,10 +868,12 @@ def main() -> int:
     if not args.check and not args.run_id and not args.model:
         parser.error("one of the following arguments is required: --run-id or --model")
 
+    harness_arg = args.harness if (getattr(args, "_harness_explicit", False) or not args.run_id) else None
+
     if args.check:
         errors = check_preflight(
             docker_image=args.docker_image,
-            harness=args.harness,
+            harness=harness_arg,
             run_id=args.run_id,
             prompt_id=args.prompt_id,
         )
@@ -783,11 +888,14 @@ def main() -> int:
         return run_benchmark_container(
             prompt_id=args.prompt_id,
             run_id=args.run_id,
-            harness=args.harness,
+            harness=harness_arg,
             model=args.model,
             reasoning=args.reasoning,
             context=args.context,
             allow_cli_context_override=args.allow_cli_context_override,
+            series_id=args.series_id,
+            provider=args.provider,
+            harness_detail=args.harness_detail,
             docker_image=args.docker_image,
             check_models=args.check_models,
             timeout_seconds=args.timeout,
