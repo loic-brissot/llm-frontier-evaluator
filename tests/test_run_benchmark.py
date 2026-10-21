@@ -9,8 +9,10 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
+import io
 from run_benchmark import (
     build_container_command,
+    build_parser,
     check_preflight,
     detect_container_harness_version,
     extract_cli_result,
@@ -22,6 +24,7 @@ from run_benchmark import (
     run_benchmark_container,
     trigger_finish_run,
 )
+from setup_run import check_environment
 
 
 class TestRunBenchmark(unittest.TestCase):
@@ -761,6 +764,321 @@ class TestRunBenchmark(unittest.TestCase):
                     for call in mock_run.call_args_list
                 )
                 self.assertTrue(docker_rm_called, "docker rm -f should be called on interrupt")
+
+    def test_single_command_execution_scaffold_and_container_launch(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            runs_tmp = tmp_path / "runs"
+            runs_tmp.mkdir(parents=True)
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.RUNS_DIR", runs_tmp), \
+                 patch("run_common.RUNS_DIR", runs_tmp), \
+                 patch("run_benchmark.find_run_dir", side_effect=lambda run_id, prompt_id: runs_tmp / prompt_id / run_id), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19-test"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run") as mock_finish, \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.run") as mock_run, \
+                 patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+
+                mock_run.return_value = MagicMock(returncode=0, stdout='{"event":"start"}\n')
+
+                # Omit --run-id and --harness (should default to cursor)
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id=None,
+                    harness=None,
+                    model="Claude Opus 5.5",
+                    reasoning="high",
+                    check_models=True,
+                )
+
+                self.assertEqual(exit_code, 0)
+                mock_finish.assert_called_once()
+                output = mock_stdout.getvalue()
+                self.assertIn("Allocated run:", output)
+                self.assertIn("Run directory:", output)
+                self.assertIn("Staged workspace:", output)
+
+                # Verify run directory was actually created
+                scaffolded_dirs = list((runs_tmp / "france-road-accidents").glob("*"))
+                self.assertEqual(len(scaffolded_dirs), 1)
+                self.assertTrue((scaffolded_dirs[0] / "run.json").is_file())
+
+    def test_preflight_daemon_failure_prevents_run_directory_creation(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            runs_tmp = tmp_path / "runs"
+            runs_tmp.mkdir(parents=True)
+
+            def mock_run(cmd, **kwargs):
+                if cmd[:2] == ["docker", "info"]:
+                    return MagicMock(returncode=1)
+                return MagicMock(returncode=0)
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.RUNS_DIR", runs_tmp), \
+                 patch("run_common.RUNS_DIR", runs_tmp), \
+                 patch("run_benchmark.create_run_directory") as mock_create_dir, \
+                 patch("subprocess.run", side_effect=mock_run), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}):
+
+                with self.assertRaises(RuntimeError) as ctx:
+                    run_benchmark_container(
+                        prompt_id="france-road-accidents",
+                        run_id=None,
+                        model="Claude Opus 5.5",
+                        check_models=False,
+                    )
+
+                self.assertIn("Docker daemon is not running or unreachable", str(ctx.exception))
+                mock_create_dir.assert_not_called()
+                self.assertEqual(list((runs_tmp / "france-road-accidents").glob("*")), [])
+
+    def test_preflight_image_missing_prevents_run_directory_creation(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            runs_tmp = tmp_path / "runs"
+            runs_tmp.mkdir(parents=True)
+
+            def mock_run(cmd, **kwargs):
+                if cmd[:3] == ["docker", "image", "inspect"]:
+                    return MagicMock(returncode=1)
+                return MagicMock(returncode=0)
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.RUNS_DIR", runs_tmp), \
+                 patch("run_common.RUNS_DIR", runs_tmp), \
+                 patch("run_benchmark.create_run_directory") as mock_create_dir, \
+                 patch("subprocess.run", side_effect=mock_run), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}):
+
+                with self.assertRaises(RuntimeError) as ctx:
+                    run_benchmark_container(
+                        prompt_id="france-road-accidents",
+                        run_id=None,
+                        model="Claude Opus 5.5",
+                        check_models=False,
+                    )
+
+                self.assertIn("Docker image 'llm-frontier-evaluator-runner:latest' not found", str(ctx.exception))
+                self.assertIn("--platform linux/amd64", str(ctx.exception))
+                mock_create_dir.assert_not_called()
+                self.assertEqual(list((runs_tmp / "france-road-accidents").glob("*")), [])
+
+    def test_missing_api_key_prevents_run_directory_creation(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            runs_tmp = tmp_path / "runs"
+            runs_tmp.mkdir(parents=True)
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.RUNS_DIR", runs_tmp), \
+                 patch("run_common.RUNS_DIR", runs_tmp), \
+                 patch("run_benchmark.create_run_directory") as mock_create_dir, \
+                 patch("subprocess.run", return_value=MagicMock(returncode=0)), \
+                 patch.dict(os.environ, {}, clear=True):
+
+                with self.assertRaises(RuntimeError) as ctx:
+                    run_benchmark_container(
+                        prompt_id="france-road-accidents",
+                        run_id=None,
+                        harness="cursor",
+                        model="Claude Opus 5.5",
+                        check_models=False,
+                    )
+
+                self.assertIn("Missing required environment variable CURSOR_API_KEY", str(ctx.exception))
+                mock_create_dir.assert_not_called()
+                self.assertEqual(list((runs_tmp / "france-road-accidents").glob("*")), [])
+
+    def test_context_rejection_prevents_run_directory_creation(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            runs_tmp = tmp_path / "runs"
+            runs_tmp.mkdir(parents=True)
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.RUNS_DIR", runs_tmp), \
+                 patch("run_common.RUNS_DIR", runs_tmp), \
+                 patch("run_benchmark.create_run_directory") as mock_create_dir, \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}):
+
+                with self.assertRaises(ValueError) as ctx:
+                    run_benchmark_container(
+                        prompt_id="france-road-accidents",
+                        run_id=None,
+                        model="Claude Opus 5.5",
+                        context="500k",
+                        allow_cli_context_override=False,
+                    )
+
+                self.assertIn("Headless CLI cannot select context window '500k'", str(ctx.exception))
+                self.assertIn("setup_run.py --context 500k", str(ctx.exception))
+                mock_create_dir.assert_not_called()
+                self.assertEqual(list((runs_tmp / "france-road-accidents").glob("*")), [])
+
+    def test_model_resolution_failure_prevents_run_directory_creation(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            runs_tmp = tmp_path / "runs"
+            runs_tmp.mkdir(parents=True)
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.RUNS_DIR", runs_tmp), \
+                 patch("run_common.RUNS_DIR", runs_tmp), \
+                 patch("run_benchmark.create_run_directory") as mock_create_dir, \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}):
+
+                with self.assertRaises(ValueError) as ctx:
+                    run_benchmark_container(
+                        prompt_id="france-road-accidents",
+                        run_id=None,
+                        model="Completely Unknown Model",
+                        check_models=True,
+                    )
+
+                self.assertIn("resolved to candidates", str(ctx.exception))
+                mock_create_dir.assert_not_called()
+                self.assertEqual(list((runs_tmp / "france-road-accidents").glob("*")), [])
+
+    def test_cli_parameter_forwarding_to_create_run_directory(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            runs_tmp = tmp_path / "runs"
+            runs_tmp.mkdir(parents=True)
+            mock_created_dir = runs_tmp / "france-road-accidents" / "test-scaffold-dir"
+            mock_created_dir.mkdir(parents=True)
+            staging_workspace = tmp_path / "frontier-workspace-test-scaffold-dir"
+            staging_workspace.mkdir(parents=True)
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.RUNS_DIR", runs_tmp), \
+                 patch("run_common.RUNS_DIR", runs_tmp), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.create_run_directory", return_value=mock_created_dir) as mock_create_dir, \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch("subprocess.run", return_value=MagicMock(returncode=0)), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}):
+
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id=None,
+                    harness=None,
+                    model="Claude Opus 5.5",
+                    reasoning="high",
+                    series_id="my-custom-series",
+                    provider="custom-provider",
+                    harness_detail="some extra harness note",
+                    check_models=True,
+                )
+
+                self.assertEqual(exit_code, 0)
+                mock_create_dir.assert_called_once_with(
+                    harness="cursor",
+                    model="Claude Opus 5.5",
+                    reasoning="high",
+                    context=None,
+                    prompt_id="france-road-accidents",
+                    series_id="my-custom-series",
+                    provider="custom-provider",
+                    harness_version=None,
+                    harness_detail="some extra harness note",
+                )
+
+    def test_cli_parser_defaults_and_preserves_run_json_harness(self):
+        parser = build_parser()
+        self.assertEqual(parser.get_default("harness"), "cursor")
+
+        # Parsing without --harness gives cursor
+        args = parser.parse_args(["--model", "Claude Opus 5.5"])
+        self.assertEqual(args.harness, "cursor")
+        self.assertFalse(args._harness_explicit)
+        self.assertIsNone(args.series_id)
+        self.assertIsNone(args.provider)
+        self.assertEqual(args.harness_detail, "")
+
+        # Parsing with forwarding flags
+        args2 = parser.parse_args([
+            "--model", "Claude Opus 5.5",
+            "--series-id", "test-series",
+            "--provider", "anthropic",
+            "--harness-detail", "detail note",
+        ])
+        self.assertEqual(args2.series_id, "test-series")
+        self.assertEqual(args2.provider, "anthropic")
+        self.assertEqual(args2.harness_detail, "detail note")
+
+        # Test pre-scaffolded claude-code run via main()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            staging_dir = Path(tmp_dir) / "frontier-workspace-claude-test"
+            staging_dir.mkdir(parents=True)
+            run_dir = Path(tmp_dir) / "runs" / "france-road-accidents" / "claude-test"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "claude-code"},
+                "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+            }), encoding="utf-8")
+
+            with patch("run_benchmark.STAGING_PARENT", Path(tmp_dir)), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="1.0.5"), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch("subprocess.run", return_value=MagicMock(returncode=0)), \
+                 patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-anthropic"}):
+
+                # 1. When --harness is omitted on CLI, main() should respect claude-code in run.json
+                with patch("sys.argv", ["run_benchmark.py", "--run-id", "claude-test"]):
+                    exit_code = main()
+                    self.assertEqual(exit_code, 0)
+
+                # 2. When --harness cursor is explicitly passed on CLI, main() should fail with mismatch
+                with patch("sys.argv", ["run_benchmark.py", "--run-id", "claude-test", "--harness", "cursor"]):
+                    exit_code = main()
+                    self.assertEqual(exit_code, 1)
+
+    def test_docker_build_platform_hint(self):
+        # Preflight check in run_benchmark
+        with patch("subprocess.run", return_value=MagicMock(returncode=1)):
+            errors = check_preflight(harness="cursor")
+            self.assertTrue(any(
+                "docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest ."
+                in e for e in errors
+            ))
+
+        # Check environment in setup_run
+        def mock_run(cmd, **kwargs):
+            if cmd[:3] == ["docker", "image", "inspect"]:
+                return MagicMock(returncode=1)
+            return MagicMock(returncode=0)
+
+        with patch("subprocess.run", side_effect=mock_run):
+            warnings = check_environment()
+            self.assertTrue(any(
+                "docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest ."
+                in w for w in warnings
+            ))
+
+    def test_help_documents_context_policy(self):
+        parser = build_parser()
+        help_text = parser.format_help()
+        self.assertIn("Clean-Room GUI runs", help_text)
+        self.assertIn("setup_run.py --context", help_text)
+        self.assertIn("headless CLIs", help_text)
+        self.assertIn("cannot select context windows", help_text)
 
 
 if __name__ == "__main__":

@@ -138,11 +138,11 @@ def check_environment() -> list[str]:
         )
         if res.returncode != 0:
             warnings.append(
-                "Docker image 'llm-frontier-evaluator-runner:latest' not found (run: docker build -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .)."
+                "Docker image 'llm-frontier-evaluator-runner:latest' not found (run: docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .)."
             )
     except Exception:
         warnings.append(
-            "Docker image 'llm-frontier-evaluator-runner:latest' not found (run: docker build -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .)."
+            "Docker image 'llm-frontier-evaluator-runner:latest' not found (run: docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .)."
         )
 
     if not os.environ.get("CURSOR_API_KEY") and not os.environ.get("ANTHROPIC_API_KEY"):
