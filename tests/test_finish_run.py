@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from run_common import ROOT
 from finish_run import (
     UsageEvent,
+    build_parser,
     complete_run_json,
     default_csv_selection,
     discover_tmp_usage_csv,
@@ -21,6 +22,10 @@ from finish_run import (
     parse_decimal,
     parse_timestamp,
     parse_token_count,
+    prompt_choice,
+    prompt_optional_float,
+    prompt_optional_int,
+    prompt_str,
     read_usage_csv,
     repatriate_staged_workspace,
     summarize_events,
@@ -451,6 +456,67 @@ class TestFinishRun(unittest.TestCase):
             self.assertEqual(updated["model_time"]["generating_seconds"], 10.0)
             self.assertEqual(updated["context_reread"]["cache_read_tokens"], 4000)
             self.assertEqual(updated["tool_calls"]["shell"]["calls"], 1)
+
+    def test_build_parser_non_interactive(self):
+        parser = build_parser()
+        args_default = parser.parse_args([])
+        self.assertFalse(args_default.non_interactive)
+
+        args_flag = parser.parse_args(["--non-interactive"])
+        self.assertTrue(args_flag.non_interactive)
+
+    def test_prompt_helpers_non_interactive(self):
+        # All prompt helpers must return defaults without calling input()
+        self.assertEqual(prompt_str("Label", default="default_val", non_interactive=True), "default_val")
+        self.assertEqual(prompt_str("Label", default=None, non_interactive=True), "")
+        self.assertEqual(prompt_optional_int("Count", default=42, non_interactive=True), 42)
+        self.assertIsNone(prompt_optional_int("Count", default=None, non_interactive=True))
+        self.assertEqual(prompt_optional_float("Duration", default=3.14, non_interactive=True), 3.14)
+        self.assertIsNone(prompt_optional_float("Duration", default=None, non_interactive=True))
+        self.assertEqual(prompt_choice("Choice", ["a", "b", "c"], default="b", non_interactive=True), "b")
+        self.assertEqual(prompt_choice("Choice", ["x", "y"], default=None, non_interactive=True), "x")
+
+    def test_complete_run_json_headless_cursor_non_interactive(self):
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            run_dir = Path(tmp_dir_str)
+            run_json = run_dir / "run.json"
+            run_json.write_text(
+                '{"rules_version": 2, "harness": {"name": "cursor"}, "model": {"name": "Claude Opus 5.5", "reasoning": "high"}, '
+                '"tokens": {"split_rule": "unavailable", "reasoning_tokens": null, "visible_tokens": null}, '
+                '"model_time": {"source": "unavailable", "generating_seconds": null}, '
+                '"context_reread": {"source": "unavailable", "cache_read_tokens": null}, '
+                '"tool_calls": {"shell": {"calls": null, "failures": null}, "files": {"calls": null, "failures": null}, '
+                '"visual_checks": {"calls": null, "failures": null}, "web": {"calls": null, "failures": null}, "other": {"calls": null, "failures": null}}, '
+                '"outcome": {"model_stopped": null, "operator_saw_a_page": null, "summary": ""}, '
+                '"wall_clock": {"started_at": null, "ended_at": null}, "observations": ""}',
+                encoding="utf-8",
+            )
+            tool_events_dir = run_dir / "tool-events"
+            tool_events_dir.mkdir()
+            jsonl_file = tool_events_dir / "conv.jsonl"
+            # Headless run: no beforeSubmitPrompt, no stop event
+            jsonl_file.write_text(
+                '{"hook_event_name": "afterAgentThought", "duration_ms": 2000, "logged_at": "2026-10-21T10:00:02.000Z", "model": "claude-opus-5-5-high"}\n'
+                '{"hook_event_name": "postToolUse", "tool_name": "Shell", "tool_input": "npm run build", "duration": 4000, "logged_at": "2026-10-21T10:00:10.000Z"}\n'
+                '{"hook_event_name": "afterAgentResponse", "logged_at": "2026-10-21T10:00:20.000Z", "input_tokens": 1500, "output_tokens": 500, "cache_read_tokens": 1000}\n',
+                encoding="utf-8",
+            )
+
+            # Invoking with non_interactive=True must complete run.json without prompting
+            complete_run_json(run_dir, [], non_interactive=True, skip_verify=True)
+
+            updated = json.loads(run_json.read_text(encoding="utf-8"))
+            self.assertEqual(updated["wall_clock"]["started_at"], "2026-10-21T10:00:02Z")
+            self.assertEqual(updated["wall_clock"]["ended_at"], "2026-10-21T10:00:20Z")
+            self.assertEqual(updated["outcome"]["model_stopped"], True)
+            self.assertEqual(updated["tool_calls"]["shell"]["calls"], 1)
+            self.assertEqual(updated["context_reread"]["cache_read_tokens"], 1000)
+            self.assertEqual(updated["context_reread"]["source"], "provider_cache_read")
+            self.assertEqual(updated["model_time"]["generating_seconds"], 14.0)
+            self.assertEqual(updated["model_time"]["source"], "wall_clock_minus_tool_time")
+            self.assertIn("wall_seconds", updated["model_time"]["raw"]["tool_events"])
+            self.assertEqual(updated["model_time"]["raw"]["tool_events"]["wall_seconds"], 18.0)
+            self.assertEqual(updated["model_time"]["raw"]["tool_events"]["thinking_seconds"], 2.0)
 
 
 if __name__ == "__main__":

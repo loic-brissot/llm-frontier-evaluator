@@ -3,10 +3,10 @@ id: TASK-31
 title: >-
   Fix headless benchmark runner completion flow, background process handling,
   and wall-clock parsing
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-21 05:39'
-updated_date: '2026-10-21 05:54'
+updated_date: '2026-10-21 12:03'
 labels:
   - cli
   - runner
@@ -62,9 +62,9 @@ Inspection of the container process tree and internal logs revealed 5 related is
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Pass --single-turn and --background-shell-timeout 5 to cursor-agent -p in build_container_command() so background dev servers don't hang the runner
-- [ ] #2 Update scripts/tool_events.py to establish start/end wall-clock bounds when beforeSubmitPrompt is missing in headless cursor-agent mode
-- [ ] #3 Support --non-interactive in finish_run.py to allow automated end-to-end headless completion without blocking on input()
-- [ ] #4 Stream container stdout to cli-stream.jsonl continuously or handle SIGINT/SIGTERM gracefully in run_benchmark.py
-- [ ] #5 Ensure finish_run.py properly completes run.json metrics when invoked automatically after run completion
+- [x] #1 Pass --single-turn and --background-shell-timeout 5 to cursor-agent -p in build_container_command() so background dev servers don't hang the runner
+- [x] #2 Update scripts/tool_events.py to establish start/end wall-clock bounds when beforeSubmitPrompt is missing in headless cursor-agent mode
+- [x] #3 Support --non-interactive in finish_run.py to allow automated end-to-end headless completion without blocking on input()
+- [x] #4 Stream container stdout to cli-stream.jsonl continuously or handle SIGINT/SIGTERM gracefully in run_benchmark.py
+- [x] #5 Ensure finish_run.py properly completes run.json metrics when invoked automatically after run completion
 <!-- AC:END -->

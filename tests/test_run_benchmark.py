@@ -13,12 +13,14 @@ from run_benchmark import (
     build_container_command,
     check_preflight,
     detect_container_harness_version,
+    extract_cli_result,
     fetch_cursor_available_models,
     main,
     record_container_harness_version,
     resolve_claude_code_model_and_effort,
     resolve_cursor_model_slug,
     run_benchmark_container,
+    trigger_finish_run,
 )
 
 
@@ -41,6 +43,15 @@ class TestRunBenchmark(unittest.TestCase):
         # Verify the self-recursive wrapper is removed
         self.assertNotIn("if command -v cursor-agent", content)
         self.assertNotIn("/usr/local/bin/cursor-agent", content)
+
+        # Verify Playwright system dependencies
+        playwright_deps = [
+            "libnspr4", "libnss3", "libdbus-1-3", "libatk1.0-0", "libatk-bridge2.0-0",
+            "libatspi2.0-0", "libcups2", "libdrm2", "libxcomposite1", "libxdamage1",
+            "libxfixes3", "libxrandr2", "libgbm1", "libxkbcommon0", "libasound2",
+        ]
+        for dep in playwright_deps:
+            self.assertIn(dep, content, f"Playwright dependency {dep} must be in Dockerfile.benchmark")
 
     def test_detect_container_harness_version_success(self):
         with patch("subprocess.run") as mock_run:
@@ -414,6 +425,10 @@ class TestRunBenchmark(unittest.TestCase):
         self.assertIn("claude-opus-5-5-high", cmd)
         self.assertIn("--trust", cmd)
         self.assertIn("--force", cmd)
+        self.assertIn("--single-turn", cmd)
+        self.assertIn("--background-shell-timeout", cmd)
+        idx = cmd.index("--background-shell-timeout")
+        self.assertEqual(cmd[idx + 1], "5")
         self.assertIn("--output-format", cmd)
         self.assertIn("stream-json", cmd)
         self.assertEqual(cmd[-1], prompt_text)
@@ -614,6 +629,138 @@ class TestRunBenchmark(unittest.TestCase):
                 )
                 self.assertEqual(exit_code_2, 0)
                 mock_finish.assert_not_called()
+
+    def test_trigger_finish_run_passes_non_interactive(self):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            trigger_finish_run("france-road-accidents", "test-run-123")
+            mock_run.assert_called_once()
+            called_cmd = mock_run.call_args[0][0]
+            self.assertIn("--non-interactive", called_cmd)
+            self.assertIn("--verify", called_cmd)
+            self.assertIn("--skip-usage-copy", called_cmd)
+            self.assertIn("france-road-accidents", called_cmd)
+            self.assertIn("test-run-123", called_cmd)
+
+    def test_extract_cli_result(self):
+        # Result event in stream
+        content = (
+            '{"type":"system","message":"init"}\n'
+            '{"type":"assistant","message":{"content":"working"}}\n'
+            '{"type":"result","status":"success","usage":{"input_tokens":100}}\n'
+        )
+        res = extract_cli_result(content)
+        self.assertIsNotNone(res)
+        self.assertEqual(res.get("type"), "result")
+        self.assertEqual(res.get("status"), "success")
+
+        # Session summary event
+        summary_content = (
+            '{"type":"turn","id":1}\n'
+            '{"event_msg":"session_summary","tokens":500}\n'
+        )
+        res_sum = extract_cli_result(summary_content)
+        self.assertIsNotNone(res_sum)
+        self.assertEqual(res_sum.get("event_msg"), "session_summary")
+
+        # Fallback to last json record
+        fallback_content = (
+            '{"type":"system"}\n'
+            '{"type":"message","text":"done"}\n'
+        )
+        res_fb = extract_cli_result(fallback_content)
+        self.assertIsNotNone(res_fb)
+        self.assertEqual(res_fb.get("text"), "done")
+
+        # Empty or non-json
+        self.assertIsNone(extract_cli_result(""))
+        self.assertIsNone(extract_cli_result("not json\nstill not json"))
+
+    def test_run_benchmark_container_creates_cli_result_json(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            staging_dir = tmp_path / "frontier-workspace-cli-result-test"
+            staging_dir.mkdir(parents=True)
+            run_dir = tmp_path / "runs" / "france-road-accidents" / "cli-result-test"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "cursor"},
+                "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+            }), encoding="utf-8")
+
+            stream_stdout = (
+                '{"type":"system","message":"started"}\n'
+                '{"type":"result","status":"success","turns":3}\n'
+            )
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0, stdout=stream_stdout)
+
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id="cli-result-test",
+                )
+                self.assertEqual(exit_code, 0)
+
+                cli_stream_path = run_dir / "tool-events" / "cli-stream.jsonl"
+                self.assertTrue(cli_stream_path.is_file())
+                self.assertEqual(cli_stream_path.read_text(encoding="utf-8"), stream_stdout)
+
+                cli_result_path = run_dir / "tool-events" / "cli-result.json"
+                self.assertTrue(cli_result_path.is_file())
+                result_data = json.loads(cli_result_path.read_text(encoding="utf-8"))
+                self.assertEqual(result_data["type"], "result")
+                self.assertEqual(result_data["status"], "success")
+
+    def test_run_benchmark_container_keyboard_interrupt_handling(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            staging_dir = tmp_path / "frontier-workspace-interrupt-test"
+            staging_dir.mkdir(parents=True)
+            run_dir = tmp_path / "runs" / "france-road-accidents" / "interrupt-test"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "cursor"},
+                "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+            }), encoding="utf-8")
+
+            # Mock Popen directly to simulate KeyboardInterrupt
+            mock_proc = MagicMock()
+            mock_proc.poll.return_value = None
+            mock_proc.wait.side_effect = [KeyboardInterrupt(), 0]
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.Popen", return_value=mock_proc), \
+                 patch("subprocess.run") as mock_run:
+
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id="interrupt-test",
+                    auto_finish=False,
+                )
+                self.assertEqual(exit_code, 130)
+                mock_proc.kill.assert_called_once()
+
+                # Verify docker rm -f was called
+                docker_rm_called = any(
+                    isinstance(call.args[0], list) and call.args[0][:3] == ["docker", "rm", "-f"]
+                    for call in mock_run.call_args_list
+                )
+                self.assertTrue(docker_rm_called, "docker rm -f should be called on interrupt")
 
 
 if __name__ == "__main__":

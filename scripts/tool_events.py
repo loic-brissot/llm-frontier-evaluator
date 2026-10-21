@@ -389,7 +389,7 @@ def _tool_intervals(
     intervals: list[tuple[datetime, datetime]] = []
     missing = 0
     for record in tools:
-        finish = parse_time(record.get("logged_at"))
+        finish = parse_time(record.get("logged_at") or record.get("timestamp"))
         duration = _duration(record.get("duration"))
         if finish is None or duration is None:
             missing += 1
@@ -728,12 +728,22 @@ def _summarize_cursor_hook_records(
     stops.sort(key=lambda record: parse_time(record.get("logged_at")) or datetime.max.replace(tzinfo=timezone.utc))
 
     start = parse_time(prompts[0].get("logged_at")) if prompts else None
+    if start is None:
+        # Fall back to timestamp of the first event when beforeSubmitPrompt is missing (e.g. headless mode)
+        all_times = [
+            parse_time(r.get("logged_at") or r.get("timestamp"))
+            for r in records
+        ]
+        valid_times = [t for t in all_times if t is not None]
+        if valid_times:
+            start = min(valid_times)
+
     end: datetime | None = None
     end_exclusive: datetime | None = None
     selected_stop: dict | None = None
     if start is not None:
         for record in stops:
-            stamped = parse_time(record.get("logged_at"))
+            stamped = parse_time(record.get("logged_at") or record.get("timestamp"))
             if stamped is not None and stamped >= start:
                 end = stamped
                 selected_stop = record
@@ -746,13 +756,58 @@ def _summarize_cursor_hook_records(
                 "A second prompt was logged before a stop event. Tool counts stop at that prompt."
             )
         elif end is None:
-            summary.notes.append("No stop event, so wall clock was not taken from the log.")
+            # When no stop event is recorded, cap the run end time at the last non-idle tool/thought event
+            non_idle_hooks = {
+                "afterShellExecution",
+                "postToolUse",
+                "postToolUseFailure",
+                "preToolUse",
+                "afterFileEdit",
+                "afterMCPExecution",
+                "afterAgentThought",
+                "afterAgentResponse",
+                "subagentStop",
+            }
+            non_idle_records = [
+                r for r in records
+                if r.get("hook_event_name") in non_idle_hooks
+                or r.get("hook_event_name") in TOOL_HOOKS
+                or r.get("hook_event_name") == THOUGHT_HOOK
+                or r.get("tool_name") is not None
+            ]
+            non_idle_times = [
+                parse_time(r.get("logged_at") or r.get("timestamp"))
+                for r in non_idle_records
+            ]
+            valid_non_idle_times = [t for t in non_idle_times if t is not None and t >= start]
+            if valid_non_idle_times:
+                end = max(valid_non_idle_times)
+                summary.notes.append(
+                    "No stop event recorded; capped run end time at the last non-idle tool/thought event."
+                )
+                if summary.stop_status is None:
+                    has_interrupt = any(
+                        r.get("is_interrupt") is True or r.get("failure_type") == "interrupt"
+                        for r in records
+                    )
+                    if has_interrupt:
+                        summary.stop_status = "aborted"
+                    else:
+                        summary.stop_status = "completed"
+            else:
+                summary.notes.append("No stop event, so wall clock was not taken from the log.")
         if len(prompts) > 1 and end is not None:
             summary.notes.append("Tool counts use the first prompt and the first stop.")
     else:
         if stops:
             selected_stop = stops[0]
         summary.notes.append("No prompt event, so tool counts include every logged call.")
+
+    if selected_stop is None:
+        for r in reversed(records):
+            if r.get("input_tokens") is not None or r.get("output_tokens") is not None:
+                selected_stop = r
+                break
 
     _apply_stop_tokens(summary, selected_stop)
 
@@ -776,7 +831,7 @@ def _summarize_cursor_hook_records(
         hook = record.get("hook_event_name")
         if hook not in TOOL_HOOKS and hook != THOUGHT_HOOK:
             continue
-        stamped = parse_time(record.get("logged_at"))
+        stamped = parse_time(record.get("logged_at") or record.get("timestamp"))
         if start is not None and (stamped is None or stamped < start):
             continue
         if end is not None and (stamped is None or stamped > end):
@@ -894,3 +949,6 @@ def summarize_run(run_dir: Path) -> ToolEventSummary:
         if isinstance(recorded, str) and recorded:
             prompt_id = recorded
     return summarize_records(records, notes, expected_prompt_path=prompt_path(prompt_id))
+
+
+summarize_tool_event_log = summarize_records

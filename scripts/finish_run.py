@@ -119,7 +119,9 @@ def is_playwright_env_error(runtime_data: dict | None) -> bool:
     return False
 
 
-def prompt(label: str, default: str | None = None) -> str:
+def prompt_str(label: str, default: str | None = None, *, non_interactive: bool = False) -> str:
+    if non_interactive:
+        return default or ""
     if default is not None:
         value = input(f"{label} [{default}]: ").strip()
         return value if value else default
@@ -130,13 +132,21 @@ def prompt(label: str, default: str | None = None) -> str:
         print("  A value is required.")
 
 
-def prompt_optional(label: str, default: str = "") -> str:
+def prompt(label: str, default: str | None = None, *, non_interactive: bool = False) -> str:
+    return prompt_str(label, default, non_interactive=non_interactive)
+
+
+def prompt_optional(label: str, default: str = "", *, non_interactive: bool = False) -> str:
+    if non_interactive:
+        return default
     suffix = f" [{default}]" if default else " (Enter to leave empty)"
     value = input(f"{label}{suffix}: ").strip()
     return value if value else default
 
 
-def prompt_yes_no(label: str, default: bool = False) -> bool:
+def prompt_yes_no(label: str, default: bool = False, *, non_interactive: bool = False) -> bool:
+    if non_interactive:
+        return default
     suffix = "Y/n" if default else "y/N"
     value = input(f"{label} [{suffix}]: ").strip().lower()
     if not value:
@@ -144,7 +154,9 @@ def prompt_yes_no(label: str, default: bool = False) -> bool:
     return value in {"y", "yes"}
 
 
-def prompt_int(label: str, default: int | None = None) -> int | None:
+def prompt_optional_int(label: str, default: int | None = None, *, non_interactive: bool = False) -> int | None:
+    if non_interactive:
+        return default
     while True:
         default_text = "" if default is None else str(default)
         raw = input(f"{label}{f' [{default_text}]' if default_text else ''}: ").strip()
@@ -156,7 +168,13 @@ def prompt_int(label: str, default: int | None = None) -> int | None:
             print("  Enter an integer or press Enter to skip.")
 
 
-def prompt_float(label: str, default: float | None = None) -> float | None:
+def prompt_int(label: str, default: int | None = None, *, non_interactive: bool = False) -> int | None:
+    return prompt_optional_int(label, default, non_interactive=non_interactive)
+
+
+def prompt_optional_float(label: str, default: float | None = None, *, non_interactive: bool = False) -> float | None:
+    if non_interactive:
+        return default
     while True:
         default_text = "" if default is None else str(default)
         raw = input(f"{label}{f' [{default_text}]' if default_text else ''}: ").strip()
@@ -166,6 +184,30 @@ def prompt_float(label: str, default: float | None = None) -> float | None:
             return float(raw)
         except ValueError:
             print("  Enter a number or press Enter to skip.")
+
+
+def prompt_float(label: str, default: float | None = None, *, non_interactive: bool = False) -> float | None:
+    return prompt_optional_float(label, default, non_interactive=non_interactive)
+
+
+def prompt_choice(
+    label: str,
+    choices: list[str] | tuple[str, ...],
+    default: str | None = None,
+    *,
+    non_interactive: bool = False,
+) -> str:
+    if non_interactive:
+        if default is not None:
+            return default
+        return choices[0] if choices else ""
+    choices_str = ", ".join(choices)
+    prompt_label = f"{label} ({choices_str})"
+    while True:
+        val = prompt_str(prompt_label, default=default, non_interactive=False)
+        if val in choices:
+            return val
+        print(f"  Choose one of: {choices_str}")
 
 
 def select_run_id(explicit: str | None, prompt_id: str | None = None) -> Path:
@@ -268,7 +310,13 @@ def discover_tmp_usage_csv(run_dir: Path, tmp_dir: Path | None = None) -> Path |
     return best_path
 
 
-def ingest_usage(run_dir: Path, source: Path | None, *, skip_copy: bool) -> list[Path]:
+def ingest_usage(
+    run_dir: Path,
+    source: Path | None,
+    *,
+    skip_copy: bool,
+    non_interactive: bool = False,
+) -> list[Path]:
     usage_dir = run_dir / "usage"
     usage_dir.mkdir(exist_ok=True)
     if skip_copy:
@@ -279,21 +327,27 @@ def ingest_usage(run_dir: Path, source: Path | None, *, skip_copy: bool) -> list
         tool_summary = summarize_run(run_dir)
         has_hook_tokens = bool(tool_summary.token_turns)
         discovered = discover_tmp_usage_csv(run_dir)
-        if existing or has_hook_tokens:
+        if non_interactive:
             if discovered:
-                raw = prompt_optional("Path to harness usage export", default=str(discovered))
+                source = discovered
+            else:
+                return existing
+        elif existing or has_hook_tokens:
+            if discovered:
+                raw = prompt_optional("Path to harness usage export", default=str(discovered), non_interactive=non_interactive)
             else:
                 raw = prompt_optional(
-                    "Path to harness usage export (Enter to use hook log / existing usage/)"
+                    "Path to harness usage export (Enter to use hook log / existing usage/)",
+                    non_interactive=non_interactive,
                 )
             if not raw:
                 return existing
             source = Path(raw).expanduser()
         else:
             if discovered:
-                raw = prompt("Path to harness usage export (file or directory)", default=str(discovered))
+                raw = prompt_str("Path to harness usage export (file or directory)", default=str(discovered), non_interactive=non_interactive)
             else:
-                raw = prompt("Path to harness usage export (file or directory)")
+                raw = prompt_str("Path to harness usage export (file or directory)", non_interactive=non_interactive)
             source = Path(raw).expanduser()
     if not source.exists():
         raise FileNotFoundError(f"Usage export not found: {source}")
@@ -1404,10 +1458,16 @@ def complete_run_json(
     run_dir: Path,
     usage_paths: list[Path],
     *,
-    interactive: bool,
+    interactive: bool = True,
+    non_interactive: bool = False,
     verify: bool = False,
     skip_verify: bool = False,
 ) -> None:
+    if non_interactive:
+        interactive = False
+    elif not interactive:
+        non_interactive = True
+
     repatriate_staged_workspace(run_dir)
     runtime_file = run_dir / "artifacts" / "runtime.json"
     if (verify or not runtime_file.is_file()) and not skip_verify:
@@ -1487,66 +1547,88 @@ def complete_run_json(
     if tool_summary.present:
         print_tool_summary(tool_summary)
         use_log = True
-        if interactive:
-            use_log = prompt_yes_no("  Use these tool counts?", default=True)
+        if not non_interactive and interactive:
+            use_log = prompt_yes_no("  Use these tool counts?", default=True, non_interactive=non_interactive)
     hints = prepare_hints(run, usage_paths, interactive=interactive)
     store_usage_raw(run, hints)
     apply_logged_tokens(run, tool_summary, hints)
     apply_logged_time(run, tool_summary, hints)
 
     tokens = run["tokens"]
-    if not interactive:
+    if non_interactive:
         if tokens["reasoning_tokens"] is None and hints.get("reasoning_tokens") is not None:
             tokens["reasoning_tokens"] = hints["reasoning_tokens"]
         if tokens["visible_tokens"] is None and hints.get("visible_tokens") is not None:
             tokens["visible_tokens"] = hints["visible_tokens"]
         if (tokens["split_rule"] is None or tokens["split_rule"] == "unavailable") and hints.get("split_rule") is not None:
             tokens["split_rule"] = hints["split_rule"]
-    if interactive or tokens["reasoning_tokens"] is None:
+        if tokens["reasoning_tokens"] is None:
+            tokens["split_rule"] = "unavailable"
+            tokens["reasoning_tokens"] = None
+            tokens["visible_tokens"] = None
+    else:
         print("\nTokens generated (see docs/metrics.md)")
         split_default = str(hints.get("split_rule") or tokens["split_rule"])
-        split_rule = prompt(f"  split_rule ({', '.join(SPLIT_RULES)})", split_default)
+        split_rule = prompt_choice(
+            "  split_rule",
+            SPLIT_RULES,
+            default=split_default,
+            non_interactive=non_interactive,
+        )
         tokens["split_rule"] = split_rule
         if split_rule == "unavailable":
             tokens["reasoning_tokens"] = None
             tokens["visible_tokens"] = None
         else:
-            tokens["reasoning_tokens"] = prompt_int(
+            tokens["reasoning_tokens"] = prompt_optional_int(
                 "  reasoning_tokens",
                 hint_int(hints, "reasoning_tokens", tokens["reasoning_tokens"]),
+                non_interactive=non_interactive,
             )
-            tokens["visible_tokens"] = prompt_int(
+            tokens["visible_tokens"] = prompt_optional_int(
                 "  visible_tokens",
                 hint_int(hints, "visible_tokens", tokens["visible_tokens"]),
+                non_interactive=non_interactive,
             )
 
     model_time = run["model_time"]
-    if not interactive:
+    if non_interactive:
         if model_time["generating_seconds"] is None and hints.get("generating_seconds") is not None:
             model_time["generating_seconds"] = hints["generating_seconds"]
             if hints.get("model_time_source"):
                 model_time["source"] = hints["model_time_source"]
-    if interactive or model_time["generating_seconds"] is None:
+        if model_time["generating_seconds"] is None:
+            model_time["source"] = "unavailable"
+            model_time["generating_seconds"] = None
+        elif not model_time.get("source") or model_time["source"] == "unavailable":
+            model_time["source"] = hints.get("model_time_source") or HOOK_TIME_SOURCE
+    else:
         print("\nModel time")
         source_default = str(hints.get("model_time_source", model_time["source"]))
         sources = TIME_SOURCES if run.get("rules_version") == 2 else tuple(
             source for source in TIME_SOURCES if source != HOOK_TIME_SOURCE
         )
-        model_time["source"] = prompt(f"  source ({', '.join(sources)})", source_default)
-        while model_time["source"] not in sources:
-            print(f"  Choose one of: {', '.join(sources)}")
-            model_time["source"] = prompt(f"  source ({', '.join(sources)})", source_default)
+        model_time["source"] = prompt_choice(
+            "  source",
+            sources,
+            default=source_default,
+            non_interactive=non_interactive,
+        )
         if model_time["source"] == "unavailable":
             model_time["generating_seconds"] = None
         else:
             hint_seconds = hints.get("generating_seconds")
             default_seconds = hint_seconds if isinstance(hint_seconds, (int, float)) else model_time["generating_seconds"]
-            model_time["generating_seconds"] = prompt_float("  generating_seconds", default_seconds)
+            model_time["generating_seconds"] = prompt_optional_float(
+                "  generating_seconds",
+                default_seconds,
+                non_interactive=non_interactive,
+            )
 
     cache = run["context_reread"]
     cache.setdefault("cache_write_tokens", None)
     cache.setdefault("uncached_input_tokens", None)
-    if not interactive:
+    if non_interactive:
         if cache["cache_read_tokens"] is None and hints.get("cache_read_tokens") is None and tool_summary.cache_read_tokens is not None:
             cache["cache_read_tokens"] = tool_summary.cache_read_tokens
         elif cache["cache_read_tokens"] is None and hints.get("cache_read_tokens") is not None:
@@ -1562,42 +1644,53 @@ def complete_run_json(
         elif cache["uncached_input_tokens"] is None and hints.get("uncached_input_tokens") is not None:
             cache["uncached_input_tokens"] = hints["uncached_input_tokens"]
 
-        if (cache["source"] is None or cache["source"] == "unavailable") and hints.get("cache_source") is not None:
-            cache["source"] = hints["cache_source"]
-        elif (cache["source"] is None or cache["source"] == "unavailable") and cache["cache_read_tokens"] is not None:
-            cache["source"] = "provider_cache_read"
-
-    if interactive or cache["cache_read_tokens"] is None:
+        if cache["source"] is None or cache["source"] == "unavailable":
+            if hints.get("cache_source") is not None:
+                cache["source"] = hints["cache_source"]
+            elif cache["cache_read_tokens"] is not None:
+                cache["source"] = "provider_cache_read"
+            else:
+                cache["source"] = "unavailable"
+                cache["cache_read_tokens"] = None
+    else:
         print("\nContext re-read")
         cache_default = str(hints.get("cache_source", cache["source"]))
-        cache["source"] = prompt(f"  source ({', '.join(CACHE_SOURCES)})", cache_default)
+        cache["source"] = prompt_choice(
+            "  source",
+            CACHE_SOURCES,
+            default=cache_default,
+            non_interactive=non_interactive,
+        )
         if cache["source"] == "unavailable":
             cache["cache_read_tokens"] = None
         else:
-            cache["cache_read_tokens"] = prompt_int(
+            cache["cache_read_tokens"] = prompt_optional_int(
                 "  cache_read_tokens",
                 hint_int(hints, "cache_read_tokens", cache["cache_read_tokens"]),
+                non_interactive=non_interactive,
             )
-        cache["cache_write_tokens"] = prompt_int(
+        cache["cache_write_tokens"] = prompt_optional_int(
             "  cache_write_tokens (optional)",
             hint_int(hints, "cache_write_tokens", cache["cache_write_tokens"]),
+            non_interactive=non_interactive,
         )
-        cache["uncached_input_tokens"] = prompt_int(
+        cache["uncached_input_tokens"] = prompt_optional_int(
             "  uncached_input_tokens (optional)",
             hint_int(hints, "uncached_input_tokens", cache["uncached_input_tokens"]),
+            non_interactive=non_interactive,
         )
 
     tool_counts_applied = False
     if use_log:
         apply_tool_buckets(run, tool_summary)
         tool_counts_applied = True
-    if interactive and not tool_counts_applied:
+    if not non_interactive and interactive and not tool_counts_applied:
         print("\nTool calls (see docs/tool-buckets.md)")
         for name in BUCKETS:
             apply_bucket(run, name, interactive=True)
 
     outcome = run["outcome"]
-    if interactive:
+    if not non_interactive and interactive:
         print("\nOutcome")
         if outcome["model_stopped"] is not None:
             stopped_default = bool(outcome["model_stopped"])
@@ -1607,7 +1700,7 @@ def complete_run_json(
             stopped_default = False
         else:
             stopped_default = True
-        outcome["model_stopped"] = prompt_yes_no("  The model stopped by itself?", default=stopped_default)
+        outcome["model_stopped"] = prompt_yes_no("  The model stopped by itself?", default=stopped_default, non_interactive=non_interactive)
         if outcome["operator_saw_a_page"] is True:
             page_default = "true"
         elif outcome["operator_saw_a_page"] is False:
@@ -1616,19 +1709,34 @@ def complete_run_json(
             page_default = "true" if runtime_data["passed"] else "false"
         else:
             page_default = "unknown"
-        saw_page = prompt("  Operator saw a page? (true/false/unknown)", page_default).lower()
+        saw_page = prompt_str("  Operator saw a page? (true/false/unknown)", page_default, non_interactive=non_interactive).lower()
         if saw_page == "true":
             outcome["operator_saw_a_page"] = True
         elif saw_page == "false":
             outcome["operator_saw_a_page"] = False
         else:
             outcome["operator_saw_a_page"] = None
-        outcome["summary"] = prompt("  One-sentence summary", outcome["summary"] or None)
+        outcome["summary"] = prompt_str("  One-sentence summary", outcome["summary"] or None, non_interactive=non_interactive)
         print("\nObservations")
         run["observations"] = prompt_optional(
             "  Additional observations",
             observation_default(run, tool_summary, include_other=tool_counts_applied),
+            non_interactive=non_interactive,
         )
+    else:
+        if outcome["model_stopped"] is None:
+            if tool_summary.stop_status == "completed":
+                outcome["model_stopped"] = True
+            elif tool_summary.stop_status in {"aborted", "error"}:
+                outcome["model_stopped"] = False
+            else:
+                outcome["model_stopped"] = True
+        if outcome["operator_saw_a_page"] is None and runtime_data and isinstance(runtime_data.get("passed"), bool) and not is_playwright_env_error(runtime_data):
+            outcome["operator_saw_a_page"] = runtime_data["passed"]
+        if outcome.get("summary") is None:
+            outcome["summary"] = ""
+        if not run.get("observations"):
+            run["observations"] = observation_default(run, tool_summary, include_other=tool_counts_applied)
 
     if (
         outcome.get("operator_saw_a_page") is None
@@ -1672,6 +1780,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--compare-only", action="store_true", help="Only run compare_runs.py.")
     parser.add_argument("--verify", action="store_true", help="Run verify_run Playwright smoke test before completing run.json.")
     parser.add_argument("--skip-verify", action="store_true", help="Skip Playwright verification.")
+    parser.add_argument("--non-interactive", action="store_true", help="Run without prompting on stdin.")
     return parser
 
 
@@ -1690,7 +1799,12 @@ def main() -> int:
         return run_compare()
 
     try:
-        usage_paths = ingest_usage(run_dir, args.usage_export, skip_copy=args.skip_usage_copy)
+        usage_paths = ingest_usage(
+            run_dir,
+            args.usage_export,
+            skip_copy=args.skip_usage_copy,
+            non_interactive=args.non_interactive,
+        )
     except FileNotFoundError as exc:
         print(exc, file=sys.stderr)
         return 1
@@ -1705,7 +1819,8 @@ def main() -> int:
         complete_run_json(
             run_dir,
             usage_paths,
-            interactive=True,
+            interactive=not args.non_interactive,
+            non_interactive=args.non_interactive,
             verify=args.verify,
             skip_verify=args.skip_verify,
         )
