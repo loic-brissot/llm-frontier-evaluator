@@ -15,10 +15,17 @@ A series is the set of runs that share the prompt, the harness family, and the s
 
 ## Before you start
 
-Run `python3 scripts/setup_run.py --prompt <prompt-id>` (or `--follow-up --parent-run-id <id>` for a follow-up run). It asks for the prompt, the harness, the model, the optional context on a Cursor run, and the optional reasoning (effort) setting, then creates the directory below.
+Before executing runs, ensure the runner container image is built:
+```bash
+docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
+```
+
+You can execute a run via either:
+- **Headless Docker (Recommended single-command workflow)**: `python3 scripts/run_benchmark.py --prompt <prompt-id> --harness cursor --model "<Model>" --reasoning <level>` validates preflights, scaffolds the run and staged workspace, executes the container, and triggers verification automatically. Headless CLI runs omit `--context` because `cursor-agent` and `claude` CLIs cannot select context windows (use `--allow-cli-context-override` only if overriding a pre-scaffolded run's context to `null`).
+- **Clean-Room GUI workflow**: `python3 scripts/setup_run.py --prompt <prompt-id>` (or `--follow-up --parent-run-id <id>` for a follow-up run). It asks for the prompt, the harness, the model, the optional context on a Cursor run (e.g. `--context 500k`), and the optional reasoning (effort) setting, then creates the directory below.
 
 1. Create `runs/<prompt-id>/<run-id>/`.
-2. Use a run id of the form `YYYY-MM-DD-<harness>-<model>-<context>-<reasoning>` on a Cursor run that has a context, and `YYYY-MM-DD-<harness>-<model>-<reasoning>` on every other run. The `<context>` segment, such as `500k`, appears only when the harness is Cursor and a context was filled in. Context is optional even for Cursor — it cannot be tuned in every configuration — so omit `--context` (or leave the prompt blank) when it is not set: `model.context` is then null and the run id has no `<context>` segment. `setup_run.py` rejects a filled context for other harnesses.
+2. Use a run id of the form `YYYY-MM-DD-<harness>-<model>-<context>-<reasoning>` on a Cursor run that has a context, and `YYYY-MM-DD-<harness>-<model>-<reasoning>` on every other run. The `<context>` segment, such as `500k`, appears only when the harness is Cursor and a context was filled in. Context is optional even for Cursor — it cannot be tuned in every configuration — so omit `--context` (or leave the prompt blank) when it is not set: `model.context` is then null and the run id has no `<context>` segment. `setup_run.py` rejects a filled context for other harnesses. (As noted above, `--context` is supported only on Clean-Room GUI runs; headless Docker CLI runs omit `--context`).
 3. Copy `templates/run.json` to `runs/<prompt-id>/<run-id>/run.json`.
 4. Stage the active workspace in an external neutral directory `/tmp/frontier-workspace-<run-id>/` (initialized with `git init -q` to isolate from parent repository metadata) and write its path to `runs/<prompt-id>/<run-id>/.staging_workspace`.
 5. Stop writing `workspace/prompt.txt`. Copy the exact bytes of `prompt/<prompt-id>.txt` to system clipboard (`pbcopy`) when interactive.

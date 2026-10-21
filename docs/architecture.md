@@ -28,11 +28,11 @@ This document describes the repository structure, script roles, execution lifecy
 The lifecycle of an evaluation run consists of four phases:
 
 1. **Setup & Scaffolding**:
-   `scripts/setup_run.py` validates inputs against prompt and model references, calculates the canonical `run_id`, creates `runs/<prompt-id>/<run-id>/`, copies the template `run.json`, and prepares the staged workspace directory or Docker launcher script.
+   `scripts/setup_run.py` validates inputs against prompt and model references, calculates the canonical `run_id`, creates `runs/<prompt-id>/<run-id>/`, copies the template `run.json`, and prepares the staged workspace directory and clean-room GUI launcher script (`/tmp/frontier-workspace-<run-id>-launch.sh`). In Clean-Room GUI runs, `--context` (e.g. `--context 500k` or `1m`) is supported to record the selected IDE context size.
 
 2. **Execution**:
-   - **Interactive / Clean-room GUI**: The operator launches the harness using `/tmp/frontier-workspace-<run-id>-launch.sh` and sends the exact frozen prompt text from `prompt/<prompt-id>.txt`.
-   - **Headless Container**: `scripts/run_benchmark.py` executes the benchmark inside a Docker container (`Dockerfile.benchmark`) using `cursor-agent` or `claude-code`.
+   - **Headless Container (Single-Command Entrypoint)**: `scripts/run_benchmark.py` serves as a self-contained entrypoint that runs preflight checks, auto-scaffolds the run, executes inside an isolated Docker container (`Dockerfile.benchmark`) using `cursor-agent` or `claude-code`, and automatically runs `finish_run.py --verify --skip-usage-copy --non-interactive`. Headless CLI runs omit `--context` because CLI runners cannot select context windows (use `--allow-cli-context-override` only when overriding a pre-scaffolded context to `null`).
+   - **Interactive / Clean-Room GUI**: For GUI testing or context variant evaluation, the operator launches the harness using `/tmp/frontier-workspace-<run-id>-launch.sh` and sends the exact frozen prompt text from `prompt/<prompt-id>.txt`, finishing with `python3 scripts/finish_run.py --verify`.
 
 3. **Telemetry & Verification**:
    - `scripts/tool_events.py` parses tool invocation logs recorded by harness hooks (`.cursor/tool-events/` or Claude Code output logs) and aggregates calls and failures into standard tool buckets (`shell`, `files`, `visual_checks`, `web`, `other`).
@@ -79,5 +79,10 @@ Each run record stores a `rules_version` integer:
 ## Container & Clean-Room Isolation Model
 
 To guarantee benchmark reproducibility, prevent pollution from local environment configurations or cached tools, and ensure safety during autonomous code execution, runs are executed under strict isolation.
+
+Headless runs execute inside a deterministic Linux runner container built with:
+```bash
+docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
+```
 
 For detailed design specifications, container setup, and workspace staging mechanics, see [`docs/design-run-isolation.md`](design-run-isolation.md).

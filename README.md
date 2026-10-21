@@ -51,30 +51,75 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 ## Launch your own run
 
-1. **Install dependencies & build runner container**:
+### Prerequisites
+
+```bash
+python3 -m pip install -r requirements.txt
+python3 -m pip install playwright && python3 -m playwright install chromium
+```
+
+### Option A: Headless in Docker (Recommended)
+
+Execute a fully automated, reproducible benchmark evaluation run inside an isolated Linux container with preflight validation, automatic scaffolding, and unattended verification.
+
+1. **Build the runner container image**:
    ```bash
-   python3 -m pip install -r requirements.txt
-   python3 -m pip install playwright && python3 -m playwright install chromium
-   docker build -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
+   docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
    ```
-2. **Scaffold & execute run**:
-   - Scaffold run directory and staged workspace:
-     ```bash
-     python3 scripts/setup_run.py --prompt <prompt-id> --harness cursor --model "claude-opus-5-5" --reasoning high
-     ```
-   - Execute in clean-room GUI using `/tmp/frontier-workspace-<run-id>-launch.sh` or run headless in Docker:
-     ```bash
-     export CURSOR_API_KEY=... # or ANTHROPIC_API_KEY=...
-     python3 scripts/run_benchmark.py --prompt <prompt-id> --harness cursor --model "claude-opus-5-5" --reasoning high
-     ```
-3. **Finish & verify run**:
+   *(Note: The `--platform linux/amd64` flag is required because `Dockerfile.benchmark` installs the x86_64 `cursor-agent` binary, ensuring reliable emulation and execution on Apple Silicon and Linux hosts alike.)*
+
+2. **Export your harness API key**:
    ```bash
-   python3 scripts/finish_run.py --prompt <prompt-id> --run-id <run-id> --verify
+   export CURSOR_API_KEY="your-key"          # for Cursor harness
+   # or: export ANTHROPIC_API_KEY="your-key" # for Claude Code harness
    ```
-4. **Sync comparison tables**:
+
+3. **Execute the benchmark with a single command**:
    ```bash
-   python3 scripts/compare_runs.py --sync-readme
-   python3 scripts/compare_runs.py --check-readme
+   python3 scripts/run_benchmark.py --prompt paris-1910-flood-simulator --harness cursor --model "Claude Opus 5.5" --reasoning high
    ```
+   This single entrypoint automatically:
+   - Validates preflight checks (Docker daemon connectivity, image presence, and API keys).
+   - Scaffolds the run directory under `runs/<prompt-id>/<run-id>/` and an isolated staging workspace at `/tmp/frontier-workspace-<run-id>/`.
+   - Executes the agent inside the container without global skills, plugins, or repo leakage.
+   - Automatically triggers `finish_run.py --verify --skip-usage-copy --non-interactive` to repatriate artifacts, run Playwright and data-pipeline verification, and populate `run.json`.
+
+   *Note on context windows*: Headless CLI runs omit the `--context` flag because `cursor-agent` and `claude` CLIs cannot select context windows. (If executing against a pre-scaffolded run directory that specified a context, pass `--allow-cli-context-override` only if overriding that run's context to `null`.)
+
+4. **Optional: Ingest usage export CSV**:
+   If you later export a billing CSV from the Cursor dashboard (`~/.cursor/usage-exports/<run-id>.csv`), ingest it into the completed run:
+   ```bash
+   python3 scripts/finish_run.py --prompt paris-1910-flood-simulator --run-id <run-id> --usage-export ~/.cursor/usage-exports/<run-id>.csv --non-interactive
+   ```
+
+### Option B: Clean-Room GUI
+
+When using the native Cursor GUI or testing specific context window variants (e.g. `--context 500k` or `--context 1m`), use the Clean-Room GUI workflow:
+
+1. **Scaffold the run with `--context`**:
+   ```bash
+   python3 scripts/setup_run.py --prompt paris-1910-flood-simulator --harness cursor --model "Claude Opus 5.5" --reasoning high --context 500k
+   ```
+   *(The `--context` flag records the requested context variant in `run.json` and in the allocated run ID. This is supported in Clean-Room GUI runs where the operator selects the context window in the IDE.)*
+
+2. **Launch the isolated GUI session**:
+   ```bash
+   /tmp/frontier-workspace-<run-id>-launch.sh
+   ```
+   The launcher script sets up a sterile profile, blocks paths outside `/tmp/frontier-workspace-<run-id>/` via `preToolUse` hooks, and copies the exact frozen prompt bytes to your clipboard (`pbcopy`). Paste the prompt as the single initial user message and wait for the agent to finish.
+
+3. **Finish and verify the run**:
+   ```bash
+   python3 scripts/finish_run.py --prompt paris-1910-flood-simulator --run-id <run-id> --verify
+   ```
+
+### Synchronize comparison tables
+
+After completing or updating runs, synchronize the comparison tables in `README.md`:
+
+```bash
+python3 scripts/compare_runs.py --sync-readme
+python3 scripts/compare_runs.py --check-readme
+```
 
 For detailed protocol guidelines, metrics definitions, container isolation specifications, and repository architecture, see [`docs/protocol.md`](docs/protocol.md), [`docs/metrics.md`](docs/metrics.md), [`docs/design-run-isolation.md`](docs/design-run-isolation.md), and [`docs/architecture.md`](docs/architecture.md).

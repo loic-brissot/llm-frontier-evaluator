@@ -96,7 +96,10 @@ Host Machine (macOS)                                  Docker Container (benchmar
 ```
 
 ### 3.2 Benchmark Container Image (`Dockerfile.benchmark`)
-A single, reusable Docker image (`llm-frontier-evaluator-runner:latest`) provides a deterministic Linux environment:
+A single, reusable Docker image (`llm-frontier-evaluator-runner:latest`) provides a deterministic Linux environment built via:
+```bash
+docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
+```
 - **Base OS & Runtimes**: `node:22-bookworm` with `python3`, `python3-venv`, `python3-pip`, `git`, `curl`, `jq`, `unzip`, `sqlite3`, and common build tools.
 - **Harnesses Installed**:
   - Cursor Agent CLI (`cursor-agent`)
@@ -147,8 +150,10 @@ When the operator runs `python3 scripts/setup_run.py --prompt <prompt-id> ...`:
      ```
 3. Streams stdout/stderr telemetry to `runs/<prompt-id>/<run-id>/tool-events/cli-stream.jsonl` while Cursor hooks simultaneously log to `/workspace/.cursor/tool-events/`.
 
+*Context Window Policy*: Headless CLI runs omit the `--context` flag because `cursor-agent` and `claude` CLIs cannot select context windows. If an operator attempts to execute `run_benchmark.py` against a pre-scaffolded run directory configured with a context variant, `run_benchmark.py` rejects the run unless `--allow-cli-context-override` is explicitly supplied to reset `model.context` to `null`.
+
 ### 3.5 Fallback for Cursor IDE GUI Runs (Clean-Room Host Profile)
-When a Cursor run requires a GUI-only control not yet exposed by `cursor-agent` CLI flags (such as selecting a specific `300k` vs. `1m` context window in the Cursor IDE picker):
+When a Cursor run requires a GUI-only control not yet exposed by `cursor-agent` CLI flags (such as selecting a specific `500k` or `1m` context window in the Cursor IDE picker, e.g. via `python3 scripts/setup_run.py ... --context 500k`):
 1. `setup_run.py` generates a clean-room launcher script `/tmp/frontier-workspace-<run-id>-launch.sh` that:
    - Copies `prompt/<prompt-id>.txt` exact bytes to the system clipboard (`pbcopy`).
    - Sets `HOME=/tmp/frontier-home-<run-id>` (populated only with auth state from `~/.cursor/cli-config.json` and empty `skills/` and `plugins/` directories).
