@@ -3,9 +3,10 @@ id: TASK-33
 title: >-
   Update README.md and runner documentation with step-by-step headless Docker
   workflow and linux/amd64 build command
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-21 05:54'
+updated_date: '2026-10-21 12:19'
 labels:
   - docs
   - readme
@@ -43,8 +44,8 @@ Update `README.md` and synchronized documentation (`docs/design-run-isolation.md
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Update the docker build command in README.md, docs/design-run-isolation.md, backlog/docs/doc-1 ..., and .cursor/skills/benchmark-run/SKILL.md to: docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
-- [ ] #2 Rewrite '## Launch your own run' in README.md to provide clear step-by-step CLI commands for (a) Headless in Docker using a single python3 scripts/run_benchmark.py command (scaffolding, container execution, and automated verification in one step) and (b) Clean-Room GUI using python3 scripts/setup_run.py --context 500k ... plus /tmp/frontier-workspace-<run-id>-launch.sh and finish_run.py
-- [ ] #3 Document the --context flag in README.md, docs/protocol.md, and .cursor/skills/benchmark-run/SKILL.md with an explicit example (e.g. --context 500k) on the Clean-Room GUI workflow, explaining that headless CLI runs omit --context because cursor-agent and claude CLIs cannot select context windows
-- [ ] #4 python3 scripts/compare_runs.py --check-readme and all unit tests pass
+- [x] #1 Update the docker build command in README.md, docs/design-run-isolation.md, backlog/docs/doc-1 ..., and .cursor/skills/benchmark-run/SKILL.md to: docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
+- [x] #2 Rewrite '## Launch your own run' in README.md to provide clear step-by-step CLI commands for (a) Headless in Docker using a single python3 scripts/run_benchmark.py command (scaffolding, container execution, and automated verification in one step) and (b) Clean-Room GUI using python3 scripts/setup_run.py --context 500k ... plus /tmp/frontier-workspace-<run-id>-launch.sh and finish_run.py
+- [x] #3 Document the --context flag in README.md, docs/protocol.md, and .cursor/skills/benchmark-run/SKILL.md with an explicit example (e.g. --context 500k) on the Clean-Room GUI workflow, explaining that headless CLI runs omit --context because cursor-agent and claude CLIs cannot select context windows
+- [x] #4 python3 scripts/compare_runs.py --check-readme and all unit tests pass
 <!-- AC:END -->

@@ -21,55 +21,81 @@ A benchmark run represents one model, one harness, and one prompt delivery.
 
 ## Step-by-Step Workflow
 
-### 1. Scaffolding (`scripts/setup_run.py`)
+### 1. Runner Image Preparation
 
-Create the directory structure and initial files for the run.
+Before launching headless runs, build the runner Docker image:
 
-#### Primary Run
 ```bash
-python3 scripts/setup_run.py \
-  --prompt <prompt-id> \
-  --harness cursor \
-  --model "<Model Name>" \
-  --context 500k \
-  --reasoning high \
-  --non-interactive
+docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
 ```
-- `--prompt <prompt-id>`: ID of the frozen prompt (e.g. `france-road-accidents`).
-- `--harness cursor`: Harness family (`cursor`, `claude-code`, `codex`, or `other`).
-- `--model "<Model Name>"`: Display model name.
-- `--context <ctx>`: Context size variant (e.g., `500k` or `1m`). Applicable for Cursor runs; optional.
-- `--reasoning <level>`: Effort level (`minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `unknown`).
-
-#### Follow-up Run
-```bash
-python3 scripts/setup_run.py \
-  --prompt <prompt-id> \
-  --follow-up \
-  --parent-run-id <parent-run-id> \
-  --non-interactive
-```
-
-#### What `setup_run.py` does:
-1. Allocates a unique `run_id` under `runs/<prompt-id>/<run-id>/`.
-2. Copies `templates/run.json` to `runs/<prompt-id>/<run-id>/run.json`.
-3. Stages the active workspace in an external neutral directory `/tmp/frontier-workspace-<run-id>/` (initialized with `git init -q` to isolate from parent repository metadata) and writes its path to `runs/<prompt-id>/<run-id>/.staging_workspace`.
-4. Copies prompt exact bytes to system clipboard (`pbcopy`) when interactive.
-5. For Cursor runs, copies hook templates from `templates/cursor/` (`hooks.json` and `hooks/log-tool-event.py`) into `/tmp/frontier-workspace-<run-id>/.cursor/hooks/` and creates a clean-room GUI launcher script.
+*(Note: `--platform linux/amd64` is required because `Dockerfile.benchmark` installs the x86_64 `cursor-agent` archive, ensuring reliable execution on both Apple Silicon and Linux hosts.)*
 
 ---
 
 ### 2. Executing the Run
 
-1. Run the benchmark inside an isolated Docker container:
+Choose between the recommended headless Docker workflow (single command) or the Clean-Room GUI workflow (when testing specific context window variants in the IDE).
+
+#### Path A: Headless in Docker (Recommended)
+
+Run a fully automated, isolated benchmark run with a single command:
+
+```bash
+export CURSOR_API_KEY="your-key"          # for Cursor harness
+# or: export ANTHROPIC_API_KEY="your-key" # for Claude Code harness
+
+python3 scripts/run_benchmark.py \
+  --prompt <prompt-id> \
+  --harness cursor \
+  --model "<Model Name>" \
+  --reasoning high
+```
+
+This single entrypoint handles the full lifecycle:
+1. **Preflight Checks**: Verifies Docker daemon connectivity, image presence (`llm-frontier-evaluator-runner:latest`), and required API keys before creating any files.
+2. **Scaffolding**: Automatically creates the run record directory under `runs/<prompt-id>/<run-id>/` and an isolated external staging workspace at `/tmp/frontier-workspace-<run-id>/`.
+3. **Container Execution**: Executes the agent inside the clean Linux container with the exact bytes of `prompt/<prompt-id>.txt` as the initial prompt, completely isolated from parent repository metadata, personal skills, and plugins.
+4. **Automated Verification**: Automatically triggers `finish_run.py --verify --skip-usage-copy --non-interactive` upon completion to repatriate workspace artifacts, run Playwright verification and data-pipeline probes, and populate `run.json`.
+
+*Context Window Policy*: Headless CLI runs omit the `--context` flag because `cursor-agent` and `claude` CLIs cannot select context windows. If executing against a pre-scaffolded run directory configured with a context variant, `run_benchmark.py` will reject the run unless `--allow-cli-context-override` is passed to clear `model.context` to `null`.
+
+#### Path B: Clean-Room GUI (Context Variant Testing)
+
+When testing GUI-only features or specific context window variants (such as `--context 500k` or `--context 1m`), use the Clean-Room GUI path:
+
+1. **Scaffold the run with `--context`**:
    ```bash
-   python3 scripts/run_benchmark.py --prompt <prompt-id> --run-id <run-id> --harness cursor --model "<Model Name>"
+   python3 scripts/setup_run.py \
+     --prompt <prompt-id> \
+     --harness cursor \
+     --model "<Model Name>" \
+     --context 500k \
+     --reasoning high \
+     --non-interactive
    ```
-   Or open the staged workspace `/tmp/frontier-workspace-<run-id>/` in the harness / clean-room GUI fallback launcher script.
-2. Send the exact bytes of `prompt/<prompt-id>.txt` (copied to clipboard during setup) as the **single user message**.
-3. Do not add additional instructions or text.
-4. Wait until the model completes its work and stops.
-5. Leave the staged workspace directory untouched after the model stops (no manual edits or file cleanups).
+   *(The `--context` flag is supported on Clean-Room GUI runs because the operator can configure the context window picker in the Cursor IDE.)*
+
+   For follow-up runs:
+   ```bash
+   python3 scripts/setup_run.py \
+     --prompt <prompt-id> \
+     --follow-up \
+     --parent-run-id <parent-run-id> \
+     --non-interactive
+   ```
+
+2. **Launch the isolated GUI session**:
+   ```bash
+   /tmp/frontier-workspace-<run-id>-launch.sh
+   ```
+   - Sets up a pristine clean-room `HOME` profile.
+   - Installs path-blocking `preToolUse` hooks preventing access outside the staged workspace.
+   - Copies exact frozen prompt bytes to your system clipboard (`pbcopy`). Paste the prompt as the single user message and let the model work until it stops.
+
+3. **Conclude and verify**:
+   ```bash
+   python3 scripts/finish_run.py --prompt <prompt-id> --run-id <run-id> --verify
+   ```
 
 ---
 
