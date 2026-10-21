@@ -16,29 +16,52 @@ Inspired by Charles de Lassence's 11 October 2026 benchmark post: [Building a 3D
 
 Rows compare only inside one series, so each series has its own table ([`docs/protocol.md`](docs/protocol.md)). Metric details and tool classifications are documented in [`docs/metrics.md`](docs/metrics.md) and [`docs/tool-buckets.md`](docs/tool-buckets.md); pricing rates use [`reference/pricing-2026-10-18.json`](reference/pricing-2026-10-18.json).
 
+### `france-electricity-carbon-flow`
+
 **Local series `france-electricity-carbon-flow-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
-| Prompt | Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Outcome |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `france-electricity-carbon-flow` | Gemini 4 Argon 1m medium | Cursor | n/a | 17.7 min | 28 7✗ | 1.0M | $2.55 | Flashy colors but contains all the information |
+| Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Gemini 4 Argon 1m medium | Cursor | n/a | 17.7 min | 28 7✗ | 1.0M | $2.55 |
+
+### `france-rail-24h-pulse`
+
+![france-rail-24h-pulse — Claude Opus 5.5 300k high (2026-10-19-cursor-claude-opus-5-5-high-300k-high)](runs/france-rail-24h-pulse/2026-10-19-cursor-claude-opus-5-5-high-300k-high/artifacts/screenshot.png)
 
 **Local series `france-rail-24h-pulse-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
-| Prompt | Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Outcome |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `france-rail-24h-pulse` | Claude Opus 5.5 300k high | Cursor | n/a | 20.1 min | 50 10✗ | 5.5M | $6.53 | Kickass visualization of the trains running across France |
+| Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Claude Opus 5.5 300k high | Cursor | n/a | 20.1 min | 50 10✗ | 5.5M | $6.53 |
+
+### `france-road-accidents`
+
+![france-road-accidents — Muse Wonder 300k medium (2026-10-19-cursor-muse-wonder-300k-medium)](runs/france-road-accidents/2026-10-19-cursor-muse-wonder-300k-medium/artifacts/screenshot.png)
 
 **Local series `france-road-accidents-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
-| Prompt | Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Outcome |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `france-road-accidents` | Muse Wonder 300k medium | Cursor | n/a | 4.8 min | 41 7✗ | 1.7M | $1.76 | Good visualization with dynamic cluster metrics |
+| Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Muse Wonder 300k medium | Cursor | n/a | 4.8 min | 41 7✗ | 1.7M | $1.76 |
+
+### `paris-1910-flood-simulator`
+
+![paris-1910-flood-simulator — claude-opus-5-5 high (2026-10-20-cursor-claude-opus-5-5-high)](runs/paris-1910-flood-simulator/2026-10-20-cursor-claude-opus-5-5-high/artifacts/screenshot.png)
 
 **Local series `paris-1910-flood-simulator-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
-| Prompt | Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Outcome |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `paris-1910-flood-simulator` | claude-opus-5-5 high | Cursor | n/a | n/a | n/a | n/a | n/a | n/a |
+| Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) |
+| --- | --- | --- | --- | --- | --- | --- |
+| claude-opus-5-5 high | Cursor | n/a | n/a | n/a | n/a | n/a |
+
+## Protocol
+
+Each benchmark run evaluates one model and one agent harness on a single frozen prompt under controlled conditions ([`docs/protocol.md`](docs/protocol.md)):
+
+- **Single-prompt, zero-intervention execution**: Every primary run sends the exact byte sequence of `prompt/<prompt-id>.txt` (verified by SHA-256 hash) as a single user message with zero operator intervention, hints, or manual workspace edits during initial execution.
+- **Clean-room isolation**: Runs execute inside an external staged workspace (`/tmp/frontier-workspace-<run-id>/`) initialized with its own `.git` boundary—either headless inside a Linux Docker container (`Dockerfile.benchmark`) or via an isolated clean-room GUI profile. This prevents models from accessing parent repository files, evaluation graders (`verify_run.py`, `prompt-probes.json`), sibling runs, or host-global skills, plugins, and MCP servers ([`docs/design-run-isolation.md`](docs/design-run-isolation.md)).
+- **Token & cost accounting**: Generated tokens (`reasoning` vs. `visible` when split by provider rules) and prompt-cache reads (`Context re-read`, serving `cache_read_tokens`) are recorded strictly from harness telemetry and usage exports without estimation. Estimated cost reflects public per-1M-token API list prices from [`reference/pricing-2026-10-18.json`](reference/pricing-2026-10-18.json) (accounting for context-window variants and long-context thresholds) plus harness-adjusted rates from Cursor usage CSV exports ([`docs/metrics.md`](docs/metrics.md)).
+- **Model time & tool telemetry**: Every tool invocation is captured via harness hooks or CLI transcripts and classified into chart buckets (`shell`, `files`, `visual_checks`, `web`, plus `other`), counting total invocations and failed calls (`✗`) ([`docs/tool-buckets.md`](docs/tool-buckets.md)). Model time reports active generation time with tool execution intervals excluded (`wall_clock_minus_tool_time` or provider request durations). When the model stops, automated Playwright smoke tests (`verify_run.py`) and data-pipeline verification (`probe_data.py`) audit the output.
 
 ## Prompts
 

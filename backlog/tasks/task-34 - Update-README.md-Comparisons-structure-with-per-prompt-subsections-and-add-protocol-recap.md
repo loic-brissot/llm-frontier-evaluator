@@ -3,10 +3,10 @@ id: TASK-34
 title: >-
   Update README.md Comparisons structure with per-prompt subsections and add
   protocol recap
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-21 12:42'
-updated_date: '2026-10-21 13:00'
+updated_date: '2026-10-21 14:38'
 labels:
   - docs
   - readme
@@ -35,8 +35,8 @@ Restructure the '## Comparisons' section in README.md and scripts/compare_runs.p
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Update scripts/compare_runs.py and README.md so '## Comparisons' groups tables under '### `<prompt-id>`' subsections for each prompt, including a screenshot from one of the completed runs for that prompt
-- [ ] #2 Remove the 'Prompt' and 'Outcome' columns from README comparison tables in scripts/compare_runs.py and README.md
-- [ ] #3 Add a concise protocol recap section in README.md covering execution, clean-room isolation, token/cost accounting, and tool call / model time measurement
-- [ ] #4 python3 scripts/compare_runs.py --check-readme, ruff check scripts tests, and unit tests pass
+- [x] #1 Update scripts/compare_runs.py and README.md so '## Comparisons' groups tables under '### `<prompt-id>`' subsections for each prompt, including a screenshot from one of the completed runs for that prompt
+- [x] #2 Remove the 'Prompt' and 'Outcome' columns from README comparison tables in scripts/compare_runs.py and README.md
+- [x] #3 Add a concise protocol recap section in README.md covering execution, clean-room isolation, token/cost accounting, and tool call / model time measurement
+- [x] #4 python3 scripts/compare_runs.py --check-readme, ruff check scripts tests, and unit tests pass
 <!-- AC:END -->
