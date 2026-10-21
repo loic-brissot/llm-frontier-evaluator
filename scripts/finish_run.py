@@ -17,13 +17,15 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from typing import Any
 
-from compare_runs import check_local_run, update_readme_comparisons
+from compare_runs import check_local_run, sync_readme, update_readme_comparisons
 from run_common import (
     BUCKETS,
     CACHE_SOURCES,
     HOOK_TIME_SOURCE,
     ROOT,
+    RUNS_DIR,
     SPLIT_RULES,
     TIME_SOURCES,
     UNKNOWN_REASONING,
@@ -1167,16 +1169,23 @@ def store_usage_raw(run: dict, hints: dict) -> None:
     json_usage = hints.get("json_usage")
     summary = hints.get("usage_summary")
     tokens = run["tokens"]
-    if not tokens.get("raw") and (json_usage is not None or summary):
-        if json_usage is not None and summary:
-            tokens["raw"] = {"provider_usage": json_usage, "usage_csv": summary}
-        elif json_usage is not None:
-            tokens["raw"] = json_usage
+    if tokens.get("raw") is None or not isinstance(tokens.get("raw"), dict):
+        tokens["raw"] = {}
+    if json_usage is not None and summary:
+        tokens["raw"]["provider_usage"] = json_usage
+        tokens["raw"]["usage_csv"] = summary
+        print("Stored the usage export in tokens.raw.")
+    elif json_usage is not None:
+        if isinstance(tokens["raw"], dict) and "usage_csv" in tokens["raw"]:
+            tokens["raw"]["provider_usage"] = json_usage
         else:
-            tokens["raw"] = {"usage_csv": summary}
+            tokens["raw"] = json_usage
+        print("Stored the usage export in tokens.raw.")
+    elif summary:
+        tokens["raw"]["usage_csv"] = summary
         print("Stored the usage export in tokens.raw.")
     cache = run["context_reread"]
-    if summary and not cache.get("raw"):
+    if summary:
         cache_raw = {
             key: summary[key]
             for key in (
@@ -1555,17 +1564,28 @@ def complete_run_json(
     apply_logged_time(run, tool_summary, hints)
 
     tokens = run["tokens"]
+    usage_summary = hints.get("usage_summary")
     if non_interactive:
-        if tokens["reasoning_tokens"] is None and hints.get("reasoning_tokens") is not None:
-            tokens["reasoning_tokens"] = hints["reasoning_tokens"]
-        if tokens["visible_tokens"] is None and hints.get("visible_tokens") is not None:
-            tokens["visible_tokens"] = hints["visible_tokens"]
-        if (tokens["split_rule"] is None or tokens["split_rule"] == "unavailable") and hints.get("split_rule") is not None:
-            tokens["split_rule"] = hints["split_rule"]
-        if tokens["reasoning_tokens"] is None:
-            tokens["split_rule"] = "unavailable"
-            tokens["reasoning_tokens"] = None
-            tokens["visible_tokens"] = None
+        if (
+            isinstance(usage_summary, dict)
+            and usage_summary.get("events_selected", 0) > 0
+            and usage_summary.get("output_tokens") is not None
+            and tokens.get("split_rule") in ("unavailable", "combined_output_as_visible", None)
+        ):
+            tokens["split_rule"] = "combined_output_as_visible"
+            tokens["reasoning_tokens"] = 0
+            tokens["visible_tokens"] = usage_summary["output_tokens"]
+        else:
+            if tokens["reasoning_tokens"] is None and hints.get("reasoning_tokens") is not None:
+                tokens["reasoning_tokens"] = hints["reasoning_tokens"]
+            if tokens["visible_tokens"] is None and hints.get("visible_tokens") is not None:
+                tokens["visible_tokens"] = hints["visible_tokens"]
+            if (tokens["split_rule"] is None or tokens["split_rule"] == "unavailable") and hints.get("split_rule") is not None:
+                tokens["split_rule"] = hints["split_rule"]
+            if tokens["reasoning_tokens"] is None:
+                tokens["split_rule"] = "unavailable"
+                tokens["reasoning_tokens"] = None
+                tokens["visible_tokens"] = None
     else:
         print("\nTokens generated (see docs/metrics.md)")
         split_default = str(hints.get("split_rule") or tokens["split_rule"])
@@ -1629,17 +1649,37 @@ def complete_run_json(
     cache.setdefault("cache_write_tokens", None)
     cache.setdefault("uncached_input_tokens", None)
     if non_interactive:
-        if cache["cache_read_tokens"] is None and hints.get("cache_read_tokens") is None and tool_summary.cache_read_tokens is not None:
-            cache["cache_read_tokens"] = tool_summary.cache_read_tokens
-        elif cache["cache_read_tokens"] is None and hints.get("cache_read_tokens") is not None:
-            cache["cache_read_tokens"] = hints["cache_read_tokens"]
+        if (
+            isinstance(usage_summary, dict)
+            and usage_summary.get("events_selected", 0) > 0
+            and usage_summary.get("cache_read_tokens") is not None
+        ):
+            cache["source"] = "cursor_usage_csv"
+            cache["cache_read_tokens"] = usage_summary["cache_read_tokens"]
+        else:
+            if cache["cache_read_tokens"] is None and hints.get("cache_read_tokens") is None and tool_summary.cache_read_tokens is not None:
+                cache["cache_read_tokens"] = tool_summary.cache_read_tokens
+            elif cache["cache_read_tokens"] is None and hints.get("cache_read_tokens") is not None:
+                cache["cache_read_tokens"] = hints["cache_read_tokens"]
 
-        if cache["cache_write_tokens"] is None and tool_summary.cache_write_tokens is not None:
+        if (
+            isinstance(usage_summary, dict)
+            and usage_summary.get("events_selected", 0) > 0
+            and usage_summary.get("cache_write_tokens") is not None
+        ):
+            cache["cache_write_tokens"] = usage_summary["cache_write_tokens"]
+        elif cache["cache_write_tokens"] is None and tool_summary.cache_write_tokens is not None:
             cache["cache_write_tokens"] = tool_summary.cache_write_tokens
         elif cache["cache_write_tokens"] is None and hints.get("cache_write_tokens") is not None:
             cache["cache_write_tokens"] = hints["cache_write_tokens"]
 
-        if cache["uncached_input_tokens"] is None and tool_summary.uncached_input_tokens is not None:
+        if (
+            isinstance(usage_summary, dict)
+            and usage_summary.get("events_selected", 0) > 0
+            and usage_summary.get("uncached_input_tokens") is not None
+        ):
+            cache["uncached_input_tokens"] = usage_summary["uncached_input_tokens"]
+        elif cache["uncached_input_tokens"] is None and tool_summary.uncached_input_tokens is not None:
             cache["uncached_input_tokens"] = tool_summary.uncached_input_tokens
         elif cache["uncached_input_tokens"] is None and hints.get("uncached_input_tokens") is not None:
             cache["uncached_input_tokens"] = hints["uncached_input_tokens"]
@@ -1754,6 +1794,135 @@ def complete_run_json(
     write_json(run_path, run)
 
 
+def backfill_usage_export(
+    usage_export: Path,
+    runs_root: Path = RUNS_DIR,
+    prompt_filter: str | None = None,
+    update_readme: bool = True,
+) -> list[dict[str, Any]]:
+    """Scan all runs and backfill usage CSV data for matching runs within wall_clock window."""
+    if not usage_export.exists():
+        raise FileNotFoundError(f"Usage export not found: {usage_export}")
+
+    # Read events from usage_export (file or directory of CSVs)
+    events: list[UsageEvent] = []
+    warnings: list[str] = []
+    if usage_export.is_file():
+        csv_files = [usage_export] if usage_export.suffix.lower() == ".csv" else []
+    else:
+        csv_files = sorted(p for p in usage_export.glob("*.csv") if p.is_file())
+
+    if not csv_files:
+        raise FileNotFoundError(f"No CSV files found in {usage_export}")
+
+    for p in csv_files:
+        evs, warns = read_usage_csv(p)
+        events.extend(evs)
+        warnings.extend(warns)
+
+    for w in warnings:
+        print(w)
+
+    pattern = f"{prompt_filter}/*/run.json" if prompt_filter else "*/*/run.json"
+    run_json_paths = sorted(runs_root.glob(pattern))
+
+    updated_runs: list[dict[str, Any]] = []
+
+    for rjp in run_json_paths:
+        if not rjp.is_file():
+            continue
+        run_dir = rjp.parent
+        prompt_id = run_dir.parent.name
+        run_id = run_dir.name
+        try:
+            run_data = load_json(rjp)
+        except Exception:
+            continue
+
+        wall_clock = run_data.get("wall_clock") or {}
+        started_str = wall_clock.get("started_at")
+        ended_str = wall_clock.get("ended_at")
+        started = parse_timestamp(started_str)
+        ended = parse_timestamp(ended_str)
+
+        if not started or not ended:
+            continue
+
+        run_model = str((run_data.get("model") or {}).get("name") or "")
+        if not run_model:
+            continue
+
+        # Check candidate events for this run:
+        # Must select at least 1 event strictly inside the run's wall-clock window
+        selected_events, sel_note, match_kind = default_csv_selection(events, run_data)
+        if match_kind == "none" or not selected_events:
+            continue
+        # Ensure window was actually applied and events were selected
+        if "so the window was not applied" in sel_note or "so the run window was not applied" in sel_note:
+            continue
+
+        # Run matches! Copy and scrub usage CSV into run_dir / "usage"
+        usage_dir = run_dir / "usage"
+        usage_dir.mkdir(parents=True, exist_ok=True)
+        copied = copy_usage_export(usage_export, usage_dir)
+        scrub_usage_files(copied)
+        scrub_tool_events(run_dir)
+
+        # Ingest from copied files in run_dir / "usage"
+        copied_csvs = [p for p in copied if p.suffix.lower() == ".csv"]
+        if not copied_csvs:
+            copied_csvs = [p for p in usage_dir.glob("*.csv") if p.is_file()]
+
+        # Prepare hints on run_dir
+        tool_summary = summarize_run(run_dir)
+        hints = prepare_hints(run_data, copied_csvs, interactive=False)
+        usage_summary = hints.get("usage_summary")
+        if not usage_summary or usage_summary.get("events_selected", 0) == 0:
+            continue
+
+        store_usage_raw(run_data, hints)
+        apply_logged_tokens(run_data, tool_summary, hints)
+        apply_logged_time(run_data, tool_summary, hints)
+
+        tokens = run_data.setdefault("tokens", {})
+        if usage_summary.get("output_tokens") is not None:
+            tokens["split_rule"] = "combined_output_as_visible"
+            tokens["reasoning_tokens"] = 0
+            tokens["visible_tokens"] = usage_summary["output_tokens"]
+
+        cache = run_data.setdefault("context_reread", {})
+        if usage_summary.get("cache_read_tokens") is not None:
+            cache["source"] = "cursor_usage_csv"
+            cache["cache_read_tokens"] = usage_summary["cache_read_tokens"]
+        if usage_summary.get("cache_write_tokens") is not None:
+            cache["cache_write_tokens"] = usage_summary["cache_write_tokens"]
+        if usage_summary.get("uncached_input_tokens") is not None:
+            cache["uncached_input_tokens"] = usage_summary["uncached_input_tokens"]
+
+        apply_pricing_estimate(run_data, tool_summary)
+        write_json(rjp, run_data)
+
+        cost_str = usage_summary.get("cost")
+        pricing_block = (tokens.get("raw") or {}).get("pricing") or {}
+        est_cost = pricing_block.get("estimated_cost_usd", cost_str or "0.00")
+        print(
+            f"Updated {prompt_id}/{run_id}: {usage_summary.get('events_selected')} events, cost=${est_cost}"
+        )
+        updated_runs.append({
+            "prompt_id": prompt_id,
+            "run_id": run_id,
+            "run_dir": run_dir,
+            "events_selected": usage_summary.get("events_selected"),
+            "cost": est_cost,
+            "run_data": run_data,
+        })
+
+    if update_readme and updated_runs:
+        sync_readme()
+
+    return updated_runs
+
+
 def sync_run_to_readme(run_dir: Path) -> None:
     run_path = run_dir / "run.json"
     run = load_json(run_path)
@@ -1775,6 +1944,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--prompt", dest="prompt_id", help="Prompt id (directory under runs/). Narrows --run-id lookup.")
     parser.add_argument("--run-id", help="Run directory name under runs/<prompt-id>/, or <prompt-id>/<run-id>.")
     parser.add_argument("--usage-export", type=Path, help="Harness usage export file or directory.")
+    parser.add_argument("--backfill-usage", type=Path, help="Batch backfill usage CSV export across all matching runs.")
+    parser.add_argument("--no-update-readme", action="store_true", help="Skip updating README.md after batch backfill.")
     parser.add_argument("--skip-usage-copy", action="store_true", help="Only scrub files already in usage/.")
     parser.add_argument("--skip-metrics", action="store_true", help="Skip run.json prompts.")
     parser.add_argument("--compare-only", action="store_true", help="Only run compare_runs.py.")
@@ -1786,6 +1957,20 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
+
+    if args.backfill_usage:
+        try:
+            updated = backfill_usage_export(
+                args.backfill_usage,
+                runs_root=RUNS_DIR,
+                prompt_filter=args.prompt_id,
+                update_readme=not args.no_update_readme,
+            )
+            print(f"Backfilled usage for {len(updated)} run(s).")
+            return 0
+        except Exception as exc:
+            print(f"Error backfilling usage: {exc}", file=sys.stderr)
+            return 1
 
     try:
         run_dir = select_run_id(args.run_id, args.prompt_id)
