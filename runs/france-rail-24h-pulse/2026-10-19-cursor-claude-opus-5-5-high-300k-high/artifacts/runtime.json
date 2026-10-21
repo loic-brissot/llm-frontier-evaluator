@@ -1,9 +1,9 @@
 {
   "passed": true,
   "http_status": 200,
-  "url": "http://127.0.0.1:63584",
+  "url": "http://127.0.0.1:64863",
   "server_mode": "static",
-  "load_time_ms": 4731.56,
+  "load_time_ms": 3172.8,
   "console_errors": [],
   "console_warnings_count": 4,
   "page_errors": [],
@@ -16,5 +16,5 @@
     "text_length": 1008
   },
   "screenshot_path": "artifacts/screenshot.png",
-  "verified_at": "2026-10-20T19:25:13.971Z"
+  "verified_at": "2026-10-21T15:13:28.516Z"
 }

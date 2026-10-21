@@ -11,9 +11,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from decimal import Decimal
 
 from compare_runs import (
+    LOCAL_TABLE_HEADER,
+    extract_output_tokens,
+    format_model_time_readme,
+    format_output_tokens,
     format_tools,
+    format_tools_readme,
+    format_verification_readme,
+    generate_readme_comparisons,
     local_row,
     model_label,
+    readme_row,
     sync_readme,
     round_half_up,
     format_tokens,
@@ -181,6 +189,83 @@ class TestCompareRuns(unittest.TestCase):
             finally:
                 sys.stdout = sys.__stdout__
             self.assertTrue(pass_result)
+
+    def test_readme_comparisons_subsections_and_columns(self):
+        self.assertNotIn("Prompt", LOCAL_TABLE_HEADER)
+        self.assertNotIn("Outcome", LOCAL_TABLE_HEADER)
+        self.assertEqual(
+            LOCAL_TABLE_HEADER,
+            "| Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |",
+        )
+
+        sample_run = {
+            "prompt_id": "france-road-accidents",
+            "series_id": "france-road-accidents-cursor",
+            "rules_version": 2,
+            "harness": {"name": "cursor"},
+            "model": {"name": "Muse Wonder", "context": "300k", "reasoning": "medium"},
+            "tokens": {
+                "split_rule": "unavailable",
+                "raw": {"hook_tokens": {"output_tokens": 25021}},
+            },
+            "model_time": {
+                "source": "wall_clock_minus_tool_time",
+                "generating_seconds": 288,
+                "raw": {"tool_events": {"thinking_seconds": 120}},
+            },
+            "tool_calls": {
+                "shell": {"calls": 30, "failures": 5, "by_tool": {}},
+                "files": {"calls": 11, "failures": 2, "by_tool": {}},
+                "visual_checks": {"calls": 0, "failures": 0, "by_tool": {}},
+                "web": {"calls": 0, "failures": 0, "by_tool": {}},
+                "other": {"calls": 0, "failures": 0, "by_tool": {}},
+            },
+            "context_reread": {"source": "provider_cache_read", "cache_read_tokens": 1_700_000},
+            "outcome": {"summary": "Good visualization with dynamic cluster metrics"},
+            "verification": {
+                "runtime": {"passed": True},
+                "data_pipeline": {
+                    "passed": True,
+                    "total_records": 393781,
+                    "checks": [{"id": "c1", "passed": True}, {"id": "c2", "passed": True}],
+                },
+            },
+        }
+        row = readme_row(sample_run)
+        self.assertNotIn("france-road-accidents", row)
+        self.assertNotIn("Good visualization", row)
+        self.assertTrue(row.startswith("| Muse Wonder 300k medium | Cursor | 25k | 4.8 min<br>2.0 min thinking | 34 ✓<br>7 ✗ | 1.7M |"))
+        self.assertIn("| UI ✓ · Data 2/2 ✓<br>394k records |", row)
+
+        self.assertEqual(format_output_tokens(25021), "25k")
+        self.assertEqual(extract_output_tokens(sample_run), 25021)
+        self.assertEqual(format_tools_readme(41, 7), "34 ✓<br>7 ✗")
+        self.assertEqual(format_model_time_readme(sample_run), "4.8 min<br>2.0 min thinking")
+        self.assertEqual(format_verification_readme(sample_run), "UI ✓ · Data 2/2 ✓<br>394k records")
+
+        generated = generate_readme_comparisons()
+        self.assertIn("### `france-electricity-carbon-flow`", generated)
+        self.assertIn("### `france-rail-24h-pulse`", generated)
+        self.assertIn("### `france-road-accidents`", generated)
+        self.assertIn("### `paris-1910-flood-simulator`", generated)
+
+        # Check screenshot lines are included when artifacts/screenshot.png exists
+        self.assertIn(
+            "![france-electricity-carbon-flow — Gemini 4 Argon 1m medium (2026-10-19-cursor-gemini-4-argon-1m-medium)](runs/france-electricity-carbon-flow/2026-10-19-cursor-gemini-4-argon-1m-medium/artifacts/screenshot.png)",
+            generated,
+        )
+        self.assertIn(
+            "![france-rail-24h-pulse — Claude Opus 5.5 300k high (2026-10-19-cursor-claude-opus-5-5-high-300k-high)](runs/france-rail-24h-pulse/2026-10-19-cursor-claude-opus-5-5-high-300k-high/artifacts/screenshot.png)",
+            generated,
+        )
+        self.assertIn(
+            "![france-road-accidents — Muse Wonder 300k medium (2026-10-19-cursor-muse-wonder-300k-medium)](runs/france-road-accidents/2026-10-19-cursor-muse-wonder-300k-medium/artifacts/screenshot.png)",
+            generated,
+        )
+        self.assertIn(
+            "![paris-1910-flood-simulator — Claude Opus 5.5 high (2026-10-20-cursor-claude-opus-5-5-high)](runs/paris-1910-flood-simulator/2026-10-20-cursor-claude-opus-5-5-high/artifacts/screenshot.png)",
+            generated,
+        )
 
     def test_round_half_up_and_formatters(self):
         # Rounding half-up away from zero

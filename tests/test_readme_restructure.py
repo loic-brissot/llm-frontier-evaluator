@@ -68,6 +68,26 @@ class TestReadmeRestructure(unittest.TestCase):
         self.assertIn("python3 scripts/compare_runs.py --sync-readme", content)
         self.assertIn("python3 scripts/compare_runs.py --check-readme", content)
 
+    def test_readme_comparisons_and_protocol_recap(self):
+        """Ensure README.md contains per-prompt subsections under Comparisons with screenshots and a Protocol recap."""
+        content = README_PATH.read_text(encoding="utf-8")
+        self.assertIn("## Comparisons", content)
+        self.assertIn("### `france-electricity-carbon-flow`", content)
+        self.assertIn("### `france-rail-24h-pulse`", content)
+        self.assertIn("### `france-road-accidents`", content)
+        self.assertIn("### `paris-1910-flood-simulator`", content)
+        self.assertNotIn("| Prompt |", content)
+        self.assertNotIn("| Outcome |", content)
+        self.assertIn(
+            "![france-rail-24h-pulse — Claude Opus 5.5 300k high (2026-10-19-cursor-claude-opus-5-5-high-300k-high)](runs/france-rail-24h-pulse/2026-10-19-cursor-claude-opus-5-5-high-300k-high/artifacts/screenshot.png)",
+            content,
+        )
+        self.assertIn("## Protocol", content)
+        self.assertIn("Single-prompt, zero-intervention execution", content)
+        self.assertIn("Clean-room isolation", content)
+        self.assertIn("Token & cost accounting", content)
+        self.assertIn("Model time & tool telemetry", content)
+
     def test_context_flag_documented_across_docs(self):
         """AC #3: Ensure context flag policy is documented with explicit example on GUI."""
         for path in [

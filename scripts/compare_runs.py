@@ -44,8 +44,8 @@ HARNESS_LABELS = {
     "codex": "Codex",
     "other": "Other",
 }
-LOCAL_TABLE_HEADER = "| Prompt | Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Outcome |"
-LOCAL_TABLE_RULE = "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+LOCAL_TABLE_HEADER = "| Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |"
+LOCAL_TABLE_RULE = "| --- | --- | --- | --- | --- | --- | --- | --- |"
 
 
 def harness_label(harness_name: str) -> str:
@@ -82,6 +82,32 @@ def format_tokens(reasoning: int, visible: int) -> str:
     return f"{thousands}k · {percent}%"
 
 
+def format_output_tokens(total: int) -> str:
+    thousands = round_half_up(Decimal(total) / Decimal(1000), 0)
+    return f"{thousands}k"
+
+
+def extract_output_tokens(run: dict) -> int | None:
+    tokens = run.get("tokens") or {}
+    if isinstance(tokens.get("reasoning_tokens"), int) and isinstance(tokens.get("visible_tokens"), int):
+        return tokens["reasoning_tokens"] + tokens["visible_tokens"]
+    raw = tokens.get("raw") if isinstance(tokens.get("raw"), dict) else {}
+    csv_block = raw.get("usage_csv") if isinstance(raw.get("usage_csv"), dict) else {}
+    hook_block = raw.get("hook_tokens") if isinstance(raw.get("hook_tokens"), dict) else {}
+    cache = run.get("context_reread") or {}
+    cache_raw = cache.get("raw") if isinstance(cache.get("raw"), dict) else {}
+    for candidate in (
+        csv_block.get("output_tokens"),
+        hook_block.get("output_tokens"),
+        raw.get("output_tokens"),
+        raw.get("completion_tokens"),
+        cache_raw.get("output_tokens"),
+    ):
+        if isinstance(candidate, int) and not isinstance(candidate, bool):
+            return candidate
+    return None
+
+
 def format_minutes(seconds: Decimal | int | float) -> str:
     minutes = round_half_up(Decimal(str(seconds)) / Decimal(60), 1)
     return f"{minutes} min"
@@ -96,6 +122,67 @@ def format_tools(calls: int, failures: int) -> str:
     if failures == 0:
         return str(calls)
     return f"{calls} {failures}✗"
+
+
+def format_tools_readme(calls: int, failures: int) -> str:
+    succeeded = max(0, calls - failures)
+    return f"{succeeded} ✓<br>{failures} ✗"
+
+
+def format_model_time_readme(run: dict) -> str:
+    model_time = run.get("model_time") or {}
+    if model_time.get("source") == "unavailable" or model_time.get("generating_seconds") is None:
+        return "n/a"
+    base = format_minutes(model_time["generating_seconds"])
+    raw = model_time.get("raw") if isinstance(model_time.get("raw"), dict) else {}
+    te = raw.get("tool_events") if isinstance(raw.get("tool_events"), dict) else {}
+    thinking = te.get("thinking_seconds")
+    if isinstance(thinking, (int, float)) and not isinstance(thinking, bool) and thinking > 0:
+        return f"{base}<br>{format_minutes(thinking)} thinking"
+    return base
+
+
+def format_record_count(records: int) -> str:
+    if records >= 1_000_000:
+        val = round_half_up(Decimal(records) / Decimal(1_000_000), 1)
+        return f"{val}M"
+    if records >= 10_000:
+        val = round_half_up(Decimal(records) / Decimal(1000), 0)
+        return f"{val}k"
+    if records >= 1_000:
+        val = round_half_up(Decimal(records) / Decimal(1000), 1)
+        return f"{val}k"
+    return str(records)
+
+
+def format_verification_readme(run: dict) -> str:
+    ver = run.get("verification")
+    if not isinstance(ver, dict):
+        return "n/a"
+    rt = ver.get("runtime") if isinstance(ver.get("runtime"), dict) else None
+    dp = ver.get("data_pipeline") if isinstance(ver.get("data_pipeline"), dict) else None
+    if rt is None and dp is None:
+        return "n/a"
+
+    parts_line1: list[str] = []
+    if rt is not None:
+        rt_icon = "✓" if rt.get("passed") else "✗"
+        parts_line1.append(f"UI {rt_icon}")
+    if dp is not None:
+        checks = dp.get("checks") if isinstance(dp.get("checks"), list) else []
+        passed_checks = sum(1 for c in checks if isinstance(c, dict) and c.get("passed"))
+        total_checks = len(checks)
+        dp_icon = "✓" if dp.get("passed") else "⚠"
+        if total_checks > 0:
+            parts_line1.append(f"Data {passed_checks}/{total_checks} {dp_icon}")
+        else:
+            parts_line1.append(f"Data {dp_icon}")
+
+    line1 = " · ".join(parts_line1) if parts_line1 else "n/a"
+    if dp is not None and isinstance(dp.get("total_records"), int) and not isinstance(dp.get("total_records"), bool):
+        rec_str = format_record_count(dp["total_records"])
+        return f"{line1}<br>{rec_str} records"
+    return line1
 
 
 def format_reference_cost(run: dict) -> str:
@@ -618,12 +705,12 @@ def check_series_versions(runs: list[dict]) -> list[str]:
 def local_row(run: dict) -> tuple[list[str], list[str]]:
     """Return chart cells and incompleteness notes."""
     notes: list[str] = []
-    tokens = run["tokens"]
-    if tokens["split_rule"] == "unavailable":
+    out_tokens = extract_output_tokens(run)
+    if out_tokens is None:
         token_cell = "n/a"
-        notes.append("token split unavailable")
+        notes.append("output tokens unavailable")
     else:
-        token_cell = format_tokens(tokens["reasoning_tokens"], tokens["visible_tokens"])
+        token_cell = format_output_tokens(out_tokens)
 
     model_time = run["model_time"]
     if model_time["source"] == "unavailable":
@@ -661,21 +748,30 @@ def local_row(run: dict) -> tuple[list[str], list[str]]:
 def readme_row(run: dict) -> str:
     """Format one local primary run as a Markdown table row for README.md."""
     cells, _ = local_row(run)
-    prompt_id, _series_id, harness_name, label, token_cell, time_cell, tool_cell, cache_cell, cost_cell = cells
+    _prompt_id, _series_id, harness_name, label, token_cell, _time_cell, _tool_cell, cache_cell, cost_cell = cells
     harness_display = harness_label(harness_name)
-    outcome_summary = ((run.get("outcome") or {}).get("summary") or "").strip() or "n/a"
-    outcome_cell = outcome_summary.replace("|", r"\|")
-    return f"| `{prompt_id}` | {label} | {harness_display} | {token_cell} | {time_cell} | {tool_cell} | {cache_cell} | {cost_cell} | {outcome_cell} |"
+    time_cell = format_model_time_readme(run)
+    tool_calls = run["tool_calls"]
+    chart = [tool_calls[name] for name in CHART_BUCKETS]
+    if any(bucket["calls"] is None for bucket in chart):
+        tool_cell = "n/a"
+    else:
+        tool_cell = format_tools_readme(
+            sum(bucket["calls"] for bucket in chart),
+            sum(bucket["failures"] for bucket in chart),
+        )
+    ver_cell = format_verification_readme(run)
+    return f"| {label} | {harness_display} | {token_cell} | {time_cell} | {tool_cell} | {cache_cell} | {cost_cell} | {ver_cell} |"
 
 
-def _row_key(markdown_row: str) -> tuple[str, str, str] | None:
+def _row_key(markdown_row: str) -> tuple[str, str] | None:
     stripped = markdown_row.strip()
     if not (stripped.startswith("|") and stripped.endswith("|")):
         return None
     parts = [part.strip() for part in stripped.strip("|").split("|")]
-    if len(parts) < 3 or parts[0] in {"Prompt", "---"}:
+    if len(parts) < 2 or parts[0] in {"Model", "Prompt", "---"}:
         return None
-    return parts[0], parts[1], parts[2]
+    return parts[0], parts[1]
 
 
 def generate_readme_comparisons(
@@ -696,32 +792,6 @@ def generate_readme_comparisons(
         except (OSError, json.JSONDecodeError, ValueError):
             reference = None
 
-    if reference:
-        series_id = reference.get("series_id", "2026-10-11-lassence")
-        lines.append(
-            f"**Reference series `{series_id}`**: Claude Code and Codex app, transcribed from [bench.lassence.net](https://bench.lassence.net/) ([`reference/`](reference/README.md))."
-        )
-        lines.append("")
-        lines.append(
-            "| Prompt | Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) |"
-        )
-        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
-        prompt_id = reference.get("prompt_id", DEFAULT_PROMPT_ID)
-        for run in reference.get("runs", []):
-            model_name = run.get("model_name", "")
-            reasoning = run.get("reasoning", "")
-            model_str = f"{model_name} {reasoning}"
-            harness = reference_harness(run)
-            tokens = run.get("tokens_generated", {}).get("display", "")
-            mtime = run.get("model_time", {}).get("display", "")
-            tools = run.get("tool_calls", {}).get("display", "")
-            cache = run.get("context_reread", {}).get("display", "")
-            cost = format_reference_cost(run)
-            lines.append(
-                f"| `{prompt_id}` | {model_str} | {harness} | {tokens} | {mtime} | {tools} | {cache} | {cost} |"
-            )
-        lines.append("")
-
     run_paths = [run_dir / "run.json" for run_dir in sorted(discover_run_dirs())]
     valid_primary_runs = []
     for path in run_paths:
@@ -735,23 +805,84 @@ def generate_readme_comparisons(
             continue
         valid_primary_runs.append(run)
 
-    series_groups: dict[str, list[dict]] = {}
+    prompt_groups: dict[str, list[dict]] = {}
     for run in valid_primary_runs:
-        sid = run["series_id"]
-        series_groups.setdefault(sid, []).append(run)
+        pid = run["prompt_id"]
+        prompt_groups.setdefault(pid, []).append(run)
 
-    for sid, runs in series_groups.items():
-        harnesses = sorted({harness_label(r["harness"]["name"]) for r in runs})
-        harness_text = ", ".join(harnesses)
-        lines.append(
-            f"**Local series `{sid}`**: {harness_text}, recorded with this repository ([`runs/`](runs/README.md))."
-        )
+    ref_prompt_id = reference.get("prompt_id", DEFAULT_PROMPT_ID) if reference else None
+    all_prompt_ids = sorted(
+        set(prompt_groups.keys()) | ({ref_prompt_id} if ref_prompt_id else set())
+    )
+
+    for pid in all_prompt_ids:
+        lines.append(f"### `{pid}`")
         lines.append("")
-        lines.append(LOCAL_TABLE_HEADER)
-        lines.append(LOCAL_TABLE_RULE)
-        for run in runs:
-            lines.append(readme_row(run))
-        lines.append("")
+
+        # Screenshot inclusion if artifacts/screenshot.png exists on disk for one of the runs
+        # Select deterministically (first run for prompt that has artifacts/screenshot.png)
+        screenshot_line = None
+        for r in prompt_groups.get(pid, []):
+            rid = r.get("run_id", "")
+            screenshot_file = ROOT / "runs" / pid / rid / "artifacts" / "screenshot.png"
+            if screenshot_file.is_file():
+                rel_path = f"runs/{pid}/{rid}/artifacts/screenshot.png"
+                mlabel = model_label(r)
+                screenshot_line = f"![{pid} — {mlabel} ({rid})]({rel_path})"
+                break
+
+        if screenshot_line:
+            lines.append(screenshot_line)
+            lines.append("")
+
+        if reference and ref_prompt_id == pid:
+            series_id = reference.get("series_id", "2026-10-11-lassence")
+            lines.append(
+                f"**Reference series `{series_id}`**: Claude Code and Codex app, transcribed from [bench.lassence.net](https://bench.lassence.net/) ([`reference/`](reference/README.md))."
+            )
+            lines.append("")
+            lines.append(LOCAL_TABLE_HEADER)
+            lines.append(LOCAL_TABLE_RULE)
+            for run in reference.get("runs", []):
+                model_name = run.get("model_name", "")
+                reasoning = run.get("reasoning", "")
+                model_str = f"{model_name} {reasoning}"
+                harness = reference_harness(run)
+                tokens = run.get("tokens_generated", {}).get("display", "")
+                mtime = run.get("model_time", {}).get("display", "")
+                tools = run.get("tool_calls", {}).get("display", "")
+                cache = run.get("context_reread", {}).get("display", "")
+                cost = format_reference_cost(run)
+                lines.append(
+                    f"| {model_str} | {harness} | {tokens} | {mtime} | {tools} | {cache} | {cost} |"
+                )
+            lines.append("")
+
+        series_groups: dict[str, list[dict]] = {}
+        for run in prompt_groups.get(pid, []):
+            sid = run["series_id"]
+            series_groups.setdefault(sid, []).append(run)
+
+        for sid, runs in series_groups.items():
+            harnesses = sorted({harness_label(r["harness"]["name"]) for r in runs})
+            harness_text = ", ".join(harnesses)
+            lines.append(
+                f"**Local series `{sid}`**: {harness_text}, recorded with this repository ([`runs/`](runs/README.md))."
+            )
+            lines.append("")
+            lines.append(LOCAL_TABLE_HEADER)
+            lines.append(LOCAL_TABLE_RULE)
+            missing_tokens = False
+            for run in runs:
+                lines.append(readme_row(run))
+                if extract_output_tokens(run) is None:
+                    missing_tokens = True
+            lines.append("")
+            if missing_tokens:
+                lines.append(
+                    "*Note: Token and cost columns show `n/a` for headless CLI runs until a Cursor billing CSV export is ingested (`finish_run.py --usage-export`).*"
+                )
+                lines.append("")
 
     return "\n".join(lines)
 
@@ -780,7 +911,7 @@ def sync_readme(
 
     section_end = len(readme_lines)
     for idx in range(comp_idx + 1, len(readme_lines)):
-        if readme_lines[idx].startswith("## ") or readme_lines[idx].startswith("### "):
+        if readme_lines[idx].startswith("## "):
             section_end = idx
             break
 
@@ -948,7 +1079,7 @@ def main() -> int:
     elif not selected and not local_errors:
         print("No primary local runs. Pass --follow-ups to print follow-ups.")
     elif selected:
-        headers = ["Prompt", "Series", "Harness", "Model", "Tokens generated", "Model time", "Tool calls", "Context re-read", "Est. cost"]
+        headers = ["Prompt", "Series", "Harness", "Model", "Output tokens", "Model time", "Tool calls", "Context re-read", "Est. cost"]
         table_rows = []
         for run in selected:
             row, notes = local_row(run)

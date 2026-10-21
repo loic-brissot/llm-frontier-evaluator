@@ -163,11 +163,11 @@
   "verification": {
     "data_pipeline": {
       "prompt_id": "france-rail-24h-pulse",
-      "passed": false,
-      "authenticity": "partial_or_filtered",
-      "score": 0.67,
-      "total_data_files": 12,
-      "total_records": 29096,
+      "passed": true,
+      "authenticity": "real_open_data",
+      "score": 1.0,
+      "total_data_files": 21,
+      "total_records": 819599,
       "synthetic_signals": [],
       "checks": [
         {
@@ -195,22 +195,38 @@
         {
           "id": "gtfs_timetables_trips_dataset",
           "description": "GTFS schedules or processed timetables/trips for TGV, Intercit\u00e9s, TER",
-          "passed": false,
-          "observed_records": 1,
+          "passed": true,
+          "observed_records": 579592,
           "matched_files": [
-            "scripts/build_data.py",
-            "scripts/shot.py",
-            "vendor/deck.min.js",
-            "src/styles.css",
-            "src/charts.js",
-            "src/main.js",
-            "src/router.js",
-            "src/data.js"
+            "data/raw/gtfs/transfers.txt",
+            "data/raw/gtfs/stop_times.txt",
+            "data/raw/gtfs/trips.txt",
+            "data/raw/gtfs/stops.txt"
           ],
-          "detail": "Matched 8 file(s) but observed 1 records < min threshold 200"
+          "detail": "Matched 4 file(s) with 579592 observed records (min: 200)"
         }
       ],
-      "verified_at": "2026-10-19T15:29:17.738Z"
+      "verified_at": "2026-10-21T15:13:46.717Z"
+    },
+    "runtime": {
+      "passed": true,
+      "http_status": 200,
+      "url": "http://127.0.0.1:64863",
+      "server_mode": "static",
+      "load_time_ms": 3172.8,
+      "console_errors": [],
+      "console_warnings_count": 4,
+      "page_errors": [],
+      "failed_requests": [],
+      "dom": {
+        "title": "Rail Pulse France \u2014 24-hour atlas of TGV, Intercit\u00e9s & TER",
+        "canvas_count": 2,
+        "svg_count": 1,
+        "webgl_context": true,
+        "text_length": 1008
+      },
+      "screenshot_path": "artifacts/screenshot.png",
+      "verified_at": "2026-10-21T15:13:28.516Z"
     }
   }
 }
