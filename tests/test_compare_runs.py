@@ -11,9 +11,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from decimal import Decimal
 
 from compare_runs import (
+    LOCAL_TABLE_HEADER,
     format_tools,
+    generate_readme_comparisons,
     local_row,
     model_label,
+    readme_row,
     sync_readme,
     round_half_up,
     format_tokens,
@@ -138,6 +141,43 @@ class TestCompareRuns(unittest.TestCase):
         finally:
             sys.stdout = sys.__stdout__
         self.assertTrue(result)
+
+    def test_readme_comparisons_subsections_and_columns(self):
+        self.assertNotIn("Prompt", LOCAL_TABLE_HEADER)
+        self.assertNotIn("Outcome", LOCAL_TABLE_HEADER)
+        self.assertEqual(
+            LOCAL_TABLE_HEADER,
+            "| Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) |",
+        )
+
+        sample_run = {
+            "prompt_id": "france-road-accidents",
+            "series_id": "france-road-accidents-cursor",
+            "rules_version": 2,
+            "harness": {"name": "cursor"},
+            "model": {"name": "Muse Wonder", "context": "300k", "reasoning": "medium"},
+            "tokens": {"split_rule": "unavailable"},
+            "model_time": {"source": "wall_clock_minus_tool_time", "generating_seconds": 288},
+            "tool_calls": {
+                "shell": {"calls": 30, "failures": 5, "by_tool": {}},
+                "files": {"calls": 11, "failures": 2, "by_tool": {}},
+                "visual_checks": {"calls": 0, "failures": 0, "by_tool": {}},
+                "web": {"calls": 0, "failures": 0, "by_tool": {}},
+                "other": {"calls": 0, "failures": 0, "by_tool": {}},
+            },
+            "context_reread": {"source": "provider_cache_read", "cache_read_tokens": 1_700_000},
+            "outcome": {"summary": "Good visualization with dynamic cluster metrics"},
+        }
+        row = readme_row(sample_run)
+        self.assertNotIn("france-road-accidents", row)
+        self.assertNotIn("Good visualization", row)
+        self.assertTrue(row.startswith("| Muse Wonder 300k medium | Cursor |"))
+
+        generated = generate_readme_comparisons()
+        self.assertIn("### `france-electricity-carbon-flow`", generated)
+        self.assertIn("### `france-rail-24h-pulse`", generated)
+        self.assertIn("### `france-road-accidents`", generated)
+        self.assertIn("### `paris-1910-flood-simulator`", generated)
 
     def test_check_readme_detects_drift_when_cell_differs(self):
         # Create a temporary copy of README.md and introduce drift in a table cell
