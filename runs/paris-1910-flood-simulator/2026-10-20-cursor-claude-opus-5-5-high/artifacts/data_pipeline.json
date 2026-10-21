@@ -1,0 +1,81 @@
+{
+  "prompt_id": "paris-1910-flood-simulator",
+  "passed": true,
+  "authenticity": "real_open_data",
+  "score": 1.0,
+  "total_data_files": 12,
+  "total_records": 141396,
+  "synthetic_signals": [],
+  "checks": [
+    {
+      "id": "buildings_elevation_dataset",
+      "description": "Paris buildings footprint dataset with height and median ground elevation",
+      "passed": true,
+      "observed_records": 128206,
+      "matched_files": [
+        "data/raw/gares_idf.geojson",
+        "data/raw/ppri_zones.geojson",
+        "data/raw/apur_emprise_batie.json",
+        "data/raw/reperes_nivellement.geojson"
+      ],
+      "detail": "Matched 4 file(s) with 128206 observed records (min: 1000)"
+    },
+    {
+      "id": "ppri_flood_risk_zones",
+      "description": "PPRI flood risk zones (plub_pprizone)",
+      "passed": true,
+      "observed_records": 1653,
+      "matched_files": [
+        "data/raw/ppri_zones.geojson"
+      ],
+      "detail": "Matched 1 file(s) with 1653 observed records (min: 1)"
+    },
+    {
+      "id": "street_elevation_benchmarks",
+      "description": "Street elevation leveling benchmarks (repere-de-nivellement)",
+      "passed": true,
+      "observed_records": 9811,
+      "matched_files": [
+        "data/raw/reperes_nivellement.geojson"
+      ],
+      "detail": "Matched 1 file(s) with 9811 observed records (min: 50)"
+    },
+    {
+      "id": "stations_dataset",
+      "description": "\u00cele-de-France metro and rail stations (emplacement-des-gares-idf)",
+      "passed": true,
+      "observed_records": 1240,
+      "matched_files": [
+        "data/raw/gares_idf.geojson"
+      ],
+      "detail": "Matched 1 file(s) with 1240 observed records (min: 20)"
+    },
+    {
+      "id": "arrondissements_dataset",
+      "description": "Paris 20 arrondissements district boundaries",
+      "passed": true,
+      "observed_records": 20,
+      "matched_files": [
+        "data/raw/arrondissements.geojson"
+      ],
+      "detail": "Matched 1 file(s) with 20 observed records (min: 20)"
+    },
+    {
+      "id": "historical_flood_markers",
+      "description": "Historical flood markers (1910 at +8.62m, 2018 at +5.84m, 2016 at +6.10m, 1955 at +7.12m)",
+      "passed": true,
+      "observed_records": 140046,
+      "matched_files": [
+        "data/raw/osm_bois_vincennes.json",
+        "data/raw/ppri_zones.geojson",
+        "data/raw/apur_emprise_batie.json",
+        "data/raw/arrondissements.geojson",
+        "data/raw/reperes_nivellement.geojson",
+        "data/raw/voies_deau.geojson",
+        "public/data/meta.json"
+      ],
+      "detail": "Matched 7 file(s) with 140046 observed records (min: 1)"
+    }
+  ],
+  "verified_at": "2026-10-21T05:39:45.212Z"
+}

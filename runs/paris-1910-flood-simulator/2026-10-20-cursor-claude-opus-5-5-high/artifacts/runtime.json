@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "http_status": 200,
+  "url": "http://127.0.0.1:51558",
+  "server_mode": "static",
+  "load_time_ms": 6581.26,
+  "console_errors": [
+    "THREE.WebGLRenderer: A WebGL context could not be created. Reason:  Canvas has an existing context of a different type"
+  ],
+  "console_warnings_count": 4,
+  "page_errors": [],
+  "failed_requests": [],
+  "dom": {
+    "title": "Paris sous les eaux \u2014 The Seine in flood, in 3D",
+    "canvas_count": 1,
+    "svg_count": 3,
+    "webgl_context": true,
+    "text_length": 1797
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "verified_at": "2026-10-21T05:39:25.571Z"
+}
