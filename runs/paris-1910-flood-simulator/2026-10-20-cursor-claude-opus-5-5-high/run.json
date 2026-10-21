@@ -1,0 +1,180 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-20-cursor-claude-opus-5-5-high",
+  "series_id": "paris-1910-flood-simulator-cursor",
+  "prompt_id": "paris-1910-flood-simulator",
+  "prompt_sha256": "1c2103d2016d41e7263c8012c13ee555b6397ac5d8e4908e1b76a766ff49a9c3",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "anthropic",
+    "name": "claude-opus-5-5",
+    "context": null,
+    "reasoning": "high"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": "2026.10.19-6bbf2c4",
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-20T20:42:41.404Z",
+    "ended_at": null
+  },
+  "tokens": {
+    "split_rule": "unavailable",
+    "reasoning_tokens": null,
+    "visible_tokens": null,
+    "raw": {}
+  },
+  "model_time": {
+    "source": "unavailable",
+    "generating_seconds": null,
+    "raw": {}
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    },
+    "files": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    },
+    "visual_checks": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    }
+  },
+  "context_reread": {
+    "source": "unavailable",
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "uncached_input_tokens": null,
+    "raw": {}
+  },
+  "outcome": {
+    "model_stopped": null,
+    "operator_saw_a_page": null,
+    "summary": ""
+  },
+  "observations": "",
+  "verification": {
+    "runtime": {
+      "passed": true,
+      "http_status": 200,
+      "url": "http://127.0.0.1:51558",
+      "server_mode": "static",
+      "load_time_ms": 6581.26,
+      "console_errors": [
+        "THREE.WebGLRenderer: A WebGL context could not be created. Reason:  Canvas has an existing context of a different type"
+      ],
+      "console_warnings_count": 4,
+      "page_errors": [],
+      "failed_requests": [],
+      "dom": {
+        "title": "Paris sous les eaux \u2014 The Seine in flood, in 3D",
+        "canvas_count": 1,
+        "svg_count": 3,
+        "webgl_context": true,
+        "text_length": 1797
+      },
+      "screenshot_path": "artifacts/screenshot.png",
+      "verified_at": "2026-10-21T05:39:25.571Z"
+    },
+    "data_pipeline": {
+      "prompt_id": "paris-1910-flood-simulator",
+      "passed": true,
+      "authenticity": "real_open_data",
+      "score": 1.0,
+      "total_data_files": 12,
+      "total_records": 141396,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "buildings_elevation_dataset",
+          "description": "Paris buildings footprint dataset with height and median ground elevation",
+          "passed": true,
+          "observed_records": 128206,
+          "matched_files": [
+            "data/raw/gares_idf.geojson",
+            "data/raw/ppri_zones.geojson",
+            "data/raw/apur_emprise_batie.json",
+            "data/raw/reperes_nivellement.geojson"
+          ],
+          "detail": "Matched 4 file(s) with 128206 observed records (min: 1000)"
+        },
+        {
+          "id": "ppri_flood_risk_zones",
+          "description": "PPRI flood risk zones (plub_pprizone)",
+          "passed": true,
+          "observed_records": 1653,
+          "matched_files": [
+            "data/raw/ppri_zones.geojson"
+          ],
+          "detail": "Matched 1 file(s) with 1653 observed records (min: 1)"
+        },
+        {
+          "id": "street_elevation_benchmarks",
+          "description": "Street elevation leveling benchmarks (repere-de-nivellement)",
+          "passed": true,
+          "observed_records": 9811,
+          "matched_files": [
+            "data/raw/reperes_nivellement.geojson"
+          ],
+          "detail": "Matched 1 file(s) with 9811 observed records (min: 50)"
+        },
+        {
+          "id": "stations_dataset",
+          "description": "\u00cele-de-France metro and rail stations (emplacement-des-gares-idf)",
+          "passed": true,
+          "observed_records": 1240,
+          "matched_files": [
+            "data/raw/gares_idf.geojson"
+          ],
+          "detail": "Matched 1 file(s) with 1240 observed records (min: 20)"
+        },
+        {
+          "id": "arrondissements_dataset",
+          "description": "Paris 20 arrondissements district boundaries",
+          "passed": true,
+          "observed_records": 20,
+          "matched_files": [
+            "data/raw/arrondissements.geojson"
+          ],
+          "detail": "Matched 1 file(s) with 20 observed records (min: 20)"
+        },
+        {
+          "id": "historical_flood_markers",
+          "description": "Historical flood markers (1910 at +8.62m, 2018 at +5.84m, 2016 at +6.10m, 1955 at +7.12m)",
+          "passed": true,
+          "observed_records": 140046,
+          "matched_files": [
+            "data/raw/osm_bois_vincennes.json",
+            "data/raw/ppri_zones.geojson",
+            "data/raw/apur_emprise_batie.json",
+            "data/raw/arrondissements.geojson",
+            "data/raw/reperes_nivellement.geojson",
+            "data/raw/voies_deau.geojson",
+            "public/data/meta.json"
+          ],
+          "detail": "Matched 7 file(s) with 140046 observed records (min: 1)"
+        }
+      ],
+      "verified_at": "2026-10-21T05:39:45.212Z"
+    }
+  }
+}

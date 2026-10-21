@@ -34,6 +34,12 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `france-road-accidents` | Muse Wonder 300k medium | Cursor | n/a | 4.8 min | 41 7✗ | 1.7M | $1.76 | Good visualization with dynamic cluster metrics |
 
+**Local series `paris-1910-flood-simulator-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
+
+| Prompt | Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Outcome |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `paris-1910-flood-simulator` | claude-opus-5-5 high | Cursor | n/a | n/a | n/a | n/a | n/a | n/a |
+
 ## Prompts
 
 1. [`france-road-accidents`](prompt/france-road-accidents.txt): build, from the four relational ONISR BAAC open-data tables, an interactive map and "who hits whom" collision observatory of corporeal road accidents in metropolitan France across severity, transport modes, and road conditions ([runs](runs/france-road-accidents/)).
