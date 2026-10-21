@@ -10,6 +10,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -86,7 +87,7 @@ def build_container_command(
 ) -> list[str]:
     """Construct docker run command for running harness CLI in container."""
     norm_harness = canonical_harness(harness)
-    cmd = ["docker", "run", "--rm", "-i"]
+    cmd = ["docker", "run", "--rm", "-i", "--init", "--shm-size=2g"]
     if container_name:
         cmd.extend(["--name", container_name])
     cmd.extend([
@@ -166,6 +167,97 @@ def extract_cli_result(content: str | Path) -> dict | None:
             return rec
 
     return json_records[-1]
+
+
+def _human_tool_label(raw_key: str) -> str:
+    if raw_key.endswith("ToolCall"):
+        stem = raw_key[: -len("ToolCall")]
+        return stem[:1].upper() + stem[1:] if stem else "Tool"
+    return raw_key or "Tool"
+
+
+def format_stream_progress_line(raw_line: str, elapsed_seconds: float | None = None) -> str | None:
+    """Format a stream-json line into a concise human-readable progress string, or None to skip."""
+    stripped = raw_line.strip()
+    if not stripped:
+        return None
+
+    prefix = ""
+    if elapsed_seconds is not None and elapsed_seconds >= 0:
+        mins, secs = divmod(int(elapsed_seconds), 60)
+        prefix = f"[{mins:02d}:{secs:02d}] "
+
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        return f"{prefix}{stripped[:160]}"
+
+    if not isinstance(parsed, dict):
+        return None
+
+    t = parsed.get("type")
+    sub = parsed.get("subtype")
+
+    if t == "tool_call":
+        tc = parsed.get("tool_call") if isinstance(parsed.get("tool_call"), dict) else {}
+        raw_key = next(iter(tc.keys()), "tool")
+        tool_label = _human_tool_label(raw_key)
+        inner = tc.get(raw_key) if isinstance(tc.get(raw_key), dict) else {}
+        args = inner.get("args") if isinstance(inner.get("args"), dict) else {}
+        desc = (
+            inner.get("description")
+            or args.get("description")
+            or args.get("path")
+            or args.get("file_path")
+            or args.get("command")
+            or ""
+        )
+        desc_clean = " ".join(str(desc).split())[:80]
+        detail = f" ({desc_clean})" if desc_clean else ""
+        if sub == "started":
+            return f"{prefix}Tool started: {tool_label}{detail}"
+        if sub == "completed":
+            res = inner.get("result") if isinstance(inner.get("result"), dict) else {}
+            succ = res.get("success") if isinstance(res.get("success"), dict) else None
+            dur_ms = None
+            if succ is not None:
+                dur_ms = succ.get("localExecutionTimeMs") or succ.get("executionTime")
+            status = "ok" if succ is not None or not res.get("failure") else "failed"
+            if isinstance(dur_ms, (int, float)) and dur_ms >= 0:
+                return f"{prefix}Tool completed: {tool_label} ({status}, {dur_ms / 1000:.1f}s)"
+            return f"{prefix}Tool completed: {tool_label} ({status})"
+        return None
+
+    if t == "tool_use":
+        tool_name = parsed.get("name") or parsed.get("tool") or "Tool"
+        return f"{prefix}Tool started: {tool_name}"
+
+    if t == "assistant":
+        msg = parsed.get("message") if isinstance(parsed.get("message"), dict) else {}
+        content = msg.get("content")
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "tool_use":
+                    tname = block.get("name") or "Tool"
+                    return f"{prefix}Tool started: {tname}"
+            texts = [
+                str(block.get("text", ""))
+                for block in content
+                if isinstance(block, dict) and block.get("type") == "text" and block.get("text")
+            ]
+            combined = " ".join(" ".join(texts).split())
+            if combined:
+                return f"{prefix}Assistant: {combined[:100]}"
+        elif isinstance(content, str) and content.strip():
+            combined = " ".join(content.split())
+            return f"{prefix}Assistant: {combined[:100]}"
+        return None
+
+    if t in ("result", "session_summary") or parsed.get("event_msg") == "session_summary":
+        status = parsed.get("status") or parsed.get("subtype") or "completed"
+        return f"{prefix}Session finished ({status})"
+
+    return None
 
 
 def check_preflight(
@@ -732,7 +824,9 @@ def run_benchmark_container(
             stream_fp = open(cli_stream_file, "w", encoding="utf-8")
 
         proc = None
+        reader_thread: threading.Thread | None = None
         orig_sigterm = None
+        start_monotonic = time.monotonic()
 
         def _sigterm_handler(signum, frame):
             raise KeyboardInterrupt()
@@ -746,11 +840,30 @@ def run_benchmark_container(
 
             proc = subprocess.Popen(
                 full_cmd,
-                stdout=stream_fp if stream_fp is not None else subprocess.PIPE,
+                stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                bufsize=1,
                 env=env,
             )
+
+            def _stream_reader() -> None:
+                if proc is None or proc.stdout is None:
+                    return
+                try:
+                    for line in proc.stdout:
+                        if stream_fp is not None:
+                            stream_fp.write(line)
+                            stream_fp.flush()
+                        progress = format_stream_progress_line(line, time.monotonic() - start_monotonic)
+                        if progress:
+                            print(progress, flush=True)
+                except Exception:
+                    pass
+
+            reader_thread = threading.Thread(target=_stream_reader, daemon=True)
+            reader_thread.start()
+
             proc.wait(timeout=timeout_seconds)
             return_code = proc.returncode
         except subprocess.TimeoutExpired:
@@ -778,6 +891,11 @@ def run_benchmark_container(
                 try:
                     signal.signal(signal.SIGTERM, orig_sigterm)
                 except (ValueError, AttributeError):
+                    pass
+            if reader_thread is not None:
+                try:
+                    reader_thread.join(timeout=2.0)
+                except Exception:
                     pass
             if stream_fp is not None:
                 stream_fp.flush()

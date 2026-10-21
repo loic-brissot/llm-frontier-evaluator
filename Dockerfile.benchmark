@@ -56,7 +56,9 @@ RUN mkdir -p /home/benchmark/.cursor/skills \
 # Install cursor-agent for user benchmark
 USER benchmark
 RUN mkdir -p /home/benchmark/.local/share/cursor-agent/versions/default \
-    && curl -fSL "https://downloads.cursor.com/lab/${CURSOR_AGENT_VERSION}/linux/x64/agent-cli-package.tar.gz" \
+    && ARCH="$(uname -m)" \
+    && if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then CURSOR_ARCH="arm64"; else CURSOR_ARCH="x64"; fi \
+    && curl -fSL "https://downloads.cursor.com/lab/${CURSOR_AGENT_VERSION}/linux/${CURSOR_ARCH}/agent-cli-package.tar.gz" \
     | tar --strip-components=1 -xzf - -C /home/benchmark/.local/share/cursor-agent/versions/default \
     && ln -s /home/benchmark/.local/share/cursor-agent/versions/default/cursor-agent /home/benchmark/.local/bin/agent \
     && ln -s /home/benchmark/.local/share/cursor-agent/versions/default/cursor-agent /home/benchmark/.local/bin/cursor-agent

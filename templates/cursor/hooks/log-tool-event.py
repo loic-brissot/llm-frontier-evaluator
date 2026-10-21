@@ -37,6 +37,50 @@ def log_directory_for(script_path: Path) -> Path:
     return project_root / ".cursor" / "tool-events"
 
 
+CONTENT_KEYS = {
+    "content",
+    "contents",
+    "new_string",
+    "old_string",
+    "streamContent",
+    "patch",
+    "diff",
+}
+
+
+def _strip_content_fields(value: object) -> object:
+    if isinstance(value, dict):
+        return {
+            k: _strip_content_fields(v)
+            for k, v in value.items()
+            if k not in CONTENT_KEYS
+        }
+    if isinstance(value, list):
+        return [_strip_content_fields(item) for item in value]
+    return value
+
+
+def _extract_traversal_target(tool_input: object) -> str:
+    """Return string representation of tool_input excluding file body content fields."""
+    if isinstance(tool_input, (dict, list)):
+        return json.dumps(_strip_content_fields(tool_input))
+    text = str(tool_input)
+    stripped = text.lstrip()
+    if stripped.startswith("{"):
+        try:
+            parsed = json.loads(stripped)
+            if isinstance(parsed, (dict, list)):
+                return json.dumps(_strip_content_fields(parsed))
+        except json.JSONDecodeError:
+            matches = re.findall(
+                r'"(?:file_path|path|target_file|target_directory|directory|command|pattern|glob_pattern)"\s*:\s*"((?:[^"\\]|\\.)*)"',
+                stripped,
+            )
+            if matches:
+                return " ".join(matches)
+    return text
+
+
 def check_isolation_violation(event: dict) -> str | None:
     tool_input = event.get("tool_input")
     if tool_input is None:
@@ -47,13 +91,15 @@ def check_isolation_violation(event: dict) -> str | None:
     else:
         input_str = str(tool_input)
 
+    traversal_str = _extract_traversal_target(tool_input)
+
     if "llm-frontier-evaluator" in input_str:
         return "Access to llm-frontier-evaluator is blocked by isolation policy"
     if "prompt-probes.json" in input_str:
         return "Access to prompt-probes.json is blocked by isolation policy"
     if "verify_run.py" in input_str:
         return "Access to verify_run.py is blocked by isolation policy"
-    if "../run.json" in input_str or re.search(r"\.\.[/\\]", input_str):
+    if "../run.json" in input_str or re.search(r"\.\.[/\\]", traversal_str):
         return "Parent directory traversal outside workspace is blocked by isolation policy"
 
     return None

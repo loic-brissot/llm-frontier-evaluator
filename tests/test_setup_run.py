@@ -157,6 +157,7 @@ class TestSetupRun(unittest.TestCase):
         blocked_events = [
             {"tool_name": "Shell", "tool_input": {"command": "cat ../run.json"}},
             {"tool_name": "Shell", "tool_input": {"command": "cat ../../../AGENTS.md"}},
+            {"tool_name": "Write", "tool_input": {"file_path": "../outside.py", "content": "print(1)"}},
             {"tool_name": "Read", "tool_input": {"path": "/repo/llm-frontier-evaluator/reference/prompt-probes.json"}},
             {"tool_name": "Grep", "tool_input": "verify_run.py"},
         ]
@@ -169,6 +170,20 @@ class TestSetupRun(unittest.TestCase):
             {"tool_name": "Shell", "tool_input": {"command": "npm install"}},
             {"tool_name": "Read", "tool_input": {"path": "src/index.js"}},
             {"tool_name": "Write", "tool_input": {"path": "dist/bundle.js", "contents": "hello"}},
+            {
+                "tool_name": "Write",
+                "tool_input": {
+                    "file_path": "/workspace/data/build.py",
+                    "content": "import os\nOUT = '../public/data/overlays.json'\n",
+                },
+            },
+            {
+                "tool_name": "Edit",
+                "tool_input": {
+                    "path": "/workspace/src/ui/gauge.js",
+                    "streamContent": "import { FLOODS } from '../content.js';\n",
+                },
+            },
         ]
 
         for evt in allowed_events:

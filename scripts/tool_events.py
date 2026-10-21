@@ -104,6 +104,50 @@ class ToolEventSummary:
     isolation_breaches: list[str] = field(default_factory=list)
 
 
+CONTENT_KEYS = {
+    "content",
+    "contents",
+    "new_string",
+    "old_string",
+    "streamContent",
+    "patch",
+    "diff",
+}
+
+
+def _strip_content_fields(value: object) -> object:
+    if isinstance(value, dict):
+        return {
+            k: _strip_content_fields(v)
+            for k, v in value.items()
+            if k not in CONTENT_KEYS
+        }
+    if isinstance(value, list):
+        return [_strip_content_fields(item) for item in value]
+    return value
+
+
+def _extract_traversal_target(tool_input: object) -> str:
+    """Return string representation of tool_input excluding file body content fields."""
+    if isinstance(tool_input, (dict, list)):
+        return json.dumps(_strip_content_fields(tool_input))
+    text = str(tool_input)
+    stripped = text.lstrip()
+    if stripped.startswith("{"):
+        try:
+            parsed = json.loads(stripped)
+            if isinstance(parsed, (dict, list)):
+                return json.dumps(_strip_content_fields(parsed))
+        except json.JSONDecodeError:
+            matches = re.findall(
+                r'"(?:file_path|path|target_file|target_directory|directory|command|pattern|glob_pattern)"\s*:\s*"((?:[^"\\]|\\.)*)"',
+                stripped,
+            )
+            if matches:
+                return " ".join(matches)
+    return text
+
+
 def audit_isolation(records: list[dict]) -> list[str]:
     breaches: list[str] = []
     for record in records:
@@ -118,6 +162,8 @@ def audit_isolation(records: list[dict]) -> list[str]:
         else:
             input_str = str(tool_input)
 
+        traversal_str = _extract_traversal_target(tool_input)
+
         tool_name = record.get("tool_name") or "tool"
         if "llm-frontier-evaluator" in input_str:
             breaches.append(f"{tool_name} referenced 'llm-frontier-evaluator'")
@@ -125,7 +171,7 @@ def audit_isolation(records: list[dict]) -> list[str]:
             breaches.append(f"{tool_name} referenced 'prompt-probes.json'")
         elif "verify_run.py" in input_str:
             breaches.append(f"{tool_name} referenced 'verify_run.py'")
-        elif "../run.json" in input_str or re.search(r"\.\.[/\\]", input_str):
+        elif "../run.json" in input_str or re.search(r"\.\.[/\\]", traversal_str):
             breaches.append(f"{tool_name} attempted parent traversal ('..')")
     return breaches
 
