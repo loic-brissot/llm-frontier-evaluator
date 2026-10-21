@@ -3,9 +3,10 @@ id: TASK-36
 title: >-
   Support batch backfilling of token usage and cost across all overlapping runs
   from a single Cursor usage CSV export
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-21 13:00'
+updated_date: '2026-10-21 14:24'
 labels:
   - usage
   - metrics
@@ -35,8 +36,8 @@ Operators frequently export a single multi-day Cursor usage CSV covering several
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Add a batch usage ingestion mode (e.g. in scripts/finish_run.py --backfill-usage <csv> or a dedicated script) that scans all completed runs under runs/<prompt-id>/<run-id>/ whose wall_clock window overlaps the CSV date range
-- [ ] #2 For each matching run, automatically copy/scrub the usage CSV, match events by model and wall_clock window, update tokens, context_reread (even if previously populated from hook logs or unavailable), recompute tokens.raw.pricing, and sync README.md
-- [ ] #3 Fix finish_run.py --non-interactive so re-ingesting a usage CSV on an already-finished run overwrites/updates context_reread and tokens.raw.usage_csv when new CSV events match
-- [ ] #4 Add unit tests covering multi-run batch usage CSV backfilling and non-interactive re-ingestion
+- [x] #1 Add a batch usage ingestion mode (e.g. in scripts/finish_run.py --backfill-usage <csv> or a dedicated script) that scans all completed runs under runs/<prompt-id>/<run-id>/ whose wall_clock window overlaps the CSV date range
+- [x] #2 For each matching run, automatically copy/scrub the usage CSV, match events by model and wall_clock window, update tokens, context_reread (even if previously populated from hook logs or unavailable), recompute tokens.raw.pricing, and sync README.md
+- [x] #3 Fix finish_run.py --non-interactive so re-ingesting a usage CSV on an already-finished run overwrites/updates context_reread and tokens.raw.usage_csv when new CSV events match
+- [x] #4 Add unit tests covering multi-run batch usage CSV backfilling and non-interactive re-ingestion
 <!-- AC:END -->

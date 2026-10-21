@@ -147,6 +147,15 @@ python3 scripts/finish_run.py \
   --verify
 ```
 
+#### Batch Usage Backfilling across runs:
+
+When ingesting a multi-run usage export, scan and backfill all matching runs in a single command:
+
+```bash
+python3 scripts/finish_run.py --backfill-usage tmp/team-usage-events-2026-10-18.csv
+```
+Optionally restrict to a specific prompt with `--prompt <prompt-id>`, or pass `--no-update-readme` to skip updating `README.md`.
+
 #### What `finish_run.py` does:
 1. Copies usage export files into `runs/<prompt-id>/<run-id>/usage/`.
 2. **Secret Scrubbing**: Scrubs secrets, API keys, and Bearer tokens from usage files and tool logs using `scrub_path()`.

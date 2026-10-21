@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from run_common import ROOT
 from finish_run import (
     UsageEvent,
+    backfill_usage_export,
     build_parser,
     complete_run_json,
     default_csv_selection,
@@ -565,6 +566,139 @@ class TestFinishRun(unittest.TestCase):
             updated = json.loads(run_json.read_text(encoding="utf-8"))
             self.assertIn("usage_csv", updated["tokens"]["raw"])
             self.assertEqual(updated["tokens"]["raw"]["usage_csv"]["users"], 0)
+
+    def test_complete_run_json_reingest_overwrites_existing_tokens_and_cache(self):
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            run_dir = Path(tmp_dir_str) / "run_dir"
+            run_dir.mkdir()
+            run_json = run_dir / "run.json"
+            # Pre-existing run that had hook tokens or earlier run state
+            run_json.write_text(
+                '{"rules_version": 2, "harness": {"name": "cursor"}, "model": {"name": "claude-sonnet-5-5"}, '
+                '"tokens": {"split_rule": "unavailable", "reasoning_tokens": null, "visible_tokens": null, '
+                '"raw": {"hook_tokens": {"output_tokens": 150}}}, '
+                '"model_time": {"source": "wall_clock_minus_tool_time", "generating_seconds": 12.0, "raw": {}}, '
+                '"context_reread": {"source": "cursor_hooks_jsonl", "cache_read_tokens": 50, "raw": {}}, '
+                '"tool_calls": {"shell": {"calls": 1, "failures": 0}, "files": {"calls": 0, "failures": 0}, '
+                '"visual_checks": {"calls": 0, "failures": 0}, "web": {"calls": 0, "failures": 0}, "other": {"calls": 0, "failures": 0}}, '
+                '"outcome": {"model_stopped": true, "operator_saw_a_page": true, "summary": "test"}, '
+                '"wall_clock": {"started_at": "2026-10-21T10:00:00Z", "ended_at": "2026-10-21T10:05:00Z"}, "observations": ""}',
+                encoding="utf-8",
+            )
+            usage_dir = run_dir / "usage"
+            usage_dir.mkdir()
+            csv_file = usage_dir / "team-usage-events-2026-10-21.csv"
+            csv_file.write_text(
+                'Date,User,Kind,Model,Max Mode,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost\n'
+                '"2026-10-21T10:02:00Z","user@example.com","Included","claude-sonnet-5-5","No","100","200","1500","800","2600","0.50"\n',
+                encoding="utf-8",
+            )
+
+            complete_run_json(run_dir, [csv_file], non_interactive=True, skip_verify=True)
+            updated = json.loads(run_json.read_text(encoding="utf-8"))
+
+            self.assertEqual(updated["context_reread"]["source"], "cursor_usage_csv")
+            self.assertEqual(updated["context_reread"]["cache_read_tokens"], 1500)
+            self.assertEqual(updated["tokens"]["split_rule"], "combined_output_as_visible")
+            self.assertEqual(updated["tokens"]["reasoning_tokens"], 0)
+            self.assertEqual(updated["tokens"]["visible_tokens"], 800)
+            self.assertIn("usage_csv", updated["tokens"]["raw"])
+            self.assertIn("pricing", updated["tokens"]["raw"])
+            self.assertGreater(Decimal(str(updated["tokens"]["raw"]["pricing"]["estimated_cost_usd"])), Decimal("0"))
+
+    def test_backfill_usage_export_multi_runs(self):
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            runs_root = Path(tmp_dir_str) / "runs"
+
+            # Setup Run A: prompt1 / 2026-10-21-cursor-claude-sonnet-5-5-high
+            # Matching model (claude-sonnet-5-5) + overlapping window (10:00 - 10:10)
+            run_a_dir = runs_root / "prompt-a" / "2026-10-21-cursor-claude-sonnet-5-5-high"
+            run_a_dir.mkdir(parents=True)
+            (run_a_dir / "run.json").write_text(
+                '{"rules_version": 2, "series_id": "s1", "harness": {"name": "cursor"}, "model": {"name": "claude-sonnet-5-5"}, '
+                '"tokens": {"split_rule": "unavailable", "reasoning_tokens": null, "visible_tokens": null, "raw": {}}, '
+                '"model_time": {"source": "unavailable", "generating_seconds": null, "raw": {}}, '
+                '"context_reread": {"source": "unavailable", "cache_read_tokens": null, "raw": {}}, '
+                '"tool_calls": {"shell": {"calls": 0, "failures": 0}, "files": {"calls": 0, "failures": 0}, '
+                '"visual_checks": {"calls": 0, "failures": 0}, "web": {"calls": 0, "failures": 0}, "other": {"calls": 0, "failures": 0}}, '
+                '"outcome": {"model_stopped": true, "operator_saw_a_page": true, "summary": "test"}, '
+                '"wall_clock": {"started_at": "2026-10-21T10:00:00Z", "ended_at": "2026-10-21T10:10:00Z"}, "observations": ""}',
+                encoding="utf-8",
+            )
+
+            # Setup Run B: prompt-a / 2026-10-20-cursor-claude-sonnet-5-5-high
+            # Matching model (claude-sonnet-5-5) + non-overlapping window (previous day: 2026-10-20T10:00 - 10:10)
+            run_b_dir = runs_root / "prompt-a" / "2026-10-20-cursor-claude-sonnet-5-5-high"
+            run_b_dir.mkdir(parents=True)
+            (run_b_dir / "run.json").write_text(
+                '{"rules_version": 2, "series_id": "s1", "harness": {"name": "cursor"}, "model": {"name": "claude-sonnet-5-5"}, '
+                '"tokens": {"split_rule": "unavailable", "reasoning_tokens": null, "visible_tokens": null, "raw": {}}, '
+                '"model_time": {"source": "unavailable", "generating_seconds": null, "raw": {}}, '
+                '"context_reread": {"source": "unavailable", "cache_read_tokens": null, "raw": {}}, '
+                '"tool_calls": {"shell": {"calls": 0, "failures": 0}, "files": {"calls": 0, "failures": 0}, '
+                '"visual_checks": {"calls": 0, "failures": 0}, "web": {"calls": 0, "failures": 0}, "other": {"calls": 0, "failures": 0}}, '
+                '"outcome": {"model_stopped": true, "operator_saw_a_page": true, "summary": "test"}, '
+                '"wall_clock": {"started_at": "2026-10-20T10:00:00Z", "ended_at": "2026-10-20T10:10:00Z"}, "observations": ""}',
+                encoding="utf-8",
+            )
+
+            # Setup Run C: prompt-b / 2026-10-21-cursor-gpt-5-high
+            # Different model (gpt-5) + overlapping window (2026-10-21T10:00 - 10:10)
+            run_c_dir = runs_root / "prompt-b" / "2026-10-21-cursor-gpt-5-high"
+            run_c_dir.mkdir(parents=True)
+            (run_c_dir / "run.json").write_text(
+                '{"rules_version": 2, "series_id": "s2", "harness": {"name": "cursor"}, "model": {"name": "gpt-5"}, '
+                '"tokens": {"split_rule": "unavailable", "reasoning_tokens": null, "visible_tokens": null, "raw": {}}, '
+                '"model_time": {"source": "unavailable", "generating_seconds": null, "raw": {}}, '
+                '"context_reread": {"source": "unavailable", "cache_read_tokens": null, "raw": {}}, '
+                '"tool_calls": {"shell": {"calls": 0, "failures": 0}, "files": {"calls": 0, "failures": 0}, '
+                '"visual_checks": {"calls": 0, "failures": 0}, "web": {"calls": 0, "failures": 0}, "other": {"calls": 0, "failures": 0}}, '
+                '"outcome": {"model_stopped": true, "operator_saw_a_page": true, "summary": "test"}, '
+                '"wall_clock": {"started_at": "2026-10-21T10:00:00Z", "ended_at": "2026-10-21T10:10:00Z"}, "observations": ""}',
+                encoding="utf-8",
+            )
+
+            # Usage CSV containing events on Oct 21 for claude-sonnet-5-5
+            csv_path = Path(tmp_dir_str) / "batch-export.csv"
+            csv_path.write_text(
+                'Date,User,Kind,Model,Max Mode,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost\n'
+                '"2026-10-21T10:03:00Z","user@ogury.co","Included","claude-sonnet-5-5","No","100","200","300","400","1000","0.50"\n'
+                '"2026-10-21T10:06:00Z","user@ogury.co","Included","claude-sonnet-5-5","No","100","200","300","400","1000","0.50"\n',
+                encoding="utf-8",
+            )
+
+            updated = backfill_usage_export(csv_path, runs_root=runs_root, update_readme=False)
+
+            # Only Run A should be updated
+            self.assertEqual(len(updated), 1)
+            self.assertEqual(updated[0]["prompt_id"], "prompt-a")
+            self.assertEqual(updated[0]["run_id"], "2026-10-21-cursor-claude-sonnet-5-5-high")
+            self.assertEqual(updated[0]["events_selected"], 2)
+
+            # Verify Run A was written
+            run_a_updated = json.loads((run_a_dir / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual(run_a_updated["context_reread"]["source"], "cursor_usage_csv")
+            self.assertEqual(run_a_updated["context_reread"]["cache_read_tokens"], 600)
+            self.assertEqual(run_a_updated["tokens"]["visible_tokens"], 800)
+            self.assertEqual(run_a_updated["tokens"]["reasoning_tokens"], 0)
+            self.assertEqual(run_a_updated["tokens"]["split_rule"], "combined_output_as_visible")
+            self.assertIn("pricing", run_a_updated["tokens"]["raw"])
+            self.assertTrue((run_a_dir / "usage" / "batch-export.csv").is_file())
+
+            # Verify Run B and C were unchanged
+            run_b_data = json.loads((run_b_dir / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual(run_b_data["context_reread"]["source"], "unavailable")
+            self.assertFalse((run_b_dir / "usage").exists())
+
+            run_c_data = json.loads((run_c_dir / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual(run_c_data["context_reread"]["source"], "unavailable")
+            self.assertFalse((run_c_dir / "usage").exists())
+
+    def test_build_parser_backfill_args(self):
+        parser = build_parser()
+        args = parser.parse_args(["--backfill-usage", "export.csv", "--no-update-readme"])
+        self.assertEqual(args.backfill_usage, Path("export.csv"))
+        self.assertTrue(args.no_update_readme)
 
 
 if __name__ == "__main__":
