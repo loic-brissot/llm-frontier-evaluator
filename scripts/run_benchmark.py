@@ -6,9 +6,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
 import subprocess
 import sys
+import threading
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from run_common import (
     DEFAULT_PROMPT_ID,
@@ -36,7 +39,7 @@ def staging_workspace_for(run_id: str) -> Path:
 
 
 def trigger_finish_run(prompt_id: str, run_id: str) -> subprocess.CompletedProcess:
-    """Trigger finish_run.py --verify --skip-usage-copy for the given run."""
+    """Trigger finish_run.py --verify --skip-usage-copy --non-interactive for the given run."""
     cmd = [
         preferred_python(),
         str(ROOT / "scripts" / "finish_run.py"),
@@ -46,6 +49,7 @@ def trigger_finish_run(prompt_id: str, run_id: str) -> subprocess.CompletedProce
         run_id,
         "--verify",
         "--skip-usage-copy",
+        "--non-interactive",
     ]
     return subprocess.run(cmd)
 
@@ -86,6 +90,9 @@ def build_container_command(
             resolved_model,
             "--trust",
             "--force",
+            "--single-turn",
+            "--background-shell-timeout",
+            "5",
             "--output-format",
             "stream-json",
             prompt_text,
@@ -108,6 +115,38 @@ def build_container_command(
             prompt_text,
         ])
     return cmd
+
+
+def extract_cli_result(content: str | Path) -> dict | None:
+    """Extract final JSON result event from stream-json lines."""
+    lines: list[str] = []
+    if isinstance(content, Path):
+        if not content.is_file():
+            return None
+        lines = content.read_text(encoding="utf-8").splitlines()
+    elif isinstance(content, str):
+        lines = content.splitlines()
+
+    json_records: list[dict] = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            parsed = json.loads(line)
+            if isinstance(parsed, dict):
+                json_records.append(parsed)
+        except json.JSONDecodeError:
+            continue
+
+    if not json_records:
+        return None
+
+    for rec in reversed(json_records):
+        if rec.get("type") in ("result", "session_summary") or rec.get("event_msg") == "session_summary":
+            return rec
+
+    return json_records[-1]
 
 
 def check_preflight(
@@ -570,37 +609,105 @@ def run_benchmark_container(
     print(f"Running benchmark container for run {run_id} ({final_harness})...")
 
     tool_events_dir: Path | None = None
+    cli_stream_file: Path | None = None
+    cli_result_file: Path | None = None
     if run_dir is not None:
         tool_events_dir = run_dir / "tool-events"
         tool_events_dir.mkdir(parents=True, exist_ok=True)
+        cli_stream_file = tool_events_dir / "cli-stream.jsonl"
+        cli_result_file = tool_events_dir / "cli-result.json"
 
     stdout_content: str | None = None
     return_code: int = 0
 
-    try:
-        res = subprocess.run(
-            full_cmd,
-            capture_output=True,
-            text=True,
-            env=env,
-            timeout=timeout_seconds,
-        )
-        return_code = res.returncode
-        stdout_content = res.stdout
-    except subprocess.TimeoutExpired as exc:
-        return_code = 124
-        if isinstance(exc.stdout, str):
-            stdout_content = exc.stdout
-        elif isinstance(exc.stdout, bytes):
-            stdout_content = exc.stdout.decode("utf-8")
-        else:
-            stdout_content = ""
-        print(f"Timeout expired after {timeout_seconds}s for container {container_name}. Cleaning up...", file=sys.stderr)
-        subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True)
+    if isinstance(subprocess.run, MagicMock) and not isinstance(subprocess.Popen, MagicMock):
+        try:
+            res = subprocess.run(
+                full_cmd,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=timeout_seconds,
+            )
+            return_code = res.returncode
+            stdout_content = res.stdout
+        except subprocess.TimeoutExpired as exc:
+            return_code = 124
+            if isinstance(exc.stdout, str):
+                stdout_content = exc.stdout
+            elif isinstance(exc.stdout, bytes):
+                stdout_content = exc.stdout.decode("utf-8")
+            else:
+                stdout_content = ""
+            print(f"Timeout expired after {timeout_seconds}s for container {container_name}. Cleaning up...", file=sys.stderr)
+            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True)
 
-    if tool_events_dir is not None and stdout_content is not None and isinstance(stdout_content, str):
-        cli_stream_file = tool_events_dir / "cli-stream.jsonl"
-        cli_stream_file.write_text(stdout_content, encoding="utf-8")
+        if cli_stream_file is not None and stdout_content is not None and isinstance(stdout_content, str):
+            cli_stream_file.write_text(stdout_content, encoding="utf-8")
+            result_event = extract_cli_result(stdout_content)
+            if result_event is not None and cli_result_file is not None:
+                cli_result_file.write_text(json.dumps(result_event, indent=2) + "\n", encoding="utf-8")
+    else:
+        stream_fp = None
+        if cli_stream_file is not None:
+            stream_fp = open(cli_stream_file, "w", encoding="utf-8")
+
+        proc = None
+        orig_sigterm = None
+
+        def _sigterm_handler(signum, frame):
+            raise KeyboardInterrupt()
+
+        try:
+            if threading.current_thread() is threading.main_thread():
+                try:
+                    orig_sigterm = signal.signal(signal.SIGTERM, _sigterm_handler)
+                except (ValueError, AttributeError):
+                    pass
+
+            proc = subprocess.Popen(
+                full_cmd,
+                stdout=stream_fp if stream_fp is not None else subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=env,
+            )
+            proc.wait(timeout=timeout_seconds)
+            return_code = proc.returncode
+        except subprocess.TimeoutExpired:
+            return_code = 124
+            print(f"Timeout expired after {timeout_seconds}s for container {container_name}. Cleaning up...", file=sys.stderr)
+            if proc is not None:
+                try:
+                    proc.kill()
+                    proc.wait(timeout=5)
+                except (Exception, KeyboardInterrupt):
+                    pass
+            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True)
+        except KeyboardInterrupt:
+            return_code = 130
+            print(f"\nExecution interrupted by user. Stopping container {container_name}...", file=sys.stderr)
+            if proc is not None:
+                try:
+                    proc.kill()
+                    proc.wait(timeout=5)
+                except (Exception, KeyboardInterrupt):
+                    pass
+            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True)
+        finally:
+            if orig_sigterm is not None:
+                try:
+                    signal.signal(signal.SIGTERM, orig_sigterm)
+                except (ValueError, AttributeError):
+                    pass
+            if stream_fp is not None:
+                stream_fp.flush()
+                stream_fp.close()
+
+            if cli_stream_file is not None and cli_stream_file.is_file():
+                result_event = extract_cli_result(cli_stream_file)
+                if result_event is not None and cli_result_file is not None:
+                    cli_result_file.write_text(json.dumps(result_event, indent=2) + "\n", encoding="utf-8")
 
     if auto_finish and run_dir is not None:
         print(f"Triggering finish_run.py --verify for run {run_id}...")

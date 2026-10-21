@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from tool_events import (
     summarize_records,
+    summarize_tool_event_log,
     audit_isolation,
     bucket_for,
     effective_tool_name,
@@ -644,6 +645,89 @@ class TestToolEvents(unittest.TestCase):
         summary = summarize_records(records)
         self.assertEqual(len(summary.isolation_breaches), 0)
         self.assertFalse(any("Isolation audit flagged" in note for note in summary.notes))
+
+    def test_headless_cursor_agent_missing_before_submit_prompt_and_stop(self):
+        # Simulate headless cursor-agent run: no beforeSubmitPrompt, no stop event
+        records = [
+            {
+                "hook_event_name": "afterAgentThought",
+                "duration_ms": 3000,
+                "logged_at": "2026-10-21T10:00:03.000Z",
+                "model": "claude-opus-5-5-high",
+            },
+            {
+                "hook_event_name": "postToolUse",
+                "tool_name": "Shell",
+                "tool_input": "npm run build",
+                "duration": 5000,  # 5s
+                "logged_at": "2026-10-21T10:00:10.000Z",
+            },
+            {
+                "hook_event_name": "afterAgentThought",
+                "duration_ms": 2000,
+                "logged_at": "2026-10-21T10:00:15.000Z",
+            },
+            {
+                "hook_event_name": "postToolUse",
+                "tool_name": "Write",
+                "tool_input": {"path": "index.html"},
+                "duration": 1000,  # 1s
+                "logged_at": "2026-10-21T10:00:20.000Z",
+            },
+            {
+                "hook_event_name": "afterAgentResponse",
+                "logged_at": "2026-10-21T10:00:25.000Z",
+                "input_tokens": 1200,
+                "output_tokens": 400,
+                "cache_read_tokens": 800,
+            },
+        ]
+
+        summary = summarize_records(records)
+        self.assertTrue(summary.present)
+        # Wall start should fall back to the first event's timestamp (10:00:03Z)
+        self.assertEqual(summary.wall_started_at, "2026-10-21T10:00:03Z")
+        # Wall end capped at last non-idle event: afterAgentResponse at 10:00:25Z
+        self.assertEqual(summary.wall_ended_at, "2026-10-21T10:00:25Z")
+        self.assertEqual(summary.wall_seconds, 22.0)
+        self.assertEqual(summary.stop_status, "completed")
+
+        # Tool busy time: Shell (10:00:05 to 10:00:10 = 5s) + Write (10:00:19 to 10:00:20 = 1s) = 6s
+        self.assertEqual(summary.tool_busy_seconds, 6.0)
+        # Model time = wall - tool_busy = 22.0 - 6.0 = 16.0s
+        self.assertEqual(summary.model_time_seconds, 16.0)
+        # Thinking time = (3000ms + 2000ms) / 1000 = 5.0s
+        self.assertEqual(summary.thinking_seconds, 5.0)
+        self.assertEqual(summary.thought_blocks, 2)
+
+        # Tokens extracted from afterAgentResponse
+        self.assertEqual(summary.input_tokens, 1200)
+        self.assertEqual(summary.output_tokens, 400)
+        self.assertEqual(summary.cache_read_tokens, 800)
+        self.assertEqual(summary.uncached_input_tokens, 400)
+        self.assertEqual(summary.model_slug, "claude-opus-5-5-high")
+
+        # Buckets counted properly
+        self.assertEqual(summary.buckets["shell"]["calls"], 1)
+        self.assertEqual(summary.buckets["files"]["calls"], 1)
+
+    def test_headless_cursor_agent_with_interrupt_sets_aborted(self):
+        records = [
+            {
+                "hook_event_name": "postToolUse",
+                "tool_name": "Shell",
+                "tool_input": "sleep 100",
+                "logged_at": "2026-10-21T10:00:05.000Z",
+                "is_interrupt": True,
+            },
+        ]
+        summary = summarize_records(records)
+        self.assertEqual(summary.stop_status, "aborted")
+        self.assertEqual(summary.wall_started_at, "2026-10-21T10:00:05Z")
+        self.assertEqual(summary.wall_ended_at, "2026-10-21T10:00:05Z")
+
+    def test_summarize_tool_event_log_alias(self):
+        self.assertIs(summarize_tool_event_log, summarize_records)
 
 
 if __name__ == "__main__":
