@@ -795,6 +795,8 @@ def generate_readme_comparisons(
     run_paths = [run_dir / "run.json" for run_dir in sorted(discover_run_dirs())]
     valid_primary_runs = []
     for path in run_paths:
+        if (path.parent / ".staging_workspace").is_file():
+            continue
         try:
             run = load_json(path)
         except (OSError, json.JSONDecodeError, ValueError):

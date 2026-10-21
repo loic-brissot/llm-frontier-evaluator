@@ -638,6 +638,20 @@ class TestToolEvents(unittest.TestCase):
         records = [
             {"hook_event_name": "postToolUse", "tool_name": "Shell", "tool_input": "npm install"},
             {"hook_event_name": "postToolUse", "tool_name": "Write", "tool_input": {"path": "src/app.js", "contents": "console.log('hi');"}},
+            {
+                "hook_event_name": "postToolUse",
+                "tool_name": "Write",
+                "tool_input": {
+                    "file_path": "/workspace/data/build.py",
+                    "content": "from pathlib import Path\nOUT = Path('../public/data')\n",
+                },
+            },
+            {
+                "hook_event_name": "postToolUse",
+                "tool_name": "Write",
+                "tool_input": '{"file_path": "/workspace/scripts/prepare_data.py", "content": "open(\'../public/data.json\')',
+                "tool_input_truncated": True,
+            },
         ]
         breaches = audit_isolation(records)
         self.assertEqual(len(breaches), 0)

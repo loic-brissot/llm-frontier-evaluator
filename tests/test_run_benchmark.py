@@ -17,6 +17,7 @@ from run_benchmark import (
     detect_container_harness_version,
     extract_cli_result,
     fetch_cursor_available_models,
+    format_stream_progress_line,
     main,
     record_container_harness_version,
     resolve_claude_code_model_and_effort,
@@ -39,9 +40,11 @@ class TestRunBenchmark(unittest.TestCase):
         # Verify PATH contains /home/benchmark/.local/bin
         self.assertIn('ENV PATH="/home/benchmark/.local/bin:${PATH}"', content)
 
-        # Verify cursor-agent is installed and symlinked
+        # Verify cursor-agent is installed and symlinked with multi-arch support
         self.assertIn("/home/benchmark/.local/share/cursor-agent", content)
         self.assertIn("/home/benchmark/.local/bin/cursor-agent", content)
+        self.assertIn('CURSOR_ARCH="arm64"', content)
+        self.assertIn('CURSOR_ARCH="x64"', content)
 
         # Verify the self-recursive wrapper is removed
         self.assertNotIn("if command -v cursor-agent", content)
@@ -412,6 +415,8 @@ class TestRunBenchmark(unittest.TestCase):
         self.assertIn("run", cmd)
         self.assertIn("--rm", cmd)
         self.assertIn("-i", cmd)
+        self.assertIn("--init", cmd)
+        self.assertIn("--shm-size=2g", cmd)
         self.assertIn("--name", cmd)
         self.assertIn("frontier-runner-test-run", cmd)
         self.assertIn("-v", cmd)
@@ -456,6 +461,8 @@ class TestRunBenchmark(unittest.TestCase):
         self.assertIn("run", cmd)
         self.assertIn("--rm", cmd)
         self.assertIn("-i", cmd)
+        self.assertIn("--init", cmd)
+        self.assertIn("--shm-size=2g", cmd)
         self.assertIn("--name", cmd)
         self.assertIn("frontier-runner-test-claude", cmd)
         self.assertIn("-v", cmd)
@@ -1079,6 +1086,100 @@ class TestRunBenchmark(unittest.TestCase):
         self.assertIn("setup_run.py --context", help_text)
         self.assertIn("headless CLIs", help_text)
         self.assertIn("cannot select context windows", help_text)
+
+    def test_format_stream_progress_line_and_live_popen_streaming(self):
+        # Thinking deltas should be suppressed
+        self.assertIsNone(
+            format_stream_progress_line('{"type":"thinking","subtype":"delta","text":"abc"}', 12.0)
+        )
+
+        # Tool call started and completed should be formatted
+        started_line = json.dumps({
+            "type": "tool_call",
+            "subtype": "started",
+            "tool_call": {
+                "shellToolCall": {
+                    "args": {"command": "npm run build", "description": "Build app"}
+                }
+            },
+        })
+        self.assertEqual(
+            format_stream_progress_line(started_line, 65.0),
+            "[01:05] Tool started: Shell (Build app)",
+        )
+
+        completed_line = json.dumps({
+            "type": "tool_call",
+            "subtype": "completed",
+            "tool_call": {
+                "shellToolCall": {
+                    "result": {"success": {"localExecutionTimeMs": 2400}}
+                }
+            },
+        })
+        self.assertEqual(
+            format_stream_progress_line(completed_line, 67.4),
+            "[01:07] Tool completed: Shell (ok, 2.4s)",
+        )
+
+        # Assistant message and result event
+        asst_line = json.dumps({
+            "type": "assistant",
+            "message": {"content": [{"type": "text", "text": "All modules are built."}]},
+        })
+        self.assertEqual(
+            format_stream_progress_line(asst_line, 70.0),
+            "[01:10] Assistant: All modules are built.",
+        )
+
+        res_line = json.dumps({"type": "result", "status": "success"})
+        self.assertEqual(
+            format_stream_progress_line(res_line, 75.0),
+            "[01:15] Session finished (success)",
+        )
+
+        # Verify Popen path streams lines to cli-stream.jsonl and stdout
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            staging_dir = tmp_path / "frontier-workspace-live-stream"
+            staging_dir.mkdir(parents=True)
+            run_dir = tmp_path / "runs" / "france-road-accidents" / "live-stream"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "cursor"},
+                "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+            }), encoding="utf-8")
+
+            mock_proc = MagicMock()
+            mock_proc.stdout = iter([started_line + "\n", completed_line + "\n", res_line + "\n"])
+            mock_proc.wait.return_value = 0
+            mock_proc.returncode = 0
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.Popen", return_value=mock_proc), \
+                 patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id="live-stream",
+                    auto_finish=False,
+                )
+                self.assertEqual(exit_code, 0)
+                out = mock_stdout.getvalue()
+                self.assertIn("Tool started: Shell (Build app)", out)
+                self.assertIn("Tool completed: Shell (ok, 2.4s)", out)
+                self.assertIn("Session finished (success)", out)
+
+                cli_stream_path = run_dir / "tool-events" / "cli-stream.jsonl"
+                self.assertTrue(cli_stream_path.is_file())
+                self.assertEqual(len(cli_stream_path.read_text(encoding="utf-8").splitlines()), 3)
 
 
 if __name__ == "__main__":

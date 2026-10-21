@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 # Add scripts directory to module path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -607,6 +608,48 @@ class TestCompareRuns(unittest.TestCase):
             self.assertTrue(any("unknown-harness" in err or "invalid 'harnesses'" in err for err in errors))
             self.assertTrue(any("duplicate model id 'model-1'" in err for err in errors))
             self.assertTrue(any("negative rate" in err for err in errors))
+
+    def test_generate_readme_comparisons_skips_staged_in_flight_runs(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            staged_run_dir = Path(tmp_dir) / "runs" / "france-road-accidents" / "2026-10-21-cursor-staged-run"
+            staged_run_dir.mkdir(parents=True)
+            (staged_run_dir / ".staging_workspace").write_text("/tmp/frontier-workspace-staged\n", encoding="utf-8")
+            (staged_run_dir / "run.json").write_text(
+                json.dumps({
+                    "rules_version": 2,
+                    "run_id": "2026-10-21-cursor-staged-run",
+                    "series_id": "france-road-accidents-cursor",
+                    "prompt_id": "france-road-accidents",
+                    "prompt_sha256": "982eebe095732d52f4ca2e904d1cc284b76e9522d3f6f634c571f60ee96747a9",
+                    "shot": "primary",
+                    "parent_run_id": None,
+                    "model": {"provider": "anthropic", "name": "Staged Model", "context": None, "reasoning": "medium"},
+                    "harness": {"name": "cursor", "version": None, "detail": ""},
+                    "wall_clock": {"started_at": None, "ended_at": None},
+                    "tokens": {"split_rule": None, "reasoning_tokens": None, "visible_tokens": None, "raw": {}},
+                    "model_time": {"source": None, "generating_seconds": None, "raw": {}},
+                    "tool_calls": {
+                        "shell": {"calls": None, "failures": None, "by_tool": {}},
+                        "files": {"calls": None, "failures": None, "by_tool": {}},
+                        "visual_checks": {"calls": None, "failures": None, "by_tool": {}},
+                        "web": {"calls": None, "failures": None, "by_tool": {}},
+                        "other": {"calls": None, "failures": None, "by_tool": {}},
+                    },
+                    "context_reread": {
+                        "source": None,
+                        "cache_read_tokens": None,
+                        "cache_write_tokens": None,
+                        "uncached_input_tokens": None,
+                        "raw": {},
+                    },
+                    "outcome": {"model_stopped": None, "operator_saw_a_page": None, "summary": ""},
+                    "observations": "",
+                }),
+                encoding="utf-8",
+            )
+            with patch("compare_runs.discover_run_dirs", return_value=[staged_run_dir]):
+                md = generate_readme_comparisons()
+                self.assertNotIn("Staged Model", md)
 
 
 if __name__ == "__main__":
