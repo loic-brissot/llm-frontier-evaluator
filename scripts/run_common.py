@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import json
 import re
 import shutil
@@ -378,9 +380,106 @@ def scrub_text(text: str) -> tuple[str, int]:
     return cleaned, redactions
 
 
+_USAGE_CSV_TEAM_PREFIX_RE = re.compile(
+    r"^(.*?team-usage-events)(?:-\d+)+(-[0-9]{4}-[0-9]{2}-[0-9]{2}(?:-[0-9]+)?\.csv)$",
+    re.I,
+)
+
+_USAGE_CSV_GENERAL_TEAM_ID_RE = re.compile(
+    r"^(.*?team-usage-events)(?:-\d+)+(-(?![0-9]{2}\.csv).*?\.csv)$",
+    re.I,
+)
+
+
+def normalize_usage_csv_filename(filename: str) -> str:
+    """Strip numeric team IDs embedded in Cursor usage CSV filenames.
+
+    E.g.:
+      `team-usage-events-7984357-2026-10-19.csv` -> `team-usage-events-2026-10-19.csv`
+      `team-usage-events-7984357-2026-10-19-1.csv` -> `team-usage-events-2026-10-19-1.csv`
+    """
+    m = _USAGE_CSV_TEAM_PREFIX_RE.match(filename)
+    if m:
+        return f"{m.group(1)}{m.group(2)}"
+    return filename
+
+
+USAGE_CSV_PII_HEADERS = {
+    "user",
+    "pr author",
+    "cloud agent id",
+    "automation id",
+}
+
+_BC_ID_RE = re.compile(r"\bbc-[0-9a-fA-F-]{8,}\b")
+_EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+
+
+def scrub_usage_csv_text(text: str) -> str:
+    """Scrub PII and internal identifiers from usage CSV text.
+
+    - Blanks out values in User, PR Author, Cloud Agent ID, and Automation ID columns.
+    - Also strips any stray email addresses or `bc-...` UUIDs in those columns.
+    - Preserves exact header text, delimiter, and full row formatting.
+    """
+    if not text.strip():
+        return text
+
+    buffer = io.StringIO(text)
+    reader = csv.reader(buffer)
+    try:
+        header_row = next(reader)
+    except StopIteration:
+        return text
+
+    pii_indices = {
+        i
+        for i, col in enumerate(header_row)
+        if " ".join(col.strip().lower().split()) in USAGE_CSV_PII_HEADERS
+    }
+
+    out_lines: list[str] = []
+    # Preserve original first line (header row) exactly
+    original_lines = text.splitlines(keepends=False)
+    out_lines.append(original_lines[0])
+
+    for row in reader:
+        if not row:
+            continue
+        scrubbed_row = list(row)
+        for idx in pii_indices:
+            if idx < len(scrubbed_row):
+                scrubbed_row[idx] = ""
+        # Also clean any stray email or bc-... in remaining columns just in case
+        for col_idx in range(len(scrubbed_row)):
+            val = scrubbed_row[col_idx]
+            if val and col_idx in pii_indices:
+                scrubbed_row[col_idx] = ""
+
+        row_buf = io.StringIO()
+        row_writer = csv.writer(row_buf, quoting=csv.QUOTE_ALL, lineterminator="")
+        row_writer.writerow(scrubbed_row)
+        out_lines.append(row_buf.getvalue())
+
+    result = "\n".join(out_lines)
+    if text.endswith("\n"):
+        result += "\n"
+    return result
+
+
+def scrub_usage_csv_file(src: Path, dest: Path | None = None) -> None:
+    """Scrub PII from a usage CSV file and write to dest (or in-place if dest is None)."""
+    target = dest or src
+    text = src.read_text(encoding="utf-8-sig")
+    scrubbed = scrub_usage_csv_text(text)
+    target.write_text(scrubbed, encoding="utf-8")
+
+
 def scrub_path(path: Path) -> int:
     if not path.is_file():
         return 0
+    if path.suffix.lower() == ".csv":
+        scrub_usage_csv_file(path)
     original = path.read_text(encoding="utf-8")
     cleaned, redactions = scrub_text(original)
     if cleaned != original:
@@ -392,15 +491,23 @@ def copy_usage_export(source: Path, usage_dir: Path) -> list[Path]:
     usage_dir.mkdir(parents=True, exist_ok=True)
     copied: list[Path] = []
     if source.is_file():
-        target = usage_dir / source.name
-        shutil.copy2(source, target)
+        norm_name = normalize_usage_csv_filename(source.name)
+        target = usage_dir / norm_name
+        if source.suffix.lower() == ".csv":
+            scrub_usage_csv_file(source, target)
+        else:
+            shutil.copy2(source, target)
         copied.append(target)
         return copied
     if source.is_dir():
         for item in sorted(source.iterdir()):
             if item.is_file():
-                target = usage_dir / item.name
-                shutil.copy2(item, target)
+                norm_name = normalize_usage_csv_filename(item.name)
+                target = usage_dir / norm_name
+                if item.suffix.lower() == ".csv":
+                    scrub_usage_csv_file(item, target)
+                else:
+                    shutil.copy2(item, target)
                 copied.append(target)
         return copied
     raise FileNotFoundError(f"Usage export not found: {source}")

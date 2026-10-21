@@ -31,7 +31,7 @@
         "events_selected": 3,
         "selection": "3 of 223 events. Exact model match for Claude Opus 5.5 High. No events fall inside the run window, so the window was not applied.",
         "files": [
-          "team-usage-events-7984357-2026-10-19.csv"
+          "team-usage-events-2026-10-19.csv"
         ],
         "models": {
           "claude-opus-5-5-high": 3
