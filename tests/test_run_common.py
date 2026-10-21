@@ -1,3 +1,4 @@
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,7 +7,16 @@ import sys
 # Add scripts directory to module path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from run_common import scrub_text, scrub_path, run_schema_errors, infer_provider, load_pricing
+from run_common import (
+    infer_provider,
+    load_pricing,
+    normalize_usage_csv_filename,
+    run_schema_errors,
+    scrub_path,
+    scrub_text,
+    scrub_usage_csv_file,
+    scrub_usage_csv_text,
+)
 
 
 class TestRunCommon(unittest.TestCase):
@@ -176,6 +186,65 @@ class TestRunCommon(unittest.TestCase):
         self.assertIsNone(infer_provider(""))
         self.assertIsNone(infer_provider("   "))
         self.assertIsNone(infer_provider("unknown_nonexistent_model"))
+
+    def test_normalize_usage_csv_filename(self):
+        self.assertEqual(
+            normalize_usage_csv_filename("team-usage-events-7984357-2026-10-19.csv"),
+            "team-usage-events-2026-10-19.csv",
+        )
+        self.assertEqual(
+            normalize_usage_csv_filename("team-usage-events-2026-10-19.csv"),
+            "team-usage-events-2026-10-19.csv",
+        )
+        self.assertEqual(
+            normalize_usage_csv_filename("team-usage-events-12345-67890-2026-10-19.csv"),
+            "team-usage-events-2026-10-19.csv",
+        )
+        self.assertEqual(
+            normalize_usage_csv_filename("custom-export.csv"),
+            "custom-export.csv",
+        )
+
+    def test_scrub_usage_csv_text_blanks_pii(self):
+        sample_csv = (
+            'Date,User,PR Author,Repo,PR Number,Cloud Agent ID,Automation ID,Kind,Model,Cost\n'
+            '"2026-10-19T10:00:00Z","loic.brissot@ogury.co","author@domain.com","repo","1","bc-c1636926-d631-43b7-9487-faac7e241110","auto-123","Included","claude-sonnet-5-5","1.50"\n'
+        )
+        scrubbed = scrub_usage_csv_text(sample_csv)
+        self.assertNotIn("loic.brissot@ogury.co", scrubbed)
+        self.assertNotIn("author@domain.com", scrubbed)
+        self.assertNotIn("bc-c1636926-d631-43b7-9487-faac7e241110", scrubbed)
+        self.assertNotIn("auto-123", scrubbed)
+        self.assertIn('"claude-sonnet-5-5"', scrubbed)
+        self.assertIn('"1.50"', scrubbed)
+
+        # Check in-place file scrubbing
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_path = Path(tmpdir) / "export.csv"
+            file_path.write_text(sample_csv, encoding="utf-8")
+            scrub_usage_csv_file(file_path)
+            content = file_path.read_text(encoding="utf-8")
+            self.assertNotIn("loic.brissot@ogury.co", content)
+            self.assertNotIn("bc-c1636926", content)
+
+    def test_no_committed_runs_contain_pii_or_team_id_filenames(self):
+        runs_dir = Path(__file__).resolve().parent.parent / "runs"
+        for csv_path in runs_dir.rglob("*.csv"):
+            if "workspace" in csv_path.parts:
+                continue
+            name = csv_path.name
+            self.assertEqual(
+                normalize_usage_csv_filename(name),
+                name,
+                f"Committed CSV {csv_path} has unnormalized team ID filename",
+            )
+            content = csv_path.read_text(encoding="utf-8")
+            self.assertNotIn("loic.brissot@ogury.co", content, f"PII found in {csv_path}")
+            self.assertNotIn("ogury.co", content, f"PII found in {csv_path}")
+            self.assertFalse(
+                re.search(r"bc-[0-9a-fA-F-]{8,}", content),
+                f"Cloud agent ID found in {csv_path}",
+            )
 
 
 if __name__ == "__main__":

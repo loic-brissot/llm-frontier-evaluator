@@ -3,9 +3,10 @@ id: TASK-35
 title: >-
   Scrub non-secret PII (User email, Cloud Agent IDs, and team IDs) when
   ingesting Cursor usage exports and clean historical CSVs
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-21 13:00'
+updated_date: '2026-10-21 13:27'
 labels:
   - security
   - privacy
@@ -35,7 +36,7 @@ Before exposing the repository publicly, non-secret PII and internal identifiers
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Update usage export ingestion / scrubbing (scripts/run_common.py and/or scripts/finish_run.py) to automatically scrub User / PR Author columns (usernames and work emails), Cloud Agent / Automation IDs (bc-...), and numeric team IDs from usage CSV filenames when copying or scrubbing usage exports
-- [ ] #2 Scrub existing committed usage CSVs and run.json files under runs/ to remove loic.brissot@ogury.co, bc-... Cloud Agent IDs, and team IDs in filenames
-- [ ] #3 Add unit tests in tests/test_run_common.py and tests/test_finish_run.py verifying that CSV PII columns and filenames are scrubbed upon ingestion
+- [x] #1 Update usage export ingestion / scrubbing (scripts/run_common.py and/or scripts/finish_run.py) to automatically scrub User / PR Author columns (usernames and work emails), Cloud Agent / Automation IDs (bc-...), and numeric team IDs from usage CSV filenames when copying or scrubbing usage exports
+- [x] #2 Scrub existing committed usage CSVs and run.json files under runs/ to remove loic.brissot@ogury.co, bc-... Cloud Agent IDs, and team IDs in filenames
+- [x] #3 Add unit tests in tests/test_run_common.py and tests/test_finish_run.py verifying that CSV PII columns and filenames are scrubbed upon ingestion
 <!-- AC:END -->

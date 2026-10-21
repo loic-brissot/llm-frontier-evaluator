@@ -518,6 +518,54 @@ class TestFinishRun(unittest.TestCase):
             self.assertEqual(updated["model_time"]["raw"]["tool_events"]["wall_seconds"], 18.0)
             self.assertEqual(updated["model_time"]["raw"]["tool_events"]["thinking_seconds"], 2.0)
 
+    def test_complete_run_json_with_pii_csv_and_team_id(self):
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            run_dir = Path(tmp_dir_str) / "run_dir"
+            run_dir.mkdir()
+            run_json = run_dir / "run.json"
+            run_json.write_text(
+                '{"rules_version": 2, "harness": {"name": "cursor"}, "model": {"name": "claude-sonnet-5-5"}, '
+                '"tokens": {"split_rule": "unavailable", "reasoning_tokens": null, "visible_tokens": null, "raw": {}}, '
+                '"model_time": {"source": "unavailable", "generating_seconds": null, "raw": {}}, '
+                '"context_reread": {"source": "unavailable", "cache_read_tokens": null, "raw": {}}, '
+                '"tool_calls": {"shell": {"calls": 0, "failures": 0}, "files": {"calls": 0, "failures": 0}, '
+                '"visual_checks": {"calls": 0, "failures": 0}, "web": {"calls": 0, "failures": 0}, "other": {"calls": 0, "failures": 0}}, '
+                '"outcome": {"model_stopped": true, "operator_saw_a_page": false, "summary": "test"}, '
+                '"wall_clock": {"started_at": "2026-10-21T10:00:00Z", "ended_at": "2026-10-21T10:05:00Z"}, "observations": ""}',
+                encoding="utf-8",
+            )
+            usage_dir = run_dir / "usage"
+            usage_dir.mkdir()
+            # Usage CSV with team ID in filename and PII columns
+            csv_file = usage_dir / "team-usage-events-7984357-2026-10-21.csv"
+            csv_file.write_text(
+                'Date,User,PR Author,Repo,PR Number,Cloud Agent ID,Automation ID,Kind,Model,Max Mode,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost\n'
+                '"2026-10-21T10:02:00Z","loic.brissot@ogury.co","author@domain.com","repo","1","bc-c1636926-d631-43b7-9487-faac7e241110","auto-123","Included","claude-sonnet-5-5","No","100","200","300","400","1000","0.50"\n',
+                encoding="utf-8",
+            )
+
+            # Ingest/scrub files and complete run.json
+            from finish_run import scrub_usage_files
+            from run_common import copy_usage_export
+
+            # Test copying from source with team id
+            copied = copy_usage_export(csv_file, usage_dir / "sub_usage")
+            self.assertEqual(len(copied), 1)
+            self.assertEqual(copied[0].name, "team-usage-events-2026-10-21.csv")
+            copied_content = copied[0].read_text(encoding="utf-8")
+            self.assertNotIn("loic.brissot@ogury.co", copied_content)
+            self.assertNotIn("bc-c1636926", copied_content)
+
+            scrub_usage_files([csv_file])
+            file_content = csv_file.read_text(encoding="utf-8")
+            self.assertNotIn("loic.brissot@ogury.co", file_content)
+            self.assertNotIn("bc-c1636926", file_content)
+
+            complete_run_json(run_dir, [csv_file], non_interactive=True, skip_verify=True)
+            updated = json.loads(run_json.read_text(encoding="utf-8"))
+            self.assertIn("usage_csv", updated["tokens"]["raw"])
+            self.assertEqual(updated["tokens"]["raw"]["usage_csv"]["users"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
