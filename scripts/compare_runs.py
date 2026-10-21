@@ -44,8 +44,8 @@ HARNESS_LABELS = {
     "codex": "Codex",
     "other": "Other",
 }
-LOCAL_TABLE_HEADER = "| Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) |"
-LOCAL_TABLE_RULE = "| --- | --- | --- | --- | --- | --- | --- |"
+LOCAL_TABLE_HEADER = "| Prompt | Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Outcome |"
+LOCAL_TABLE_RULE = "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
 
 
 def harness_label(harness_name: str) -> str:
@@ -661,19 +661,21 @@ def local_row(run: dict) -> tuple[list[str], list[str]]:
 def readme_row(run: dict) -> str:
     """Format one local primary run as a Markdown table row for README.md."""
     cells, _ = local_row(run)
-    _prompt_id, _series_id, harness_name, label, token_cell, time_cell, tool_cell, cache_cell, cost_cell = cells
+    prompt_id, _series_id, harness_name, label, token_cell, time_cell, tool_cell, cache_cell, cost_cell = cells
     harness_display = harness_label(harness_name)
-    return f"| {label} | {harness_display} | {token_cell} | {time_cell} | {tool_cell} | {cache_cell} | {cost_cell} |"
+    outcome_summary = ((run.get("outcome") or {}).get("summary") or "").strip() or "n/a"
+    outcome_cell = outcome_summary.replace("|", r"\|")
+    return f"| `{prompt_id}` | {label} | {harness_display} | {token_cell} | {time_cell} | {tool_cell} | {cache_cell} | {cost_cell} | {outcome_cell} |"
 
 
-def _row_key(markdown_row: str) -> tuple[str, str] | None:
+def _row_key(markdown_row: str) -> tuple[str, str, str] | None:
     stripped = markdown_row.strip()
     if not (stripped.startswith("|") and stripped.endswith("|")):
         return None
     parts = [part.strip() for part in stripped.strip("|").split("|")]
-    if len(parts) < 2 or parts[0] in {"Model", "Prompt", "---"}:
+    if len(parts) < 3 or parts[0] in {"Prompt", "---"}:
         return None
-    return parts[0], parts[1]
+    return parts[0], parts[1], parts[2]
 
 
 def generate_readme_comparisons(
@@ -694,6 +696,32 @@ def generate_readme_comparisons(
         except (OSError, json.JSONDecodeError, ValueError):
             reference = None
 
+    if reference:
+        series_id = reference.get("series_id", "2026-10-11-lassence")
+        lines.append(
+            f"**Reference series `{series_id}`**: Claude Code and Codex app, transcribed from [bench.lassence.net](https://bench.lassence.net/) ([`reference/`](reference/README.md))."
+        )
+        lines.append("")
+        lines.append(
+            "| Prompt | Model | Harness | Tokens generated (k, reasoning %) | Model time (min, tools excluded) | Tool calls (failures ✗) | Context re-read (M cached tokens) | Est. cost (USD) |"
+        )
+        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
+        prompt_id = reference.get("prompt_id", DEFAULT_PROMPT_ID)
+        for run in reference.get("runs", []):
+            model_name = run.get("model_name", "")
+            reasoning = run.get("reasoning", "")
+            model_str = f"{model_name} {reasoning}"
+            harness = reference_harness(run)
+            tokens = run.get("tokens_generated", {}).get("display", "")
+            mtime = run.get("model_time", {}).get("display", "")
+            tools = run.get("tool_calls", {}).get("display", "")
+            cache = run.get("context_reread", {}).get("display", "")
+            cost = format_reference_cost(run)
+            lines.append(
+                f"| `{prompt_id}` | {model_str} | {harness} | {tokens} | {mtime} | {tools} | {cache} | {cost} |"
+            )
+        lines.append("")
+
     run_paths = [run_dir / "run.json" for run_dir in sorted(discover_run_dirs())]
     valid_primary_runs = []
     for path in run_paths:
@@ -707,60 +735,23 @@ def generate_readme_comparisons(
             continue
         valid_primary_runs.append(run)
 
-    prompt_groups: dict[str, list[dict]] = {}
+    series_groups: dict[str, list[dict]] = {}
     for run in valid_primary_runs:
-        pid = run["prompt_id"]
-        prompt_groups.setdefault(pid, []).append(run)
+        sid = run["series_id"]
+        series_groups.setdefault(sid, []).append(run)
 
-    ref_prompt_id = reference.get("prompt_id", DEFAULT_PROMPT_ID) if reference else None
-    all_prompt_ids = sorted(
-        set(prompt_groups.keys()) | ({ref_prompt_id} if ref_prompt_id else set())
-    )
-
-    for pid in all_prompt_ids:
-        lines.append(f"### `{pid}`")
+    for sid, runs in series_groups.items():
+        harnesses = sorted({harness_label(r["harness"]["name"]) for r in runs})
+        harness_text = ", ".join(harnesses)
+        lines.append(
+            f"**Local series `{sid}`**: {harness_text}, recorded with this repository ([`runs/`](runs/README.md))."
+        )
         lines.append("")
-
-        if reference and ref_prompt_id == pid:
-            series_id = reference.get("series_id", "2026-10-11-lassence")
-            lines.append(
-                f"**Reference series `{series_id}`**: Claude Code and Codex app, transcribed from [bench.lassence.net](https://bench.lassence.net/) ([`reference/`](reference/README.md))."
-            )
-            lines.append("")
-            lines.append(LOCAL_TABLE_HEADER)
-            lines.append(LOCAL_TABLE_RULE)
-            for run in reference.get("runs", []):
-                model_name = run.get("model_name", "")
-                reasoning = run.get("reasoning", "")
-                model_str = f"{model_name} {reasoning}"
-                harness = reference_harness(run)
-                tokens = run.get("tokens_generated", {}).get("display", "")
-                mtime = run.get("model_time", {}).get("display", "")
-                tools = run.get("tool_calls", {}).get("display", "")
-                cache = run.get("context_reread", {}).get("display", "")
-                cost = format_reference_cost(run)
-                lines.append(
-                    f"| {model_str} | {harness} | {tokens} | {mtime} | {tools} | {cache} | {cost} |"
-                )
-            lines.append("")
-
-        series_groups: dict[str, list[dict]] = {}
-        for run in prompt_groups.get(pid, []):
-            sid = run["series_id"]
-            series_groups.setdefault(sid, []).append(run)
-
-        for sid, runs in series_groups.items():
-            harnesses = sorted({harness_label(r["harness"]["name"]) for r in runs})
-            harness_text = ", ".join(harnesses)
-            lines.append(
-                f"**Local series `{sid}`**: {harness_text}, recorded with this repository ([`runs/`](runs/README.md))."
-            )
-            lines.append("")
-            lines.append(LOCAL_TABLE_HEADER)
-            lines.append(LOCAL_TABLE_RULE)
-            for run in runs:
-                lines.append(readme_row(run))
-            lines.append("")
+        lines.append(LOCAL_TABLE_HEADER)
+        lines.append(LOCAL_TABLE_RULE)
+        for run in runs:
+            lines.append(readme_row(run))
+        lines.append("")
 
     return "\n".join(lines)
 
@@ -789,7 +780,7 @@ def sync_readme(
 
     section_end = len(readme_lines)
     for idx in range(comp_idx + 1, len(readme_lines)):
-        if readme_lines[idx].startswith("## "):
+        if readme_lines[idx].startswith("## ") or readme_lines[idx].startswith("### "):
             section_end = idx
             break
 
