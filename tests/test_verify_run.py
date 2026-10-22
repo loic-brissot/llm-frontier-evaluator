@@ -496,6 +496,86 @@ class TestVerifyRun(unittest.TestCase):
                 exit_code = serve_run(run_dir)
                 self.assertEqual(exit_code, 0)
 
+    def test_run_playwright_telemetry_webgl_order_and_dom_probe_console_error_isolation(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            artifacts_dir = Path(tmpdir) / "artifacts"
+
+            mock_p = MagicMock()
+            mock_browser = MagicMock()
+            mock_context = MagicMock()
+            mock_page = MagicMock()
+
+            mock_p.chromium.launch.return_value = mock_browser
+            mock_browser.new_context.return_value = mock_context
+            mock_context.new_page.return_value = mock_page
+
+            registered_listeners = {}
+
+            def fake_on(event, handler):
+                registered_listeners[event] = handler
+
+            mock_page.on.side_effect = fake_on
+
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_page.goto.return_value = mock_response
+
+            eval_script_captured = []
+
+            def fake_evaluate(script):
+                eval_script_captured.append(script)
+                # Verify that console errors during evaluate are suppressed/ignored
+                if "console" in registered_listeners:
+                    mock_console_err = MagicMock()
+                    mock_console_err.type = "error"
+                    mock_console_err.text = (
+                        "THREE.WebGLRenderer: A WebGL context could not be created. "
+                        "Reason: Canvas has an existing context of a different type"
+                    )
+                    registered_listeners["console"](mock_console_err)
+
+                mock_page_err = "Error: probe inspection page error"
+                if "pageerror" in registered_listeners:
+                    registered_listeners["pageerror"](mock_page_err)
+
+                return {
+                    "title": "WebGL App",
+                    "canvas_count": 1,
+                    "svg_count": 0,
+                    "webgl_context": True,
+                    "text_length": 15,
+                }
+
+            mock_page.evaluate.side_effect = fake_evaluate
+
+            def fake_wait_for_timeout(ms):
+                # Genuine runtime errors occurring before DOM probe
+                if "console" in registered_listeners:
+                    genuine_console_err = MagicMock()
+                    genuine_console_err.type = "error"
+                    genuine_console_err.text = "App genuine error during load"
+                    registered_listeners["console"](genuine_console_err)
+
+            mock_page.wait_for_timeout.side_effect = fake_wait_for_timeout
+
+            fake_sync_playwright = MagicMock()
+            fake_sync_playwright.return_value.__enter__.return_value = mock_p
+
+            with patch.dict("sys.modules", {"playwright.sync_api": MagicMock(sync_playwright=fake_sync_playwright)}):
+                telemetry = run_playwright_telemetry("http://127.0.0.1:8000", "static", artifacts_dir)
+
+            self.assertEqual(telemetry["console_errors"], ["App genuine error during load"])
+            self.assertEqual(telemetry["page_errors"], [])
+            self.assertTrue(telemetry["passed"])
+            self.assertTrue(telemetry["dom"]["webgl_context"])
+
+            # Verify evaluation script checks webgl2 before webgl and suppresses webglcontextcreationerror
+            self.assertEqual(len(eval_script_captured), 1)
+            eval_code = eval_script_captured[0]
+            self.assertIn("c.getContext('webgl2') || c.getContext('webgl')", eval_code)
+            self.assertIn("stopImmediatePropagation", eval_code)
+            self.assertIn("webglcontextcreationerror", eval_code)
+
 
 if __name__ == "__main__":
     unittest.main()

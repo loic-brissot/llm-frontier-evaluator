@@ -318,8 +318,12 @@ def run_playwright_telemetry(
     page_errors: list[str] = []
     failed_requests: list[dict] = []
 
+    collecting_telemetry = True
+
     def on_console(msg: object) -> None:
         nonlocal console_warnings_count
+        if not collecting_telemetry:
+            return
         msg_type = getattr(msg, "type", "")
         msg_text = getattr(msg, "text", str(msg))
         if msg_type == "error":
@@ -328,6 +332,8 @@ def run_playwright_telemetry(
             console_warnings_count += 1
 
     def on_page_error(err: object) -> None:
+        if not collecting_telemetry:
+            return
         page_errors.append(str(err))
 
     def on_request_failed(req: object) -> None:
@@ -388,17 +394,24 @@ def run_playwright_telemetry(
             page.wait_for_timeout(wait_ms)
             load_time_ms = round((time.time() - start_time) * 1000, 2)
 
+            collecting_telemetry = False
+
             dom = page.evaluate("""
                 () => {
                     const canvases = Array.from(document.querySelectorAll('canvas'));
                     let webglContext = false;
                     for (const c of canvases) {
+                        const stopErr = (e) => e.stopImmediatePropagation();
+                        c.addEventListener('webglcontextcreationerror', stopErr, true);
                         try {
-                            if (c.getContext('webgl') || c.getContext('webgl2') || c.getContext('experimental-webgl')) {
+                            if (c.getContext('webgl2') || c.getContext('webgl') || c.getContext('experimental-webgl')) {
                                 webglContext = true;
                                 break;
                             }
-                        } catch (e) {}
+                        } catch (e) {
+                        } finally {
+                            c.removeEventListener('webglcontextcreationerror', stopErr, true);
+                        }
                     }
                     const svgs = document.querySelectorAll('svg').length;
                     const textLength = (document.body ? document.body.innerText : '').trim().length;
