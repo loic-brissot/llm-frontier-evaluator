@@ -651,6 +651,31 @@ class TestCompareRuns(unittest.TestCase):
                 md = generate_readme_comparisons()
                 self.assertNotIn("Staged Model", md)
 
+    def test_main_skips_staged_in_flight_runs(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            staged_run_dir = Path(tmp_dir) / "runs" / "france-road-accidents" / "2026-10-21-cursor-staged-run"
+            staged_run_dir.mkdir(parents=True)
+            (staged_run_dir / ".staging_workspace").write_text("/tmp/frontier-workspace-staged\n", encoding="utf-8")
+            (staged_run_dir / "run.json").write_text(
+                json.dumps({
+                    "rules_version": 2,
+                    "run_id": "2026-10-21-cursor-staged-run",
+                    "series_id": "france-road-accidents-cursor",
+                    "prompt_id": "france-road-accidents",
+                    "shot": "primary",
+                }),
+                encoding="utf-8",
+            )
+            with patch("compare_runs.discover_run_dirs", return_value=[staged_run_dir]), \
+                 patch("sys.argv", ["compare_runs.py", "--prompt", "france-road-accidents"]):
+                from compare_runs import main
+                from io import StringIO
+                out = StringIO()
+                with patch("sys.stdout", out):
+                    code = main()
+                self.assertEqual(code, 0)
+                self.assertIn("No local runs yet.", out.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

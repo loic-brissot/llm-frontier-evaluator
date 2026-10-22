@@ -7,6 +7,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from tool_events import (
+    ToolEventSummary,
+    _apply_stop_tokens,
+    load_records,
     summarize_records,
     summarize_tool_event_log,
     audit_isolation,
@@ -742,6 +745,121 @@ class TestToolEvents(unittest.TestCase):
 
     def test_summarize_tool_event_log_alias(self):
         self.assertIs(summarize_tool_event_log, summarize_records)
+
+
+    def test_apply_stop_tokens_camel_case(self):
+        summary = ToolEventSummary()
+        stop_record = {
+            "usage": {
+                "inputTokens": 100,
+                "outputTokens": 50,
+                "cacheReadTokens": 400,
+                "cacheWriteTokens": 20,
+                "reasoningTokens": 15,
+            },
+            "model": "claude-sonnet-4-6",
+        }
+        _apply_stop_tokens(summary, stop_record)
+        self.assertEqual(summary.token_turns, 1)
+        self.assertEqual(summary.uncached_input_tokens, 100)
+        self.assertEqual(summary.cache_read_tokens, 400)
+        self.assertEqual(summary.cache_write_tokens, 20)
+        self.assertEqual(summary.input_tokens, 520)
+        self.assertEqual(summary.output_tokens, 50)
+        self.assertEqual(summary.reasoning_tokens, 15)
+        self.assertEqual(summary.visible_tokens, 35)
+        self.assertEqual(summary.split_rule, "output_includes_reasoning")
+        self.assertEqual(summary.model_slug, "claude-sonnet-4-6")
+
+    def test_process_transcript_records_camel_case_cursor_agent_result(self):
+        records = [
+            {
+                "type": "result",
+                "subtype": "success",
+                "duration_ms": 120000,
+                "is_error": False,
+                "usage": {
+                    "inputTokens": 332354,
+                    "outputTokens": 127253,
+                    "cacheReadTokens": 6034510,
+                    "cacheWriteTokens": 0,
+                },
+            }
+        ]
+        summary = summarize_records(records)
+        self.assertTrue(summary.present)
+        self.assertEqual(summary.stop_status, "success")
+        self.assertEqual(summary.uncached_input_tokens, 332354)
+        self.assertEqual(summary.cache_read_tokens, 6034510)
+        self.assertEqual(summary.cache_write_tokens, 0)
+        self.assertEqual(summary.input_tokens, 332354 + 6034510)
+        self.assertEqual(summary.output_tokens, 127253)
+        self.assertIsNone(summary.reasoning_tokens)
+        self.assertEqual(summary.split_rule, "unavailable")
+
+    def test_summarize_records_merges_cursor_hooks_with_cli_stream(self):
+        records = [
+            {
+                "hook_event_name": "beforeSubmitPrompt",
+                "conversation_id": "test-conv-1",
+                "prompt": "Test benchmark prompt",
+                "logged_at": "2026-10-21T10:00:00.000Z",
+            },
+            {
+                "hook_event_name": "postToolUse",
+                "conversation_id": "test-conv-1",
+                "tool_name": "Shell",
+                "tool_input": "npm test",
+                "duration": 5000,
+                "logged_at": "2026-10-21T10:01:00.000Z",
+            },
+            # Non-hook CLI stream result record (e.g. from cli-stream.jsonl)
+            {
+                "type": "result",
+                "subtype": "success",
+                "usage": {
+                    "inputTokens": 8,
+                    "outputTokens": 1736,
+                    "cacheReadTokens": 159626,
+                    "cacheWriteTokens": 1687,
+                },
+            },
+        ]
+        summary = summarize_records(records)
+        self.assertTrue(summary.present)
+        # Tool counts from hook records are preserved
+        self.assertEqual(summary.buckets["shell"]["calls"], 1)
+        self.assertEqual(summary.buckets["shell"]["failures"], 0)
+        # Token usage is extracted from cli stream record
+        self.assertEqual(summary.output_tokens, 1736)
+        self.assertEqual(summary.uncached_input_tokens, 8)
+        self.assertEqual(summary.cache_read_tokens, 159626)
+        self.assertEqual(summary.cache_write_tokens, 1687)
+        self.assertEqual(summary.input_tokens, 8 + 159626 + 1687)
+        self.assertEqual(summary.token_turns, 1)
+        self.assertEqual(summary.stop_status, "success")
+
+    def test_load_records_loads_cli_result_json_when_no_result_in_jsonl(self):
+        import tempfile
+        import json
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = Path(tmpdir)
+            tool_dir = run_dir / "tool-events"
+            tool_dir.mkdir(parents=True)
+            # A hook jsonl without result
+            hook_file = tool_dir / "hook.jsonl"
+            hook_file.write_text(json.dumps({"hook_event_name": "postToolUse", "tool_name": "Read"}) + "\n")
+            # cli-result.json
+            cli_res_file = tool_dir / "cli-result.json"
+            cli_res_file.write_text(json.dumps({
+                "type": "result",
+                "subtype": "success",
+                "usage": {"inputTokens": 10, "outputTokens": 20},
+            }))
+
+            records, notes = load_records(run_dir)
+            self.assertEqual(len(records), 2)
+            self.assertTrue(any(r.get("type") == "result" for r in records))
 
 
 if __name__ == "__main__":

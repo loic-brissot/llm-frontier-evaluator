@@ -278,6 +278,24 @@ def load_records(run_dir: Path) -> tuple[list[dict], list[str]]:
 
     if bad_lines:
         notes.append(f"{bad_lines} transcript/tool-event lines were not JSON objects.")
+
+    has_result_record = any(r.get("type") == "result" for r in records)
+    if not has_result_record:
+        for candidate_path in (
+            run_dir / "tool-events" / "cli-result.json",
+            run_dir / "usage" / "cli-result.json",
+        ):
+            if candidate_path.is_file():
+                try:
+                    cli_res = json.loads(candidate_path.read_text(encoding="utf-8"))
+                    if isinstance(cli_res, dict):
+                        records.append(cli_res)
+                        break
+                except OSError as exc:
+                    notes.append(f"Could not read {candidate_path.name}: {exc}")
+                except json.JSONDecodeError:
+                    notes.append(f"{candidate_path.name} was not valid JSON.")
+
     return records, notes
 
 
@@ -377,6 +395,13 @@ def _dedupe_thoughts(records: list[dict]) -> list[dict]:
     return deduped
 
 
+def _first_present(mapping: dict, *keys: str) -> object | None:
+    for key in keys:
+        if key in mapping and mapping[key] is not None:
+            return mapping[key]
+    return None
+
+
 def _duration(value: object) -> float | None:
     if isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0:
         return float(value)
@@ -393,21 +418,88 @@ def _apply_stop_tokens(summary: ToolEventSummary, stop_record: dict | None) -> N
     """Extract cumulative turn token counts from the selected stop record."""
     if not isinstance(stop_record, dict):
         return
-    input_tokens = _nonneg_int(stop_record.get("input_tokens"))
-    output_tokens = _nonneg_int(stop_record.get("output_tokens"))
-    cache_read = _nonneg_int(stop_record.get("cache_read_tokens"))
-    cache_write = _nonneg_int(stop_record.get("cache_write_tokens"))
-    if all(val is None for val in (input_tokens, output_tokens, cache_read, cache_write)):
+    u = stop_record.get("usage") if isinstance(stop_record.get("usage"), dict) else stop_record
+    input_tokens = _nonneg_int(
+        _first_present(u, "input_tokens", "inputTokens", "prompt_tokens")
+    )
+    uncached_input = _nonneg_int(
+        _first_present(u, "uncached_input_tokens", "uncachedInputTokens")
+    )
+    cache_read = _nonneg_int(
+        _first_present(
+            u,
+            "cache_read_tokens",
+            "cacheReadTokens",
+            "cache_read_input_tokens",
+            "cached_input_tokens",
+        )
+        or (
+            u.get("prompt_tokens_details", {}).get("cached_tokens")
+            if isinstance(u.get("prompt_tokens_details"), dict)
+            else None
+        )
+    )
+    cache_write = _nonneg_int(
+        _first_present(
+            u,
+            "cache_write_tokens",
+            "cacheWriteTokens",
+            "cache_creation_input_tokens",
+        )
+    )
+    output_tokens = _nonneg_int(
+        _first_present(u, "output_tokens", "outputTokens", "completion_tokens")
+    )
+    reasoning = _nonneg_int(
+        _first_present(
+            u,
+            "reasoning_tokens",
+            "reasoningTokens",
+            "thinking_tokens",
+            "thinkingTokens",
+            "reasoning_output_tokens",
+        )
+        or (
+            u.get("output_tokens_details", {}).get("reasoning_tokens")
+            if isinstance(u.get("output_tokens_details"), dict)
+            else None
+        )
+    )
+
+    if all(val is None for val in (input_tokens, uncached_input, output_tokens, cache_read, cache_write)):
         return
+
     summary.token_turns = 1
-    summary.input_tokens = input_tokens
     summary.output_tokens = output_tokens
     summary.cache_read_tokens = cache_read
     summary.cache_write_tokens = cache_write
-    if input_tokens is not None:
+
+    if (
+        u.get("cache_read_input_tokens") is not None
+        or u.get("cache_creation_input_tokens") is not None
+        or u.get("cacheReadTokens") is not None
+        or u.get("cacheWriteTokens") is not None
+        or uncached_input is not None
+    ):
+        summary.uncached_input_tokens = uncached_input if uncached_input is not None else input_tokens
+        summary.input_tokens = (
+            (summary.uncached_input_tokens or 0) + (cache_read or 0) + (cache_write or 0)
+            if (summary.uncached_input_tokens is not None or cache_read is not None or cache_write is not None)
+            else None
+        )
+    elif input_tokens is not None:
         cr = cache_read or 0
         cw = cache_write or 0
+        summary.input_tokens = input_tokens
         summary.uncached_input_tokens = max(0, input_tokens - cr - cw)
+
+    if reasoning is not None and output_tokens is not None:
+        summary.reasoning_tokens = reasoning
+        summary.visible_tokens = max(0, output_tokens - reasoning)
+        summary.split_rule = "output_includes_reasoning"
+    elif output_tokens is not None:
+        summary.split_rule = "unavailable"
+
     model_val = stop_record.get("model") or stop_record.get("model_id")
     if isinstance(model_val, str) and model_val.strip() and model_val.strip() != "default":
         summary.model_slug = model_val.strip()
@@ -480,9 +572,28 @@ def summarize_records(
 
     hook_records = [r for r in records if r.get("hook_event_name") is not None]
     if hook_records:
-        return _summarize_cursor_hook_records(
-            records, notes=notes, expected_prompt_path=expected_prompt_path
+        summary = _summarize_cursor_hook_records(
+            hook_records, notes=notes, expected_prompt_path=expected_prompt_path
         )
+        transcript_records = [r for r in records if r.get("hook_event_name") is None]
+        if transcript_records:
+            t_summary = _process_transcript_records(transcript_records, ToolEventSummary())
+            if not summary.token_turns and summary.input_tokens is None and summary.output_tokens is None:
+                summary.input_tokens = t_summary.input_tokens
+                summary.uncached_input_tokens = t_summary.uncached_input_tokens
+                summary.cache_read_tokens = t_summary.cache_read_tokens
+                summary.cache_write_tokens = t_summary.cache_write_tokens
+                summary.output_tokens = t_summary.output_tokens
+                summary.reasoning_tokens = t_summary.reasoning_tokens
+                summary.visible_tokens = t_summary.visible_tokens
+                summary.split_rule = t_summary.split_rule
+                summary.token_turns = t_summary.token_turns
+            if not summary.stop_status or t_summary.stop_status in ("aborted", "error", "success", "completed"):
+                if t_summary.stop_status:
+                    summary.stop_status = t_summary.stop_status
+            if not summary.model_slug and t_summary.model_slug:
+                summary.model_slug = t_summary.model_slug
+        return summary
     return _process_transcript_records(records, summary)
 
 
@@ -545,21 +656,45 @@ def _process_transcript_records(
 
     if summary_usage is not None:
         u = summary_usage
-        uncached_input = u.get("input_tokens") or u.get("uncached_input_tokens") or u.get("prompt_tokens")
-        cache_read = (
-            u.get("cache_read_input_tokens")
-            or u.get("cache_read_tokens")
-            or u.get("cached_input_tokens")
-            or (u.get("prompt_tokens_details", {}).get("cached_tokens") if isinstance(u.get("prompt_tokens_details"), dict) else None)
+        uncached_input = _first_present(
+            u,
+            "uncached_input_tokens",
+            "uncachedInputTokens",
+            "input_tokens",
+            "inputTokens",
+            "prompt_tokens",
         )
-        cache_write = u.get("cache_creation_input_tokens") or u.get("cache_write_tokens")
-        output = u.get("output_tokens") or u.get("completion_tokens")
-        reasoning = (
-            u.get("reasoning_tokens")
-            or u.get("thinking_tokens")
-            or u.get("reasoning_output_tokens")
-            or (u.get("output_tokens_details", {}).get("reasoning_tokens") if isinstance(u.get("output_tokens_details"), dict) else None)
+        cache_read = _first_present(
+            u,
+            "cache_read_input_tokens",
+            "cache_read_tokens",
+            "cacheReadTokens",
+            "cached_input_tokens",
         )
+        if cache_read is None and isinstance(u.get("prompt_tokens_details"), dict):
+            cache_read = u["prompt_tokens_details"].get("cached_tokens")
+        cache_write = _first_present(
+            u,
+            "cache_creation_input_tokens",
+            "cache_write_tokens",
+            "cacheWriteTokens",
+        )
+        output = _first_present(
+            u,
+            "output_tokens",
+            "outputTokens",
+            "completion_tokens",
+        )
+        reasoning = _first_present(
+            u,
+            "reasoning_tokens",
+            "reasoningTokens",
+            "thinking_tokens",
+            "thinkingTokens",
+            "reasoning_output_tokens",
+        )
+        if reasoning is None and isinstance(u.get("output_tokens_details"), dict):
+            reasoning = u["output_tokens_details"].get("reasoning_tokens")
 
         uncached_input = _nonneg_int(uncached_input)
         cache_read = _nonneg_int(cache_read)
@@ -567,8 +702,15 @@ def _process_transcript_records(
         output = _nonneg_int(output)
         reasoning = _nonneg_int(reasoning)
 
-        if u.get("cache_read_input_tokens") is not None or u.get("cache_creation_input_tokens") is not None:
-            # Claude Code stream-json format: input_tokens is uncached input tokens
+        if (
+            u.get("cache_read_input_tokens") is not None
+            or u.get("cache_creation_input_tokens") is not None
+            or u.get("cacheReadTokens") is not None
+            or u.get("cacheWriteTokens") is not None
+            or u.get("uncached_input_tokens") is not None
+            or u.get("uncachedInputTokens") is not None
+        ):
+            # Claude Code stream-json format or Cursor Agent camelCase: input_tokens / inputTokens is uncached input tokens
             summary.uncached_input_tokens = uncached_input
         elif cache_read and uncached_input and uncached_input >= cache_read + (cache_write or 0):
             summary.uncached_input_tokens = max(0, uncached_input - cache_read - (cache_write or 0))
@@ -577,7 +719,11 @@ def _process_transcript_records(
         summary.cache_read_tokens = cache_read
         summary.cache_write_tokens = cache_write
         summary.output_tokens = output
-        summary.input_tokens = (uncached_input or 0) + (cache_read or 0) + (cache_write or 0) if (uncached_input is not None or cache_read is not None) else None
+        summary.input_tokens = (
+            (summary.uncached_input_tokens or 0) + (cache_read or 0) + (cache_write or 0)
+            if (summary.uncached_input_tokens is not None or cache_read is not None or cache_write is not None)
+            else None
+        )
         summary.token_turns = 1
 
         if reasoning is not None and output is not None:
@@ -601,25 +747,61 @@ def _process_transcript_records(
             if isinstance(u, dict):
                 has_usage = True
                 turn_count += 1
-                inp = u.get("input_tokens") or u.get("uncached_input_tokens") or u.get("prompt_tokens") or 0
-                cr = (
-                    u.get("cache_read_input_tokens")
-                    or u.get("cache_read_tokens")
-                    or u.get("cached_input_tokens")
-                    or (u.get("prompt_tokens_details", {}).get("cached_tokens") if isinstance(u.get("prompt_tokens_details"), dict) else 0)
-                ) or 0
-                cw = u.get("cache_creation_input_tokens") or u.get("cache_write_tokens") or 0
-                out = u.get("output_tokens") or u.get("completion_tokens") or 0
-                reas = (
-                    u.get("reasoning_tokens")
-                    or u.get("thinking_tokens")
-                    or u.get("reasoning_output_tokens")
-                    or (u.get("output_tokens_details", {}).get("reasoning_tokens") if isinstance(u.get("output_tokens_details"), dict) else 0)
-                ) or 0
+                inp = _first_present(
+                    u,
+                    "uncached_input_tokens",
+                    "uncachedInputTokens",
+                    "input_tokens",
+                    "inputTokens",
+                    "prompt_tokens",
+                )
+                inp = _nonneg_int(inp) or 0
+                cr = _first_present(
+                    u,
+                    "cache_read_input_tokens",
+                    "cache_read_tokens",
+                    "cacheReadTokens",
+                    "cached_input_tokens",
+                )
+                if cr is None and isinstance(u.get("prompt_tokens_details"), dict):
+                    cr = u["prompt_tokens_details"].get("cached_tokens")
+                cr = _nonneg_int(cr) or 0
+                cw = _first_present(
+                    u,
+                    "cache_creation_input_tokens",
+                    "cache_write_tokens",
+                    "cacheWriteTokens",
+                )
+                cw = _nonneg_int(cw) or 0
+                out = _first_present(
+                    u,
+                    "output_tokens",
+                    "outputTokens",
+                    "completion_tokens",
+                )
+                out = _nonneg_int(out) or 0
+                reas = _first_present(
+                    u,
+                    "reasoning_tokens",
+                    "reasoningTokens",
+                    "thinking_tokens",
+                    "thinkingTokens",
+                    "reasoning_output_tokens",
+                )
+                if reas is None and isinstance(u.get("output_tokens_details"), dict):
+                    reas = u["output_tokens_details"].get("reasoning_tokens")
+                reas = _nonneg_int(reas) or 0
 
                 un_in = inp
-                if u.get("cache_read_input_tokens") is not None or u.get("cache_creation_input_tokens") is not None:
-                    # Claude Code stream-json format: input_tokens is uncached input tokens
+                if (
+                    u.get("cache_read_input_tokens") is not None
+                    or u.get("cache_creation_input_tokens") is not None
+                    or u.get("cacheReadTokens") is not None
+                    or u.get("cacheWriteTokens") is not None
+                    or u.get("uncached_input_tokens") is not None
+                    or u.get("uncachedInputTokens") is not None
+                ):
+                    # Claude Code stream-json format or Cursor Agent camelCase: input_tokens / inputTokens is uncached input tokens
                     un_in = inp
                 elif cr > 0 and inp >= cr + cw:
                     un_in = max(0, inp - cr - cw)

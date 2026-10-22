@@ -1040,8 +1040,14 @@ def main() -> int:
     incomplete: list[str] = []
     selected: list[dict] = []
     valid: list[dict] = []
-    run_paths = [run_dir / "run.json" for run_dir in sorted(discover_run_dirs(args.prompt_id))]
+    run_paths = [
+        run_dir / "run.json"
+        for run_dir in sorted(discover_run_dirs(args.prompt_id))
+        if not (run_dir / ".staging_workspace").is_file()
+    ]
     for path in run_paths:
+        if (path.parent / ".staging_workspace").is_file():
+            continue
         try:
             run = load_json(path)
         except (OSError, json.JSONDecodeError, ValueError) as exc:
