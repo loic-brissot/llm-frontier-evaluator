@@ -6,6 +6,7 @@ import csv
 import hashlib
 import io
 import json
+import os
 import re
 import shutil
 import site
@@ -23,6 +24,7 @@ PROMPTS_DIR = ROOT / "prompt"
 WORKSPACE_PROMPT_FILENAME = "prompt.txt"
 SCHEMA_PATH = ROOT / "schema" / "run.schema.json"
 PRICING_PATH = ROOT / "reference" / "pricing-2026-10-18.json"
+DEFAULT_ENV_FILE = ROOT / ".env"
 
 # The run schema is the single source for enums and defaults below.
 RUN_SCHEMA: dict = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -168,6 +170,141 @@ SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         r'\1"[REDACTED]"',
     ),
 ]
+
+
+def parse_env_file_text(text: str) -> dict[str, str]:
+    """Parse KEY=VALUE and export KEY=VALUE lines, ignoring comments and blank lines."""
+    result: dict[str, str] = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :].strip()
+        if "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        key = key.strip()
+        val = val.strip()
+        if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+            val = val[1:-1]
+        if key:
+            result[key] = val
+    return result
+
+
+def _extract_key_from_file(path: Path, expected_var: str) -> str | None:
+    """Read a key file.
+
+    If the file contains KEY=VALUE lines, return the matching variable (or expected_var).
+    Otherwise, if it's a raw token or single token string, return stripped content.
+    """
+    if not path.is_file():
+        return None
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+    kvs = parse_env_file_text(content)
+    if expected_var in kvs:
+        return kvs[expected_var]
+
+    token = content.strip()
+    if token and "\n" not in token and "=" not in token:
+        return token
+
+    for line in content.splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            if "=" in line:
+                k, v = line.split("=", 1)
+                if k.strip() == expected_var:
+                    v = v.strip()
+                    if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+                        v = v[1:-1]
+                    return v
+            else:
+                return line
+    return token or None
+
+
+def load_env_credentials(
+    env: dict | None = None,
+    env_file: Path | str | None = None,
+    root_dir: Path = ROOT,
+) -> dict:
+    """Load credentials from .env and referenced key files with environment precedence.
+
+    - Starts from `dict(env if env is not None else os.environ)`.
+    - If `env` was passed explicitly and `env_file` is None, default root .env is skipped
+      to keep unit tests isolated, unless `env` explicitly sets ENV_FILE / key file paths.
+    - If `env` is None (or `env_file` is provided), loads `env_file or (root_dir / ".env")` if it exists.
+    - Preserves non-empty existing values from `env` (standard precedence).
+    - Resolves secondary ENV_FILE, CURSOR_API_KEY_FILE, ANTHROPIC_API_KEY_FILE,
+      or keys pointing to existing file paths on disk.
+    """
+    explicit_env = env is not None
+    result: dict = dict(env if explicit_env else os.environ)
+
+    target_env_file: Path | None = None
+    if env_file is not None:
+        p = Path(env_file).expanduser()
+        target_env_file = p if p.is_absolute() else (root_dir / p)
+    elif not explicit_env:
+        candidate = root_dir / ".env"
+        if candidate.is_file():
+            target_env_file = candidate
+
+    loaded_from_files: dict[str, str] = {}
+    if target_env_file and target_env_file.is_file():
+        loaded_from_files.update(parse_env_file_text(target_env_file.read_text(encoding="utf-8")))
+
+    # Secondary path support: ENV_FILE in loaded file or in result
+    sec_spec = result.get("ENV_FILE") or loaded_from_files.get("ENV_FILE")
+    if sec_spec:
+        sec_p = Path(sec_spec).expanduser()
+        sec_file = sec_p if sec_p.is_absolute() else (root_dir / sec_p)
+        if sec_file.is_file() and sec_file != target_env_file:
+            sec_kvs = parse_env_file_text(sec_file.read_text(encoding="utf-8"))
+            for k, v in sec_kvs.items():
+                if k not in loaded_from_files:
+                    loaded_from_files[k] = v
+
+    # Variables already non-empty in result take precedence over file-loaded values
+    for k, v in loaded_from_files.items():
+        if k not in result or result[k] == "":
+            result[k] = v
+
+    # Support CURSOR_API_KEY_FILE and ANTHROPIC_API_KEY_FILE
+    for var_name, file_var_name in [
+        ("CURSOR_API_KEY", "CURSOR_API_KEY_FILE"),
+        ("ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY_FILE"),
+    ]:
+        file_spec = result.get(file_var_name)
+        if file_spec:
+            fp = Path(file_spec).expanduser()
+            if not fp.is_absolute():
+                fp = root_dir / fp
+            val = _extract_key_from_file(fp, var_name)
+            if val and (var_name not in result or result[var_name] == ""):
+                result[var_name] = val
+
+        # If var_name itself is set to an existing file path on disk:
+        curr_val = result.get(var_name)
+        if curr_val and isinstance(curr_val, str) and "\n" not in curr_val:
+            try:
+                vp = Path(curr_val).expanduser()
+                if not vp.is_absolute():
+                    vp = root_dir / vp
+                if vp.is_file():
+                    extracted = _extract_key_from_file(vp, var_name)
+                    if extracted:
+                        result[var_name] = extracted
+            except OSError:
+                pass
+
+    return result
 
 
 def slugify(value: str) -> str:

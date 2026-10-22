@@ -90,33 +90,37 @@ python3 -m pip install playwright && python3 -m playwright install chromium
 
 ### Option A: Headless in Docker (Recommended)
 
-Execute a fully automated, reproducible benchmark evaluation run inside an isolated Linux container with preflight validation, automatic scaffolding, and unattended verification.
+Execute a fully automated, reproducible benchmark evaluation run inside an isolated Linux container with automatic Docker setup, `.env` credential loading, automatic scaffolding, and unattended verification.
 
-1. **Build the runner container image**:
-   ```bash
-   docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
-   ```
-   *(Note: The `--platform linux/amd64` flag is required because `Dockerfile.benchmark` installs the x86_64 `cursor-agent` binary, ensuring reliable emulation and execution on Apple Silicon and Linux hosts alike.)*
-
-2. **Export your harness API key**:
+1. **Configure or export your harness API key**:
    ```bash
    export CURSOR_API_KEY="your-key"          # for Cursor harness
    # or: export ANTHROPIC_API_KEY="your-key" # for Claude Code harness
    ```
+   *Alternatively*, place your API key in a local `.env` file in the repository root (`CURSOR_API_KEY="your-key"`, automatically loaded and git-ignored), specify a secondary key file path in `.env` (`CURSOR_API_KEY_FILE=~/.cursor/key.txt` or `ENV_FILE=custom.env`), or pass `--env-file <path>`.
 
-3. **Execute the benchmark with a single command**:
+2. **Execute the benchmark with a single one-shot command**:
    ```bash
    python3 scripts/run_benchmark.py --prompt paris-1910-flood-simulator --harness cursor --model "Claude Opus 5.5" --reasoning high
    ```
    This single entrypoint automatically:
-   - Validates preflight checks (Docker daemon connectivity, image presence, and API keys).
+   - Ensures Docker is running (launching Docker Desktop on macOS if unreachable; bypass with `--no-docker-setup`).
+   - Automatically builds the runner image `llm-frontier-evaluator-runner:latest` from `Dockerfile.benchmark` if missing (or when `--build-image` is passed).
+   - Loads harness API keys from `.env` or custom key files while honoring shell environment variable precedence (`export CURSOR_API_KEY=...`).
+   - Validates preflight checks (Docker daemon, image tag, and API keys).
    - Scaffolds the run directory under `runs/<prompt-id>/<run-id>/` and an isolated staging workspace at `/tmp/frontier-workspace-<run-id>/`.
    - Executes the agent inside the container without global skills, plugins, or repo leakage.
    - Automatically triggers `finish_run.py --verify --skip-usage-copy --non-interactive` to repatriate artifacts, run Playwright and data-pipeline verification, and populate `run.json`.
 
+   *(Optional manual image build)*:
+   ```bash
+   docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
+   ```
+   *(The `--platform linux/amd64` flag is used because `Dockerfile.benchmark` installs the x86_64 `cursor-agent` binary, ensuring reliable emulation and execution on Apple Silicon and Linux hosts alike.)*
+
    *Note on context windows*: Headless CLI runs omit the `--context` flag because `cursor-agent` and `claude` CLIs cannot select context windows. (If executing against a pre-scaffolded run directory that specified a context, pass `--allow-cli-context-override` only if overriding that run's context to `null`.)
 
-4. **Optional: Ingest usage export CSV**:
+3. **Optional: Ingest usage export CSV**:
    If you later export a billing CSV from the Cursor dashboard (`~/.cursor/usage-exports/<run-id>.csv`), ingest it into the completed run:
    ```bash
    python3 scripts/finish_run.py --prompt paris-1910-flood-simulator --run-id <run-id> --usage-export ~/.cursor/usage-exports/<run-id>.csv --non-interactive

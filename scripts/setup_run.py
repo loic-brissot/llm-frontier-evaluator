@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -27,6 +26,7 @@ from run_common import (
     find_run_dir,
     infer_provider,
     is_cursor_harness,
+    load_env_credentials,
     prompt_path,
     prompt_sha256,
     reasoning_levels_for_harness,
@@ -90,7 +90,10 @@ HOME="{home_dir}" cursor --new-window --user-data-dir "{userdata_dir}" --extensi
     return launcher_path
 
 
-def check_environment() -> list[str]:
+def check_environment(
+    env: dict | None = None,
+    env_file: Path | str | None = None,
+) -> list[str]:
     """Check optional verification/schema dependencies and Docker items without blocking execution."""
     warnings: list[str] = []
     _add_venv_site_packages()
@@ -145,7 +148,8 @@ def check_environment() -> list[str]:
             "Docker image 'llm-frontier-evaluator-runner:latest' not found (run: docker build -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .)."
         )
 
-    if not os.environ.get("CURSOR_API_KEY") and not os.environ.get("ANTHROPIC_API_KEY"):
+    creds = load_env_credentials(env=env, env_file=env_file, root_dir=ROOT)
+    if not creds.get("CURSOR_API_KEY") and not creds.get("ANTHROPIC_API_KEY"):
         warnings.append(
             "Neither CURSOR_API_KEY nor ANTHROPIC_API_KEY environment variable is set (export CURSOR_API_KEY=... or export ANTHROPIC_API_KEY=...)."
         )
@@ -367,6 +371,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--parent-run-id",
         help="Parent run id for a follow-up run.",
     )
+    parser.add_argument(
+        "--env-file",
+        help="Path to custom .env file to load credentials from (default: .env in repository root).",
+    )
     parser.add_argument("--non-interactive", action="store_true", help="Fail when a required value is missing.")
     parser.add_argument(
         "--check",
@@ -380,7 +388,7 @@ def main() -> int:
     args = build_parser().parse_args()
 
     if args.check:
-        warnings = check_environment()
+        warnings = check_environment(env_file=args.env_file)
         if warnings:
             for w in warnings:
                 print(f"Warning: {w}")
@@ -388,7 +396,7 @@ def main() -> int:
             print("Environment check OK: all optional dependencies are installed.")
         return 0
 
-    warnings = check_environment()
+    warnings = check_environment(env_file=args.env_file)
     for w in warnings:
         print(f"Preflight warning: {w}", file=sys.stderr)
 

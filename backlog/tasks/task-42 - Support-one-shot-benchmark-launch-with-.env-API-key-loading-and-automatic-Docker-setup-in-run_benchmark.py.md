@@ -3,9 +3,10 @@ id: TASK-42
 title: >-
   Support one-shot benchmark launch with .env API key loading and automatic
   Docker setup in run_benchmark.py
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-22 00:10'
+updated_date: '2026-10-22 02:07'
 labels:
   - runner
   - docker
@@ -32,8 +33,8 @@ Streamline launching a benchmark run into a true one-shot CLI command while pres
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 run_benchmark.py (and setup_run.py preflight) automatically loads CURSOR_API_KEY / ANTHROPIC_API_KEY from .env or a secondary file path specified in .env / --env-file while preserving standard environment variable precedence
-- [ ] #2 .gitignore excludes .env and .env.* local secret files
-- [ ] #3 run_benchmark.py automatically ensures Docker is running and builds the llm-frontier-evaluator-runner:latest image from Dockerfile.benchmark when missing (or when requested via CLI flag) as part of the one-shot launch flow
-- [ ] #4 Existing CLI workflows (explicit env vars, pre-scaffolded --run-id, and manual Docker setup) continue to work unchanged, covered by unit tests
+- [x] #1 run_benchmark.py (and setup_run.py preflight) automatically loads CURSOR_API_KEY / ANTHROPIC_API_KEY from .env or a secondary file path specified in .env / --env-file while preserving standard environment variable precedence
+- [x] #2 .gitignore excludes .env and .env.* local secret files
+- [x] #3 run_benchmark.py automatically ensures Docker is running and builds the llm-frontier-evaluator-runner:latest image from Dockerfile.benchmark when missing (or when requested via CLI flag) as part of the one-shot launch flow
+- [x] #4 Existing CLI workflows (explicit env vars, pre-scaffolded --run-id, and manual Docker setup) continue to work unchanged, covered by unit tests
 <!-- AC:END -->

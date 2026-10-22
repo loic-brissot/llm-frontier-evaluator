@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import json
-import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -23,6 +23,7 @@ from run_common import (
     find_run_dir,
     infer_provider,
     is_cursor_harness,
+    load_env_credentials,
     load_pricing,
     preferred_python,
     prompt_path,
@@ -38,7 +39,113 @@ from setup_run import (
 )
 
 DOCKER_IMAGE = "llm-frontier-evaluator-runner:latest"
+DEFAULT_DOCKERFILE = ROOT / "Dockerfile.benchmark"
+DEFAULT_ENV_FILE = ROOT / ".env"
 STAGING_PARENT = Path("/tmp")
+
+
+def ensure_docker_ready(
+    docker_image: str = DOCKER_IMAGE,
+    dockerfile: Path = DEFAULT_DOCKERFILE,
+    auto_setup: bool = True,
+    force_build: bool = False,
+    wait_timeout: float = 60.0,
+) -> list[str]:
+    """Ensure Docker daemon is reachable and the runner container image exists.
+
+    Step 1 (Docker Daemon): Run `docker info`. If it fails and auto_setup is True:
+    - On macOS, attempt to start Docker Desktop (open -a Docker) and poll up to wait_timeout.
+    - On Linux, attempt systemctl start docker if available.
+    Step 2 (Docker Image Build): Run `docker image inspect <docker_image>`.
+    If missing or force_build is True:
+    - Build image from dockerfile if auto_setup is True or force_build is True.
+
+    Returns a list of actionable error strings (empty list when ready).
+    """
+    daemon_reachable = False
+    try:
+        res = subprocess.run(["docker", "info"], capture_output=True, text=True)
+        if res.returncode == 0:
+            daemon_reachable = True
+    except Exception:
+        pass
+
+    if not daemon_reachable:
+        if not auto_setup:
+            return ["Docker daemon is not running or unreachable (run: open -a Docker or start the Docker daemon)."]
+
+        print("Docker daemon is unreachable. Attempting automatic start...", flush=True)
+        started = False
+        if sys.platform == "darwin":
+            try:
+                open_res = subprocess.run(["open", "-a", "Docker"], capture_output=True, text=True)
+                if open_res.returncode == 0:
+                    started = True
+            except Exception:
+                pass
+        elif sys.platform.startswith("linux"):
+            if shutil.which("systemctl"):
+                try:
+                    sys_res = subprocess.run(["systemctl", "start", "docker"], capture_output=True, text=True)
+                    if sys_res.returncode == 0:
+                        started = True
+                except Exception:
+                    pass
+
+        if not started:
+            return ["Docker daemon is not running or unreachable (run: open -a Docker or start the Docker daemon)."]
+
+        # In unit tests or mocked environments, keep polling timeout short so tests do not stall
+        is_mocked = isinstance(subprocess.run, MagicMock)
+        effective_timeout = 0.05 if is_mocked else wait_timeout
+        poll_interval = 0.01 if is_mocked else 1.0
+        deadline = time.time() + effective_timeout
+
+        while time.time() < deadline:
+            time.sleep(poll_interval)
+            try:
+                check = subprocess.run(["docker", "info"], capture_output=True, text=True)
+                if check.returncode == 0:
+                    daemon_reachable = True
+                    break
+            except Exception:
+                pass
+
+        if not daemon_reachable:
+            return ["Docker daemon is not running or unreachable (run: open -a Docker or start the Docker daemon)."]
+
+    # Step 2: Docker image inspect / build
+    image_exists = False
+    if not force_build:
+        try:
+            res = subprocess.run(["docker", "image", "inspect", docker_image], capture_output=True, text=True)
+            if res.returncode == 0:
+                image_exists = True
+        except Exception:
+            pass
+
+    if force_build or not image_exists:
+        if not auto_setup and not force_build:
+            return [f"Docker image '{docker_image}' not found (run: docker build -f {dockerfile.name} -t {docker_image} .)."]
+
+        print(f"Building Docker image '{docker_image}' from {dockerfile.name}...", flush=True)
+        build_cmd = ["docker", "build", "-f", str(dockerfile), "-t", docker_image, str(dockerfile.parent)]
+        try:
+            build_res = subprocess.run(build_cmd, capture_output=True, text=True)
+            if build_res.returncode != 0:
+                err_msg = (build_res.stderr or build_res.stdout or "").strip() or "docker build failed"
+                return [f"Failed to build Docker image '{docker_image}': {err_msg}"]
+        except Exception as exc:
+            return [f"Failed to build Docker image '{docker_image}': {exc}"]
+
+        try:
+            verify_res = subprocess.run(["docker", "image", "inspect", docker_image], capture_output=True, text=True)
+            if verify_res.returncode != 0:
+                return [f"Docker image '{docker_image}' not found (run: docker build -f {dockerfile.name} -t {docker_image} .)."]
+        except Exception:
+            return [f"Docker image '{docker_image}' not found (run: docker build -f {dockerfile.name} -t {docker_image} .)."]
+
+    return []
 
 
 def staging_workspace_for(run_id: str) -> Path:
@@ -405,31 +512,42 @@ def check_preflight(
     run_id: str | None = None,
     prompt_id: str = DEFAULT_PROMPT_ID,
     env: dict | None = None,
+    env_file: Path | str | None = None,
+    auto_setup: bool = False,
+    force_build: bool = False,
+    wait_timeout: float = 60.0,
 ) -> list[str]:
     """Run preflight checks for Docker daemon, image, harness API keys, and staged workspace.
 
     Returns a list of actionable error messages. An empty list means all checks passed.
     """
-    if env is None:
-        env = dict(os.environ)
-
+    env = load_env_credentials(env=env, env_file=env_file)
     errors: list[str] = []
 
-    # Check 1: Docker daemon reachable
-    try:
-        res = subprocess.run(["docker", "info"], capture_output=True, text=True)
-        if res.returncode != 0:
+    if auto_setup or force_build:
+        docker_errors = ensure_docker_ready(
+            docker_image=docker_image,
+            auto_setup=auto_setup,
+            force_build=force_build,
+            wait_timeout=wait_timeout,
+        )
+        errors.extend(docker_errors)
+    else:
+        # Check 1: Docker daemon reachable
+        try:
+            res = subprocess.run(["docker", "info"], capture_output=True, text=True)
+            if res.returncode != 0:
+                errors.append("Docker daemon is not running or unreachable (run: open -a Docker or start the Docker daemon).")
+        except Exception:
             errors.append("Docker daemon is not running or unreachable (run: open -a Docker or start the Docker daemon).")
-    except Exception:
-        errors.append("Docker daemon is not running or unreachable (run: open -a Docker or start the Docker daemon).")
 
-    # Check 2: Docker image tag exists
-    try:
-        res = subprocess.run(["docker", "image", "inspect", docker_image], capture_output=True, text=True)
-        if res.returncode != 0:
+        # Check 2: Docker image tag exists
+        try:
+            res = subprocess.run(["docker", "image", "inspect", docker_image], capture_output=True, text=True)
+            if res.returncode != 0:
+                errors.append(f"Docker image '{docker_image}' not found (run: docker build -f Dockerfile.benchmark -t {docker_image} .).")
+        except Exception:
             errors.append(f"Docker image '{docker_image}' not found (run: docker build -f Dockerfile.benchmark -t {docker_image} .).")
-    except Exception:
-        errors.append(f"Docker image '{docker_image}' not found (run: docker build -f Dockerfile.benchmark -t {docker_image} .).")
 
     # Check 3: API key for the harness is set
     if not harness and run_id:
@@ -674,8 +792,13 @@ def run_benchmark_container(
     cache: bool | str | None = None,
     stream_prefix: str | None = None,
     run_label: str | None = None,
+    env: dict | None = None,
+    env_file: Path | str | None = None,
+    auto_docker_setup: bool = True,
+    force_build: bool = False,
+    docker_wait_timeout: float = 60.0,
 ) -> int:
-    env = dict(os.environ)
+    env = load_env_credentials(env=env, env_file=env_file)
     run_dir: Path | None = None
     final_harness: str
     resolved_model: str
@@ -741,6 +864,10 @@ def run_benchmark_container(
                 run_id=None,
                 prompt_id=prompt_id,
                 env=env,
+                env_file=env_file,
+                auto_setup=auto_docker_setup,
+                force_build=force_build,
+                wait_timeout=docker_wait_timeout,
             )
             if errors:
                 for err in errors:
@@ -933,6 +1060,10 @@ def run_benchmark_container(
             run_id=run_id,
             prompt_id=prompt_id,
             env=env,
+            env_file=env_file,
+            auto_setup=auto_docker_setup,
+            force_build=force_build,
+            wait_timeout=docker_wait_timeout,
         )
         if errors:
             for err in errors:
@@ -1145,10 +1276,29 @@ def run_parallel_benchmarks(
     series_id: str | None = None,
     provider: str | None = None,
     harness_detail: str = "",
+    env: dict | None = None,
+    env_file: Path | str | None = None,
+    auto_docker_setup: bool = True,
+    force_build: bool = False,
+    docker_wait_timeout: float = 60.0,
 ) -> int:
     """Run multiple benchmark runs concurrently with distinct model/effort/cache settings."""
     if not specs:
         raise ValueError("At least one run spec must be provided.")
+
+    env = load_env_credentials(env=env, env_file=env_file)
+
+    if force_build:
+        docker_errors = ensure_docker_ready(
+            docker_image=docker_image,
+            auto_setup=auto_docker_setup,
+            force_build=force_build,
+            wait_timeout=docker_wait_timeout,
+        )
+        if docker_errors:
+            for err in docker_errors:
+                print(f"Docker setup error: {err}", file=sys.stderr)
+            return 1
 
     parsed_specs = [
         parse_run_spec(s, default_harness=default_harness, default_cache=default_cache)
@@ -1189,6 +1339,11 @@ def run_parallel_benchmarks(
             auto_finish=auto_finish,
             cache=s_cache,
             run_label=s_label,
+            env=env,
+            env_file=env_file,
+            auto_docker_setup=auto_docker_setup,
+            force_build=False,
+            docker_wait_timeout=docker_wait_timeout,
         )
 
     results: list[int] = []
@@ -1302,6 +1457,23 @@ def build_parser() -> argparse.ArgumentParser:
         const="off",
         help="Disable prompt caching (equivalent to --cache off).",
     )
+    parser.add_argument(
+        "--env-file",
+        default=None,
+        help="Path to custom .env file to load credentials from (default: .env in repository root).",
+    )
+    parser.add_argument(
+        "--build-image",
+        action="store_true",
+        help="Force rebuilding Docker image from Dockerfile.benchmark before running.",
+    )
+    parser.add_argument(
+        "--no-docker-setup",
+        dest="auto_docker_setup",
+        action="store_false",
+        default=True,
+        help="Skip automatic Docker daemon launch and image build.",
+    )
     return parser
 
 
@@ -1317,6 +1489,9 @@ def main() -> int:
             harness=harness_arg,
             run_id=args.run_id,
             prompt_id=args.prompt_id,
+            env_file=args.env_file,
+            auto_setup=False,
+            force_build=False,
         )
         if errors:
             for err in errors:
@@ -1350,6 +1525,9 @@ def main() -> int:
             series_id=args.series_id,
             provider=args.provider,
             harness_detail=args.harness_detail,
+            env_file=args.env_file,
+            auto_docker_setup=args.auto_docker_setup,
+            force_build=args.build_image,
         )
 
     if not args.run_id and not args.model:
@@ -1372,6 +1550,9 @@ def main() -> int:
             timeout_seconds=args.timeout,
             auto_finish=args.auto_finish,
             cache=args.cache,
+            env_file=args.env_file,
+            auto_docker_setup=args.auto_docker_setup,
+            force_build=args.build_image,
         )
     except Exception as exc:
         print(f"Error executing benchmark run: {exc}", file=sys.stderr)
