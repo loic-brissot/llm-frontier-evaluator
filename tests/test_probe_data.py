@@ -446,6 +446,100 @@ class TestProbeData(unittest.TestCase):
             self.assertEqual(eco_check["observed_records"], 300)
             self.assertTrue(eco_check["passed"])
 
+    def test_combined_multilayer_json_asset_per_check_records(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            public_data = workspace / "public" / "data"
+            public_data.mkdir(parents=True)
+
+            # A combined single JSON asset bundling multiple distinct dataset layers
+            combined_json = {
+                "benchmarks": [{"id": i, "altitude": 32.5} for i in range(5000)],
+                "ppri": [{"zone": "R", "id": i} for i in range(1200)],
+                "stations": [{"name": f"Station {i}", "line": "M1"} for i in range(250)],
+                "arrondissements": [{"num": i} for i in range(1, 21)],
+                "historicalFloods": [
+                    {"year": "1910", "level": 8.62},
+                    {"year": "1955", "level": 7.12},
+                    {"year": "2016", "level": 6.10},
+                    {"year": "2018", "level": 5.84},
+                ],
+            }
+            (public_data / "paris_vectors.json").write_text(json.dumps(combined_json), encoding="utf-8")
+
+            scorecard = probe_workspace("paris-1910-flood-simulator", workspace)
+            check_map = {c["id"]: c for c in scorecard["checks"]}
+
+            # Each check must observe its specific nested layer count rather than the max (5000)
+            self.assertEqual(check_map["street_elevation_benchmarks"]["observed_records"], 5000)
+            self.assertTrue(check_map["street_elevation_benchmarks"]["passed"])
+
+            self.assertEqual(check_map["ppri_flood_risk_zones"]["observed_records"], 1200)
+            self.assertTrue(check_map["ppri_flood_risk_zones"]["passed"])
+
+            self.assertEqual(check_map["stations_dataset"]["observed_records"], 250)
+            self.assertTrue(check_map["stations_dataset"]["passed"])
+
+            self.assertEqual(check_map["arrondissements_dataset"]["observed_records"], 20)
+            self.assertTrue(check_map["arrondissements_dataset"]["passed"])
+
+            self.assertEqual(check_map["historical_flood_markers"]["observed_records"], 4)
+            self.assertTrue(check_map["historical_flood_markers"]["passed"])
+
+            # Buildings check has no matching layer in the combined JSON, so it should not match
+            self.assertFalse(check_map["buildings_elevation_dataset"]["passed"])
+            self.assertNotIn("public/data/paris_vectors.json", check_map["buildings_elevation_dataset"]["matched_files"])
+
+    def test_fallback_does_not_match_unrelated_data_files_from_code_markers(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            public_data = workspace / "public" / "data"
+            public_data.mkdir(parents=True)
+
+            # An unrelated data asset with many records located in public/data/
+            unrelated_data = {
+                "weather": [{"temp": 15, "humidity": 70} for _ in range(3000)],
+            }
+            (public_data / "weather_observations.json").write_text(json.dumps(unrelated_data), encoding="utf-8")
+
+            # Code file mentions markers relevant to building checks ("hauteur", "elevation")
+            (workspace / "viewer.js").write_text(
+                "const buildingElevation = 25.0;\n// hauteur and elevation parameters\n",
+                encoding="utf-8",
+            )
+
+            scorecard = probe_workspace("paris-1910-flood-simulator", workspace)
+            check_map = {c["id"]: c for c in scorecard["checks"]}
+
+            # buildings_elevation_dataset must NOT fall back to matching weather_observations.json
+            bldg_check = check_map["buildings_elevation_dataset"]
+            self.assertFalse(bldg_check["passed"])
+            self.assertNotIn("public/data/weather_observations.json", bldg_check["matched_files"])
+            self.assertNotEqual(bldg_check.get("observed_records"), 3000)
+
+    def test_binary_packed_records_with_p3db_header(self):
+        import struct
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            data_dir = workspace / "public" / "data"
+            data_dir.mkdir(parents=True)
+
+            # Create binary buildings.bin with P3DB header: 5500 records
+            num_bldgs = 5500
+            num_verts = 22000
+            header = struct.pack("<4sIII", b"P3DB", 1, num_bldgs, num_verts)
+            (data_dir / "buildings.bin").write_bytes(header + b"\x00" * 100)
+
+            (workspace / "app.js").write_text("const hauteur = 15; const elevation = 32;\n", encoding="utf-8")
+
+            scorecard = probe_workspace("paris-1910-flood-simulator", workspace)
+            check_map = {c["id"]: c for c in scorecard["checks"]}
+            bldg_check = check_map["buildings_elevation_dataset"]
+            self.assertTrue(bldg_check["passed"])
+            self.assertEqual(bldg_check["observed_records"], 5500)
+            self.assertIn("public/data/buildings.bin", bldg_check["matched_files"])
+
 
 if __name__ == "__main__":
     unittest.main()
