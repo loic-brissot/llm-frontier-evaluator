@@ -3,9 +3,10 @@ id: TASK-49
 title: >-
   Add GitHub release cadence guidelines to CONTRIBUTING.md and backfill existing
   releases
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-22 11:51'
+updated_date: '2026-10-22 13:00'
 labels:
   - docs
   - release
@@ -38,8 +39,8 @@ Update CONTRIBUTING.md (and AGENTS.md subagent workflows) with strict guidelines
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Update CONTRIBUTING.md and AGENTS.md with the {major}.{minor} versioning notation and release cadence policy (minor bump every couple PRs at most; major bump for significant infrastructure changes or milestones)
-- [ ] #2 Document release note authoring guidelines requiring succinct synthesis of changes rather than raw commit/PR dumps
-- [ ] #3 Update existing release notes on GitHub (e.g. release 1.0) to follow the succinct synthesis format
-- [ ] #4 Backfill missing GitHub releases and succinct release notes for all merged PRs between 1.0 and current main
+- [x] #1 Update CONTRIBUTING.md and AGENTS.md with the {major}.{minor} versioning notation and release cadence policy (minor bump every couple PRs at most; major bump for significant infrastructure changes or milestones)
+- [x] #2 Document release note authoring guidelines requiring succinct synthesis of changes rather than raw commit/PR dumps
+- [x] #3 Update existing release notes on GitHub (e.g. release 1.0) to follow the succinct synthesis format
+- [x] #4 Backfill missing GitHub releases and succinct release notes for all merged PRs between 1.0 and current main
 <!-- AC:END -->

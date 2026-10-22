@@ -53,7 +53,7 @@ Describe the purpose and context of the change.
 - Describe the steps and commands used to verify the change (for example, `python3 scripts/compare_runs.py`).
 ```
 
-## Subagent PR review and merge workflow
+## Subagent PR review, merge, and release workflow
 
 When preparing and merging pull requests:
 1. Work on dedicated feature branches (`feat/...`, `fix/...`, `docs/...`, `run/...`). Never commit directly to `main`.
@@ -61,6 +61,27 @@ When preparing and merging pull requests:
 3. Verify CI checks pass using `gh pr checks <num> --watch`.
 4. Review the pull request diff with `gh pr diff <num>`.
 5. Merge pull requests using **Squash and merge** only: `gh pr merge <num> --squash --delete-branch`.
+6. **Release cadence check**: Check unreleased commits on `main` via `gh release list` and `git log <last-tag>..origin/main --oneline`. When >= 2 to 4 PRs have accumulated since the last release, or when a major infrastructure change lands, create a new GitHub release following the release policy below.
+
+## Release cadence and versioning
+
+This repository follows a disciplined release cadence to ensure merged improvements are tagged and documented rather than accumulating indefinitely on `main`.
+
+### Versioning notation
+- Use `{major}.{minor}` versioning without a leading `v` (for example, `1.0`, `1.1`, `2.0`). This matches repository tag conventions (e.g. initial tag `1.0`).
+
+### Release cadence policy
+- **Minor version bump (`x.Y`)**: Cut every couple of pull requests merged at most (typically every 2 to 4 merged PRs). Never allow more than 4 merged PRs to accumulate on `main` without cutting a release.
+- **Major version bump (`X.0`)**: Cut whenever significant infrastructure changes land (such as Docker containerization, headless execution pipelines, major test harness refactors) or when reaching a major repository milestone.
+
+### Release note authoring guidelines
+- Release notes must feature **succinct synthesized notes** summarizing key changes and user-facing or developer-facing impacts.
+- Do **not** dump verbose, uncurated PR lists, raw commit titles, or default GitHub change logs (`## What's Changed...`).
+- Group changes into clear thematic bullet points (for example: container infrastructure, CLI runner, verification probes, metrology, documentation). Highlight functional capabilities and operational fixes clearly.
+- Create releases using the GitHub CLI:
+  ```bash
+  gh release create <tag> --target main --title "<tag> - <Title>" --notes "<synthesized notes>"
+  ```
 
 ## Catalog maintenance checklists
 
