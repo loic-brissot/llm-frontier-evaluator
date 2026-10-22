@@ -15,13 +15,14 @@ A series is the set of runs that share the prompt, the harness family, and the s
 
 ## Before you start
 
-Before executing runs, ensure the runner container image is built:
-```bash
-docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
-```
+Before executing runs, ensure API keys are configured (either in `.env` in the repository root or via `export CURSOR_API_KEY=...` / `export ANTHROPIC_API_KEY=...`).
 
 You can execute a run via either:
-- **Headless Docker (Recommended single-command workflow)**: `python3 scripts/run_benchmark.py --prompt <prompt-id> --harness cursor --model "<Model>" --reasoning <level>` validates preflights, scaffolds the run and staged workspace, executes the container, and triggers verification automatically. Headless CLI runs omit `--context` because `cursor-agent` and `claude` CLIs cannot select context windows (use `--allow-cli-context-override` only if overriding a pre-scaffolded run's context to `null`).
+- **Headless Docker (Recommended one-shot CLI workflow)**: `python3 scripts/run_benchmark.py --prompt <prompt-id> --harness cursor --model "<Model>" --reasoning <level>`. This command automatically checks Docker daemon status (launching Docker Desktop on macOS if unreachable), automatically builds `llm-frontier-evaluator-runner:latest` from `Dockerfile.benchmark` if missing, loads `.env` credentials, validates preflights, scaffolds the run and staged workspace, executes the container, and triggers verification automatically. Headless CLI runs omit `--context` because `cursor-agent` and `claude` CLIs cannot select context windows (use `--allow-cli-context-override` only if overriding a pre-scaffolded run's context to `null`).
+  *(Optional manual image build)*:
+  ```bash
+  docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
+  ```
 - **Clean-Room GUI workflow**: `python3 scripts/setup_run.py --prompt <prompt-id>` (or `--follow-up --parent-run-id <id>` for a follow-up run). It asks for the prompt, the harness, the model, the optional context on a Cursor run (e.g. `--context 500k`), and the optional reasoning (effort) setting, then creates the directory below.
 
 1. Create `runs/<prompt-id>/<run-id>/`.

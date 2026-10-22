@@ -15,6 +15,7 @@ from run_benchmark import (
     build_parser,
     check_preflight,
     detect_container_harness_version,
+    ensure_docker_ready,
     extract_cli_result,
     fetch_cursor_available_models,
     format_stream_progress_line,
@@ -28,6 +29,7 @@ from run_benchmark import (
     run_parallel_benchmarks,
     trigger_finish_run,
 )
+from run_common import load_env_credentials
 from setup_run import check_environment
 
 
@@ -1581,6 +1583,233 @@ class TestRunBenchmark(unittest.TestCase):
                 self.assertEqual(len(created_dirs), 2)
                 names = {d.name for d in created_dirs}
                 self.assertEqual(len(names), 2)
+
+    def test_load_env_credentials_from_dotenv(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            dotenv = tmp_path / ".env"
+            dotenv.write_text(
+                "# Benchmark credentials\n"
+                'export CURSOR_API_KEY="sk-cursor-secret-123"\n'
+                "\n"
+                "ANTHROPIC_API_KEY='sk-ant-secret-456'\n"
+                "OTHER_VAR=value_abc\n",
+                encoding="utf-8",
+            )
+
+            # Test loading with root_dir and env=None (reads default .env)
+            with patch.dict(os.environ, {}, clear=True):
+                creds = load_env_credentials(env=None, env_file=None, root_dir=tmp_path)
+                self.assertEqual(creds.get("CURSOR_API_KEY"), "sk-cursor-secret-123")
+                self.assertEqual(creds.get("ANTHROPIC_API_KEY"), "sk-ant-secret-456")
+                self.assertEqual(creds.get("OTHER_VAR"), "value_abc")
+
+            # Explicit empty env={}: skips root .env for test isolation unless env_file passed
+            creds_empty = load_env_credentials(env={}, env_file=None, root_dir=tmp_path)
+            self.assertNotIn("CURSOR_API_KEY", creds_empty)
+
+            # Explicit env_file passed
+            creds_explicit = load_env_credentials(env={}, env_file=dotenv, root_dir=tmp_path)
+            self.assertEqual(creds_explicit.get("CURSOR_API_KEY"), "sk-cursor-secret-123")
+
+    def test_load_env_credentials_precedence(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            dotenv = tmp_path / ".env"
+            dotenv.write_text(
+                'CURSOR_API_KEY="key-from-dotenv"\n'
+                'ANTHROPIC_API_KEY="anthropic-from-dotenv"\n',
+                encoding="utf-8",
+            )
+
+            # Exported env var takes precedence over .env file
+            with patch.dict(os.environ, {"CURSOR_API_KEY": "exported-override-key"}, clear=True):
+                creds = load_env_credentials(env=None, env_file=None, root_dir=tmp_path)
+                self.assertEqual(creds.get("CURSOR_API_KEY"), "exported-override-key")
+                # Non-exported variable is loaded from .env
+                self.assertEqual(creds.get("ANTHROPIC_API_KEY"), "anthropic-from-dotenv")
+
+            # Empty string in env gets overridden by .env
+            with patch.dict(os.environ, {"CURSOR_API_KEY": ""}, clear=True):
+                creds = load_env_credentials(env=None, env_file=None, root_dir=tmp_path)
+                self.assertEqual(creds.get("CURSOR_API_KEY"), "key-from-dotenv")
+
+    def test_load_env_credentials_secondary_files(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            # Secondary env file
+            sec_env = tmp_path / "custom.env"
+            sec_env.write_text('CURSOR_API_KEY="custom-sec-key"\n', encoding="utf-8")
+
+            # Primary .env points to secondary env file
+            main_env = tmp_path / ".env"
+            main_env.write_text("ENV_FILE=custom.env\n", encoding="utf-8")
+
+            with patch.dict(os.environ, {}, clear=True):
+                creds = load_env_credentials(env=None, env_file=None, root_dir=tmp_path)
+                self.assertEqual(creds.get("CURSOR_API_KEY"), "custom-sec-key")
+
+    def test_load_env_credentials_key_files(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+
+            # 1. Raw token key file
+            raw_key_file = tmp_path / "raw_key.txt"
+            raw_key_file.write_text("   raw-secret-token-xyz   \n", encoding="utf-8")
+
+            # 2. KEY=VALUE key file
+            kv_key_file = tmp_path / "kv_key.txt"
+            kv_key_file.write_text("# token\nCURSOR_API_KEY=parsed-token-123\n", encoding="utf-8")
+
+            # Test CURSOR_API_KEY_FILE with raw token
+            creds1 = load_env_credentials(
+                env={"CURSOR_API_KEY_FILE": str(raw_key_file)},
+                root_dir=tmp_path,
+            )
+            self.assertEqual(creds1.get("CURSOR_API_KEY"), "raw-secret-token-xyz")
+
+            # Test CURSOR_API_KEY_FILE with KEY=VALUE
+            creds2 = load_env_credentials(
+                env={"CURSOR_API_KEY_FILE": str(kv_key_file)},
+                root_dir=tmp_path,
+            )
+            self.assertEqual(creds2.get("CURSOR_API_KEY"), "parsed-token-123")
+
+            # Test CURSOR_API_KEY directly pointing to existing key file
+            creds3 = load_env_credentials(
+                env={"CURSOR_API_KEY": str(raw_key_file)},
+                root_dir=tmp_path,
+            )
+            self.assertEqual(creds3.get("CURSOR_API_KEY"), "raw-secret-token-xyz")
+
+            # Test ANTHROPIC_API_KEY_FILE
+            ant_key_file = tmp_path / "ant_key.txt"
+            ant_key_file.write_text("ant-token-999\n", encoding="utf-8")
+            creds4 = load_env_credentials(
+                env={"ANTHROPIC_API_KEY_FILE": str(ant_key_file)},
+                root_dir=tmp_path,
+            )
+            self.assertEqual(creds4.get("ANTHROPIC_API_KEY"), "ant-token-999")
+
+    def test_ensure_docker_ready_auto_builds_missing_image(self):
+        calls = []
+
+        def mock_run(cmd, **kwargs):
+            calls.append(cmd)
+            if cmd[:2] == ["docker", "info"]:
+                return MagicMock(returncode=0)
+            if cmd[:3] == ["docker", "image", "inspect"]:
+                # First inspect fails (image missing); second inspect after build succeeds
+                if any(c[:2] == ["docker", "build"] for c in calls):
+                    return MagicMock(returncode=0)
+                return MagicMock(returncode=1)
+            if cmd[:2] == ["docker", "build"]:
+                return MagicMock(returncode=0)
+            return MagicMock(returncode=0)
+
+        with patch("subprocess.run", side_effect=mock_run):
+            errors = ensure_docker_ready(
+                docker_image="llm-frontier-evaluator-runner:latest",
+                auto_setup=True,
+                force_build=False,
+            )
+            self.assertEqual(errors, [])
+            build_calls = [c for c in calls if c[:2] == ["docker", "build"]]
+            self.assertEqual(len(build_calls), 1)
+            self.assertTrue(any("Dockerfile.benchmark" in arg for arg in build_calls[0]))
+            self.assertIn("llm-frontier-evaluator-runner:latest", build_calls[0])
+
+    def test_ensure_docker_ready_force_build(self):
+        calls = []
+
+        def mock_run(cmd, **kwargs):
+            calls.append(cmd)
+            return MagicMock(returncode=0)
+
+        with patch("subprocess.run", side_effect=mock_run):
+            errors = ensure_docker_ready(
+                docker_image="llm-frontier-evaluator-runner:latest",
+                auto_setup=True,
+                force_build=True,
+            )
+            self.assertEqual(errors, [])
+            build_calls = [c for c in calls if c[:2] == ["docker", "build"]]
+            self.assertEqual(len(build_calls), 1)
+
+    def test_ensure_docker_ready_no_docker_setup(self):
+        def mock_run(cmd, **kwargs):
+            if cmd[:3] == ["docker", "image", "inspect"]:
+                return MagicMock(returncode=1)
+            return MagicMock(returncode=0)
+
+        with patch("subprocess.run", side_effect=mock_run):
+            errors = ensure_docker_ready(
+                docker_image="llm-frontier-evaluator-runner:latest",
+                auto_setup=False,
+                force_build=False,
+            )
+            self.assertTrue(any("Docker image 'llm-frontier-evaluator-runner:latest' not found" in e for e in errors))
+
+    def test_ensure_docker_ready_daemon_autolaunch_macos(self):
+        calls = []
+
+        def mock_run(cmd, **kwargs):
+            calls.append(cmd)
+            if cmd[:2] == ["docker", "info"]:
+                # Fails before 'open -a Docker', succeeds after
+                if any(c[:3] == ["open", "-a", "Docker"] for c in calls):
+                    return MagicMock(returncode=0)
+                return MagicMock(returncode=1)
+            if cmd[:3] == ["open", "-a", "Docker"]:
+                return MagicMock(returncode=0)
+            if cmd[:3] == ["docker", "image", "inspect"]:
+                return MagicMock(returncode=0)
+            return MagicMock(returncode=0)
+
+        with patch("sys.platform", "darwin"), patch("subprocess.run", side_effect=mock_run):
+            errors = ensure_docker_ready(auto_setup=True, wait_timeout=1.0)
+            self.assertEqual(errors, [])
+            open_calls = [c for c in calls if c[:3] == ["open", "-a", "Docker"]]
+            self.assertEqual(len(open_calls), 1)
+
+    def test_ensure_docker_ready_daemon_autolaunch_failure(self):
+        def mock_run(cmd, **kwargs):
+            if cmd[:2] == ["docker", "info"]:
+                return MagicMock(returncode=1)
+            if cmd[:3] == ["open", "-a", "Docker"]:
+                return MagicMock(returncode=1)
+            return MagicMock(returncode=0)
+
+        with patch("sys.platform", "darwin"), patch("subprocess.run", side_effect=mock_run):
+            errors = ensure_docker_ready(auto_setup=True, wait_timeout=0.01)
+            self.assertTrue(any("Docker daemon is not running or unreachable" in e for e in errors))
+
+    def test_ensure_docker_ready_build_failure_reporting(self):
+        def mock_run(cmd, **kwargs):
+            if cmd[:2] == ["docker", "info"]:
+                return MagicMock(returncode=0)
+            if cmd[:3] == ["docker", "image", "inspect"]:
+                return MagicMock(returncode=1)
+            if cmd[:2] == ["docker", "build"]:
+                return MagicMock(returncode=1, stderr="Error: syntax error in Dockerfile", stdout="")
+            return MagicMock(returncode=0)
+
+        with patch("subprocess.run", side_effect=mock_run):
+            errors = ensure_docker_ready(auto_setup=True)
+            self.assertTrue(any("Failed to build Docker image" in e for e in errors))
+            self.assertTrue(any("syntax error in Dockerfile" in e for e in errors))
+
+    def test_cli_flags_env_file_and_docker_setup(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "--model", "Claude Opus 5.5",
+            "--env-file", "/custom/path/.env",
+            "--build-image",
+            "--no-docker-setup",
+        ])
+        self.assertEqual(args.env_file, "/custom/path/.env")
+        self.assertTrue(args.build_image)
+        self.assertFalse(args.auto_docker_setup)
 
 
 if __name__ == "__main__":

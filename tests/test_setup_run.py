@@ -436,6 +436,15 @@ class TestSetupRun(unittest.TestCase):
             warns = check_environment()
             self.assertTrue(any("Neither CURSOR_API_KEY nor ANTHROPIC_API_KEY" in w for w in warns))
 
+    def test_check_environment_env_file(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_env = Path(tmp_dir) / ".env"
+            tmp_env.write_text('CURSOR_API_KEY="loaded-key"\n', encoding="utf-8")
+
+            with patch.dict(os.environ, {}, clear=True):
+                warns = check_environment(env_file=tmp_env)
+                self.assertFalse(any("Neither CURSOR_API_KEY nor ANTHROPIC_API_KEY" in w for w in warns))
+
     def test_cli_check_flag(self):
         with patch("sys.argv", ["setup_run.py", "--check"]):
             exit_code = main()
