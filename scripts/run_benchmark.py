@@ -18,6 +18,7 @@ from unittest.mock import MagicMock
 from run_common import (
     DEFAULT_PROMPT_ID,
     ROOT,
+    STAGING_PARENT as _COMMON_STAGING_PARENT,
     canonical_harness,
     default_series_id,
     find_run_dir,
@@ -30,6 +31,7 @@ from run_common import (
     reasoning_levels_for_harness,
     require_prompt_id,
     slugify,
+    staging_workspace_for as _common_staging_workspace_for,
 )
 from setup_run import (
     create_run_directory,
@@ -41,7 +43,7 @@ from setup_run import (
 DOCKER_IMAGE = "llm-frontier-evaluator-runner:latest"
 DEFAULT_DOCKERFILE = ROOT / "Dockerfile.benchmark"
 DEFAULT_ENV_FILE = ROOT / ".env"
-STAGING_PARENT = Path("/tmp")
+STAGING_PARENT = _COMMON_STAGING_PARENT
 
 
 def ensure_docker_ready(
@@ -148,8 +150,9 @@ def ensure_docker_ready(
     return []
 
 
-def staging_workspace_for(run_id: str) -> Path:
-    return STAGING_PARENT / f"frontier-workspace-{run_id}"
+def staging_workspace_for(run_id: str, staging_parent: Path | None = None) -> Path:
+    parent = staging_parent if staging_parent is not None else STAGING_PARENT
+    return _common_staging_workspace_for(run_id, staging_parent=parent)
 
 
 def is_staging_inside_root(staging_dir: Path) -> bool:

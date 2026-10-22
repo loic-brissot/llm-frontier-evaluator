@@ -18,6 +18,7 @@ from run_common import (
     ROOT,
     RULES_VERSION,
     UNKNOWN_REASONING,
+    STAGING_PARENT as _COMMON_STAGING_PARENT,
     _add_venv_site_packages,
     allocate_run_id,
     available_prompt_ids,
@@ -33,17 +34,19 @@ from run_common import (
     require_prompt_id,
     run_dir_for,
     slugify,
+    staging_workspace_for as _common_staging_workspace_for,
     utc_now_iso,
     write_json,
 )
 
 RUNS_DIR = ROOT / "runs"
 CURSOR_HOOK_DIR_NAME = ".cursor"
-STAGING_PARENT = Path("/tmp")
+STAGING_PARENT = _COMMON_STAGING_PARENT
 
 
-def staging_workspace_for(run_id: str) -> Path:
-    return STAGING_PARENT / f"frontier-workspace-{run_id}"
+def staging_workspace_for(run_id: str, staging_parent: Path | None = None) -> Path:
+    parent = staging_parent if staging_parent is not None else STAGING_PARENT
+    return _common_staging_workspace_for(run_id, staging_parent=parent)
 
 
 def copy_prompt_to_clipboard(prompt_id: str) -> bool:

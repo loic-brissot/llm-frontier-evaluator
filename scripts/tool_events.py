@@ -168,31 +168,50 @@ def _extract_traversal_target(tool_input: object) -> str:
     return text
 
 
+def check_isolation_violation(event: dict) -> str | None:
+    tool_input = event.get("tool_input")
+    if tool_input is None:
+        return None
+
+    if isinstance(tool_input, (dict, list)):
+        input_str = json.dumps(tool_input)
+    else:
+        input_str = str(tool_input)
+
+    traversal_str = _extract_traversal_target(tool_input)
+
+    if "llm-frontier-evaluator" in input_str:
+        return "Access to llm-frontier-evaluator is blocked by isolation policy"
+    if "prompt-probes.json" in input_str:
+        return "Access to prompt-probes.json is blocked by isolation policy"
+    if "verify_run.py" in input_str:
+        return "Access to verify_run.py is blocked by isolation policy"
+    if "../run.json" in input_str or re.search(r"\.\.(?:/|\\(?![\"']))", traversal_str):
+        return "Parent directory traversal outside workspace is blocked by isolation policy"
+
+    return None
+
+
 def audit_isolation(records: list[dict]) -> list[str]:
     breaches: list[str] = []
     for record in records:
         hook = record.get("hook_event_name")
         if hook not in {"postToolUse", "postToolUseFailure", "preToolUse"}:
             continue
-        tool_input = record.get("tool_input")
-        if tool_input is None:
+        reason = check_isolation_violation(record)
+        if not reason:
             continue
-        if isinstance(tool_input, (dict, list)):
-            input_str = json.dumps(tool_input)
-        else:
-            input_str = str(tool_input)
-
-        traversal_str = _extract_traversal_target(tool_input)
-
         tool_name = record.get("tool_name") or "tool"
-        if "llm-frontier-evaluator" in input_str:
+        if "llm-frontier-evaluator" in reason:
             breaches.append(f"{tool_name} referenced 'llm-frontier-evaluator'")
-        elif "prompt-probes.json" in input_str:
+        elif "prompt-probes.json" in reason:
             breaches.append(f"{tool_name} referenced 'prompt-probes.json'")
-        elif "verify_run.py" in input_str:
+        elif "verify_run.py" in reason:
             breaches.append(f"{tool_name} referenced 'verify_run.py'")
-        elif "../run.json" in input_str or re.search(r"\.\.(?:/|\\(?![\"']))", traversal_str):
+        elif "Parent directory traversal" in reason:
             breaches.append(f"{tool_name} attempted parent traversal ('..')")
+        else:
+            breaches.append(f"{tool_name}: {reason}")
     return breaches
 
 

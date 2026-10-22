@@ -3,9 +3,10 @@ id: TASK-43
 title: >-
   Unify isolation policy and file-locking utilities across
   scripts/tool_events.py, log-tool-event.py, and compare_runs.py
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-22 02:10'
+updated_date: '2026-10-22 12:06'
 labels:
   - tech-debt
   - isolation
@@ -35,7 +36,7 @@ Centralize shared helpers in `scripts/run_common.py` and add a parity unit test 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Shared file-locking and staging workspace helpers live in scripts/run_common.py and are reused across setup_run.py, run_benchmark.py, and compare_runs.py
-- [ ] #2 Isolation traversal extraction and violation checks in scripts/tool_events.py and templates/cursor/hooks/log-tool-event.py are unified or enforced via an automated parity test in tests/test_tool_events.py
-- [ ] #3 All unit tests and ruff checks pass
+- [x] #1 Shared file-locking and staging workspace helpers live in scripts/run_common.py and are reused across setup_run.py, run_benchmark.py, and compare_runs.py
+- [x] #2 Isolation traversal extraction and violation checks in scripts/tool_events.py and templates/cursor/hooks/log-tool-event.py are unified or enforced via an automated parity test in tests/test_tool_events.py
+- [x] #3 All unit tests and ruff checks pass
 <!-- AC:END -->
