@@ -1,0 +1,239 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-22-cursor-gemini-3-8-flash-high",
+  "series_id": "france-rail-24h-pulse-cursor",
+  "prompt_id": "france-rail-24h-pulse",
+  "prompt_sha256": "dc3e0e0cb69b87a3d6ce6c8acfb7953525d9af829bbd3c9a53bcb87f6d6955ca",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "google",
+    "name": "Gemini 3.8 Flash",
+    "context": null,
+    "reasoning": "high"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": "2026.10.19-6bbf2c4",
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-22T14:14:42.506Z",
+    "ended_at": "2026-10-22T14:34:11.480Z"
+  },
+  "tokens": {
+    "split_rule": "combined_output_as_visible",
+    "reasoning_tokens": 0,
+    "visible_tokens": 117969,
+    "raw": {
+      "type": "result",
+      "subtype": "success",
+      "duration_ms": 1182785,
+      "duration_api_ms": 1182785,
+      "is_error": false,
+      "result": "An interactive 24-hour animated map and accessibility atlas of the French passenger rail network (**TGV**, **Intercit\u00e9s**, **TER**) has been built and is serving at `http://localhost:5173/`.\n\n### What Was Built & Key Features\n\n1. **Smooth 24-Hour Timeline Scrubbing & 60 FPS Train Animation**\n   - **8,515 passenger trains** scheduled across metropolitan France animated in real-time along their exact railway paths.\n   - Distinct service color-coding, sizing, and glowing halos:\n     - **TGV / Ouigo / Lyria / ICE** (`#ff006e` Neon Magenta, larger marker & halo, high-speed directional chevrons).\n     - **INTERCIT\u00c9S & Intercit\u00e9s de nuit** (`#ff9f1c` Solar Amber, medium marker).\n     - **TER & Tram-Trains** (`#00f5d4` Precision Cyan, compact markers).\n   - Interactive timeline scrubber (00:00 to 24:00) with Play/Pause (spacebar), variable speed multiplier (`1x`, `5x`, `15x`, `30x`, `60x`, `120x`, `300x`), and preset rush hour moments (06:00, 08:15, 12:30, 18:00, 22:45, 03:00).\n   - Category filtering toggles with live in-flight counters.\n\n2. **Interactive Travel-Time Accessibility Atlas (Dijkstra Isochrone Engine)**\n   - Clicking any of France\u2019s **2,390 stations** computes the shortest rail travel time to every other station across France in under 3 ms using a binary min-heap Dijkstra router, accounting for scheduled transfer wait times and multimodal Paris intramuros connections.\n   - All reachable stations are dynamically colored by the 5 official travel-time brackets:\n     - **< 1h**: Neon Emerald (`#00f59b`)\n     - **1\u20132h**: Electric Lime (`#d4ff00`)\n     - **2\u20133h**: Radiant Amber (`#ff9e00`)\n     - **3\u20135h**: Coral Flame (`#ff4757`)\n     - **> 5h**: Deep Violet (`#9b5de5`)\n   - Accessibility Scorecard displays network coverage percentages (<2h, <3h, <5h), fast origin presets (Paris-Lyon, Paris-Montparnasse, Lyon Part-Dieu, Marseille, Bordeaux, Strasbourg, Lille, Toulouse, Nantes), and a searchable destination list with travel times and transfer counts.\n\n3. **Daily Corridor Flow View (RFN Cumulative 24-Hour Traffic Density)**\n   - Renders the complete **R\u00e9seau Ferr\u00e9 National (RFN)** line infrastructure with line weight (1.2px to 8.5px) and luminance heat-map scaled by cumulative 24-hour train frequency:\n     - Deep navy (`<15 trains/day`) \\(\\to\\) Cyan \\(\\to\\) Emerald \\(\\to\\) Amber \\(\\to\\) Magenta \\(\\to\\) Blinding white-hot plasma (`>160 trains/day`).\n   - Interactive Corridor Inspector displays line codes, official corridor names, daily frequency, service category breakdown (% TGV, % IC, % TER), and line speed limits (\\(V_{\\max}\\) up to 320 km/h).\n\n4. **Live Control Center Telemetry & Traffic Profile**\n   - Digital master clock (Europe/Paris) synchronized with playback.\n   - Real-time active train gauges: in-flight count by category, total daily scheduled train-km (2.8M km), and instantaneous fleet velocity.\n   - 24-Hour National Traffic Profile curve embedded under the scrubber slider with an illuminated playhead needle tracking the current time.\n   - Dynamic leaderboard of the busiest stations and departure boards.\n\n5. **Stop-by-Stop Timetables, Route Paths & Scheduled Connections**\n   - **Train Dossier**: Selecting any train highlights its full geographic route on the map and displays scheduled departure/arrival times, completed vs remaining journey progress bar, current speed, and scheduled connections at intermediate interchange stops.\n   - **Station Dossier**: Selecting any station shows administrative region, UIC code, daily departures, and a live upcoming departures board with countdowns (\"dans 12 min\").\n   - **Global Search**: Instant autocomplete search (`/`) across all 2,390 stations and 8,515 train numbers.\n\n### Data Processing Pipeline\n\n- Preprocessed using SNCF Open Data & [transport.data.gouv.fr](https://transport.data.gouv.fr/datasets/horaires-sncf):\n  - GTFS timetable catalog (8,515 passenger rail services for Thursday Oct 22, 2026).\n  - *Fichier de formes des lignes du RFN* (975 active railway tracks with simplified geometry).\n  - *Liste des gares* and *Gares de voyageurs* (2,390 passenger stations, UIC codes, and line mappings).\n  - *Vitesse maximale nominale sur ligne* (nominal line speed limits).\n- The pipeline script is located at `scripts/build_data.py` and outputs compact JSON datasets to `public/data/`.",
+      "session_id": "a2bf248b-cf9d-4558-b66d-6dcd1b8f749a",
+      "request_id": "a3f0fad6-1d8f-4c86-b888-9545c7f453e3",
+      "usage": {
+        "inputTokens": 698650,
+        "outputTokens": 117969,
+        "cacheReadTokens": 10999310,
+        "cacheWriteTokens": 0
+      },
+      "hook_tokens": {
+        "source": "transcript_or_hook",
+        "model": "gemini-3.8-flash",
+        "input_tokens": 11697960,
+        "uncached_input_tokens": 698650,
+        "cache_read_tokens": 10999310,
+        "cache_write_tokens": 0,
+        "output_tokens": 117969,
+        "split_rule": "unavailable"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "gemini-3-8-flash",
+        "context_variant": null,
+        "long_context_applied": false,
+        "harness": "cursor",
+        "harness_token_rate_per_1m": "0.25",
+        "harness_surcharge_usd": "2.95",
+        "rates_per_1m_usd": {
+          "input": "0.75",
+          "cache_write": "0.00",
+          "cache_read": "0.075",
+          "output": "3.75"
+        },
+        "estimated_cost_usd": "1.79",
+        "estimated_cost_with_harness_usd": "4.75"
+      }
+    }
+  },
+  "model_time": {
+    "source": "wall_clock_minus_tool_time",
+    "generating_seconds": 1083.5,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 1169.0,
+        "tool_seconds_merged": 85.5,
+        "tool_seconds_summed": 85.5,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": 1083.5,
+        "thinking_seconds": 350.9,
+        "thought_blocks": 72
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 103,
+      "failures": 8,
+      "by_tool": {
+        "Shell": {
+          "calls": 103,
+          "failures": 8
+        }
+      }
+    },
+    "files": {
+      "calls": 27,
+      "failures": 0,
+      "by_tool": {
+        "Grep": {
+          "calls": 3,
+          "failures": 0
+        },
+        "Write": {
+          "calls": 20,
+          "failures": 0
+        },
+        "Read": {
+          "calls": 3,
+          "failures": 0
+        },
+        "Glob": {
+          "calls": 1,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    }
+  },
+  "context_reread": {
+    "source": "provider_cache_read",
+    "cache_read_tokens": 10999310,
+    "cache_write_tokens": 0,
+    "uncached_input_tokens": 698650,
+    "raw": {
+      "source": "transcript_or_hook",
+      "model": "gemini-3.8-flash",
+      "input_tokens": 11697960,
+      "uncached_input_tokens": 698650,
+      "cache_read_tokens": 10999310,
+      "cache_write_tokens": 0,
+      "output_tokens": 117969,
+      "split_rule": "unavailable"
+    }
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": true,
+    "summary": ""
+  },
+  "observations": "No stop event recorded; capped run end time at the last non-idle tool/thought event.",
+  "verification": {
+    "runtime": {
+      "passed": true,
+      "http_status": 200,
+      "url": "http://127.0.0.1:54015",
+      "server_mode": "static",
+      "load_time_ms": 3977.3,
+      "console_errors": [
+        "Error: Worker failed to load. Check that the worker URL is correct.\n    at Worker.<anonymous> (http://127.0.0.1:54015/assets/index-CW07vDdA.js:1:442956)",
+        "Error: Worker failed to load. Check that the worker URL is correct.\n    at Worker.<anonymous> (http://127.0.0.1:54015/assets/index-CW07vDdA.js:1:442956)"
+      ],
+      "console_warnings_count": 5,
+      "page_errors": [],
+      "failed_requests": [
+        {
+          "url": "http://127.0.0.1:54015/assets/maplibre-gl-worker.mjs?v=6.15.0",
+          "reason": "HTTP 404",
+          "status": 404
+        }
+      ],
+      "dom": {
+        "title": "Atlas Ferroviaire Fran\u00e7ais \u2022 Contr\u00f4le National & Accessibilit\u00e9 SNCF",
+        "canvas_count": 3,
+        "svg_count": 10,
+        "webgl_context": true,
+        "text_length": 878
+      },
+      "screenshot_path": "artifacts/screenshot.png",
+      "verified_at": "2026-10-22T14:34:27.932Z"
+    },
+    "data_pipeline": {
+      "prompt_id": "france-rail-24h-pulse",
+      "passed": true,
+      "authenticity": "real_open_data",
+      "score": 1.0,
+      "total_data_files": 21,
+      "total_records": 828306,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "sncf_stations_dataset",
+          "description": "SNCF stations list with UIC codes or coordinates",
+          "passed": true,
+          "observed_records": 11681,
+          "matched_files": [
+            "data/liste-des-gares.geojson",
+            "data/gares-de-voyageurs.geojson",
+            "public/data/stations.json",
+            "public/data/telemetry.json"
+          ],
+          "detail": "Matched 4 file(s) with 11681 observed records (min: 200)"
+        },
+        {
+          "id": "rail_network_lines_dataset",
+          "description": "RFN rail line shapes / geometries",
+          "passed": true,
+          "observed_records": 4986,
+          "matched_files": [
+            "data/vitesse-maximale-nominale-sur-ligne.json",
+            "data/formes-des-lignes-du-rfn.geojson",
+            "public/data/rfn_network.geojson"
+          ],
+          "detail": "Matched 3 file(s) with 4986 observed records (min: 10)"
+        },
+        {
+          "id": "gtfs_timetables_trips_dataset",
+          "description": "GTFS schedules or processed timetables/trips for TGV, Intercit\u00e9s, TER",
+          "passed": true,
+          "observed_records": 586438,
+          "matched_files": [
+            "data/gtfs/transfers.txt",
+            "data/gtfs/stop_times.txt",
+            "data/gtfs/trips.txt",
+            "data/gtfs/stops.txt"
+          ],
+          "detail": "Matched 4 file(s) with 586438 observed records (min: 200)"
+        }
+      ],
+      "verified_at": "2026-10-22T14:34:32.383Z"
+    }
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-22-cursor-grok-4-7-high",
+  "series_id": "france-rail-24h-pulse-cursor",
+  "prompt_id": "france-rail-24h-pulse",
+  "prompt_sha256": "dc3e0e0cb69b87a3d6ce6c8acfb7953525d9af829bbd3c9a53bcb87f6d6955ca",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "xai",
+    "name": "Grok 4.7",
+    "context": null,
+    "reasoning": "high"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": "2026.10.19-6bbf2c4",
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-22T15:08:46.890Z",
+    "ended_at": "2026-10-22T16:10:34.109Z"
+  },
+  "tokens": {
+    "split_rule": "unavailable",
+    "reasoning_tokens": null,
+    "visible_tokens": null,
+    "raw": {}
+  },
+  "model_time": {
+    "source": "wall_clock_minus_tool_time",
+    "generating_seconds": 3604.5,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 3707.2,
+        "tool_seconds_merged": 102.7,
+        "tool_seconds_summed": 103.2,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": 3604.5,
+        "thinking_seconds": 2988.6,
+        "thought_blocks": 81
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 57,
+      "failures": 3,
+      "by_tool": {
+        "Shell": {
+          "calls": 57,
+          "failures": 3
+        }
+      }
+    },
+    "files": {
+      "calls": 85,
+      "failures": 1,
+      "by_tool": {
+        "Grep": {
+          "calls": 18,
+          "failures": 0
+        },
+        "Write": {
+          "calls": 35,
+          "failures": 0
+        },
+        "Read": {
+          "calls": 24,
+          "failures": 1
+        },
+        "Glob": {
+          "calls": 8,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": 1,
+      "failures": 1,
+      "by_tool": {
+        "List": {
+          "calls": 1,
+          "failures": 1
+        }
+      }
+    }
+  },
+  "context_reread": {
+    "source": "unavailable",
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "uncached_input_tokens": null,
+    "raw": {}
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": false,
+    "summary": ""
+  },
+  "observations": "No stop event recorded; capped run end time at the last non-idle tool/thought event. other tools: List.",
+  "verification": {
+    "runtime": {
+      "passed": false,
+      "http_status": null,
+      "url": "",
+      "server_mode": "none",
+      "load_time_ms": null,
+      "console_errors": [],
+      "console_warnings_count": 0,
+      "page_errors": [
+        "No workspace server found or started"
+      ],
+      "failed_requests": [],
+      "dom": null,
+      "screenshot_path": null,
+      "verified_at": "2026-10-22T16:22:31.484Z"
+    },
+    "data_pipeline": {
+      "prompt_id": "france-rail-24h-pulse",
+      "passed": true,
+      "authenticity": "real_open_data",
+      "score": 1.0,
+      "total_data_files": 20,
+      "total_records": 888411,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "sncf_stations_dataset",
+          "description": "SNCF stations list with UIC codes or coordinates",
+          "passed": true,
+          "observed_records": 8851,
+          "matched_files": [
+            "data/raw/gares.csv",
+            "public/data/atlas.json"
+          ],
+          "detail": "Matched 2 file(s) with 8851 observed records (min: 200)"
+        },
+        {
+          "id": "rail_network_lines_dataset",
+          "description": "RFN rail line shapes / geometries",
+          "passed": true,
+          "observed_records": 787,
+          "matched_files": [
+            "data/raw/rfn.geojson"
+          ],
+          "detail": "Matched 1 file(s) with 787 observed records (min: 10)"
+        },
+        {
+          "id": "gtfs_timetables_trips_dataset",
+          "description": "GTFS schedules or processed timetables/trips for TGV, Intercit\u00e9s, TER",
+          "passed": true,
+          "observed_records": 586438,
+          "matched_files": [
+            "data/raw/gtfs/transfers.txt",
+            "data/raw/gtfs/stop_times.txt",
+            "data/raw/gtfs/trips.txt",
+            "data/raw/gtfs/stops.txt"
+          ],
+          "detail": "Matched 4 file(s) with 586438 observed records (min: 200)"
+        }
+      ],
+      "verified_at": "2026-10-22T16:22:31.487Z"
+    }
+  }
+}

@@ -345,15 +345,15 @@ class TestRunBenchmark(unittest.TestCase):
 
         with patch("subprocess.run", side_effect=mock_run), patch.dict(os.environ, {}, clear=True):
             # Harness = cursor
-            errors_cursor = check_preflight(harness="cursor")
+            errors_cursor = check_preflight(harness="cursor", env={})
             self.assertTrue(any("Missing required environment variable CURSOR_API_KEY for harness 'cursor'" in e for e in errors_cursor))
 
             # Harness = claude-code
-            errors_claude = check_preflight(harness="claude-code")
+            errors_claude = check_preflight(harness="claude-code", env={})
             self.assertTrue(any("Missing required environment variable ANTHROPIC_API_KEY for harness 'claude-code'" in e for e in errors_claude))
 
             # No harness specified
-            errors_none = check_preflight(harness=None)
+            errors_none = check_preflight(harness=None, env={})
             self.assertTrue(any("Missing required environment variable CURSOR_API_KEY or ANTHROPIC_API_KEY" in e for e in errors_none))
 
     def test_preflight_missing_or_repo_workspace(self):
@@ -1084,6 +1084,7 @@ class TestRunBenchmark(unittest.TestCase):
                         harness="cursor",
                         model="Claude Opus 5.5",
                         check_models=False,
+                        env={},
                     )
 
                 self.assertIn("Missing required environment variable CURSOR_API_KEY", str(ctx.exception))

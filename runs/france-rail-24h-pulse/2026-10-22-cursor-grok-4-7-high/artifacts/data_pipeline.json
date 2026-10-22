@@ -1,0 +1,46 @@
+{
+  "prompt_id": "france-rail-24h-pulse",
+  "passed": true,
+  "authenticity": "real_open_data",
+  "score": 1.0,
+  "total_data_files": 20,
+  "total_records": 888411,
+  "synthetic_signals": [],
+  "checks": [
+    {
+      "id": "sncf_stations_dataset",
+      "description": "SNCF stations list with UIC codes or coordinates",
+      "passed": true,
+      "observed_records": 8851,
+      "matched_files": [
+        "data/raw/gares.csv",
+        "public/data/atlas.json"
+      ],
+      "detail": "Matched 2 file(s) with 8851 observed records (min: 200)"
+    },
+    {
+      "id": "rail_network_lines_dataset",
+      "description": "RFN rail line shapes / geometries",
+      "passed": true,
+      "observed_records": 787,
+      "matched_files": [
+        "data/raw/rfn.geojson"
+      ],
+      "detail": "Matched 1 file(s) with 787 observed records (min: 10)"
+    },
+    {
+      "id": "gtfs_timetables_trips_dataset",
+      "description": "GTFS schedules or processed timetables/trips for TGV, Intercit\u00e9s, TER",
+      "passed": true,
+      "observed_records": 586438,
+      "matched_files": [
+        "data/raw/gtfs/transfers.txt",
+        "data/raw/gtfs/stop_times.txt",
+        "data/raw/gtfs/trips.txt",
+        "data/raw/gtfs/stops.txt"
+      ],
+      "detail": "Matched 4 file(s) with 586438 observed records (min: 200)"
+    }
+  ],
+  "verified_at": "2026-10-22T16:22:31.487Z"
+}

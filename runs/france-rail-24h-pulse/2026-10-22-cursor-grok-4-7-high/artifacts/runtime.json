@@ -1,0 +1,16 @@
+{
+  "passed": false,
+  "http_status": null,
+  "url": "",
+  "server_mode": "none",
+  "load_time_ms": null,
+  "console_errors": [],
+  "console_warnings_count": 0,
+  "page_errors": [
+    "No workspace server found or started"
+  ],
+  "failed_requests": [],
+  "dom": null,
+  "screenshot_path": null,
+  "verified_at": "2026-10-22T16:22:31.484Z"
+}

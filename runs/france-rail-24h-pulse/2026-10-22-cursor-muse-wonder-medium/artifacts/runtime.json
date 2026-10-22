@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "http_status": 200,
+  "url": "http://127.0.0.1:49979",
+  "server_mode": "static",
+  "load_time_ms": 3928.1,
+  "console_errors": [],
+  "console_warnings_count": 0,
+  "page_errors": [],
+  "failed_requests": [],
+  "dom": {
+    "title": "Atlas Ferroviaire \u2014 France 24H \u00b7 TGV \u00b7 Intercit\u00e9s \u00b7 TER",
+    "canvas_count": 2,
+    "svg_count": 0,
+    "webgl_context": false,
+    "text_length": 1892
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "verified_at": "2026-10-22T14:18:30.446Z"
+}
