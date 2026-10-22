@@ -19,16 +19,19 @@ from finish_run import (
     default_csv_selection,
     discover_tmp_usage_csv,
     event_in_window,
+    load_usage_json,
     observation_default,
     parse_decimal,
     parse_timestamp,
     parse_token_count,
+    prepare_hints,
     prompt_choice,
     prompt_optional_float,
     prompt_optional_int,
     prompt_str,
     read_usage_csv,
     repatriate_staged_workspace,
+    suggest_metrics,
     summarize_events,
 )
 from tool_events import ToolEventSummary
@@ -699,6 +702,105 @@ class TestFinishRun(unittest.TestCase):
         args = parser.parse_args(["--backfill-usage", "export.csv", "--no-update-readme"])
         self.assertEqual(args.backfill_usage, Path("export.csv"))
         self.assertTrue(args.no_update_readme)
+
+
+    def test_suggest_metrics_camel_case_cursor_agent(self):
+        usage = {
+            "usage": {
+                "inputTokens": 332354,
+                "outputTokens": 127253,
+                "cacheReadTokens": 6034510,
+                "cacheWriteTokens": 0,
+            }
+        }
+        hints = suggest_metrics(usage)
+        self.assertEqual(hints.get("output_tokens"), 127253)
+        self.assertEqual(hints.get("uncached_input_tokens"), 332354)
+        self.assertEqual(hints.get("cache_read_tokens"), 6034510)
+        self.assertEqual(hints.get("cache_write_tokens"), 0)
+        self.assertEqual(hints.get("cache_source"), "provider_cache_read")
+
+    def test_load_usage_json_and_prepare_hints_from_tool_events(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = Path(tmpdir)
+            tool_dir = run_dir / "tool-events"
+            tool_dir.mkdir(parents=True)
+            (tool_dir / "cli-result.json").write_text(json.dumps({
+                "type": "result",
+                "subtype": "success",
+                "usage": {
+                    "inputTokens": 332354,
+                    "outputTokens": 127253,
+                    "cacheReadTokens": 6034510,
+                    "cacheWriteTokens": 0,
+                },
+            }))
+            run_data = {"rules_version": 2, "series_id": "s1", "harness": {"name": "cursor"}}
+            usage = load_usage_json([], run_dir=run_dir)
+            self.assertIsNotNone(usage)
+            self.assertEqual(usage.get("type"), "result")
+
+            hints = prepare_hints(run_data, [], interactive=False, run_dir=run_dir)
+            self.assertEqual(hints.get("output_tokens"), 127253)
+            self.assertEqual(hints.get("cache_read_tokens"), 6034510)
+            self.assertEqual(hints.get("cache_source"), "provider_cache_read")
+
+    def test_complete_run_json_non_interactive_fallback_to_cli_result(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = Path(tmpdir)
+            tool_dir = run_dir / "tool-events"
+            tool_dir.mkdir(parents=True)
+            (tool_dir / "cli-result.json").write_text(json.dumps({
+                "type": "result",
+                "subtype": "success",
+                "usage": {
+                    "inputTokens": 332354,
+                    "outputTokens": 127253,
+                    "cacheReadTokens": 6034510,
+                    "cacheWriteTokens": 0,
+                },
+            }))
+            run_data = {
+                "rules_version": 2,
+                "prompt_id": "paris-1910-flood-simulator",
+                "run_id": "test-run",
+                "series_id": "s1",
+                "harness": {"name": "cursor"},
+                "model": {"name": "gemini-4-argon", "family": "gemini", "context": "medium"},
+                "tokens": {"split_rule": "unavailable", "reasoning_tokens": None, "visible_tokens": None, "raw": {}},
+                "model_time": {"source": "unavailable", "generating_seconds": None, "raw": {}},
+                "context_reread": {"source": "unavailable", "cache_read_tokens": None, "raw": {}},
+                "tool_calls": {
+                    "shell": {"calls": 1, "failures": 0},
+                    "files": {"calls": 0, "failures": 0},
+                    "visual_checks": {"calls": 0, "failures": 0},
+                    "web": {"calls": 0, "failures": 0},
+                    "other": {"calls": 0, "failures": 0},
+                },
+                "outcome": {"model_stopped": None, "operator_saw_a_page": True, "summary": "test"},
+                "wall_clock": {"started_at": "2026-10-22T01:00:00Z", "ended_at": "2026-10-22T01:10:00Z"},
+                "observations": "",
+            }
+            (run_dir / "run.json").write_text(json.dumps(run_data))
+
+            complete_run_json(
+                run_dir,
+                [],
+                interactive=False,
+                non_interactive=True,
+                skip_verify=True,
+            )
+
+            updated = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual(updated["tokens"]["split_rule"], "combined_output_as_visible")
+            self.assertEqual(updated["tokens"]["reasoning_tokens"], 0)
+            self.assertEqual(updated["tokens"]["visible_tokens"], 127253)
+            self.assertEqual(updated["context_reread"]["source"], "provider_cache_read")
+            self.assertEqual(updated["context_reread"]["cache_read_tokens"], 6034510)
+            self.assertEqual(updated["context_reread"]["cache_write_tokens"], 0)
+            self.assertEqual(updated["context_reread"]["uncached_input_tokens"], 332354)
+            self.assertTrue(updated["outcome"]["model_stopped"])
+            self.assertIn("pricing", updated["tokens"]["raw"])
 
 
 if __name__ == "__main__":

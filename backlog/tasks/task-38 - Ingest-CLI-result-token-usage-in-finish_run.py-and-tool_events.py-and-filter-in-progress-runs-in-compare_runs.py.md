@@ -3,9 +3,10 @@ id: TASK-38
 title: >-
   Ingest CLI result token usage in finish_run.py and tool_events.py and filter
   in-progress runs in compare_runs.py
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-22 00:10'
+updated_date: '2026-10-22 00:48'
 labels:
   - metrics
   - tokens
@@ -35,9 +36,9 @@ Headless Cursor runs in Docker show `n/a` for `Output tokens`, `Context re-read`
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 tool_events.py extracts usage (including camelCase inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens) and completion status from cli-stream.jsonl / cli-result.json even when Cursor hook JSONL records are present
-- [ ] #2 finish_run.py supports camelCase token keys and cli-result.json fallback, setting split_rule='combined_output_as_visible' in --non-interactive mode when output_tokens is known without a reasoning split (while keeping Cursor billing CSV exports authoritative when available)
-- [ ] #3 run_benchmark.py allows finish_run.py to auto-discover matching usage CSV exports in tmp/ when present
-- [ ] #4 compare_runs.py skips or separately labels in-progress runs that still have .staging_workspace in main() so active parallel runs do not appear as incomplete n/a rows
-- [ ] #5 All unit tests, ruff lint checks, and compare_runs.py checks pass
+- [x] #1 tool_events.py extracts usage (including camelCase inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens) and completion status from cli-stream.jsonl / cli-result.json even when Cursor hook JSONL records are present
+- [x] #2 finish_run.py supports camelCase token keys and cli-result.json fallback, setting split_rule='combined_output_as_visible' in --non-interactive mode when output_tokens is known without a reasoning split (while keeping Cursor billing CSV exports authoritative when available)
+- [x] #3 run_benchmark.py allows finish_run.py to auto-discover matching usage CSV exports in tmp/ when present
+- [x] #4 compare_runs.py skips or separately labels in-progress runs that still have .staging_workspace in main() so active parallel runs do not appear as incomplete n/a rows
+- [x] #5 All unit tests, ruff lint checks, and compare_runs.py checks pass
 <!-- AC:END -->

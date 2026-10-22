@@ -367,8 +367,16 @@ def scrub_usage_files(paths: list[Path]) -> int:
     return total
 
 
-def load_usage_json(paths: list[Path]) -> dict | None:
-    for path in paths:
+def load_usage_json(paths: list[Path], *, run_dir: Path | None = None) -> dict | None:
+    all_paths = list(paths)
+    if run_dir is not None:
+        for candidate_path in (
+            run_dir / "tool-events" / "cli-result.json",
+            run_dir / "usage" / "cli-result.json",
+        ):
+            if candidate_path.is_file() and candidate_path not in all_paths:
+                all_paths.append(candidate_path)
+    for path in all_paths:
         if path.suffix.lower() != ".json":
             continue
         try:
@@ -403,18 +411,34 @@ def suggest_metrics(usage: dict | None) -> dict:
     reasoning = dig(usage_block, "completion_tokens_details", "reasoning_tokens")
     if reasoning is None:
         reasoning = dig(usage_block, "output_tokens_details", "reasoning_tokens")
+    if reasoning is None:
+        reasoning = dig(usage_block, "reasoning_tokens")
+    if reasoning is None:
+        reasoning = dig(usage_block, "reasoningTokens")
+    if reasoning is None:
+        reasoning = dig(usage_block, "thinking_tokens")
+    if reasoning is None:
+        reasoning = dig(usage_block, "thinkingTokens")
+
     completion = dig(usage_block, "completion_tokens")
     if completion is None:
         completion = dig(usage_block, "output_tokens")
+    if completion is None:
+        completion = dig(usage_block, "outputTokens")
 
     if is_int(reasoning) and is_int(completion):
         hints["split_rule"] = "output_includes_reasoning"
         hints["reasoning_tokens"] = reasoning
         hints["visible_tokens"] = max(completion - reasoning, 0)
+        hints["output_tokens"] = completion
         if dig(usage_block, "completion_tokens") is not None:
             hints["split_field_note"] = (
                 "output_includes_reasoning from completion_tokens "
                 "and completion_tokens_details.reasoning_tokens"
+            )
+        elif dig(usage_block, "outputTokens") is not None:
+            hints["split_field_note"] = (
+                "output_includes_reasoning from outputTokens"
             )
         else:
             hints["split_field_note"] = (
@@ -425,10 +449,25 @@ def suggest_metrics(usage: dict | None) -> dict:
         hints["split_rule"] = "harness_pre_split"
         hints["reasoning_tokens"] = dig(usage_block, "reasoning_tokens")
         hints["visible_tokens"] = dig(usage_block, "visible_tokens")
+        hints["output_tokens"] = hints["reasoning_tokens"] + hints["visible_tokens"]
         hints["split_field_note"] = "harness_pre_split from reasoning_tokens and visible_tokens"
+    elif is_int(dig(usage_block, "reasoningTokens")) and is_int(dig(usage_block, "visibleTokens")):
+        hints["split_rule"] = "harness_pre_split"
+        hints["reasoning_tokens"] = dig(usage_block, "reasoningTokens")
+        hints["visible_tokens"] = dig(usage_block, "visibleTokens")
+        hints["output_tokens"] = hints["reasoning_tokens"] + hints["visible_tokens"]
+        hints["split_field_note"] = "harness_pre_split from reasoningTokens and visibleTokens"
+    elif is_int(completion):
+        hints["output_tokens"] = completion
 
     cache_read = dig(usage_block, "cache_read_input_tokens")
     cache_field = "cache_read_input_tokens"
+    if cache_read is None:
+        cache_read = dig(usage_block, "cache_read_tokens")
+        cache_field = "cache_read_tokens"
+    if cache_read is None:
+        cache_read = dig(usage_block, "cacheReadTokens")
+        cache_field = "cacheReadTokens"
     if cache_read is None:
         cache_read = dig(usage_block, "prompt_tokens_details", "cached_tokens")
         cache_field = "prompt_tokens_details.cached_tokens"
@@ -438,20 +477,36 @@ def suggest_metrics(usage: dict | None) -> dict:
         hints["cache_read_field"] = cache_field
 
     cache_write = dig(usage_block, "cache_creation_input_tokens")
+    cache_write_field = "cache_creation_input_tokens"
     if cache_write is None:
         cache_write = dig(usage_block, "cache_write_tokens")
+        cache_write_field = "cache_write_tokens"
+    if cache_write is None:
+        cache_write = dig(usage_block, "cacheWriteTokens")
+        cache_write_field = "cacheWriteTokens"
     if is_int(cache_write):
         hints["cache_write_tokens"] = cache_write
-        hints["cache_write_field"] = (
-            "cache_creation_input_tokens"
-            if dig(usage_block, "cache_creation_input_tokens") is not None
-            else "cache_write_tokens"
-        )
+        hints["cache_write_field"] = cache_write_field
 
     uncached = dig(usage_block, "uncached_input_tokens")
+    uncached_field = "uncached_input_tokens"
+    if uncached is None:
+        uncached = dig(usage_block, "uncachedInputTokens")
+        uncached_field = "uncachedInputTokens"
+    if uncached is None and (dig(usage_block, "cacheReadTokens") is not None or dig(usage_block, "cacheWriteTokens") is not None):
+        uncached = dig(usage_block, "inputTokens") if dig(usage_block, "inputTokens") is not None else dig(usage_block, "input_tokens")
+        uncached_field = "inputTokens" if dig(usage_block, "inputTokens") is not None else "input_tokens"
     if is_int(uncached):
         hints["uncached_input_tokens"] = uncached
-        hints["uncached_input_field"] = "uncached_input_tokens"
+        hints["uncached_input_field"] = uncached_field
+
+    input_tokens = dig(usage_block, "inputTokens")
+    if input_tokens is None:
+        input_tokens = dig(usage_block, "input_tokens")
+    if input_tokens is None:
+        input_tokens = dig(usage_block, "prompt_tokens")
+    if is_int(input_tokens):
+        hints["input_tokens"] = input_tokens
 
     generating_seconds = usage.get("generating_seconds")
     time_field = "generating_seconds"
@@ -1131,14 +1186,28 @@ def merge_hints(json_hints: dict, csv_hints: dict) -> dict:
     return merged
 
 
-def prepare_hints(run: dict, paths: list[Path], *, interactive: bool) -> dict:
-    json_usage = load_usage_json(paths)
+def prepare_hints(
+    run: dict,
+    paths: list[Path],
+    *,
+    interactive: bool,
+    run_dir: Path | None = None,
+) -> dict:
+    all_paths = list(paths)
+    if run_dir is not None:
+        for candidate_path in (
+            run_dir / "tool-events" / "cli-result.json",
+            run_dir / "usage" / "cli-result.json",
+        ):
+            if candidate_path.is_file() and candidate_path not in all_paths:
+                all_paths.append(candidate_path)
+    json_usage = load_usage_json(all_paths, run_dir=run_dir)
     json_hints = suggest_metrics(json_usage)
     if json_usage is not None:
         json_hints["json_usage"] = json_usage
     events: list[UsageEvent] = []
     warnings: list[str] = []
-    for path in paths:
+    for path in all_paths:
         if path.suffix.lower() != ".csv":
             continue
         parsed, parse_warnings = read_usage_csv(path)
@@ -1558,7 +1627,14 @@ def complete_run_json(
         use_log = True
         if not non_interactive and interactive:
             use_log = prompt_yes_no("  Use these tool counts?", default=True, non_interactive=non_interactive)
-    hints = prepare_hints(run, usage_paths, interactive=interactive)
+    effective_paths = list(usage_paths)
+    for candidate_path in (
+        run_dir / "tool-events" / "cli-result.json",
+        run_dir / "usage" / "cli-result.json",
+    ):
+        if candidate_path.is_file() and candidate_path not in effective_paths:
+            effective_paths.append(candidate_path)
+    hints = prepare_hints(run, effective_paths, interactive=interactive, run_dir=run_dir)
     store_usage_raw(run, hints)
     apply_logged_tokens(run, tool_summary, hints)
     apply_logged_time(run, tool_summary, hints)
@@ -1582,10 +1658,16 @@ def complete_run_json(
                 tokens["visible_tokens"] = hints["visible_tokens"]
             if (tokens["split_rule"] is None or tokens["split_rule"] == "unavailable") and hints.get("split_rule") is not None:
                 tokens["split_rule"] = hints["split_rule"]
-            if tokens["reasoning_tokens"] is None:
-                tokens["split_rule"] = "unavailable"
-                tokens["reasoning_tokens"] = None
-                tokens["visible_tokens"] = None
+            if tokens["reasoning_tokens"] is None and hints.get("reasoning_tokens") is None:
+                out_tok = hints.get("output_tokens") if is_int(hints.get("output_tokens")) else tool_summary.output_tokens
+                if is_int(out_tok):
+                    tokens["split_rule"] = "combined_output_as_visible"
+                    tokens["reasoning_tokens"] = 0
+                    tokens["visible_tokens"] = out_tok
+                else:
+                    tokens["split_rule"] = "unavailable"
+                    tokens["reasoning_tokens"] = None
+                    tokens["visible_tokens"] = None
     else:
         print("\nTokens generated (see docs/metrics.md)")
         split_default = str(hints.get("split_rule") or tokens["split_rule"])
@@ -1657,10 +1739,10 @@ def complete_run_json(
             cache["source"] = "cursor_usage_csv"
             cache["cache_read_tokens"] = usage_summary["cache_read_tokens"]
         else:
-            if cache["cache_read_tokens"] is None and hints.get("cache_read_tokens") is None and tool_summary.cache_read_tokens is not None:
-                cache["cache_read_tokens"] = tool_summary.cache_read_tokens
-            elif cache["cache_read_tokens"] is None and hints.get("cache_read_tokens") is not None:
+            if hints.get("cache_read_tokens") is not None:
                 cache["cache_read_tokens"] = hints["cache_read_tokens"]
+            elif tool_summary.cache_read_tokens is not None:
+                cache["cache_read_tokens"] = tool_summary.cache_read_tokens
 
         if (
             isinstance(usage_summary, dict)
@@ -1668,10 +1750,10 @@ def complete_run_json(
             and usage_summary.get("cache_write_tokens") is not None
         ):
             cache["cache_write_tokens"] = usage_summary["cache_write_tokens"]
-        elif cache["cache_write_tokens"] is None and tool_summary.cache_write_tokens is not None:
-            cache["cache_write_tokens"] = tool_summary.cache_write_tokens
-        elif cache["cache_write_tokens"] is None and hints.get("cache_write_tokens") is not None:
+        elif hints.get("cache_write_tokens") is not None:
             cache["cache_write_tokens"] = hints["cache_write_tokens"]
+        elif tool_summary.cache_write_tokens is not None:
+            cache["cache_write_tokens"] = tool_summary.cache_write_tokens
 
         if (
             isinstance(usage_summary, dict)
@@ -1679,19 +1761,24 @@ def complete_run_json(
             and usage_summary.get("uncached_input_tokens") is not None
         ):
             cache["uncached_input_tokens"] = usage_summary["uncached_input_tokens"]
-        elif cache["uncached_input_tokens"] is None and tool_summary.uncached_input_tokens is not None:
-            cache["uncached_input_tokens"] = tool_summary.uncached_input_tokens
-        elif cache["uncached_input_tokens"] is None and hints.get("uncached_input_tokens") is not None:
+        elif hints.get("uncached_input_tokens") is not None:
             cache["uncached_input_tokens"] = hints["uncached_input_tokens"]
+        elif tool_summary.uncached_input_tokens is not None:
+            cache["uncached_input_tokens"] = tool_summary.uncached_input_tokens
 
-        if cache["source"] is None or cache["source"] == "unavailable":
-            if hints.get("cache_source") is not None:
-                cache["source"] = hints["cache_source"]
-            elif cache["cache_read_tokens"] is not None:
-                cache["source"] = "provider_cache_read"
-            else:
-                cache["source"] = "unavailable"
-                cache["cache_read_tokens"] = None
+        if (
+            isinstance(usage_summary, dict)
+            and usage_summary.get("events_selected", 0) > 0
+            and usage_summary.get("cache_read_tokens") is not None
+        ):
+            cache["source"] = "cursor_usage_csv"
+        elif hints.get("cache_source") is not None:
+            cache["source"] = hints["cache_source"]
+        elif cache.get("cache_read_tokens") is not None:
+            cache["source"] = "provider_cache_read"
+        else:
+            cache["source"] = "unavailable"
+            cache["cache_read_tokens"] = None
     else:
         print("\nContext re-read")
         cache_default = str(hints.get("cache_source", cache["source"]))
@@ -1734,7 +1821,7 @@ def complete_run_json(
         print("\nOutcome")
         if outcome["model_stopped"] is not None:
             stopped_default = bool(outcome["model_stopped"])
-        elif tool_summary.stop_status == "completed":
+        elif tool_summary.stop_status in ("completed", "success"):
             stopped_default = True
         elif tool_summary.stop_status in {"aborted", "error"}:
             stopped_default = False
@@ -1765,7 +1852,7 @@ def complete_run_json(
         )
     else:
         if outcome["model_stopped"] is None:
-            if tool_summary.stop_status == "completed":
+            if tool_summary.stop_status in ("completed", "success"):
                 outcome["model_stopped"] = True
             elif tool_summary.stop_status in {"aborted", "error"}:
                 outcome["model_stopped"] = False
@@ -1875,7 +1962,7 @@ def backfill_usage_export(
 
         # Prepare hints on run_dir
         tool_summary = summarize_run(run_dir)
-        hints = prepare_hints(run_data, copied_csvs, interactive=False)
+        hints = prepare_hints(run_data, copied_csvs, interactive=False, run_dir=run_dir)
         usage_summary = hints.get("usage_summary")
         if not usage_summary or usage_summary.get("events_selected", 0) == 0:
             continue

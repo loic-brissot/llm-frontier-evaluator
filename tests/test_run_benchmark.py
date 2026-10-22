@@ -648,7 +648,7 @@ class TestRunBenchmark(unittest.TestCase):
             called_cmd = mock_run.call_args[0][0]
             self.assertIn("--non-interactive", called_cmd)
             self.assertIn("--verify", called_cmd)
-            self.assertIn("--skip-usage-copy", called_cmd)
+            self.assertNotIn("--skip-usage-copy", called_cmd)
             self.assertIn("france-road-accidents", called_cmd)
             self.assertIn("test-run-123", called_cmd)
 

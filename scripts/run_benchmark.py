@@ -59,7 +59,7 @@ class _HarnessAction(argparse.Action):
 
 
 def trigger_finish_run(prompt_id: str, run_id: str) -> subprocess.CompletedProcess:
-    """Trigger finish_run.py --verify --skip-usage-copy --non-interactive for the given run."""
+    """Trigger finish_run.py --verify --non-interactive for the given run."""
     cmd = [
         preferred_python(),
         str(ROOT / "scripts" / "finish_run.py"),
@@ -68,7 +68,6 @@ def trigger_finish_run(prompt_id: str, run_id: str) -> subprocess.CompletedProce
         "--run-id",
         run_id,
         "--verify",
-        "--skip-usage-copy",
         "--non-interactive",
     ]
     return subprocess.run(cmd)
