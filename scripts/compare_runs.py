@@ -15,7 +15,7 @@ import hashlib
 import json
 import re
 import sys
-import tempfile
+from contextlib import nullcontext
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
@@ -29,6 +29,7 @@ from run_common import (
     README_PATH,
     ROOT,
     UNKNOWN_REASONING,
+    _readme_lock,
     canonical_harness,
     discover_run_dirs,
     estimate_token_cost,
@@ -37,6 +38,8 @@ from run_common import (
     prompt_sha256,
     run_schema_errors,
 )
+
+readme_lock = _readme_lock
 
 REFERENCE_PATH = ROOT / "reference" / "2026-10-11-lassence.json"
 HARNESS_LABELS = {
@@ -900,17 +903,7 @@ def sync_readme(
             print(f"Error: {readme_path} does not exist", file=sys.stderr)
         return False
 
-    lock_fd = None
-    try:
-        if not check_only:
-            try:
-                import fcntl
-                lock_path = Path(tempfile.gettempdir()) / f"frontier_readme_sync_{abs(hash(str(readme_path.resolve())))}.lock"
-                lock_fd = open(lock_path, "a")
-                fcntl.flock(lock_fd, fcntl.LOCK_EX)
-            except (ImportError, OSError):
-                lock_fd = None
-
+    with (nullcontext() if check_only else _readme_lock(readme_path)):
         expected_block = generate_readme_comparisons(readme_path, reference_path)
 
         readme_content = readme_path.read_text(encoding="utf-8")
@@ -956,14 +949,6 @@ def sync_readme(
         readme_path.write_text(new_content, encoding="utf-8")
         print("Updated README.md comparison tables.")
         return True
-    finally:
-        if lock_fd is not None:
-            try:
-                import fcntl
-                fcntl.flock(lock_fd, fcntl.LOCK_UN)
-                lock_fd.close()
-            except (ImportError, OSError):
-                pass
 
 
 def update_readme_comparisons(run: dict, readme_path: Path = README_PATH) -> bool:

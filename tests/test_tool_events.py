@@ -1,3 +1,6 @@
+import ast
+import importlib.util
+import inspect
 import unittest
 from datetime import datetime, timezone
 import sys
@@ -7,19 +10,24 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from tool_events import (
+    CONTENT_KEYS,
     ToolEventSummary,
     _apply_stop_tokens,
+    _collect_non_content_strings,
+    _dedupe_thoughts,
+    _dedupe_tools,
+    _extract_traversal_target,
+    _merged_seconds,
+    _strip_content_fields,
+    _tool_intervals,
+    audit_isolation,
+    bucket_for,
+    check_isolation_violation,
+    effective_tool_name,
+    format_time,
     load_records,
     summarize_records,
     summarize_tool_event_log,
-    audit_isolation,
-    bucket_for,
-    effective_tool_name,
-    _dedupe_thoughts,
-    _dedupe_tools,
-    _merged_seconds,
-    _tool_intervals,
-    format_time,
 )
 
 
@@ -1017,6 +1025,135 @@ class TestToolEvents(unittest.TestCase):
         self.assertEqual(files_bucket["by_tool"]["Glob"]["calls"], 1)
         self.assertEqual(files_bucket["by_tool"]["Glob"]["failures"], 0)
         self.assertNotIn("Read", files_bucket.get("by_tool", {}))
+
+
+class TestIsolationParity(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        script_path = (
+            Path(__file__).resolve().parent.parent
+            / "templates"
+            / "cursor"
+            / "hooks"
+            / "log-tool-event.py"
+        )
+        spec = importlib.util.spec_from_file_location("log_tool_event_parity", script_path)
+        cls.hook_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.hook_mod)
+
+    def test_content_keys_constant_parity(self):
+        self.assertEqual(CONTENT_KEYS, self.hook_mod.CONTENT_KEYS)
+        expected = {
+            "content",
+            "contents",
+            "new_string",
+            "old_string",
+            "streamContent",
+            "patch",
+            "diff",
+        }
+        self.assertEqual(CONTENT_KEYS, expected)
+
+    def test_isolation_functions_ast_and_source_parity(self):
+        # Enforce that isolation utility functions maintain identical syntax trees
+        # between standalone log-tool-event.py hook and scripts/tool_events.py.
+        import tool_events
+
+        func_names = [
+            "_collect_non_content_strings",
+            "_strip_content_fields",
+            "_extract_traversal_target",
+            "check_isolation_violation",
+        ]
+        for name in func_names:
+            src_tool_events = inspect.getsource(getattr(tool_events, name))
+            src_hook = inspect.getsource(getattr(self.hook_mod, name))
+
+            ast_tool_events = ast.dump(ast.parse(src_tool_events), include_attributes=False)
+            ast_hook = ast.dump(ast.parse(src_hook), include_attributes=False)
+
+            self.assertEqual(
+                ast_tool_events,
+                ast_hook,
+                f"AST mismatch between tool_events.{name} and log-tool-event.{name}. "
+                "Ensure changes to isolation utilities are synchronized.",
+            )
+
+    def test_collect_non_content_strings_behavioral_parity(self):
+        test_inputs = [
+            {"command": "pytest", "path": "test.py", "content": "ignored content"},
+            {"contents": "ignore", "nested": {"new_string": "ignore", "real": "keep"}},
+            ["string_a", {"patch": "ignore", "diff": "ignore", "key": "string_b"}],
+            {"streamContent": "skip", "number": 42, "flag": True, "none": None},
+            "plain string",
+            123,
+            None,
+            [],
+            {},
+        ]
+        for item in test_inputs:
+            te_res = _collect_non_content_strings(item)
+            hook_res = self.hook_mod._collect_non_content_strings(item)
+            self.assertEqual(te_res, hook_res, f"Mismatch for input {item!r}")
+
+    def test_strip_content_fields_behavioral_parity(self):
+        test_inputs = [
+            {"command": "pytest", "content": "stripped", "contents": "stripped"},
+            {"nested": {"patch": "stripped", "keep": 123}},
+            [{"diff": "stripped", "action": "test"}, "scalar"],
+            "not a dict",
+            42,
+        ]
+        for item in test_inputs:
+            te_res = _strip_content_fields(item)
+            hook_res = self.hook_mod._strip_content_fields(item)
+            self.assertEqual(te_res, hook_res, f"Mismatch for input {item!r}")
+
+    def test_extract_traversal_target_behavioral_parity(self):
+        test_inputs = [
+            {"path": "foo/bar.txt", "content": "../do-not-flag-traversal-in-content"},
+            '{"file_path": "a/b/c", "command": "run something", "content": "secret"}',
+            '{"target_file": "relative/path", "pattern": "search_term"}',
+            '{"file_path": "a/b/c", "content": "unclosed json...',
+            '{"command": "console.log(\\"Navigating...\\");',
+            'plain string with ../path',
+            ["list", "elements", {"path": "sub/path"}],
+            None,
+            12345,
+        ]
+        for item in test_inputs:
+            te_res = _extract_traversal_target(item)
+            hook_res = self.hook_mod._extract_traversal_target(item)
+            self.assertEqual(te_res, hook_res, f"Mismatch for input {item!r}")
+
+    def test_check_isolation_violation_behavioral_parity(self):
+        test_events = [
+            {"tool_input": None},
+            {"tool_input": {"command": "pytest -v"}},
+            {"tool_input": {"command": "cat /tmp/clean.txt"}},
+            {"tool_input": {"command": "cat ../run.json"}},
+            {"tool_input": '{"command": "cat ../run.json"}'},
+            {"tool_input": {"path": "../secret.txt"}},
+            {"tool_input": {"path": "..\\windows\\secret.txt"}},
+            {"tool_input": {"path": "/repo/llm-frontier-evaluator/prompt"}},
+            {"tool_input": "grep prompt-probes.json foo"},
+            {"tool_input": "python verify_run.py --check"},
+            {"tool_input": {"command": 'console.log("Navigating...");\nawait page.goto("http://localhost:5173/");'}},
+            {"tool_input": '{"command": "console.log(\\"Navigating...\\");"}'},
+            {"tool_input": '{"command": "console.log(\\"Navigating...\\");'},
+            # Content fields containing '../' must NOT be flagged as violations
+            {"tool_input": {"path": "src/app.py", "content": "from ..module import thing"}},
+            {"tool_input": {"path": "patch.diff", "patch": "--- ../old\n+++ ../new"}},
+            {"tool_input": {"path": "data.py", "contents": "path = '../data/source.csv'"}},
+        ]
+        for event in test_events:
+            te_res = check_isolation_violation(event)
+            hook_res = self.hook_mod.check_isolation_violation(event)
+            self.assertEqual(
+                te_res,
+                hook_res,
+                f"Mismatch for event {event!r}: tool_events={te_res!r}, hook={hook_res!r}",
+            )
 
 
 if __name__ == "__main__":

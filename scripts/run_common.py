@@ -11,10 +11,17 @@ import re
 import shutil
 import site
 import sys
+import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from functools import lru_cache
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:  # Non-POSIX (e.g., Windows)
+    fcntl = None  # type: ignore[assignment]
 
 ROOT = Path(__file__).resolve().parents[1]
 README_PATH = ROOT / "README.md"
@@ -25,6 +32,80 @@ WORKSPACE_PROMPT_FILENAME = "prompt.txt"
 SCHEMA_PATH = ROOT / "schema" / "run.schema.json"
 PRICING_PATH = ROOT / "reference" / "pricing-2026-10-18.json"
 DEFAULT_ENV_FILE = ROOT / ".env"
+STAGING_PARENT = Path("/tmp")
+
+
+def staging_workspace_for(run_id: str, staging_parent: Path | None = None) -> Path:
+    """Return the isolated staging directory for a benchmark attempt."""
+    parent = staging_parent if staging_parent is not None else STAGING_PARENT
+    return parent / f"frontier-workspace-{run_id}"
+
+
+@contextmanager
+def file_lock(handle):
+    """Cross-platform advisory file locking context manager using fcntl or msvcrt."""
+    locked = False
+    if fcntl is not None:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            locked = True
+        except OSError:
+            pass
+    else:
+        try:
+            import msvcrt
+
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            locked = True
+        except (ImportError, OSError):
+            pass
+    try:
+        yield
+    finally:
+        if locked:
+            if fcntl is not None:
+                try:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                except OSError:
+                    pass
+            else:
+                try:
+                    import msvcrt
+
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                except (ImportError, OSError):
+                    pass
+
+
+_file_lock = file_lock
+
+
+@contextmanager
+def readme_lock(readme_path: Path | str = README_PATH):
+    """Exclusive file lock for synchronizing README comparisons."""
+    resolved = Path(readme_path).resolve()
+    lock_path = Path(tempfile.gettempdir()) / f"frontier_readme_sync_{abs(hash(str(resolved)))}.lock"
+    handle = None
+    try:
+        try:
+            handle = open(lock_path, "a")
+        except OSError:
+            handle = None
+
+        if handle is not None:
+            with file_lock(handle):
+                yield
+        else:
+            yield
+    finally:
+        if handle is not None:
+            try:
+                handle.close()
+            except OSError:
+                pass
+
+
+_readme_lock = readme_lock
 
 # The run schema is the single source for enums and defaults below.
 RUN_SCHEMA: dict = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))

@@ -8,14 +8,20 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from run_common import (
+    STAGING_PARENT,
+    _file_lock,
+    _readme_lock,
+    file_lock,
     infer_provider,
     load_pricing,
     normalize_usage_csv_filename,
+    readme_lock,
     run_schema_errors,
     scrub_path,
     scrub_text,
     scrub_usage_csv_file,
     scrub_usage_csv_text,
+    staging_workspace_for,
 )
 
 
@@ -245,6 +251,75 @@ class TestRunCommon(unittest.TestCase):
                 re.search(r"bc-[0-9a-fA-F-]{8,}", content),
                 f"Cloud agent ID found in {csv_path}",
             )
+
+
+    def test_staging_workspace_for_default(self):
+        ws = staging_workspace_for("2026-10-22-cursor-test")
+        self.assertEqual(ws, Path("/tmp/frontier-workspace-2026-10-22-cursor-test"))
+
+    def test_staging_workspace_for_custom_and_patched(self):
+        custom = Path("/var/tmp/custom")
+        ws = staging_workspace_for("run-1", staging_parent=custom)
+        self.assertEqual(ws, custom / "frontier-workspace-run-1")
+
+        with unittest.mock.patch("run_common.STAGING_PARENT", Path("/custom-staging")):
+            ws_patched = staging_workspace_for("run-2")
+            self.assertEqual(ws_patched, Path("/custom-staging/frontier-workspace-run-2"))
+
+    def test_file_lock_lifecycle(self):
+        with tempfile.NamedTemporaryFile("w+", delete=False) as tf:
+            tf.write("data\n")
+            tf.flush()
+            with file_lock(tf):
+                tf.write("locked\n")
+            with _file_lock(tf):
+                tf.write("again\n")
+        Path(tf.name).unlink(missing_ok=True)
+
+    def test_file_lock_without_fcntl(self):
+        import run_common
+
+        with tempfile.NamedTemporaryFile("w+", delete=False) as tf:
+            tf.write("test\n")
+            tf.flush()
+            with unittest.mock.patch.object(run_common, "fcntl", None):
+                with file_lock(tf):
+                    tf.write("no-fcntl\n")
+        Path(tf.name).unlink(missing_ok=True)
+
+    def test_readme_lock_lifecycle(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fake_readme = Path(tmpdir) / "README.md"
+            fake_readme.write_text("# Test\n", encoding="utf-8")
+            with readme_lock(fake_readme):
+                fake_readme.write_text("# Test Locked\n", encoding="utf-8")
+            with _readme_lock(fake_readme):
+                fake_readme.write_text("# Test Locked Again\n", encoding="utf-8")
+
+    def test_reused_helpers_in_setup_and_benchmark_and_compare_modules(self):
+        import compare_runs
+        import run_benchmark
+        import run_common
+        import setup_run
+
+        self.assertIs(setup_run.STAGING_PARENT, STAGING_PARENT)
+        self.assertIs(run_benchmark.STAGING_PARENT, STAGING_PARENT)
+        self.assertEqual(
+            setup_run.staging_workspace_for("run-x"),
+            Path("/tmp/frontier-workspace-run-x"),
+        )
+        self.assertEqual(
+            run_benchmark.staging_workspace_for("run-y"),
+            Path("/tmp/frontier-workspace-run-y"),
+        )
+
+        self.assertTrue(callable(run_common.file_lock))
+        self.assertTrue(callable(run_common._file_lock))
+        self.assertTrue(callable(run_common.readme_lock))
+        self.assertTrue(callable(run_common._readme_lock))
+
+        self.assertTrue(callable(compare_runs.readme_lock))
+        self.assertTrue(callable(compare_runs._readme_lock))
 
 
 if __name__ == "__main__":
