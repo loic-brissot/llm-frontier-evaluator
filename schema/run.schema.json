@@ -351,6 +351,7 @@
         "output_includes_reasoning",
         "output_excludes_reasoning",
         "harness_pre_split",
+        "combined_output_as_visible",
         "unavailable"
       ],
       "default": "unavailable"
@@ -366,7 +367,7 @@
       "default": "unavailable"
     },
     "cacheSource": {
-      "enum": ["provider_cache_read", "unavailable"],
+      "enum": ["provider_cache_read", "cursor_usage_csv", "unavailable"],
       "default": "unavailable"
     },
     "bucket": {

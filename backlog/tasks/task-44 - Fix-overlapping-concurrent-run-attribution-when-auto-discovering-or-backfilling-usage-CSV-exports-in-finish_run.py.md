@@ -3,9 +3,10 @@ id: TASK-44
 title: >-
   Fix overlapping concurrent run attribution when auto-discovering or
   backfilling usage CSV exports in finish_run.py
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-22 02:10'
+updated_date: '2026-10-22 09:48'
 labels:
   - tech-debt
   - usage
@@ -30,7 +31,7 @@ With parallel headless runs enabled (`TASK-41`), multiple runs can execute durin
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 discover_tmp_usage_csv() and non-interactive default_csv_selection() require timestamp overlap when the run has valid wall_clock bounds so stale CSVs in tmp/ are never misattributed to new runs
-- [ ] #2 models_match() and default_csv_selection() in scripts/finish_run.py disambiguate same-family concurrent runs using reasoning/effort suffixes in event.model (e.g. claude-opus-5-5-high vs claude-opus-5-5-medium) when present in the CSV
-- [ ] #3 Unit tests in tests/test_finish_run.py cover concurrent overlapping runs and stale-CSV rejection
+- [x] #1 discover_tmp_usage_csv() and non-interactive default_csv_selection() require timestamp overlap when the run has valid wall_clock bounds so stale CSVs in tmp/ are never misattributed to new runs
+- [x] #2 models_match() and default_csv_selection() in scripts/finish_run.py disambiguate same-family concurrent runs using reasoning/effort suffixes in event.model (e.g. claude-opus-5-5-high vs claude-opus-5-5-medium) when present in the CSV
+- [x] #3 Unit tests in tests/test_finish_run.py cover concurrent overlapping runs and stale-CSV rejection
 <!-- AC:END -->

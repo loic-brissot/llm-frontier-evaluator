@@ -702,17 +702,17 @@ class TestToolEvents(unittest.TestCase):
 
         summary = summarize_records(records)
         self.assertTrue(summary.present)
-        # Wall start should fall back to the first event's timestamp (10:00:03Z)
-        self.assertEqual(summary.wall_started_at, "2026-10-21T10:00:03Z")
+        # Wall start falls back to the first event's timestamp minus duration (10:00:03Z - 3000ms = 10:00:00Z)
+        self.assertEqual(summary.wall_started_at, "2026-10-21T10:00:00Z")
         # Wall end capped at last non-idle event: afterAgentResponse at 10:00:25Z
         self.assertEqual(summary.wall_ended_at, "2026-10-21T10:00:25Z")
-        self.assertEqual(summary.wall_seconds, 22.0)
+        self.assertEqual(summary.wall_seconds, 25.0)
         self.assertEqual(summary.stop_status, "completed")
 
         # Tool busy time: Shell (10:00:05 to 10:00:10 = 5s) + Write (10:00:19 to 10:00:20 = 1s) = 6s
         self.assertEqual(summary.tool_busy_seconds, 6.0)
-        # Model time = wall - tool_busy = 22.0 - 6.0 = 16.0s
-        self.assertEqual(summary.model_time_seconds, 16.0)
+        # Model time = wall - tool_busy = 25.0 - 6.0 = 19.0s
+        self.assertEqual(summary.model_time_seconds, 19.0)
         # Thinking time = (3000ms + 2000ms) / 1000 = 5.0s
         self.assertEqual(summary.thinking_seconds, 5.0)
         self.assertEqual(summary.thought_blocks, 2)

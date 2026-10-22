@@ -255,6 +255,7 @@ def discover_tmp_usage_csv(run_dir: Path, tmp_dir: Path | None = None) -> Path |
     run_effective["wall_clock"] = wall_clock
 
     run_model = str((run_effective.get("model") or {}).get("name") or "")
+    run_reasoning = (run_effective.get("model") or {}).get("reasoning")
     started = parse_timestamp(wall_clock.get("started_at"))
     ended = parse_timestamp(wall_clock.get("ended_at"))
     window_known = bool(started or ended)
@@ -279,7 +280,7 @@ def discover_tmp_usage_csv(run_dir: Path, tmp_dir: Path | None = None) -> Path |
         has_shorter_model = False
 
         for event in events:
-            m_match = models_match(run_model, event.model) if run_model else None
+            m_match = models_match(run_model, event.model, run_reasoning) if run_model else None
             if m_match is None:
                 continue
             in_win = event_in_window(event, started, ended) if window_known else False
@@ -296,9 +297,9 @@ def discover_tmp_usage_csv(run_dir: Path, tmp_dir: Path | None = None) -> Path |
             tier = 1
         elif has_shorter_window:
             tier = 2
-        elif has_exact_longer_model:
+        elif has_exact_longer_model and not window_known:
             tier = 3
-        elif has_shorter_model:
+        elif has_shorter_model and not window_known:
             tier = 4
         else:
             continue
@@ -755,12 +756,57 @@ def cell(row: dict[str, str | None], header: str | None) -> str:
     return (row.get(header) or "").strip()
 
 
-def models_match(run_model: str, event_model: str) -> str | None:
-    """Return exact, longer when the export name is more specific, or shorter."""
+KNOWN_REASONING_LEVELS = {"low", "medium", "high", "max"}
+
+
+def models_match(
+    run_model: str,
+    event_model: str,
+    run_reasoning: str | None = None,
+) -> str | None:
+    """Return exact, longer when the export name is more specific, or shorter.
+
+    When run_reasoning is set (and not unknown/none), prefers events whose model
+    slug matches the run's reasoning effort, while still falling back gracefully
+    if the CSV model column does not include a reasoning suffix.
+    """
     run_slug = slugify(run_model)
     event_slug = slugify(event_model)
     if not run_slug or not event_slug:
         return None
+
+    reasoning_slug = (
+        slugify(run_reasoning)
+        if run_reasoning and slugify(run_reasoning) not in {"unknown", "none"}
+        else None
+    )
+
+    if reasoning_slug:
+        full_run_slug = (
+            run_slug if run_slug.endswith(f"-{reasoning_slug}") else f"{run_slug}-{reasoning_slug}"
+        )
+        has_conflicting_reasoning = any(
+            event_slug.endswith(f"-{lvl}") or f"-{lvl}-" in event_slug
+            for lvl in KNOWN_REASONING_LEVELS
+            if lvl != reasoning_slug
+        )
+        if has_conflicting_reasoning:
+            return None
+
+        if event_slug == full_run_slug:
+            return "exact"
+        if event_slug.startswith(full_run_slug + "-"):
+            return "longer"
+        if event_slug.startswith(run_slug + "-") and (
+            event_slug.endswith(f"-{reasoning_slug}") or f"-{reasoning_slug}-" in event_slug
+        ):
+            return "longer"
+        if event_slug == run_slug or run_slug.startswith(event_slug + "-"):
+            return "shorter"
+        if event_slug.startswith(run_slug + "-"):
+            return "longer"
+        return None
+
     if run_slug == event_slug:
         return "exact"
     if event_slug.startswith(run_slug + "-"):
@@ -775,39 +821,69 @@ def event_in_window(
     started: datetime | None,
     ended: datetime | None,
     grace_seconds: float = 2.0,
+    *,
+    pre_grace_seconds: float = 60.0,
+    post_grace_seconds: float | None = None,
 ) -> bool:
-    """Check if a usage event falls within [started - grace, ended + grace].
+    """Check if a usage event falls within [started - pre_grace, ended + post_grace].
 
-    Applies a small grace window (default 2 seconds) to preserve sub-second precision,
-    handle whole-second window bounds, and account for minor clock skew / server latency
-    between local tool-event stop hooks and server-side usage export logging.
+    Applies a pre-start grace buffer (default 60s) and a post-end grace buffer
+    (default 2s or grace_seconds) to capture billing rows timestamped at turn initiation
+    before the first hook event (which often logs 5-35s after turn start in headless mode)
+    while preserving sub-second precision, handling whole-second window bounds, and
+    accounting for clock skew / server latency between local hooks and usage export logging.
     """
     if event.date is None:
         return False
-    grace = timedelta(seconds=grace_seconds)
-    if started and event.date < (started - grace):
+    pre_grace = timedelta(seconds=pre_grace_seconds)
+    post_grace = timedelta(
+        seconds=post_grace_seconds if post_grace_seconds is not None else grace_seconds
+    )
+    if started and event.date < (started - pre_grace):
         return False
-    if ended and event.date > (ended + grace):
+    if ended and event.date > (ended + post_grace):
         return False
     return True
 
 
-def default_csv_selection(events: list[UsageEvent], run: dict) -> tuple[list[UsageEvent], str, str]:
+def default_csv_selection(
+    events: list[UsageEvent],
+    run: dict,
+    *,
+    interactive: bool = True,
+    json_usage: dict | None = None,
+) -> tuple[list[UsageEvent], str, str]:
     run_model = str((run.get("model") or {}).get("name") or "")
+    run_reasoning = (run.get("model") or {}).get("reasoning")
+    run_slug = slugify(run_model)
     wall = run.get("wall_clock") or {}
     started = parse_timestamp(wall.get("started_at"))
     ended = parse_timestamp(wall.get("ended_at"))
     notes: list[str] = []
     kind = "all"
 
+    if json_usage is None:
+        json_usage = (
+            run.get("json_usage")
+            or (run.get("tokens") or {}).get("raw", {}).get("provider_usage")
+        )
+
     chosen = list(events)
     if run_model:
         matched = [
-            event for event in events if models_match(run_model, event.model) in {"exact", "longer"}
+            event
+            for event in events
+            if models_match(run_model, event.model, run_reasoning) in {"exact", "longer"}
         ]
-        shorter = [event for event in events if models_match(run_model, event.model) == "shorter"]
+        shorter = [
+            event
+            for event in events
+            if models_match(run_model, event.model, run_reasoning) == "shorter"
+        ]
         names = ", ".join(sorted({event.model for event in matched}))
-        if matched and any(models_match(run_model, event.model) == "longer" for event in matched):
+        if matched and any(
+            models_match(run_model, event.model, run_reasoning) == "longer" for event in matched
+        ):
             chosen, kind = matched, "longer"
             verb = "match" if ", " in names else "matches"
             notes.append(f"{names} {verb} run model {run_model}.")
@@ -834,10 +910,58 @@ def default_csv_selection(events: list[UsageEvent], run: dict) -> tuple[list[Usa
                 elif started or ended:
                     notes.append("Inside the run window.")
                 chosen = timed
-            else:
-                notes.append("No events fall inside the run window, so the window was not applied.")
 
-    count = f"{len(chosen)} of {len(events)} events" if len(chosen) != len(events) else event_count(len(chosen))
+                # Disambiguate single-session models / host IDE cross-talk if multiple events matched
+                if len(chosen) > 1:
+                    usage_block = (
+                        json_usage.get("usage")
+                        if isinstance(json_usage, dict) and isinstance(json_usage.get("usage"), dict)
+                        else json_usage
+                    )
+                    exp_out = None
+                    if isinstance(usage_block, dict):
+                        exp_out = dig(usage_block, "output_tokens") or dig(usage_block, "outputTokens")
+
+                    matching_events = []
+                    if is_int(exp_out) and exp_out > 0:
+                        for ev in chosen:
+                            ev_out = ev.numbers.get("output_tokens")
+                            if ev_out is not None and abs(ev_out - exp_out) / max(exp_out, 1) < 0.25:
+                                matching_events.append(ev)
+
+                    if len(matching_events) == 1:
+                        chosen = matching_events
+                        notes.append(
+                            f"Selected single session event {chosen[0].date_text} matching CLI result output tokens."
+                        )
+                    elif any(term in run_slug for term in ("gemini", "google")):
+                        if started:
+                            start_events = [
+                                ev
+                                for ev in chosen
+                                if ev.date is not None
+                                and ev.date <= (started + timedelta(seconds=120))
+                            ]
+                            if len(start_events) == 1:
+                                chosen = start_events
+                                notes.append(
+                                    f"Selected session start event {chosen[0].date_text} for Gemini session."
+                                )
+            else:
+                if not interactive:
+                    chosen = []
+                    kind = "none"
+                    notes.append("No events fall inside the run window.")
+                else:
+                    notes.append(
+                        "No events fall inside the run window, so the window was not applied."
+                    )
+
+    count = (
+        f"{len(chosen)} of {len(events)} events"
+        if len(chosen) != len(events)
+        else event_count(len(chosen))
+    )
     note = " ".join([count + "."] + notes)
     return chosen, note, kind
 
@@ -882,8 +1006,11 @@ def resolve_csv_selection(
     run: dict,
     *,
     interactive: bool,
+    json_usage: dict | None = None,
 ) -> tuple[list[UsageEvent], str]:
-    chosen, note, kind = default_csv_selection(events, run)
+    chosen, note, kind = default_csv_selection(
+        events, run, interactive=interactive, json_usage=json_usage
+    )
     print_usage_csv(events, chosen, note)
     if not interactive or not selection_needs_confirm(events, chosen, kind, run):
         return chosen, note
@@ -1217,7 +1344,9 @@ def prepare_hints(
         print(warning)
     if not events:
         return json_hints
-    selected, note = resolve_csv_selection(events, run, interactive=interactive)
+    selected, note = resolve_csv_selection(
+        events, run, interactive=interactive, json_usage=json_usage
+    )
     csv_hints = hints_from_summary(summarize_events(selected, events_in_file=len(events), selection=note))
     if warnings and isinstance(csv_hints.get("usage_summary"), dict):
         csv_hints["usage_summary"]["parse_warnings"] = warnings
@@ -1941,7 +2070,9 @@ def backfill_usage_export(
 
         # Check candidate events for this run:
         # Must select at least 1 event strictly inside the run's wall-clock window
-        selected_events, sel_note, match_kind = default_csv_selection(events, run_data)
+        selected_events, sel_note, match_kind = default_csv_selection(
+            events, run_data, interactive=False
+        )
         if match_kind == "none" or not selected_events:
             continue
         # Ensure window was actually applied and events were selected
