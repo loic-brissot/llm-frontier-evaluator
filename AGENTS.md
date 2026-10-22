@@ -37,13 +37,26 @@ python3 scripts/compare_runs.py
 python3 scripts/compare_runs.py --check-readme
 ```
 
-## Subagent PR Review and Squash-Merge Workflow
+## Subagent PR Review, Squash-Merge, and Release Workflow
 
 When completing tasks or subagent workflows:
 1. **Branching**: Always work on dedicated feature branches (`feat/...`, `fix/...`, `docs/...`, `run/...`). Never commit directly to `main`.
 2. **PR Creation**: Open pull requests against `main` using `gh pr create`. Include the required 3-section description format (`## Goal`, `## Main changes`, `## Test procedure`).
 3. **CI Verification**: Verify CI checks pass before merging using `gh pr checks <num> --watch`.
 4. **Review and Merge**: Review the full PR diff using `gh pr diff <num>`. Squash and merge using `gh pr merge <num> --squash --delete-branch`.
+5. **Release Cadence Evaluation**: Check `gh release list` and unreleased commits on `main` (`git log <last-tag>..origin/main --oneline`). When >= 2 to 4 merged PRs have accumulated since the latest release, or when a major infrastructure change lands, cut a new release immediately following the policy below.
+
+## Release Cadence and Versioning Policy
+
+Follow strict release cadence rules instead of letting merged PRs accumulate without release tags:
+- **Versioning Notation**: Use `{major}.{minor}` versioning without leading `v` (e.g. `1.0`, `1.1`, `2.0`), consistent with existing tag conventions.
+- **Minor Version Bump (`x.Y`)**: Cut every 2 to 4 merged PRs at most.
+- **Major Version Bump (`X.0`)**: Cut whenever significant infrastructure changes land (such as Docker containerization, headless execution pipelines, or major architectural milestones).
+- **Succinct Synthesized Release Notes**: Author concise, synthesized release notes highlighting key user-facing and developer-facing capabilities, fixes, and architectural changes. Avoid raw commit dumps, uncurated PR titles, or GitHub boilerplate.
+- **Release Command**:
+  ```bash
+  gh release create <tag> --target main --title "<tag> - <Title>" --notes "<synthesized notes>"
+  ```
 
 ## Prompt and Model Catalog Maintenance Checklist
 
