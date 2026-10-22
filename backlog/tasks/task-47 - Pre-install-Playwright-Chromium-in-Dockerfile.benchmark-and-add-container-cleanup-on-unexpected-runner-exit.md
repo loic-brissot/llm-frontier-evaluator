@@ -3,9 +3,10 @@ id: TASK-47
 title: >-
   Pre-install Playwright Chromium in Dockerfile.benchmark and add container
   cleanup on unexpected runner exit
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-22 02:10'
+updated_date: '2026-10-22 12:50'
 labels:
   - tech-debt
   - docker
@@ -30,7 +31,7 @@ During headless benchmark runs in Docker (`Dockerfile.benchmark`), two container
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Dockerfile.benchmark pre-installs Playwright Chromium browser binaries in the benchmark user cache so models can take visual verification screenshots immediately without downloading browser binaries during timed runs
-- [ ] #2 run_benchmark.py guarantees container termination (docker rm -f) in the finally block if the subprocess is still alive when exiting
-- [ ] #3 Unit tests in tests/test_run_benchmark.py verify container cleanup on abnormal exit
+- [x] #1 Dockerfile.benchmark pre-installs Playwright Chromium browser binaries in the benchmark user cache so models can take visual verification screenshots immediately without downloading browser binaries during timed runs
+- [x] #2 run_benchmark.py guarantees container termination (docker rm -f) in the finally block if the subprocess is still alive when exiting
+- [x] #3 Unit tests in tests/test_run_benchmark.py verify container cleanup on abnormal exit
 <!-- AC:END -->

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import concurrent.futures
 import json
 import shutil
@@ -374,6 +375,21 @@ def build_container_command(
             prompt_text,
         ])
     return cmd
+
+
+def cleanup_container(container_name: str, proc: subprocess.Popen | None = None) -> None:
+    """Terminate running container subprocess and forcibly remove the Docker container."""
+    if proc is not None:
+        try:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=5)
+        except (Exception, KeyboardInterrupt):
+            pass
+    try:
+        subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True)
+    except Exception:
+        pass
 
 
 def extract_cli_result(content: str | Path) -> dict | None:
@@ -1142,7 +1158,13 @@ def run_benchmark_container(
             else:
                 stdout_content = ""
             print(f"Timeout expired after {timeout_seconds}s for container {container_name}. Cleaning up...", file=sys.stderr)
-            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True)
+            cleanup_container(container_name)
+        except KeyboardInterrupt:
+            return_code = 130
+            cleanup_container(container_name)
+        except Exception:
+            cleanup_container(container_name)
+            raise
 
         if cli_stream_file is not None and stdout_content is not None and isinstance(stdout_content, str):
             json_lines: list[str] = []
@@ -1167,17 +1189,31 @@ def run_benchmark_container(
         proc = None
         reader_thread: threading.Thread | None = None
         orig_sigterm = None
+        orig_sighup = None
+        cleanup_registered = False
+        cleaned_up = False
         start_monotonic = time.monotonic()
 
-        def _sigterm_handler(signum, frame):
+        def _do_cleanup() -> None:
+            nonlocal cleaned_up
+            if not cleaned_up:
+                cleaned_up = True
+                cleanup_container(container_name, proc)
+
+        def _signal_handler(signum, frame):
             raise KeyboardInterrupt()
 
         try:
             if threading.current_thread() is threading.main_thread():
                 try:
-                    orig_sigterm = signal.signal(signal.SIGTERM, _sigterm_handler)
+                    orig_sigterm = signal.signal(signal.SIGTERM, _signal_handler)
                 except (ValueError, AttributeError):
                     pass
+                if hasattr(signal, "SIGHUP"):
+                    try:
+                        orig_sighup = signal.signal(signal.SIGHUP, _signal_handler)
+                    except (ValueError, AttributeError):
+                        pass
 
             proc = subprocess.Popen(
                 full_cmd,
@@ -1187,6 +1223,8 @@ def run_benchmark_container(
                 bufsize=1,
                 env=env,
             )
+            atexit.register(_do_cleanup)
+            cleanup_registered = True
 
             def _stream_reader() -> None:
                 if proc is None or proc.stdout is None:
@@ -1219,27 +1257,27 @@ def run_benchmark_container(
         except subprocess.TimeoutExpired:
             return_code = 124
             _log(f"Timeout expired after {timeout_seconds}s for container {container_name}. Cleaning up...", is_err=True)
-            if proc is not None:
-                try:
-                    proc.kill()
-                    proc.wait(timeout=5)
-                except (Exception, KeyboardInterrupt):
-                    pass
-            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True)
+            _do_cleanup()
         except KeyboardInterrupt:
             return_code = 130
             _log(f"\nExecution interrupted by user. Stopping container {container_name}...", is_err=True)
-            if proc is not None:
-                try:
-                    proc.kill()
-                    proc.wait(timeout=5)
-                except (Exception, KeyboardInterrupt):
-                    pass
-            subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True)
+            _do_cleanup()
         finally:
+            if cleanup_registered:
+                try:
+                    atexit.unregister(_do_cleanup)
+                except Exception:
+                    pass
+            if proc is not None and proc.poll() is None:
+                _do_cleanup()
             if orig_sigterm is not None:
                 try:
                     signal.signal(signal.SIGTERM, orig_sigterm)
+                except (ValueError, AttributeError):
+                    pass
+            if orig_sighup is not None and hasattr(signal, "SIGHUP"):
+                try:
+                    signal.signal(signal.SIGHUP, orig_sighup)
                 except (ValueError, AttributeError):
                     pass
             if reader_thread is not None:
@@ -1248,8 +1286,11 @@ def run_benchmark_container(
                 except Exception:
                     pass
             if stream_fp is not None:
-                stream_fp.flush()
-                stream_fp.close()
+                try:
+                    stream_fp.flush()
+                    stream_fp.close()
+                except Exception:
+                    pass
 
             if cli_stream_file is not None and cli_stream_file.is_file():
                 result_event = extract_cli_result(cli_stream_file)

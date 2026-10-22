@@ -1,5 +1,6 @@
 import json
 import os
+import signal
 import subprocess
 import tempfile
 import unittest
@@ -14,6 +15,7 @@ from run_benchmark import (
     build_container_command,
     build_parser,
     check_preflight,
+    cleanup_container,
     detect_container_harness_version,
     ensure_docker_ready,
     extract_cli_result,
@@ -63,6 +65,12 @@ class TestRunBenchmark(unittest.TestCase):
         ]
         for dep in playwright_deps:
             self.assertIn(dep, content, f"Playwright dependency {dep} must be in Dockerfile.benchmark")
+
+        # Verify Playwright Chromium pre-installation
+        self.assertIn('ENV PLAYWRIGHT_BROWSERS_PATH="/home/benchmark/.cache/ms-playwright"', content)
+        self.assertIn("playwright install chromium", content)
+        self.assertIn("/home/benchmark/.cache/ms-playwright", content)
+        self.assertIn("playwright", content)
 
     def test_detect_container_harness_version_success(self):
         with patch("subprocess.run") as mock_run:
@@ -776,6 +784,179 @@ class TestRunBenchmark(unittest.TestCase):
                     for call in mock_run.call_args_list
                 )
                 self.assertTrue(docker_rm_called, "docker rm -f should be called on interrupt")
+
+    def test_cleanup_container_helper(self):
+        # 1. When proc is running (poll returns None)
+        mock_proc_running = MagicMock()
+        mock_proc_running.poll.return_value = None
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            cleanup_container("test-container-1", mock_proc_running)
+            mock_proc_running.kill.assert_called_once()
+            mock_proc_running.wait.assert_called_once_with(timeout=5)
+            mock_run.assert_called_once_with(["docker", "rm", "-f", "test-container-1"], capture_output=True, text=True)
+
+        # 2. When proc is None
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            cleanup_container("test-container-2", None)
+            mock_run.assert_called_once_with(["docker", "rm", "-f", "test-container-2"], capture_output=True, text=True)
+
+        # 3. When proc has already terminated (poll returns 0)
+        mock_proc_stopped = MagicMock()
+        mock_proc_stopped.poll.return_value = 0
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            cleanup_container("test-container-3", mock_proc_stopped)
+            mock_proc_stopped.kill.assert_not_called()
+            mock_run.assert_called_once_with(["docker", "rm", "-f", "test-container-3"], capture_output=True, text=True)
+
+    def test_run_benchmark_container_abnormal_exit_cleanup(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            staging_dir = tmp_path / "frontier-workspace-abnormal-test"
+            staging_dir.mkdir(parents=True)
+            run_dir = tmp_path / "runs" / "france-road-accidents" / "abnormal-test"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "cursor"},
+                "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+            }), encoding="utf-8")
+
+            # Mock Popen to simulate an unexpected exception while process is alive
+            mock_proc = MagicMock()
+            mock_proc.poll.return_value = None
+            mock_proc.wait.side_effect = RuntimeError("Simulated abnormal runner exception")
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.Popen", return_value=mock_proc), \
+                 patch("subprocess.run") as mock_run:
+
+                with self.assertRaises(RuntimeError) as ctx:
+                    run_benchmark_container(
+                        prompt_id="france-road-accidents",
+                        run_id="abnormal-test",
+                        auto_finish=False,
+                    )
+                self.assertIn("Simulated abnormal runner exception", str(ctx.exception))
+                mock_proc.kill.assert_called_once()
+
+                # Verify docker rm -f was called in finally block
+                docker_rm_called = any(
+                    isinstance(call.args[0], list) and call.args[0][:3] == ["docker", "rm", "-f"]
+                    and call.args[0][3] == "frontier-runner-abnormal-test"
+                    for call in mock_run.call_args_list
+                )
+                self.assertTrue(docker_rm_called, "docker rm -f should be called on abnormal exit in finally")
+
+    def test_run_benchmark_container_sighup_handling(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            staging_dir = tmp_path / "frontier-workspace-sighup-test"
+            staging_dir.mkdir(parents=True)
+            run_dir = tmp_path / "runs" / "france-road-accidents" / "sighup-test"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "cursor"},
+                "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+            }), encoding="utf-8")
+
+            # Capture registered signal handlers
+            registered_handlers = {}
+
+            def mock_signal(sig, handler):
+                registered_handlers[sig] = handler
+                return MagicMock()
+
+            mock_proc = MagicMock()
+            mock_proc.poll.return_value = None
+
+            def fake_wait(timeout=None):
+                if hasattr(signal, "SIGHUP") and signal.SIGHUP in registered_handlers:
+                    registered_handlers[signal.SIGHUP](signal.SIGHUP, None)
+                raise KeyboardInterrupt()
+
+            mock_proc.wait.side_effect = fake_wait
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch("signal.signal", side_effect=mock_signal), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.Popen", return_value=mock_proc), \
+                 patch("subprocess.run") as mock_run:
+
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id="sighup-test",
+                    auto_finish=False,
+                )
+                self.assertEqual(exit_code, 130)
+                mock_proc.kill.assert_called_once()
+                docker_rm_called = any(
+                    isinstance(call.args[0], list) and call.args[0][:3] == ["docker", "rm", "-f"]
+                    for call in mock_run.call_args_list
+                )
+                self.assertTrue(docker_rm_called, "docker rm -f should be called on SIGHUP")
+
+    def test_run_benchmark_container_atexit_registration(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            staging_dir = tmp_path / "frontier-workspace-atexit-test"
+            staging_dir.mkdir(parents=True)
+            run_dir = tmp_path / "runs" / "france-road-accidents" / "atexit-test"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "cursor"},
+                "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+            }), encoding="utf-8")
+
+            registered_callbacks = []
+            unregistered_callbacks = []
+
+            def mock_atexit_register(cb):
+                registered_callbacks.append(cb)
+
+            def mock_atexit_unregister(cb):
+                unregistered_callbacks.append(cb)
+
+            mock_proc = MagicMock()
+            mock_proc.poll.return_value = 0
+            mock_proc.wait.return_value = 0
+            mock_proc.returncode = 0
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch("atexit.register", side_effect=mock_atexit_register), \
+                 patch("atexit.unregister", side_effect=mock_atexit_unregister), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.Popen", return_value=mock_proc):
+
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id="atexit-test",
+                    auto_finish=False,
+                )
+                self.assertEqual(exit_code, 0)
+                self.assertEqual(len(registered_callbacks), 1)
+                self.assertEqual(len(unregistered_callbacks), 1)
+                self.assertEqual(registered_callbacks[0], unregistered_callbacks[0])
 
     def test_single_command_execution_scaffold_and_container_launch(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
