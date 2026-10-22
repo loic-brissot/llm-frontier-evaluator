@@ -48,6 +48,22 @@ CONTENT_KEYS = {
 }
 
 
+def _collect_non_content_strings(value: object) -> list[str]:
+    strings: list[str] = []
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if k not in CONTENT_KEYS:
+                strings.extend(_collect_non_content_strings(v))
+    elif isinstance(value, list):
+        for item in value:
+            strings.extend(_collect_non_content_strings(item))
+    elif isinstance(value, str):
+        strings.append(value)
+    elif value is not None and not isinstance(value, (bool, int, float)):
+        strings.append(str(value))
+    return strings
+
+
 def _strip_content_fields(value: object) -> object:
     if isinstance(value, dict):
         return {
@@ -63,21 +79,23 @@ def _strip_content_fields(value: object) -> object:
 def _extract_traversal_target(tool_input: object) -> str:
     """Return string representation of tool_input excluding file body content fields."""
     if isinstance(tool_input, (dict, list)):
-        return json.dumps(_strip_content_fields(tool_input))
+        return " ".join(_collect_non_content_strings(tool_input))
     text = str(tool_input)
     stripped = text.lstrip()
-    if stripped.startswith("{"):
+    if stripped.startswith(("{", "[")):
         try:
             parsed = json.loads(stripped)
             if isinstance(parsed, (dict, list)):
-                return json.dumps(_strip_content_fields(parsed))
+                return " ".join(_collect_non_content_strings(parsed))
         except json.JSONDecodeError:
             matches = re.findall(
                 r'"(?:file_path|path|target_file|target_directory|directory|command|pattern|glob_pattern)"\s*:\s*"((?:[^"\\]|\\.)*)"',
                 stripped,
             )
             if matches:
-                return " ".join(matches)
+                cleaned = [re.sub(r'\\(["\'])', r'\1', m) for m in matches]
+                return " ".join(cleaned)
+            return re.sub(r'\\(["\'])', r'\1', text)
     return text
 
 
@@ -99,7 +117,7 @@ def check_isolation_violation(event: dict) -> str | None:
         return "Access to prompt-probes.json is blocked by isolation policy"
     if "verify_run.py" in input_str:
         return "Access to verify_run.py is blocked by isolation policy"
-    if "../run.json" in input_str or re.search(r"\.\.[/\\]", traversal_str):
+    if "../run.json" in input_str or re.search(r"\.\.(?:/|\\(?![\"']))", traversal_str):
         return "Parent directory traversal outside workspace is blocked by isolation policy"
 
     return None

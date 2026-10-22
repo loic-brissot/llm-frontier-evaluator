@@ -288,9 +288,9 @@ def check_preflight(
     try:
         res = subprocess.run(["docker", "image", "inspect", docker_image], capture_output=True, text=True)
         if res.returncode != 0:
-            errors.append(f"Docker image '{docker_image}' not found (run: docker build --platform linux/amd64 -f Dockerfile.benchmark -t {docker_image} .).")
+            errors.append(f"Docker image '{docker_image}' not found (run: docker build -f Dockerfile.benchmark -t {docker_image} .).")
     except Exception:
-        errors.append(f"Docker image '{docker_image}' not found (run: docker build --platform linux/amd64 -f Dockerfile.benchmark -t {docker_image} .).")
+        errors.append(f"Docker image '{docker_image}' not found (run: docker build -f Dockerfile.benchmark -t {docker_image} .).")
 
     # Check 3: API key for the harness is set
     if not harness and run_id:
@@ -813,7 +813,17 @@ def run_benchmark_container(
             subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True)
 
         if cli_stream_file is not None and stdout_content is not None and isinstance(stdout_content, str):
-            cli_stream_file.write_text(stdout_content, encoding="utf-8")
+            json_lines: list[str] = []
+            for line in stdout_content.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("{"):
+                    try:
+                        parsed = json.loads(stripped)
+                        if isinstance(parsed, dict):
+                            json_lines.append(stripped)
+                    except json.JSONDecodeError:
+                        pass
+            cli_stream_file.write_text("\n".join(json_lines) + ("\n" if json_lines else ""), encoding="utf-8")
             result_event = extract_cli_result(stdout_content)
             if result_event is not None and cli_result_file is not None:
                 cli_result_file.write_text(json.dumps(result_event, indent=2) + "\n", encoding="utf-8")
@@ -851,8 +861,17 @@ def run_benchmark_container(
                     return
                 try:
                     for line in proc.stdout:
-                        if stream_fp is not None:
-                            stream_fp.write(line)
+                        stripped = line.strip()
+                        is_json = False
+                        if stripped.startswith("{"):
+                            try:
+                                parsed = json.loads(stripped)
+                                if isinstance(parsed, dict):
+                                    is_json = True
+                            except json.JSONDecodeError:
+                                pass
+                        if is_json and stream_fp is not None:
+                            stream_fp.write(line if line.endswith("\n") else line + "\n")
                             stream_fp.flush()
                         progress = format_stream_progress_line(line, time.monotonic() - start_monotonic)
                         if progress:

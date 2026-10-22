@@ -3,9 +3,10 @@ id: TASK-40
 title: >-
   Fix false-positive ellipsis isolation blocks, Edit/Read tool_use_id
   collisions, and Docker stderr pollution in tool-events
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-22 00:10'
+updated_date: '2026-10-22 01:18'
 labels:
   - hooks
   - isolation
@@ -34,8 +35,8 @@ Analysis of the `2026-10-22-cursor-gemini-4-argon-medium` run log revealed three
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 check_isolation_violation() in log-tool-event.py and audit_isolation() in tool_events.py inspect unescaped string values (or ignore JSON-escaped quotes \") so strings ending in ..." do not trigger false ..\ parent-traversal blocks or contamination warnings
-- [ ] #2 _dedupe_tools() and tool-event summarization in scripts/tool_events.py resolve Read+Write tool_use_id collisions from Edit calls in favor of the actual Write/Edit operation (not counting internal pre-Read File-not-found checks on new files as failures) and account for CLI stream tool calls such as Glob
-- [ ] #3 run_benchmark.py prevents non-JSON Docker stderr warnings from polluting tool-events/cli-stream.jsonl, and preflight build hints in run_benchmark.py and setup_run.py build for the native host platform by default
-- [ ] #4 All unit tests, ruff lint checks, and compare_runs.py checks pass
+- [x] #1 check_isolation_violation() in log-tool-event.py and audit_isolation() in tool_events.py inspect unescaped string values (or ignore JSON-escaped quotes \") so strings ending in ..." do not trigger false ..\ parent-traversal blocks or contamination warnings
+- [x] #2 _dedupe_tools() and tool-event summarization in scripts/tool_events.py resolve Read+Write tool_use_id collisions from Edit calls in favor of the actual Write/Edit operation (not counting internal pre-Read File-not-found checks on new files as failures) and account for CLI stream tool calls such as Glob
+- [x] #3 run_benchmark.py prevents non-JSON Docker stderr warnings from polluting tool-events/cli-stream.jsonl, and preflight build hints in run_benchmark.py and setup_run.py build for the native host platform by default
+- [x] #4 All unit tests, ruff lint checks, and compare_runs.py checks pass
 <!-- AC:END -->

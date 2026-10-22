@@ -114,6 +114,24 @@ CONTENT_KEYS = {
     "diff",
 }
 
+WRITE_EDIT_TOOL_NAMES = {"write", "edit", "strreplace", "multiedit"}
+
+
+def _collect_non_content_strings(value: object) -> list[str]:
+    strings: list[str] = []
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if k not in CONTENT_KEYS:
+                strings.extend(_collect_non_content_strings(v))
+    elif isinstance(value, list):
+        for item in value:
+            strings.extend(_collect_non_content_strings(item))
+    elif isinstance(value, str):
+        strings.append(value)
+    elif value is not None and not isinstance(value, (bool, int, float)):
+        strings.append(str(value))
+    return strings
+
 
 def _strip_content_fields(value: object) -> object:
     if isinstance(value, dict):
@@ -130,21 +148,23 @@ def _strip_content_fields(value: object) -> object:
 def _extract_traversal_target(tool_input: object) -> str:
     """Return string representation of tool_input excluding file body content fields."""
     if isinstance(tool_input, (dict, list)):
-        return json.dumps(_strip_content_fields(tool_input))
+        return " ".join(_collect_non_content_strings(tool_input))
     text = str(tool_input)
     stripped = text.lstrip()
-    if stripped.startswith("{"):
+    if stripped.startswith(("{", "[")):
         try:
             parsed = json.loads(stripped)
             if isinstance(parsed, (dict, list)):
-                return json.dumps(_strip_content_fields(parsed))
+                return " ".join(_collect_non_content_strings(parsed))
         except json.JSONDecodeError:
             matches = re.findall(
                 r'"(?:file_path|path|target_file|target_directory|directory|command|pattern|glob_pattern)"\s*:\s*"((?:[^"\\]|\\.)*)"',
                 stripped,
             )
             if matches:
-                return " ".join(matches)
+                cleaned = [re.sub(r'\\(["\'])', r'\1', m) for m in matches]
+                return " ".join(cleaned)
+            return re.sub(r'\\(["\'])', r'\1', text)
     return text
 
 
@@ -171,7 +191,7 @@ def audit_isolation(records: list[dict]) -> list[str]:
             breaches.append(f"{tool_name} referenced 'prompt-probes.json'")
         elif "verify_run.py" in input_str:
             breaches.append(f"{tool_name} referenced 'verify_run.py'")
-        elif "../run.json" in input_str or re.search(r"\.\.[/\\]", traversal_str):
+        elif "../run.json" in input_str or re.search(r"\.\.(?:/|\\(?![\"']))", traversal_str):
             breaches.append(f"{tool_name} attempted parent traversal ('..')")
     return breaches
 
@@ -325,8 +345,27 @@ def _dedupe_tools(records: list[dict]) -> list[dict]:
         if previous is None:
             by_id[tool_id] = record
             order.append(tool_id)
-        elif is_failed(record) and not is_failed(previous):
-            by_id[tool_id] = record
+        else:
+            prev_name = str(previous.get("tool_name") or "").strip().lower()
+            curr_name = str(record.get("tool_name") or "").strip().lower()
+            if prev_name == "read" and curr_name in WRITE_EDIT_TOOL_NAMES:
+                new_record = dict(record)
+                p_dur = _duration(previous.get("duration"))
+                c_dur = _duration(record.get("duration"))
+                if p_dur is not None and c_dur is not None:
+                    new_record["duration"] = p_dur + c_dur
+                elif p_dur is not None and c_dur is None:
+                    new_record["duration"] = p_dur
+                by_id[tool_id] = new_record
+            elif curr_name == "read" and prev_name in WRITE_EDIT_TOOL_NAMES:
+                p_dur = _duration(previous.get("duration"))
+                c_dur = _duration(record.get("duration"))
+                if p_dur is not None and c_dur is not None:
+                    previous["duration"] = p_dur + c_dur
+                elif c_dur is not None and p_dur is None:
+                    previous["duration"] = c_dur
+            elif is_failed(record) and not is_failed(previous):
+                by_id[tool_id] = record
     return [by_id[tool_id] for tool_id in order] + loose
 
 
@@ -593,6 +632,31 @@ def summarize_records(
                     summary.stop_status = t_summary.stop_status
             if not summary.model_slug and t_summary.model_slug:
                 summary.model_slug = t_summary.model_slug
+
+            # Supplement missing tool calls (such as Glob) from transcript_records
+            all_summary_tools = {
+                tool.lower()
+                for b in summary.buckets.values()
+                for tool in b.get("by_tool", {})
+            }
+            for b_name, t_bdata in t_summary.buckets.items():
+                s_bdata = summary.buckets.setdefault(
+                    b_name, {"calls": 0, "failures": 0, "by_tool": {}}
+                )
+                existing_tools_in_bucket = {tool.lower() for tool in s_bdata.get("by_tool", {})}
+                for t_tool, t_counts in t_bdata.get("by_tool", {}).items():
+                    norm_t = t_tool.lower()
+                    if norm_t in existing_tools_in_bucket:
+                        continue
+                    if norm_t in WRITE_EDIT_TOOL_NAMES and any(w in existing_tools_in_bucket for w in WRITE_EDIT_TOOL_NAMES):
+                        continue
+                    if norm_t not in all_summary_tools or (norm_t == "glob" and "glob" not in existing_tools_in_bucket):
+                        s_bdata["calls"] += t_counts["calls"]
+                        s_bdata["failures"] += t_counts["failures"]
+                        s_bdata.setdefault("by_tool", {})[t_tool] = dict(t_counts)
+                        all_summary_tools.add(norm_t)
+
+            summary.other_tools = sorted(summary.buckets.get("other", {}).get("by_tool", {}).keys())
         return summary
     return _process_transcript_records(records, summary)
 
@@ -858,6 +922,12 @@ def _process_transcript_records(
             tc = entry["by_tool"].setdefault(eff_name, {"calls": 0, "failures": 0})
             tc["failures"] += 1
 
+    completed_call_ids = {
+        r.get("call_id")
+        for r in records
+        if r.get("type") == "tool_call" and r.get("subtype") == "completed" and r.get("call_id")
+    }
+
     for r in records:
         content = r.get("content") or (r.get("message", {}).get("content") if isinstance(r.get("message"), dict) else None)
         if isinstance(content, list):
@@ -878,7 +948,39 @@ def _process_transcript_records(
                         record_failure(t_id)
 
         rtype = r.get("type") or r.get("event_msg")
-        if rtype in ("function_call", "tool_call", "custom_tool_call", "local_shell_call"):
+        if rtype == "tool_call" and isinstance(r.get("tool_call"), dict):
+            tc = r["tool_call"]
+            for k, v in tc.items():
+                if k.endswith("ToolCall") and isinstance(v, dict):
+                    raw_name = k[:-8]
+                    t_name = raw_name[0].upper() + raw_name[1:] if raw_name else "Tool"
+                    t_id = r.get("call_id") or tc.get("toolCallId") or r.get("id")
+                    t_input = v.get("args") or v.get("parameters") or v.get("arguments")
+                    subtype = r.get("subtype")
+
+                    if subtype == "completed":
+                        record_call(t_id, t_name, t_input)
+                        res = v.get("result")
+                        is_err = False
+                        if isinstance(res, dict):
+                            if "failure" in res or res.get("success") is False:
+                                is_err = True
+                            elif isinstance(res.get("success"), dict) and res["success"].get("exitCode", 0) != 0:
+                                is_err = True
+                            elif isinstance(res.get("failure"), dict):
+                                is_err = True
+                        if is_err:
+                            record_failure(t_id, t_name, t_input)
+                    elif subtype == "started":
+                        if t_id not in completed_call_ids:
+                            record_call(t_id, t_name, t_input)
+                    else:
+                        record_call(t_id, t_name, t_input)
+                        res = v.get("result")
+                        if isinstance(res, dict) and ("failure" in res or res.get("success") is False):
+                            record_failure(t_id, t_name, t_input)
+
+        elif rtype in ("function_call", "tool_call", "custom_tool_call", "local_shell_call"):
             t_id = r.get("call_id") or r.get("id") or r.get("tool_use_id")
             t_name = r.get("name") or (r.get("function", {}).get("name") if isinstance(r.get("function"), dict) else None) or r.get("event_msg") or r.get("tool_name")
             t_input = r.get("parameters") or r.get("arguments") or r.get("command") or r.get("tool_input")
