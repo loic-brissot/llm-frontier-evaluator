@@ -53,6 +53,7 @@ DATA_EXTENSIONS = {
     ".sqlite",
     ".db",
     ".duckdb",
+    ".bin",
 }
 
 CODE_EXTENSIONS = {
@@ -205,6 +206,15 @@ def count_records_in_file(path: Path) -> int:
             return total
         except Exception:
             return 0
+    elif ext == ".bin":
+        try:
+            with path.open("rb") as f:
+                header = f.read(16)
+                if len(header) >= 12 and header[:4] == b"P3DB":
+                    # P3DB format: magic (4B), version (uint32), num_records (uint32)
+                    return int.from_bytes(header[8:12], byteorder="little")
+        except Exception:
+            return 0
     return 0
 
 
@@ -245,9 +255,31 @@ def scan_workspace(workspace_dir: Path) -> dict[str, Any]:
         if ext in DATA_EXTENSIONS:
             records = count_records_in_file(path)
             content_snippet = ""
+            top_level_keys: dict[str, dict[str, Any]] = {}
             try:
                 if ext in (".json", ".geojson", ".jsonl", ".csv", ".tsv", ".txt"):
                     content_snippet = path.read_text(encoding="utf-8", errors="ignore")[:50000]
+                if ext in (".json", ".geojson"):
+                    with path.open("r", encoding="utf-8", errors="ignore") as f:
+                        json_data = json.load(f)
+                    if isinstance(json_data, dict) and json_data.get("type") != "FeatureCollection":
+                        for k, v in json_data.items():
+                            if isinstance(v, (list, dict)):
+                                k_rec = count_json_records(v)
+                                try:
+                                    if isinstance(v, list):
+                                        k_snip = json.dumps(v[:200], ensure_ascii=False)[:50000]
+                                    elif isinstance(v, dict):
+                                        sample_d = {sk: v[sk] for sk in list(v.keys())[:200]}
+                                        k_snip = json.dumps(sample_d, ensure_ascii=False)[:50000]
+                                    else:
+                                        k_snip = ""
+                                except Exception:
+                                    k_snip = ""
+                                top_level_keys[k] = {
+                                    "records": k_rec,
+                                    "snippet": k_snip,
+                                }
             except Exception:
                 pass
 
@@ -257,6 +289,7 @@ def scan_workspace(workspace_dir: Path) -> dict[str, Any]:
                 "ext": ext,
                 "records": records,
                 "snippet": content_snippet,
+                "top_level_keys": top_level_keys,
             })
         elif ext in CODE_EXTENSIONS or ext == "":
             try:
@@ -355,6 +388,90 @@ def check_spatial_bbox(path: Path, bbox: list[float]) -> bool:
         return False
 
 
+GENERIC_CHECK_TOKENS = {
+    "dataset",
+    "relational",
+    "tables",
+    "zones",
+    "lines",
+    "data",
+    "model",
+    "list",
+    "reconciliation",
+    "support",
+    "formats",
+}
+
+
+def _score_key_for_check(
+    key: str,
+    key_info: dict[str, Any],
+    check_spec: dict[str, Any],
+    *,
+    workspace_markers: set[str] | None = None,
+) -> int:
+    check_id = check_spec.get("id", "")
+    file_patterns = check_spec.get("file_patterns", [])
+    required_markers = check_spec.get("required_markers", [])
+    k_lower = key.lower()
+
+    pattern_score = 0
+    if file_patterns:
+        for pat in file_patterns:
+            pat_lower = pat.lower()
+            if (
+                fnmatch.fnmatch(k_lower, pat_lower)
+                or fnmatch.fnmatch(f"{k_lower}.json", pat_lower)
+                or fnmatch.fnmatch(f"{k_lower}.geojson", pat_lower)
+            ):
+                pat_clean = pat_lower.strip("*").strip(".")
+                if k_lower == pat_clean or k_lower.startswith(pat_clean):
+                    pattern_score = max(pattern_score, 3)
+                else:
+                    pattern_score = max(pattern_score, 2)
+            elif pat_lower.strip("*") in k_lower and len(pat_lower.strip("*")) >= 4:
+                pattern_score = max(pattern_score, 1)
+
+    check_id_score = 0
+    if check_id:
+        check_tokens = [
+            t.lower()
+            for t in check_id.split("_")
+            if len(t) >= 4 and t.lower() not in GENERIC_CHECK_TOKENS
+        ]
+        for token in check_tokens:
+            if token == k_lower:
+                check_id_score = max(check_id_score, 3)
+            elif token in k_lower or k_lower in token:
+                check_id_score = max(check_id_score, 2)
+
+    if file_patterns:
+        if pattern_score == 0:
+            return 0
+    else:
+        if check_id_score == 0:
+            return 0
+
+    marker_score = 0
+    if required_markers:
+        snippet_lower = key_info.get("snippet", "").lower()
+        marker_hits = sum(
+            1
+            for m in required_markers
+            if m.lower() in snippet_lower or m.lower() in k_lower
+        )
+        if marker_hits > 0:
+            marker_score = marker_hits
+        elif workspace_markers and len(workspace_markers) > 0:
+            marker_score = 1
+        else:
+            return 0
+    else:
+        marker_score = 1
+
+    return pattern_score + check_id_score + marker_score
+
+
 def evaluate_check(
     check_spec: dict[str, Any],
     scan_results: dict[str, Any],
@@ -394,6 +511,41 @@ def evaluate_check(
     for df in data_files:
         rel_path = df["rel_path"]
         path = df["path"]
+        top_level_keys = df.get("top_level_keys", {})
+
+        # If combined JSON file with top-level keys, inspect and score keys
+        if top_level_keys:
+            key_scores = {
+                k: _score_key_for_check(k, k_info, check_spec)
+                for k, k_info in top_level_keys.items()
+            }
+            best_score = max(key_scores.values()) if key_scores else 0
+            if best_score > 0:
+                matched_keys_records = 0
+                for k, k_info in top_level_keys.items():
+                    if key_scores[k] == best_score:
+                        matched_keys_records += k_info["records"]
+                        if required_markers:
+                            k_snip = k_info["snippet"].lower()
+                            k_lower = k.lower()
+                            for marker in required_markers:
+                                if marker.lower() in k_snip or marker.lower() in k_lower:
+                                    markers_found.add(marker)
+                spatial_ok = True
+                if spatial_bbox:
+                    spatial_ok = check_spatial_bbox(path, spatial_bbox)
+                if spatial_ok:
+                    if rel_path not in matched_files:
+                        matched_files.append(rel_path)
+                    observed_records += matched_keys_records
+                continue
+
+            # If no top-level key matched, only allow whole-file matching if filename itself matches file_patterns
+            if not file_patterns or not any(
+                fnmatch.fnmatch(rel_path.lower(), pat.lower()) or fnmatch.fnmatch(path.name.lower(), pat.lower())
+                for pat in file_patterns
+            ):
+                continue
 
         match_pattern = False
         if file_patterns:
@@ -431,13 +583,51 @@ def evaluate_check(
         for df in data_files:
             rel_path = df["rel_path"]
             path = df["path"]
-            if df["records"] < min_records:
+            top_level_keys = df.get("top_level_keys", {})
+
+            if rel_path in matched_files:
                 continue
 
             spatial_ok = True
             if spatial_bbox:
                 spatial_ok = check_spatial_bbox(path, spatial_bbox)
             if not spatial_ok:
+                continue
+
+            # Check if any top-level key matches in fallback
+            if top_level_keys:
+                key_scores = {
+                    k: _score_key_for_check(k, k_info, check_spec, workspace_markers=workspace_markers)
+                    for k, k_info in top_level_keys.items()
+                }
+                best_score = max(key_scores.values()) if key_scores else 0
+                if best_score > 0:
+                    matched_k_rec = sum(
+                        k_info["records"]
+                        for k, k_info in top_level_keys.items()
+                        if key_scores[k] == best_score
+                    )
+                    if matched_k_rec >= min_records:
+                        if rel_path not in matched_files:
+                            matched_files.append(rel_path)
+                        observed_records = max(observed_records, matched_k_rec)
+                        if required_markers:
+                            for k, k_info in top_level_keys.items():
+                                if key_scores[k] == best_score:
+                                    k_snip = k_info["snippet"].lower()
+                                    k_lower = k.lower()
+                                    for marker in required_markers:
+                                        if marker.lower() in k_snip or marker.lower() in k_lower:
+                                            markers_found.add(marker)
+                else:
+                    # If no key matched and filename doesn't match file_patterns, skip combined JSON file
+                    if not file_patterns or not any(
+                        fnmatch.fnmatch(rel_path.lower(), pat.lower()) or fnmatch.fnmatch(path.name.lower(), pat.lower())
+                        for pat in file_patterns
+                    ):
+                        continue
+
+            if df["records"] < min_records:
                 continue
 
             match_pat = False
@@ -455,10 +645,12 @@ def evaluate_check(
                         data_file_has_markers = True
                         markers_found.add(marker)
 
-            is_data_dir = any(part in ("data", "public") for part in path.parts)
             has_workspace_markers = len(workspace_markers) > 0 if required_markers else True
 
-            if (match_pat and has_workspace_markers) or data_file_has_markers or (is_data_dir and has_workspace_markers):
+            # Match only if file pattern matches and workspace has markers,
+            # or if the data file itself contains the required markers.
+            # Do NOT match solely because the file is in data/ or public/ with workspace markers.
+            if (match_pat and has_workspace_markers) or data_file_has_markers:
                 if rel_path not in matched_files:
                     matched_files.append(rel_path)
                 observed_records = max(observed_records, df["records"])

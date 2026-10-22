@@ -3,9 +3,10 @@ id: TASK-45
 title: >-
   Prevent cross-dataset fallback inflation in probe_data.py when workspace has a
   single combined JSON asset
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-22 02:10'
+updated_date: '2026-10-22 12:33'
 labels:
   - tech-debt
   - verification
@@ -28,7 +29,7 @@ As seen in `2026-10-22-cursor-gemini-4-argon-medium`, this caused all 6 checks (
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 probe_data.py inspects top-level dict keys inside combined JSON files (e.g. stations, arrondissements, ppri, benchmarks) to report accurate per-check observed_records rather than reusing the largest array length across all checks
-- [ ] #2 probe_data.py fallback does not match unrelated data files solely because code files elsewhere in the workspace mention required_markers
-- [ ] #3 Unit tests in tests/test_probe_data.py cover combined multi-layer JSON assets and accurate per-check record counts
+- [x] #1 probe_data.py inspects top-level dict keys inside combined JSON files (e.g. stations, arrondissements, ppri, benchmarks) to report accurate per-check observed_records rather than reusing the largest array length across all checks
+- [x] #2 probe_data.py fallback does not match unrelated data files solely because code files elsewhere in the workspace mention required_markers
+- [x] #3 Unit tests in tests/test_probe_data.py cover combined multi-layer JSON assets and accurate per-check record counts
 <!-- AC:END -->
