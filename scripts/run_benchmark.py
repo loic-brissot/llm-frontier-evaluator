@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import os
 import signal
@@ -58,6 +59,123 @@ class _HarnessAction(argparse.Action):
         setattr(namespace, "_harness_explicit", True)
 
 
+_SCAFFOLD_LOCK = threading.Lock()
+_FINISH_LOCK = threading.Lock()
+
+
+def normalize_cache_setting(val: bool | str | None) -> bool | None:
+    """Normalize a cache setting into True, False, or None."""
+    if val is None:
+        return None
+    if isinstance(val, bool):
+        return val
+    s = str(val).strip().lower()
+    if s in ("off", "false", "no", "0", "disable", "disabled", "no-cache", "nocache", "none"):
+        return False
+    if s in ("on", "true", "yes", "1", "enable", "enabled", "cache"):
+        return True
+    raise ValueError(f"Invalid cache setting '{val}'. Expected 'on', 'off', 'true', or 'false'.")
+
+
+def parse_run_spec(
+    spec: str | dict,
+    *,
+    default_harness: str = "cursor",
+    default_cache: bool | str | None = None,
+) -> dict:
+    """Parse a run specification into a normalized configuration dictionary.
+
+    Supported formats:
+    - JSON string: '{"model": "Claude Opus 5.5", "reasoning": "high", "cache": false}'
+    - Key-value: 'model=Claude Opus 5.5,reasoning=high,harness=cursor,cache=on'
+    - Shorthand colon-delimited: 'model[:reasoning[:cache[:harness]]]'
+      e.g. 'Claude Opus 5.5:high', 'Gemini 4 Argon:medium:no-cache'
+    - Plain model name: 'Claude Opus 5.5'
+    - Dict: pre-structured specification
+    """
+    if isinstance(spec, dict):
+        res = dict(spec)
+    elif isinstance(spec, str):
+        stripped = spec.strip()
+        if not stripped:
+            raise ValueError("Run spec cannot be empty")
+
+        if stripped.startswith("{"):
+            try:
+                res = json.loads(stripped)
+                if not isinstance(res, dict):
+                    raise ValueError(f"JSON run spec must be an object: {spec}")
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Invalid JSON in run spec: {spec}") from exc
+        elif ":" in stripped and not stripped.startswith(("model=", "id=", "run_id=")):
+            tokens = [t.strip() for t in stripped.split(":")]
+            if not tokens or not tokens[0]:
+                raise ValueError(f"Run spec must specify 'model' or 'run_id': {spec}")
+            res = {"model": tokens[0]}
+            for token in tokens[1:]:
+                if not token:
+                    continue
+                if "=" in token:
+                    k, v = token.split("=", 1)
+                    k = k.strip().lower().replace("-", "_")
+                    res[k] = v.strip().strip("'\"")
+                    continue
+                low = token.lower()
+                if low in ("on", "off", "true", "false", "cache", "no-cache", "nocache", "0", "1"):
+                    res["cache"] = low
+                elif low in ("cursor", "claude-code", "claude"):
+                    res["harness"] = canonical_harness(low)
+                elif "reasoning" not in res:
+                    res["reasoning"] = token
+                elif "harness" not in res:
+                    res["harness"] = canonical_harness(token)
+                elif "cache" not in res:
+                    res["cache"] = low
+        elif "=" in stripped:
+            res = {}
+            tokens = [t.strip() for t in stripped.replace(";", ",").split(",") if t.strip()]
+            for token in tokens:
+                if "=" not in token:
+                    continue
+                k, v = token.split("=", 1)
+                k = k.strip().lower().replace("-", "_")
+                v = v.strip().strip("'\"")
+                res[k] = v
+        else:
+            res = {"model": stripped}
+    else:
+        raise TypeError(f"Expected str or dict for run spec, got {type(spec).__name__}")
+
+    # Aliases
+    if "effort" in res and "reasoning" not in res:
+        res["reasoning"] = res.pop("effort")
+    if "series" in res and "series_id" not in res:
+        res["series_id"] = res.pop("series")
+    if "detail" in res and "harness_detail" not in res:
+        res["harness_detail"] = res.pop("detail")
+    if "id" in res and "run_id" not in res:
+        res["run_id"] = res.pop("id")
+
+    # Normalize harness
+    if "harness" in res and res["harness"]:
+        res["harness"] = canonical_harness(res["harness"])
+    elif default_harness:
+        res["harness"] = canonical_harness(default_harness)
+
+    # Normalize cache
+    if "cache" in res and res["cache"] is not None:
+        res["cache"] = normalize_cache_setting(res["cache"])
+    elif default_cache is not None:
+        res["cache"] = normalize_cache_setting(default_cache)
+    else:
+        res["cache"] = None
+
+    if ("model" not in res or not res["model"]) and ("run_id" not in res or not res["run_id"]):
+        raise ValueError(f"Run spec must specify 'model' or 'run_id': {spec}")
+
+    return res
+
+
 def trigger_finish_run(prompt_id: str, run_id: str) -> subprocess.CompletedProcess:
     """Trigger finish_run.py --verify --non-interactive for the given run."""
     cmd = [
@@ -83,9 +201,11 @@ def build_container_command(
     prompt_text: str,
     env: dict,
     container_name: str | None = None,
+    cache: bool | str | None = None,
 ) -> list[str]:
     """Construct docker run command for running harness CLI in container."""
     norm_harness = canonical_harness(harness)
+    norm_cache = normalize_cache_setting(cache)
     cmd = ["docker", "run", "--rm", "-i", "--init", "--shm-size=2g"]
     if container_name:
         cmd.extend(["--name", container_name])
@@ -95,6 +215,16 @@ def build_container_command(
         "-w",
         "/workspace",
     ])
+
+    if norm_cache is False:
+        cmd.extend([
+            "-e", "DISABLE_PROMPT_CACHING=1",
+            "-e", "CURSOR_DISABLE_PROMPT_CACHING=1",
+        ])
+    elif norm_cache is True:
+        cmd.extend([
+            "-e", "DISABLE_PROMPT_CACHING=0",
+        ])
 
     if norm_harness == "cursor" or is_cursor_harness(norm_harness):
         if "CURSOR_API_KEY" in env:
@@ -175,14 +305,23 @@ def _human_tool_label(raw_key: str) -> str:
     return raw_key or "Tool"
 
 
-def format_stream_progress_line(raw_line: str, elapsed_seconds: float | None = None) -> str | None:
+def format_stream_progress_line(
+    raw_line: str,
+    elapsed_seconds: float | None = None,
+    run_label: str | None = None,
+) -> str | None:
     """Format a stream-json line into a concise human-readable progress string, or None to skip."""
     stripped = raw_line.strip()
     if not stripped:
         return None
 
     prefix = ""
-    if elapsed_seconds is not None and elapsed_seconds >= 0:
+    if run_label and elapsed_seconds is not None and elapsed_seconds >= 0:
+        mins, secs = divmod(int(elapsed_seconds), 60)
+        prefix = f"[{run_label} {mins:02d}:{secs:02d}] "
+    elif run_label:
+        prefix = f"[{run_label}] "
+    elif elapsed_seconds is not None and elapsed_seconds >= 0:
         mins, secs = divmod(int(elapsed_seconds), 60)
         prefix = f"[{mins:02d}:{secs:02d}] "
 
@@ -532,12 +671,40 @@ def run_benchmark_container(
     check_models: bool = True,
     timeout_seconds: int | float | None = None,
     auto_finish: bool = True,
+    cache: bool | str | None = None,
+    stream_prefix: str | None = None,
+    run_label: str | None = None,
 ) -> int:
     env = dict(os.environ)
     run_dir: Path | None = None
     final_harness: str
     resolved_model: str
     effort: str | None = None
+
+    norm_cache = normalize_cache_setting(cache)
+    if norm_cache is False:
+        env["DISABLE_PROMPT_CACHING"] = "1"
+        env["CURSOR_DISABLE_PROMPT_CACHING"] = "1"
+    elif norm_cache is True:
+        env["DISABLE_PROMPT_CACHING"] = "0"
+        env["CURSOR_DISABLE_PROMPT_CACHING"] = "0"
+
+    cache_note = "cache=off" if norm_cache is False else ("cache=on" if norm_cache is True else None)
+
+    auto_label = False
+    if run_label == "auto":
+        auto_label = True
+        effective_label = run_id or (slugify(model) if model else None)
+    elif run_label is not None:
+        effective_label = run_label
+    elif stream_prefix is not None:
+        effective_label = stream_prefix
+    else:
+        effective_label = None
+
+    def _log(msg: str, is_err: bool = False) -> None:
+        pfx = f"[{effective_label}] " if effective_label else ""
+        print(f"{pfx}{msg}", file=sys.stderr if is_err else sys.stdout, flush=True)
 
     if run_id is None:
         if not model:
@@ -548,78 +715,108 @@ def run_benchmark_container(
         if not prompt_file.is_file():
             raise FileNotFoundError(f"Prompt file not found: {prompt_file}")
 
-        scaffold_harness = canonical_harness(harness) if harness else "cursor"
-        scaffold_harness = normalize_harness(scaffold_harness)
+        with _SCAFFOLD_LOCK:
+            scaffold_harness = canonical_harness(harness) if harness else "cursor"
+            scaffold_harness = normalize_harness(scaffold_harness)
 
-        # Validate context
-        if context is not None and str(context).strip().lower() not in ("unknown", "null", ""):
-            if not allow_cli_context_override:
-                raise ValueError(
-                    f"Headless CLI cannot select context window '{context}'. "
-                    f"Please run via Clean-Room GUI runs (setup_run.py --context {context}) "
-                    f"or re-run with --allow-cli-context-override to record context as null."
+            # Validate context
+            if context is not None and str(context).strip().lower() not in ("unknown", "null", ""):
+                if not allow_cli_context_override:
+                    raise ValueError(
+                        f"Headless CLI cannot select context window '{context}'. "
+                        f"Please run via Clean-Room GUI runs (setup_run.py --context {context}) "
+                        f"or re-run with --allow-cli-context-override to record context as null."
+                    )
+                scaffold_context = None
+            else:
+                scaffold_context = normalize_context(context, scaffold_harness) if context else None
+
+            # Validate reasoning
+            normalized_reasoning = normalize_reasoning(reasoning, scaffold_harness)
+
+            # Preflight checks (Docker daemon, image tag, credentials) BEFORE creating run directory
+            errors = check_preflight(
+                docker_image=docker_image,
+                harness=scaffold_harness,
+                run_id=None,
+                prompt_id=prompt_id,
+                env=env,
+            )
+            if errors:
+                for err in errors:
+                    print(f"Preflight error: {err}", file=sys.stderr)
+                raise RuntimeError("\n".join(errors))
+
+            # Model and reasoning resolution BEFORE creating run directory
+            if scaffold_harness == "cursor" or is_cursor_harness(scaffold_harness):
+                avail_models = fetch_cursor_available_models(docker_image, env) if check_models else None
+                resolved_model = resolve_cursor_model_slug(
+                    model, reasoning=normalized_reasoning, available_models=avail_models
                 )
-            scaffold_context = None
-        else:
-            scaffold_context = normalize_context(context, scaffold_harness) if context else None
+                effort = None
+            else:  # claude-code
+                resolved_model, effort = resolve_claude_code_model_and_effort(
+                    model, reasoning=normalized_reasoning
+                )
 
-        # Validate reasoning
-        normalized_reasoning = normalize_reasoning(reasoning, scaffold_harness)
+            resolved_series_id = series_id.strip() if series_id else default_series_id(scaffold_harness, prompt_id)
+            resolved_provider = provider.strip() if provider else (infer_provider(model) or "unknown")
+            resolved_harness_detail = harness_detail or ""
+            if cache_note:
+                if resolved_harness_detail:
+                    if cache_note not in resolved_harness_detail:
+                        resolved_harness_detail = f"{resolved_harness_detail}; {cache_note}"
+                else:
+                    resolved_harness_detail = cache_note
 
-        # Preflight checks (Docker daemon, image tag, credentials) BEFORE creating run directory
-        errors = check_preflight(
-            docker_image=docker_image,
-            harness=scaffold_harness,
-            run_id=None,
-            prompt_id=prompt_id,
-            env=env,
-        )
-        if errors:
-            for err in errors:
-                print(f"Preflight error: {err}", file=sys.stderr)
-            raise RuntimeError("\n".join(errors))
-
-        # Model and reasoning resolution BEFORE creating run directory
-        if scaffold_harness == "cursor" or is_cursor_harness(scaffold_harness):
-            avail_models = fetch_cursor_available_models(docker_image, env) if check_models else None
-            resolved_model = resolve_cursor_model_slug(
-                model, reasoning=normalized_reasoning, available_models=avail_models
+            run_dir = create_run_directory(
+                harness=scaffold_harness,
+                model=model,
+                reasoning=normalized_reasoning,
+                context=scaffold_context,
+                prompt_id=prompt_id,
+                series_id=resolved_series_id,
+                provider=resolved_provider,
+                harness_version=None,
+                harness_detail=resolved_harness_detail,
             )
-            effort = None
-        else:  # claude-code
-            resolved_model, effort = resolve_claude_code_model_and_effort(
-                model, reasoning=normalized_reasoning
-            )
+            run_id = run_dir.name
+            staging_dir = staging_workspace_for(run_id)
 
-        resolved_series_id = series_id.strip() if series_id else default_series_id(scaffold_harness, prompt_id)
-        resolved_provider = provider.strip() if provider else (infer_provider(model) or "unknown")
-        resolved_harness_detail = harness_detail or ""
+            if auto_label:
+                effective_label = run_id
 
-        run_dir = create_run_directory(
-            harness=scaffold_harness,
-            model=model,
-            reasoning=normalized_reasoning,
-            context=scaffold_context,
-            prompt_id=prompt_id,
-            series_id=resolved_series_id,
-            provider=resolved_provider,
-            harness_version=None,
-            harness_detail=resolved_harness_detail,
-        )
-        run_id = run_dir.name
-        staging_dir = staging_workspace_for(run_id)
+            _log(f"Allocated run: {run_id}")
+            _log(f"  Run directory: {run_dir}")
+            _log(f"  Staged workspace: {staging_dir}")
 
-        print(f"Allocated run: {run_id}")
-        print(f"  Run directory: {run_dir}")
-        print(f"  Staged workspace: {staging_dir}")
-
-        final_harness = scaffold_harness
+            final_harness = scaffold_harness
     else:
+        if auto_label:
+            effective_label = run_id
         run_dir = find_run_dir(run_id, prompt_id=prompt_id)
         run_json_path = run_dir / "run.json"
         recorded_run_json: dict = {}
         if run_json_path.is_file():
             recorded_run_json = json.loads(run_json_path.read_text(encoding="utf-8"))
+
+        if cache_note and run_dir is not None and (run_dir / "run.json").is_file():
+            data = json.loads(run_json_path.read_text(encoding="utf-8"))
+            if "harness" not in data or not isinstance(data["harness"], dict):
+                data["harness"] = {}
+            existing_detail = data["harness"].get("detail") or ""
+            if cache_note not in existing_detail:
+                data["harness"]["detail"] = f"{existing_detail}; {cache_note}".strip("; ")
+                run_json_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        elif norm_cache is None and recorded_run_json:
+            rec_detail = recorded_run_json.get("harness", {}).get("detail", "")
+            if "cache=off" in rec_detail:
+                norm_cache = False
+                env["DISABLE_PROMPT_CACHING"] = "1"
+                env["CURSOR_DISABLE_PROMPT_CACHING"] = "1"
+            elif "cache=on" in rec_detail:
+                norm_cache = True
+                env["DISABLE_PROMPT_CACHING"] = "0"
 
         rec_prompt_id = recorded_run_json.get("prompt_id")
         rec_harness = (
@@ -774,9 +971,10 @@ def run_benchmark_container(
         prompt_text=prompt_text,
         env=env,
         container_name=container_name,
+        cache=norm_cache,
     )
 
-    print(f"Running benchmark container for run {run_id} ({final_harness})...")
+    _log(f"Running benchmark container for run {run_id} ({final_harness})...")
 
     tool_events_dir: Path | None = None
     cli_stream_file: Path | None = None
@@ -873,7 +1071,7 @@ def run_benchmark_container(
                         if is_json and stream_fp is not None:
                             stream_fp.write(line if line.endswith("\n") else line + "\n")
                             stream_fp.flush()
-                        progress = format_stream_progress_line(line, time.monotonic() - start_monotonic)
+                        progress = format_stream_progress_line(line, time.monotonic() - start_monotonic, run_label=effective_label)
                         if progress:
                             print(progress, flush=True)
                 except Exception:
@@ -886,7 +1084,7 @@ def run_benchmark_container(
             return_code = proc.returncode
         except subprocess.TimeoutExpired:
             return_code = 124
-            print(f"Timeout expired after {timeout_seconds}s for container {container_name}. Cleaning up...", file=sys.stderr)
+            _log(f"Timeout expired after {timeout_seconds}s for container {container_name}. Cleaning up...", is_err=True)
             if proc is not None:
                 try:
                     proc.kill()
@@ -896,7 +1094,7 @@ def run_benchmark_container(
             subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, text=True)
         except KeyboardInterrupt:
             return_code = 130
-            print(f"\nExecution interrupted by user. Stopping container {container_name}...", file=sys.stderr)
+            _log(f"\nExecution interrupted by user. Stopping container {container_name}...", is_err=True)
             if proc is not None:
                 try:
                     proc.kill()
@@ -925,10 +1123,90 @@ def run_benchmark_container(
                     cli_result_file.write_text(json.dumps(result_event, indent=2) + "\n", encoding="utf-8")
 
     if auto_finish and run_dir is not None:
-        print(f"Triggering finish_run.py --verify for run {run_id}...")
-        trigger_finish_run(prompt_id, run_id)
+        _log(f"Triggering finish_run.py --verify for run {run_id}...")
+        with _FINISH_LOCK:
+            trigger_finish_run(prompt_id, run_id)
 
     return return_code
+
+
+def run_parallel_benchmarks(
+    specs: list[dict | str],
+    *,
+    prompt_id: str = DEFAULT_PROMPT_ID,
+    docker_image: str = DOCKER_IMAGE,
+    max_parallel: int | None = None,
+    check_models: bool = True,
+    timeout_seconds: int | float | None = None,
+    auto_finish: bool = True,
+    allow_cli_context_override: bool = False,
+    default_harness: str = "cursor",
+    default_cache: bool | str | None = None,
+    series_id: str | None = None,
+    provider: str | None = None,
+    harness_detail: str = "",
+) -> int:
+    """Run multiple benchmark runs concurrently with distinct model/effort/cache settings."""
+    if not specs:
+        raise ValueError("At least one run spec must be provided.")
+
+    parsed_specs = [
+        parse_run_spec(s, default_harness=default_harness, default_cache=default_cache)
+        for s in specs
+    ]
+
+    workers = len(parsed_specs)
+    if max_parallel is not None and max_parallel > 0:
+        workers = min(max_parallel, workers)
+
+    def _execute_spec(spec: dict) -> int:
+        s_model = spec.get("model")
+        s_reasoning = spec.get("reasoning")
+        s_harness = spec.get("harness") or default_harness
+        s_cache = spec.get("cache")
+        s_context = spec.get("context")
+        s_series_id = spec.get("series_id") or series_id
+        s_provider = spec.get("provider") or provider
+        s_detail = spec.get("harness_detail") or harness_detail
+        s_run_id = spec.get("run_id")
+        s_label = spec.get("label") or spec.get("run_label") or (s_run_id if s_run_id else "auto")
+        s_prompt = spec.get("prompt_id") or prompt_id
+
+        return run_benchmark_container(
+            prompt_id=s_prompt,
+            run_id=s_run_id,
+            harness=s_harness,
+            model=s_model,
+            reasoning=s_reasoning,
+            context=s_context,
+            allow_cli_context_override=allow_cli_context_override,
+            series_id=s_series_id,
+            provider=s_provider,
+            harness_detail=s_detail,
+            docker_image=docker_image,
+            check_models=check_models,
+            timeout_seconds=timeout_seconds,
+            auto_finish=auto_finish,
+            cache=s_cache,
+            run_label=s_label,
+        )
+
+    results: list[int] = []
+    if workers <= 1 and len(parsed_specs) == 1:
+        return _execute_spec(parsed_specs[0])
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        future_to_spec = {executor.submit(_execute_spec, spec): spec for spec in parsed_specs}
+        for future in concurrent.futures.as_completed(future_to_spec):
+            try:
+                rc = future.result()
+                results.append(rc)
+            except Exception as exc:
+                spec = future_to_spec[future]
+                print(f"Error executing run spec {spec}: {exc}", file=sys.stderr)
+                results.append(1)
+
+    return 0 if all(rc == 0 for rc in results) else next((rc for rc in results if rc != 0), 1)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -994,15 +1272,42 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
         help="Disable automatic trigger of finish_run.py --verify upon completion.",
     )
+    parser.add_argument(
+        "--run-spec",
+        action="append",
+        default=[],
+        help=(
+            "Run specification (repeatable). Formats: key=value (e.g. model=...,reasoning=...,cache=off), "
+            "shorthand (e.g. model[:reasoning[:cache]]), or JSON string."
+        ),
+    )
+    parser.add_argument(
+        "-j",
+        "--jobs",
+        "--max-parallel",
+        dest="max_parallel",
+        type=int,
+        default=0,
+        help="Maximum concurrent container runs (default: 0, run all specs concurrently).",
+    )
+    parser.add_argument(
+        "--cache",
+        default=None,
+        help="Prompt cache setting (on/off, true/false).",
+    )
+    parser.add_argument(
+        "--no-cache",
+        dest="cache",
+        action="store_const",
+        const="off",
+        help="Disable prompt caching (equivalent to --cache off).",
+    )
     return parser
 
 
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
-
-    if not args.check and not args.run_id and not args.model:
-        parser.error("one of the following arguments is required: --run-id or --model")
 
     harness_arg = args.harness if (getattr(args, "_harness_explicit", False) or not args.run_id) else None
 
@@ -1020,6 +1325,36 @@ def main() -> int:
         print("Preflight check OK: Docker daemon, image, credentials, and staged workspace are ready.")
         return 0
 
+    specs: list[str | dict] = []
+    if args.run_spec:
+        specs.extend(args.run_spec)
+
+    if args.model and ("," in args.model or specs):
+        for m in args.model.split(","):
+            m = m.strip()
+            if m:
+                specs.append(m)
+
+    if specs:
+        return run_parallel_benchmarks(
+            specs,
+            prompt_id=args.prompt_id,
+            docker_image=args.docker_image,
+            max_parallel=args.max_parallel,
+            check_models=args.check_models,
+            timeout_seconds=args.timeout,
+            auto_finish=args.auto_finish,
+            allow_cli_context_override=args.allow_cli_context_override,
+            default_harness=args.harness,
+            default_cache=args.cache,
+            series_id=args.series_id,
+            provider=args.provider,
+            harness_detail=args.harness_detail,
+        )
+
+    if not args.run_id and not args.model:
+        parser.error("one of the following arguments is required: --run-id, --model, or --run-spec")
+
     try:
         return run_benchmark_container(
             prompt_id=args.prompt_id,
@@ -1036,6 +1371,7 @@ def main() -> int:
             check_models=args.check_models,
             timeout_seconds=args.timeout,
             auto_finish=args.auto_finish,
+            cache=args.cache,
         )
     except Exception as exc:
         print(f"Error executing benchmark run: {exc}", file=sys.stderr)

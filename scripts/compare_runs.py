@@ -15,6 +15,7 @@ import hashlib
 import json
 import re
 import sys
+import tempfile
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
@@ -899,51 +900,70 @@ def sync_readme(
             print(f"Error: {readme_path} does not exist", file=sys.stderr)
         return False
 
-    expected_block = generate_readme_comparisons(readme_path, reference_path)
-
-    readme_content = readme_path.read_text(encoding="utf-8")
-    readme_lines = readme_content.splitlines()
-
+    lock_fd = None
     try:
-        comp_idx = next(i for i, line in enumerate(readme_lines) if line.strip() == "## Comparisons")
-    except StopIteration:
+        if not check_only:
+            try:
+                import fcntl
+                lock_path = Path(tempfile.gettempdir()) / f"frontier_readme_sync_{abs(hash(str(readme_path.resolve())))}.lock"
+                lock_fd = open(lock_path, "a")
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            except (ImportError, OSError):
+                lock_fd = None
+
+        expected_block = generate_readme_comparisons(readme_path, reference_path)
+
+        readme_content = readme_path.read_text(encoding="utf-8")
+        readme_lines = readme_content.splitlines()
+
+        try:
+            comp_idx = next(i for i, line in enumerate(readme_lines) if line.strip() == "## Comparisons")
+        except StopIteration:
+            if check_only:
+                print("Error: '## Comparisons' heading not found in README.md", file=sys.stderr)
+            return False
+
+        section_end = len(readme_lines)
+        for idx in range(comp_idx + 1, len(readme_lines)):
+            if readme_lines[idx].startswith("## "):
+                section_end = idx
+                break
+
+        existing_block = "\n".join(readme_lines[comp_idx:section_end]).strip()
+        target_block = expected_block.strip()
+
+        if existing_block == target_block:
+            if check_only:
+                print("README.md comparison tables are in sync with run records.")
+            else:
+                print("README.md comparison tables are already in sync.")
+            return True
+
         if check_only:
-            print("Error: '## Comparisons' heading not found in README.md", file=sys.stderr)
-        return False
+            print("README.md comparison tables are out of sync with run records:")
+            diff = difflib.unified_diff(
+                existing_block.splitlines(keepends=True),
+                target_block.splitlines(keepends=True),
+                fromfile="README.md (current)",
+                tofile="README.md (expected)",
+            )
+            for line in diff:
+                sys.stdout.write(line)
+            return False
 
-    section_end = len(readme_lines)
-    for idx in range(comp_idx + 1, len(readme_lines)):
-        if readme_lines[idx].startswith("## "):
-            section_end = idx
-            break
-
-    existing_block = "\n".join(readme_lines[comp_idx:section_end]).strip()
-    target_block = expected_block.strip()
-
-    if existing_block == target_block:
-        if check_only:
-            print("README.md comparison tables are in sync with run records.")
-        else:
-            print("README.md comparison tables are already in sync.")
+        new_lines = readme_lines[:comp_idx] + target_block.splitlines() + [""] + readme_lines[section_end:]
+        new_content = "\n".join(new_lines).rstrip() + "\n"
+        readme_path.write_text(new_content, encoding="utf-8")
+        print("Updated README.md comparison tables.")
         return True
-
-    if check_only:
-        print("README.md comparison tables are out of sync with run records:")
-        diff = difflib.unified_diff(
-            existing_block.splitlines(keepends=True),
-            target_block.splitlines(keepends=True),
-            fromfile="README.md (current)",
-            tofile="README.md (expected)",
-        )
-        for line in diff:
-            sys.stdout.write(line)
-        return False
-
-    new_lines = readme_lines[:comp_idx] + target_block.splitlines() + [""] + readme_lines[section_end:]
-    new_content = "\n".join(new_lines).rstrip() + "\n"
-    readme_path.write_text(new_content, encoding="utf-8")
-    print("Updated README.md comparison tables.")
-    return True
+    finally:
+        if lock_fd is not None:
+            try:
+                import fcntl
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                lock_fd.close()
+            except (ImportError, OSError):
+                pass
 
 
 def update_readme_comparisons(run: dict, readme_path: Path = README_PATH) -> bool:

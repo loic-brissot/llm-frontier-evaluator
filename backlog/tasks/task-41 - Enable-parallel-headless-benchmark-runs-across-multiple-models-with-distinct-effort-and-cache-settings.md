@@ -3,9 +3,10 @@ id: TASK-41
 title: >-
   Enable parallel headless benchmark runs across multiple models with distinct
   effort and cache settings
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-22 00:10'
+updated_date: '2026-10-22 01:46'
 labels:
   - runner
   - parallel
@@ -33,8 +34,8 @@ Key requirements:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 run_benchmark.py supports launching multiple headless runs in parallel across different models, harnesses, reasoning/effort levels, and cache settings
-- [ ] #2 Live progress streaming prefixes each output line with the run identifier when running multiple models in parallel
-- [ ] #3 Concurrent run scaffolding, workspace repatriation, verification, and README.md comparison table updates are safe against race conditions
-- [ ] #4 Unit tests cover parallel multi-model execution, per-run effort and cache options, and error handling
+- [x] #1 run_benchmark.py supports launching multiple headless runs in parallel across different models, harnesses, reasoning/effort levels, and cache settings
+- [x] #2 Live progress streaming prefixes each output line with the run identifier when running multiple models in parallel
+- [x] #3 Concurrent run scaffolding, workspace repatriation, verification, and README.md comparison table updates are safe against race conditions
+- [x] #4 Unit tests cover parallel multi-model execution, per-run effort and cache options, and error handling
 <!-- AC:END -->

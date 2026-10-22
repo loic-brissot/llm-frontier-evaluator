@@ -19,10 +19,13 @@ from run_benchmark import (
     fetch_cursor_available_models,
     format_stream_progress_line,
     main,
+    normalize_cache_setting,
+    parse_run_spec,
     record_container_harness_version,
     resolve_claude_code_model_and_effort,
     resolve_cursor_model_slug,
     run_benchmark_container,
+    run_parallel_benchmarks,
     trigger_finish_run,
 )
 from setup_run import check_environment
@@ -1231,6 +1234,353 @@ class TestRunBenchmark(unittest.TestCase):
                     parsed = json.loads(line)
                     self.assertIsInstance(parsed, dict)
                 self.assertNotIn("WARNING", cli_stream_path.read_text(encoding="utf-8"))
+
+    def test_normalize_cache_setting(self):
+        self.assertTrue(normalize_cache_setting(True))
+        self.assertFalse(normalize_cache_setting(False))
+        self.assertTrue(normalize_cache_setting("on"))
+        self.assertTrue(normalize_cache_setting("true"))
+        self.assertTrue(normalize_cache_setting("yes"))
+        self.assertTrue(normalize_cache_setting("cache"))
+        self.assertFalse(normalize_cache_setting("off"))
+        self.assertFalse(normalize_cache_setting("false"))
+        self.assertFalse(normalize_cache_setting("no-cache"))
+        self.assertFalse(normalize_cache_setting("disable"))
+        self.assertIsNone(normalize_cache_setting(None))
+        with self.assertRaises(ValueError):
+            normalize_cache_setting("unsupported-cache-val")
+
+    def test_parse_run_spec_key_value(self):
+        # Key-value with model, reasoning, harness, cache
+        spec1 = parse_run_spec("model=Claude Opus 5.5,reasoning=high,harness=cursor,cache=on")
+        self.assertEqual(spec1["model"], "Claude Opus 5.5")
+        self.assertEqual(spec1["reasoning"], "high")
+        self.assertEqual(spec1["harness"], "cursor")
+        self.assertTrue(spec1["cache"])
+
+        # Key-value with effort alias and cache off
+        spec2 = parse_run_spec("model=Gemini 4 Argon,effort=medium,cache=off")
+        self.assertEqual(spec2["model"], "Gemini 4 Argon")
+        self.assertEqual(spec2["reasoning"], "medium")
+        self.assertEqual(spec2["harness"], "cursor")
+        self.assertFalse(spec2["cache"])
+
+        # Key-value with claude-code and no-cache
+        spec3 = parse_run_spec("model=Claude Sonnet 5.5,harness=claude-code,cache=no-cache,provider=anthropic")
+        self.assertEqual(spec3["model"], "Claude Sonnet 5.5")
+        self.assertEqual(spec3["harness"], "claude-code")
+        self.assertEqual(spec3["provider"], "anthropic")
+        self.assertFalse(spec3["cache"])
+
+    def test_parse_run_spec_shorthand(self):
+        # model:reasoning
+        spec1 = parse_run_spec("Claude Opus 5.5:high")
+        self.assertEqual(spec1["model"], "Claude Opus 5.5")
+        self.assertEqual(spec1["reasoning"], "high")
+        self.assertEqual(spec1["harness"], "cursor")
+        self.assertIsNone(spec1["cache"])
+
+        # model:reasoning:no-cache
+        spec2 = parse_run_spec("Gemini 4 Argon:medium:no-cache")
+        self.assertEqual(spec2["model"], "Gemini 4 Argon")
+        self.assertEqual(spec2["reasoning"], "medium")
+        self.assertFalse(spec2["cache"])
+
+        # model:reasoning:cache=off
+        spec3 = parse_run_spec("Claude Opus 5.5:high:cache=off")
+        self.assertEqual(spec3["model"], "Claude Opus 5.5")
+        self.assertEqual(spec3["reasoning"], "high")
+        self.assertFalse(spec3["cache"])
+
+        # model:reasoning:cache:harness
+        spec4 = parse_run_spec("Claude Opus 5.5:high:on:claude-code")
+        self.assertEqual(spec4["model"], "Claude Opus 5.5")
+        self.assertEqual(spec4["reasoning"], "high")
+        self.assertTrue(spec4["cache"])
+        self.assertEqual(spec4["harness"], "claude-code")
+
+        # Just model
+        spec5 = parse_run_spec("Claude Opus 5.5")
+        self.assertEqual(spec5["model"], "Claude Opus 5.5")
+        self.assertEqual(spec5["harness"], "cursor")
+
+    def test_parse_run_spec_json(self):
+        spec1 = parse_run_spec('{"model": "Claude Opus 5.5", "reasoning": "high", "cache": false}')
+        self.assertEqual(spec1["model"], "Claude Opus 5.5")
+        self.assertEqual(spec1["reasoning"], "high")
+        self.assertFalse(spec1["cache"])
+
+        spec2 = parse_run_spec('{"model": "Gemini 4 Argon", "effort": "medium", "cache": "on", "harness": "cursor"}')
+        self.assertEqual(spec2["model"], "Gemini 4 Argon")
+        self.assertEqual(spec2["reasoning"], "medium")
+        self.assertTrue(spec2["cache"])
+        self.assertEqual(spec2["harness"], "cursor")
+
+    def test_parse_run_spec_defaults_and_errors(self):
+        # Inherit default cache
+        spec1 = parse_run_spec("Claude Opus 5.5:high", default_cache="off")
+        self.assertFalse(spec1["cache"])
+
+        # Override default cache
+        spec2 = parse_run_spec("Claude Opus 5.5:high:on", default_cache="off")
+        self.assertTrue(spec2["cache"])
+
+        # Errors
+        with self.assertRaises(ValueError):
+            parse_run_spec("")
+
+        with self.assertRaises(ValueError):
+            parse_run_spec("   ")
+
+        with self.assertRaises(ValueError):
+            parse_run_spec('{"reasoning": "high"}')
+
+        with self.assertRaises(ValueError):
+            parse_run_spec('{"invalid_json": ')
+
+        with self.assertRaises(ValueError):
+            parse_run_spec(':high')
+
+    def test_build_container_command_with_cache_settings(self):
+        staging_dir = Path("/tmp/frontier-workspace-cache-test")
+        prompt_text = "Prompt\n"
+
+        # cache=False
+        cmd_no_cache = build_container_command(
+            staging_dir=staging_dir,
+            docker_image="llm-frontier-evaluator-runner:latest",
+            harness="cursor",
+            resolved_model="claude-opus-5-5-high",
+            effort=None,
+            prompt_text=prompt_text,
+            env={"CURSOR_API_KEY": "test-key"},
+            cache=False,
+        )
+        self.assertIn("-e", cmd_no_cache)
+        self.assertIn("DISABLE_PROMPT_CACHING=1", cmd_no_cache)
+        self.assertIn("CURSOR_DISABLE_PROMPT_CACHING=1", cmd_no_cache)
+
+        # cache=True
+        cmd_cache = build_container_command(
+            staging_dir=staging_dir,
+            docker_image="llm-frontier-evaluator-runner:latest",
+            harness="claude-code",
+            resolved_model="claude-opus-5-5",
+            effort="high",
+            prompt_text=prompt_text,
+            env={"ANTHROPIC_API_KEY": "test-key"},
+            cache=True,
+        )
+        self.assertIn("DISABLE_PROMPT_CACHING=0", cmd_cache)
+        self.assertNotIn("DISABLE_PROMPT_CACHING=1", cmd_cache)
+
+        # cache=None
+        cmd_default = build_container_command(
+            staging_dir=staging_dir,
+            docker_image="llm-frontier-evaluator-runner:latest",
+            harness="cursor",
+            resolved_model="claude-opus-5-5-high",
+            effort=None,
+            prompt_text=prompt_text,
+            env={"CURSOR_API_KEY": "test-key"},
+            cache=None,
+        )
+        self.assertNotIn("DISABLE_PROMPT_CACHING=1", cmd_default)
+        self.assertNotIn("DISABLE_PROMPT_CACHING=0", cmd_default)
+
+    def test_format_stream_progress_line_with_run_label(self):
+        tool_line = json.dumps({
+            "type": "tool_call",
+            "subtype": "started",
+            "tool_call": {
+                "shellToolCall": {"args": {"description": "Compile sources"}}
+            },
+        })
+
+        # With run_label and elapsed_seconds
+        res1 = format_stream_progress_line(tool_line, 65.0, run_label="run-alpha")
+        self.assertEqual(res1, "[run-alpha 01:05] Tool started: Shell (Compile sources)")
+
+        # With run_label and None elapsed_seconds
+        res2 = format_stream_progress_line(tool_line, None, run_label="run-alpha")
+        self.assertEqual(res2, "[run-alpha] Tool started: Shell (Compile sources)")
+
+        # Without run_label (backward compatibility)
+        res3 = format_stream_progress_line(tool_line, 65.0, run_label=None)
+        self.assertEqual(res3, "[01:05] Tool started: Shell (Compile sources)")
+
+        # Raw non-JSON line with run_label
+        res4 = format_stream_progress_line("Building packages...", 15.0, run_label="run-beta")
+        self.assertEqual(res4, "[run-beta 00:15] Building packages...")
+
+    def test_run_benchmark_container_records_cache_setting_in_run_json(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            runs_tmp = tmp_path / "runs"
+            runs_tmp.mkdir(parents=True)
+            mock_proc = MagicMock()
+            mock_proc.__enter__.return_value = mock_proc
+            mock_proc.returncode = 0
+            mock_proc.stdout = iter([])
+            mock_proc.wait.return_value = 0
+            mock_proc.communicate.return_value = ("", "")
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.RUNS_DIR", runs_tmp), \
+                 patch("run_common.RUNS_DIR", runs_tmp), \
+                 patch("run_benchmark.find_run_dir", side_effect=lambda run_id, prompt_id: runs_tmp / prompt_id / run_id), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.Popen", return_value=mock_proc):
+
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    model="Claude Opus 5.5",
+                    reasoning="high",
+                    cache="off",
+                    auto_finish=False,
+                )
+                self.assertEqual(exit_code, 0)
+
+                created_dirs = list((runs_tmp / "france-road-accidents").glob("*"))
+                self.assertEqual(len(created_dirs), 1)
+                run_json = json.loads((created_dirs[0] / "run.json").read_text(encoding="utf-8"))
+                self.assertIn("cache=off", run_json["harness"]["detail"])
+
+    def test_run_parallel_benchmarks_execution_and_aggregation(self):
+        specs = [
+            {"model": "Claude Opus 5.5", "reasoning": "high", "cache": True},
+            {"model": "Gemini 4 Argon", "reasoning": "medium", "cache": False},
+        ]
+
+        # 1. Success case: both specs return 0
+        with patch("run_benchmark.run_benchmark_container", return_value=0) as mock_run:
+            rc = run_parallel_benchmarks(
+                specs,
+                prompt_id="france-road-accidents",
+                max_parallel=2,
+                auto_finish=False,
+            )
+            self.assertEqual(rc, 0)
+            self.assertEqual(mock_run.call_count, 2)
+
+        # 2. Failure aggregation: one spec returns non-zero
+        call_results = [0, 42]
+        with patch("run_benchmark.run_benchmark_container", side_effect=call_results) as mock_run:
+            rc = run_parallel_benchmarks(
+                specs,
+                prompt_id="france-road-accidents",
+                max_parallel=2,
+                auto_finish=False,
+            )
+            self.assertNotEqual(rc, 0)
+            self.assertEqual(mock_run.call_count, 2)
+
+    def test_run_parallel_benchmarks_live_streaming_prefixed(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            runs_tmp = tmp_path / "runs"
+            runs_tmp.mkdir(parents=True)
+
+            line1 = json.dumps({
+                "type": "tool_call",
+                "subtype": "started",
+                "tool_call": {"shellToolCall": {"args": {"description": "Running task"}}},
+            })
+            mock_proc = MagicMock()
+            mock_proc.__enter__.return_value = mock_proc
+            mock_proc.returncode = 0
+            mock_proc.stdout = iter([line1 + "\n"])
+            mock_proc.wait.return_value = 0
+            mock_proc.communicate.return_value = ("", "")
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.RUNS_DIR", runs_tmp), \
+                 patch("run_common.RUNS_DIR", runs_tmp), \
+                 patch("run_benchmark.find_run_dir", side_effect=lambda run_id, prompt_id: runs_tmp / prompt_id / run_id), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.Popen", return_value=mock_proc):
+
+                out_capture = io.StringIO()
+                with patch("sys.stdout", out_capture):
+                    rc = run_parallel_benchmarks(
+                        ["Claude Opus 5.5:high"],
+                        prompt_id="france-road-accidents",
+                        auto_finish=False,
+                    )
+                self.assertEqual(rc, 0)
+                captured = out_capture.getvalue()
+                # Verify that output lines contain the run identifier prefix
+                self.assertIn("Tool started: Shell", captured)
+                self.assertIn("france-road-accidents", str(list(runs_tmp.iterdir())))
+                created = list((runs_tmp / "france-road-accidents").glob("*"))[0].name
+                self.assertIn(f"[{created}", captured)
+
+    def test_main_cli_parallel_run_specs(self):
+        with patch("run_benchmark.run_parallel_benchmarks", return_value=0) as mock_parallel:
+            with patch("sys.argv", [
+                "run_benchmark.py",
+                "--run-spec", "model=Claude Opus 5.5,reasoning=high,cache=on",
+                "--run-spec", "model=Gemini 4 Argon,reasoning=medium,cache=off",
+                "-j", "2",
+                "--no-finish",
+            ]):
+                rc = main()
+                self.assertEqual(rc, 0)
+                mock_parallel.assert_called_once()
+                specs = mock_parallel.call_args[0][0]
+                self.assertEqual(len(specs), 2)
+                self.assertEqual(mock_parallel.call_args[1]["max_parallel"], 2)
+                self.assertFalse(mock_parallel.call_args[1]["auto_finish"])
+
+    def test_scaffold_lock_concurrent_safety(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            runs_tmp = tmp_path / "runs"
+            runs_tmp.mkdir(parents=True)
+
+            mock_proc = MagicMock()
+            mock_proc.__enter__.return_value = mock_proc
+            mock_proc.returncode = 0
+            mock_proc.stdout = iter([])
+            mock_proc.wait.return_value = 0
+            mock_proc.communicate.return_value = ("", "")
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.RUNS_DIR", runs_tmp), \
+                 patch("run_common.RUNS_DIR", runs_tmp), \
+                 patch("run_benchmark.find_run_dir", side_effect=lambda run_id, prompt_id: runs_tmp / prompt_id / run_id), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.Popen", return_value=mock_proc):
+
+                rc = run_parallel_benchmarks(
+                    [
+                        "Claude Opus 5.5:high",
+                        "Claude Opus 5.5:high",
+                    ],
+                    prompt_id="france-road-accidents",
+                    max_parallel=2,
+                    auto_finish=False,
+                )
+                self.assertEqual(rc, 0)
+                created_dirs = list((runs_tmp / "france-road-accidents").glob("*"))
+                self.assertEqual(len(created_dirs), 2)
+                names = {d.name for d in created_dirs}
+                self.assertEqual(len(names), 2)
 
 
 if __name__ == "__main__":
