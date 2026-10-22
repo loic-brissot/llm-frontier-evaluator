@@ -3,9 +3,10 @@ id: TASK-39
 title: >-
   Fix false-positive WebGL context creation console error during Playwright DOM
   inspection in verify_run.py
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-22 00:10'
+updated_date: '2026-10-22 00:55'
 labels:
   - verification
   - playwright
@@ -32,7 +33,7 @@ Root cause:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 run_playwright_telemetry() in scripts/verify_run.py checks WebGL context presence without triggering webglcontextcreationerror on existing webgl2 or 2d canvases (e.g. checking webgl2 before webgl and suppressing webglcontextcreationerror propagation during the DOM probe)
-- [ ] #2 Console errors listener in verify_run.py only records genuine application runtime errors, not artifacts of post-load telemetry inspection
-- [ ] #3 Unit tests in tests/ cover WebGL2 canvas inspection without emitting false console_errors, and all test and lint suites pass
+- [x] #1 run_playwright_telemetry() in scripts/verify_run.py checks WebGL context presence without triggering webglcontextcreationerror on existing webgl2 or 2d canvases (e.g. checking webgl2 before webgl and suppressing webglcontextcreationerror propagation during the DOM probe)
+- [x] #2 Console errors listener in verify_run.py only records genuine application runtime errors, not artifacts of post-load telemetry inspection
+- [x] #3 Unit tests in tests/ cover WebGL2 canvas inspection without emitting false console_errors, and all test and lint suites pass
 <!-- AC:END -->
