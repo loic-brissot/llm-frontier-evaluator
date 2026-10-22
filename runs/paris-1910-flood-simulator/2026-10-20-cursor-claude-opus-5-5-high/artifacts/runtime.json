@@ -1,13 +1,11 @@
 {
   "passed": true,
   "http_status": 200,
-  "url": "http://127.0.0.1:51558",
-  "server_mode": "static",
-  "load_time_ms": 6581.26,
-  "console_errors": [
-    "THREE.WebGLRenderer: A WebGL context could not be created. Reason:  Canvas has an existing context of a different type"
-  ],
-  "console_warnings_count": 4,
+  "url": "http://127.0.0.1:62483",
+  "server_mode": "command",
+  "load_time_ms": 3392.97,
+  "console_errors": [],
+  "console_warnings_count": 0,
   "page_errors": [],
   "failed_requests": [],
   "dom": {
@@ -18,5 +16,5 @@
     "text_length": 1797
   },
   "screenshot_path": "artifacts/screenshot.png",
-  "verified_at": "2026-10-21T05:39:25.571Z"
+  "verified_at": "2026-10-22T09:02:15.135Z"
 }

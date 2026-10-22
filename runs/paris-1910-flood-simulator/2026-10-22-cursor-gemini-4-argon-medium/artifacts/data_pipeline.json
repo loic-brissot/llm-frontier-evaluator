@@ -1,0 +1,72 @@
+{
+  "prompt_id": "paris-1910-flood-simulator",
+  "passed": true,
+  "authenticity": "real_open_data",
+  "score": 1.0,
+  "total_data_files": 3,
+  "total_records": 9486,
+  "synthetic_signals": [],
+  "checks": [
+    {
+      "id": "buildings_elevation_dataset",
+      "description": "Paris buildings footprint dataset with height and median ground elevation",
+      "passed": true,
+      "observed_records": 9416,
+      "matched_files": [
+        "public/data/paris_vectors.json"
+      ],
+      "detail": "Matched 1 file(s) with 9416 observed records (min: 1000)"
+    },
+    {
+      "id": "ppri_flood_risk_zones",
+      "description": "PPRI flood risk zones (plub_pprizone)",
+      "passed": true,
+      "observed_records": 9416,
+      "matched_files": [
+        "public/data/paris_vectors.json"
+      ],
+      "detail": "Matched 1 file(s) with 9416 observed records (min: 1)"
+    },
+    {
+      "id": "street_elevation_benchmarks",
+      "description": "Street elevation leveling benchmarks (repere-de-nivellement)",
+      "passed": true,
+      "observed_records": 9416,
+      "matched_files": [
+        "public/data/paris_vectors.json"
+      ],
+      "detail": "Matched 1 file(s) with 9416 observed records (min: 50)"
+    },
+    {
+      "id": "stations_dataset",
+      "description": "\u00cele-de-France metro and rail stations (emplacement-des-gares-idf)",
+      "passed": true,
+      "observed_records": 9416,
+      "matched_files": [
+        "public/data/paris_vectors.json"
+      ],
+      "detail": "Matched 1 file(s) with 9416 observed records (min: 20)"
+    },
+    {
+      "id": "arrondissements_dataset",
+      "description": "Paris 20 arrondissements district boundaries",
+      "passed": true,
+      "observed_records": 9416,
+      "matched_files": [
+        "public/data/paris_vectors.json"
+      ],
+      "detail": "Matched 1 file(s) with 9416 observed records (min: 20)"
+    },
+    {
+      "id": "historical_flood_markers",
+      "description": "Historical flood markers (1910 at +8.62m, 2018 at +5.84m, 2016 at +6.10m, 1955 at +7.12m)",
+      "passed": true,
+      "observed_records": 9416,
+      "matched_files": [
+        "public/data/paris_vectors.json"
+      ],
+      "detail": "Matched 1 file(s) with 9416 observed records (min: 1)"
+    }
+  ],
+  "verified_at": "2026-10-22T09:00:06.480Z"
+}

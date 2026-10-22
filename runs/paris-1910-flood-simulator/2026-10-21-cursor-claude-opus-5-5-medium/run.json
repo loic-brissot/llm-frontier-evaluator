@@ -1,0 +1,426 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-21-cursor-claude-opus-5-5-medium",
+  "series_id": "paris-1910-flood-simulator-cursor",
+  "prompt_id": "paris-1910-flood-simulator",
+  "prompt_sha256": "1c2103d2016d41e7263c8012c13ee555b6397ac5d8e4908e1b76a766ff49a9c3",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "anthropic",
+    "name": "Claude Opus 5.5",
+    "context": null,
+    "reasoning": "medium"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": "2026.10.19-6bbf2c4",
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-21T21:50:12.533Z",
+    "ended_at": "2026-10-21T23:06:11.638Z"
+  },
+  "tokens": {
+    "split_rule": "combined_output_as_visible",
+    "reasoning_tokens": 0,
+    "visible_tokens": 198300,
+    "raw": {
+      "usage_csv": {
+        "events_in_file": 435,
+        "events_selected": 4,
+        "selection": "4 of 435 events. Exact model match for Claude Opus 5.5. Events from 2026-10-21T21:50:12.533000+00:00 through 2026-10-21T23:06:11.638000+00:00.",
+        "files": [
+          "team-usage-events-2026-10-22.csv"
+        ],
+        "models": {
+          "claude-opus-5-5-medium": 4
+        },
+        "kinds": {
+          "Included": 4
+        },
+        "users": 0,
+        "fields": {
+          "cache_write_tokens": "Input (w/ Cache Write)",
+          "uncached_input_tokens": "Input (w/o Cache Write)",
+          "cache_read_tokens": "Cache Read",
+          "output_tokens": "Output Tokens",
+          "total_tokens": "Total Tokens"
+        },
+        "max_mode": {
+          "No": 4
+        },
+        "first_event_at": "2026-10-21T21:50:08.708Z",
+        "last_event_at": "2026-10-21T23:03:03.364Z",
+        "cache_read_tokens": 15957565,
+        "cache_write_tokens": 492712,
+        "uncached_input_tokens": 5699,
+        "output_tokens": 198300,
+        "total_tokens": 16654276,
+        "total_tokens_checked": 4,
+        "total_tokens_mismatches": 0,
+        "total_tokens_check": "matches",
+        "cost": "13.59"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "claude-opus-5-5",
+        "context_variant": null,
+        "long_context_applied": false,
+        "harness": "cursor",
+        "harness_token_rate_per_1m": "0.25",
+        "harness_surcharge_usd": "4.16",
+        "rates_per_1m_usd": {
+          "input": "4.00",
+          "cache_write": "5.00",
+          "cache_read": "0.20",
+          "output": "20.00"
+        },
+        "estimated_cost_usd": "9.64",
+        "estimated_cost_with_harness_usd": "13.81"
+      },
+      "provider_usage": {
+        "type": "result",
+        "subtype": "success",
+        "duration_ms": 4569372,
+        "duration_api_ms": 4569372,
+        "is_error": false,
+        "result": "I'll start by checking the workspace, the available tools, and whether the data sources are reachable.Network is available. Let me check Python packages and inspect the data schemas.All sources are reachable (128,206 Apur buildings). I'll set up a Python environment for the data pipeline.Now the download script for all six sources.Downloaded. Now let me profile the attributes (PPRI codes, water polygons, benchmark designations, building elevations).Excellent \u2014 the VNF guide has a table of 1910/1955/1982 water lines at every bridge, plus port (lower quay) altitudes. Let me read it.Stage 1 ran in 17 s (127,083 buildings in the domain, Seine 1.75 km\u00b2, benchmarks sit ~0.58 m above ground as expected for facade bolts). Let me look at the debug map.The shell command was blocked by a pre-tool hook. Let me check what the hook restricts so I can stay within it.The hook simply rejects any `../` in commands; I'll use absolute paths.Station results are plausible now: Invalides and Javel (both RER C) flood first, then Bercy, Saint-\u00c9milion and the 15th-arrondissement stations. Next, the web app: Vite + Three.js.Dependencies are installed. Now I'll write the app: the HTML shell and styles first, then the data loading, shaders and scene, then the interface.Now the data loading and water-line modules.Now the statistics module (precomputed so counters are instant at any level) and the UI.Now the main entry: loading, wiring, animation, camera views and the hover tooltips.Let me build to catch errors, and set up a headless browser to look at the result.Chromium is installed (software WebGL). I'll start the dev server and write a screenshot script that drives the app through several levels and views.Software WebGL is too slow to keep up with a continuous render loop at this resolution, so the screenshot never gets a frame. I'll add a test-only `?fps=` URL parameter that throttles rendering.Still timing out. Let me measure how long one frame actually takes in software rendering, at a smaller viewport.A frame takes about 0.8 s at 800\u00d7450 in software, so rendering works; the continuous loop just starves the screenshot. I'll take screenshots with very sparse rendering (one frame every 5 s).Screenshots work when frames are rare, so I'll expose a manual `frame()` hook for testing and render explicitly before each shot.The Seine outline is exported (5 rings, 595 vertices) and the river cells now carry bank elevation. Now the scene changes: river mask, quay walls and river picking.Now the shader side: terrain cut over the river, quay wall shader, and a cleaner PPRI style with zone-coloured outlines and lighter fills.Now the UI fixes: ruler tag nudges and spacing, a more compact impact panel, a backdrop behind the title, and labels hidden immediately when off-screen.I'll replace the plain JS arrays with growable typed arrays, so the larger adaptive mesh doesn't allocate hundreds of MB of temporary memory.At +10 m the overview shows 1,678 ha, 26,489 buildings and 62 stations flooded. The arrondissement number labels don't appear in the overview, though, so I'll inspect them.Some small cleanups of leftover unused variables:Now a production build, served with `vite preview`, for a final end-to-end check. The check covers playback through a marker, hovering an arrondissement bar, and the labels after their fade-in.The production build works: data loads from relative paths and the 1910 state is correct. The arrondissement labels still don't show, even after waiting, so I'm checking the label layer's stacking.Landmark labels are missing as well, so the whole label layer is hidden. That suggests it sits under the canvas in the DOM order.The DOM order is fine, so I'm inspecting the label elements in the page directly.The labels are rendered, but at about half scale (around 15 px) and 45% white over a light-grey city, which makes them effectively invisible. I'll check the scaling logic.No scaling is applied, so contrast is the only problem. I'll give the labels near-white text with a dark halo so they read over the bright roofs.The arrondissement numbers are readable now. I'll stop the preview server and finish.I built the 3D Paris flood simulator and it runs end to end. Every inner-Paris building stands on real ground elevation, and a 3D Seine rises centimetre by centimetre from normal level to +10 m at the Austerlitz gauge, with live counters and flooded stations. The production build works. My final check, in headless Chrome, was the 1910 overview: 887 ha flooded, 9,997 buildings reached and 28 of 259 stations under water.\n\n**How to run it**\n- Run `npm install && npm run dev`, then open http://localhost:5173. The processed data is already in `public/data` (about 18 MB).\n- `npm run build` makes a static `dist/` that you can host from any folder. A link such as `#h=8.62` opens the map at a given level.\n- To rebuild the data from the original sources: `pip install -r pipeline/requirements.txt`, then `PYTHON=<your python> npm run data`. It downloads Apur, the Paris Open Data sets and IDFM, then rebuilds everything.\n\n**What's on screen**\n- **Gauge on the right:** drag it, scroll, or use the arrow keys (\u00b11 cm; with Shift \u00b110 cm). It marks normal level (+0.82), 2018 (+5.84), 2016 (+6.10), 1955 (+7.12) and 1910 (+8.62). **Play** raises the water and pauses on each historic flood with a short story card.\n- **What floods:** the water is a 3D surface that slopes down the river. Streets go blue, deeper for deeper water. Flooded buildings turn amber, then red, then crimson as the water gets deeper, and there's a glow along the moving edge of the water.\n- **Stations:** metro stations are circles, RER and train stations squares. They pulse red when flooded and are listed with the level at which each one floods.\n- **Live panel on the left:**\n  - Flooded hectares, buildings reached and stations flooded.\n  - A curve of flooded area against gauge level; click it to set the level.\n  - Bars of buildings reached per arrondissement. Hovering highlights that arrondissement on the map, and clicking flies the camera there.\n- **Layers:** the PPRI flood-risk zones can be switched on, with the modelled 1910 edge drawn as a dashed line. You can also toggle arrondissement outlines and labels, adjust the relief exaggeration, and jump to preset views (Cit\u00e9, Invalides, Javel, Bercy, the gauge).\n- **Tooltips:** hovering a building, a station or the ground shows its elevation, the water depth there, or how much more rise it would take to flood. An \"About\" panel explains the method and its limits.\n\n**How the flooding is modelled**\n- **Ground:** elevation comes from the Apur ground data for each building, combined with about 9,800 street benchmarks. The lower quays are set to the level at which their ports start to flood.\n- **Water line:** it slopes along the river. I calibrated it on the waterway authority's (VNF) bridge readings for 1910, 1955 and 1982.\n- **What floods:** a spot only floods once the water reaches it along a continuous path from the Seine. Low ground cut off behind higher ground stays dry until the water gets over the high point.\n- **Comparison:** the modelled 1910 extent lines up well with the official PPRI zones.\n\n**Limits**\n- Only flooding over the ground surface is modelled. Water coming up through sewers, metro tunnels and groundwater is left out, and in 1910 that spread the flood much further.\n- There are no flood barriers, and the water level is steady: no flood wave is simulated.\n- The ground grid is 4 m. In very close views the quays still show a slight 4 m stair-step edge.\n\nIn this last pass I made the arrondissement numbers readable over the bright rooftops; they had been too faint to see. I also added `vite.config.js`, `pipeline/requirements.txt` and a `.gitignore`, made `npm run data` use any Python you point it at, and removed some unused code.",
+        "session_id": "c58c645b-5773-4ddb-bec5-2d4289a5ba0f",
+        "request_id": "2ae334af-5a8a-4139-8727-2071a89e6aa8",
+        "usage": {
+          "inputTokens": 8,
+          "outputTokens": 1736,
+          "cacheReadTokens": 159626,
+          "cacheWriteTokens": 1687
+        }
+      },
+      "hook_tokens": {
+        "source": "transcript_or_hook",
+        "model": "claude-opus-5-5",
+        "input_tokens": 161321,
+        "uncached_input_tokens": 8,
+        "cache_read_tokens": 159626,
+        "cache_write_tokens": 1687,
+        "output_tokens": 1736,
+        "split_rule": "unavailable"
+      }
+    }
+  },
+  "model_time": {
+    "source": "wall_clock_minus_tool_time",
+    "generating_seconds": 2349.8,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 4559.1,
+        "tool_seconds_merged": 2188.3,
+        "tool_seconds_summed": 2192.6,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": 2370.8,
+        "thinking_seconds": 921.7,
+        "thought_blocks": 91
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 42,
+      "failures": 2,
+      "by_tool": {
+        "Shell": {
+          "calls": 42,
+          "failures": 2
+        }
+      }
+    },
+    "files": {
+      "calls": 131,
+      "failures": 0,
+      "by_tool": {
+        "Write": {
+          "calls": 92,
+          "failures": 0
+        },
+        "Grep": {
+          "calls": 4,
+          "failures": 0
+        },
+        "Read": {
+          "calls": 35,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    }
+  },
+  "context_reread": {
+    "source": "cursor_usage_csv",
+    "cache_read_tokens": 15957565,
+    "cache_write_tokens": 492712,
+    "uncached_input_tokens": 5699,
+    "raw": {
+      "selection": "4 of 435 events. Exact model match for Claude Opus 5.5. Events from 2026-10-21T21:50:12.533000+00:00 through 2026-10-21T23:06:11.638000+00:00.",
+      "events_selected": 4,
+      "fields": {
+        "cache_write_tokens": "Input (w/ Cache Write)",
+        "uncached_input_tokens": "Input (w/o Cache Write)",
+        "cache_read_tokens": "Cache Read",
+        "output_tokens": "Output Tokens",
+        "total_tokens": "Total Tokens"
+      },
+      "cache_read_tokens": 15957565,
+      "cache_write_tokens": 492712,
+      "uncached_input_tokens": 5699,
+      "total_tokens_check": "matches"
+    }
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": true,
+    "summary": ""
+  },
+  "observations": "1 transcript/tool-event lines were not JSON objects. No stop event recorded; capped run end time at the last non-idle tool/thought event. Isolation audit flagged 2 potential contamination event(s): Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..')",
+  "verification": {
+    "runtime": {
+      "passed": true,
+      "http_status": 200,
+      "url": "http://127.0.0.1:63918",
+      "server_mode": "static",
+      "load_time_ms": 3685.81,
+      "console_errors": [],
+      "console_warnings_count": 2,
+      "page_errors": [],
+      "failed_requests": [],
+      "dom": {
+        "title": "Paris \u00b7 La Crue \u2014 3D flood simulator of the Seine",
+        "canvas_count": 1,
+        "svg_count": 1,
+        "webgl_context": true,
+        "text_length": 1148
+      },
+      "screenshot_path": "artifacts/screenshot.png",
+      "verified_at": "2026-10-22T09:06:09.889Z"
+    },
+    "data_pipeline": {
+      "prompt_id": "paris-1910-flood-simulator",
+      "passed": true,
+      "authenticity": "real_open_data",
+      "score": 1.0,
+      "total_data_files": 73,
+      "total_records": 141805,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "buildings_elevation_dataset",
+          "description": "Paris buildings footprint dataset with height and median ground elevation",
+          "passed": true,
+          "observed_records": 9811,
+          "matched_files": [
+            "pipeline/raw/apur_048000.json",
+            "pipeline/raw/apur_058000.json",
+            "pipeline/raw/apur_120000.json",
+            "pipeline/raw/reperes.geojson",
+            "pipeline/raw/apur_116000.json",
+            "pipeline/raw/apur_106000.json",
+            "pipeline/raw/apur_022000.json",
+            "pipeline/raw/apur_032000.json",
+            "pipeline/raw/apur_040000.json",
+            "pipeline/raw/apur_050000.json",
+            "pipeline/raw/apur_066000.json",
+            "pipeline/raw/apur_076000.json",
+            "pipeline/raw/apur_004000.json",
+            "pipeline/raw/apur_014000.json",
+            "pipeline/raw/apur_082000.json",
+            "pipeline/raw/apur_092000.json",
+            "pipeline/raw/apur_052000.json",
+            "pipeline/raw/apur_042000.json",
+            "pipeline/raw/apur_030000.json",
+            "pipeline/raw/apur_020000.json",
+            "pipeline/raw/apur_016000.json",
+            "pipeline/raw/apur_006000.json",
+            "pipeline/raw/apur_074000.json",
+            "pipeline/raw/apur_064000.json",
+            "pipeline/raw/apur_090000.json",
+            "pipeline/raw/apur_080000.json",
+            "pipeline/raw/apur_038000.json",
+            "pipeline/raw/apur_028000.json",
+            "pipeline/raw/apur_122000.json",
+            "pipeline/raw/apur_104000.json",
+            "pipeline/raw/apur_114000.json",
+            "pipeline/raw/apur_098000.json",
+            "pipeline/raw/apur_088000.json",
+            "pipeline/raw/apur_056000.json",
+            "pipeline/raw/apur_046000.json",
+            "pipeline/raw/apur_034000.json",
+            "pipeline/raw/apur_024000.json",
+            "pipeline/raw/apur_094000.json",
+            "pipeline/raw/apur_084000.json",
+            "pipeline/raw/apur_012000.json",
+            "pipeline/raw/apur_002000.json",
+            "pipeline/raw/apur_070000.json",
+            "pipeline/raw/apur_108000.json",
+            "pipeline/raw/apur_060000.json",
+            "pipeline/raw/apur_118000.json",
+            "pipeline/raw/apur_126000.json",
+            "pipeline/raw/apur_100000.json",
+            "pipeline/raw/apur_078000.json",
+            "pipeline/raw/apur_110000.json",
+            "pipeline/raw/apur_068000.json",
+            "pipeline/raw/gares.geojson",
+            "pipeline/raw/apur_124000.json",
+            "pipeline/raw/apur_008000.json",
+            "pipeline/raw/apur_018000.json",
+            "pipeline/raw/apur_112000.json",
+            "pipeline/raw/apur_102000.json",
+            "pipeline/raw/apur_026000.json",
+            "pipeline/raw/apur_036000.json",
+            "pipeline/raw/apur_044000.json",
+            "pipeline/raw/apur_054000.json",
+            "pipeline/raw/apur_086000.json",
+            "pipeline/raw/apur_096000.json",
+            "pipeline/raw/apur_062000.json",
+            "pipeline/raw/apur_072000.json",
+            "pipeline/raw/apur_000000.json",
+            "pipeline/raw/apur_010000.json"
+          ],
+          "detail": "Matched 66 file(s) with 9811 observed records (min: 1000)"
+        },
+        {
+          "id": "ppri_flood_risk_zones",
+          "description": "PPRI flood risk zones (plub_pprizone)",
+          "passed": true,
+          "observed_records": 1653,
+          "matched_files": [
+            "pipeline/raw/pprizone.geojson"
+          ],
+          "detail": "Matched 1 file(s) with 1653 observed records (min: 1)"
+        },
+        {
+          "id": "street_elevation_benchmarks",
+          "description": "Street elevation leveling benchmarks (repere-de-nivellement)",
+          "passed": true,
+          "observed_records": 9811,
+          "matched_files": [
+            "pipeline/raw/reperes.geojson"
+          ],
+          "detail": "Matched 1 file(s) with 9811 observed records (min: 50)"
+        },
+        {
+          "id": "stations_dataset",
+          "description": "\u00cele-de-France metro and rail stations (emplacement-des-gares-idf)",
+          "passed": true,
+          "observed_records": 1287,
+          "matched_files": [
+            "pipeline/raw/gares.geojson"
+          ],
+          "detail": "Matched 1 file(s) with 1287 observed records (min: 20)"
+        },
+        {
+          "id": "arrondissements_dataset",
+          "description": "Paris 20 arrondissements district boundaries",
+          "passed": true,
+          "observed_records": 20,
+          "matched_files": [
+            "pipeline/raw/arrondissements.geojson"
+          ],
+          "detail": "Matched 1 file(s) with 20 observed records (min: 20)"
+        },
+        {
+          "id": "historical_flood_markers",
+          "description": "Historical flood markers (1910 at +8.62m, 2018 at +5.84m, 2016 at +6.10m, 1955 at +7.12m)",
+          "passed": true,
+          "observed_records": 141738,
+          "matched_files": [
+            "public/data/meta.json",
+            "pipeline/raw/apur_048000.json",
+            "pipeline/raw/apur_058000.json",
+            "pipeline/raw/apur_120000.json",
+            "pipeline/raw/reperes.geojson",
+            "pipeline/raw/apur_116000.json",
+            "pipeline/raw/apur_106000.json",
+            "pipeline/raw/apur_022000.json",
+            "pipeline/raw/apur_032000.json",
+            "pipeline/raw/apur_040000.json",
+            "pipeline/raw/apur_128000.json",
+            "pipeline/raw/apur_050000.json",
+            "pipeline/raw/apur_066000.json",
+            "pipeline/raw/apur_076000.json",
+            "pipeline/raw/apur_004000.json",
+            "pipeline/raw/apur_014000.json",
+            "pipeline/raw/apur_082000.json",
+            "pipeline/raw/apur_092000.json",
+            "pipeline/raw/apur_052000.json",
+            "pipeline/raw/apur_042000.json",
+            "pipeline/raw/apur_030000.json",
+            "pipeline/raw/apur_020000.json",
+            "pipeline/raw/apur_016000.json",
+            "pipeline/raw/apur_006000.json",
+            "pipeline/raw/apur_074000.json",
+            "pipeline/raw/apur_064000.json",
+            "pipeline/raw/apur_090000.json",
+            "pipeline/raw/apur_080000.json",
+            "pipeline/raw/apur_038000.json",
+            "pipeline/raw/apur_028000.json",
+            "pipeline/raw/apur_122000.json",
+            "pipeline/raw/apur_104000.json",
+            "pipeline/raw/apur_114000.json",
+            "pipeline/raw/apur_098000.json",
+            "pipeline/raw/apur_088000.json",
+            "pipeline/raw/apur_056000.json",
+            "pipeline/raw/apur_046000.json",
+            "pipeline/raw/apur_034000.json",
+            "pipeline/raw/apur_024000.json",
+            "pipeline/raw/apur_094000.json",
+            "pipeline/raw/apur_084000.json",
+            "pipeline/raw/apur_012000.json",
+            "pipeline/raw/apur_002000.json",
+            "pipeline/raw/apur_070000.json",
+            "pipeline/raw/apur_108000.json",
+            "pipeline/raw/apur_060000.json",
+            "pipeline/raw/apur_118000.json",
+            "pipeline/raw/arrondissements.geojson",
+            "pipeline/raw/apur_126000.json",
+            "pipeline/raw/apur_100000.json",
+            "pipeline/raw/apur_078000.json",
+            "pipeline/raw/apur_110000.json",
+            "pipeline/raw/apur_068000.json",
+            "pipeline/raw/gares.geojson",
+            "pipeline/raw/voies_eau.geojson",
+            "pipeline/raw/apur_124000.json",
+            "pipeline/raw/apur_008000.json",
+            "pipeline/raw/apur_018000.json",
+            "pipeline/raw/apur_112000.json",
+            "pipeline/raw/apur_102000.json",
+            "pipeline/raw/apur_026000.json",
+            "pipeline/raw/apur_036000.json",
+            "pipeline/raw/apur_044000.json",
+            "pipeline/raw/apur_054000.json",
+            "pipeline/raw/pprizone.geojson",
+            "pipeline/raw/apur_086000.json",
+            "pipeline/raw/apur_096000.json",
+            "pipeline/raw/apur_062000.json",
+            "pipeline/raw/apur_072000.json",
+            "pipeline/raw/apur_000000.json",
+            "pipeline/raw/apur_010000.json"
+          ],
+          "detail": "Matched 71 file(s) with 141738 observed records (min: 1)"
+        }
+      ],
+      "verified_at": "2026-10-22T09:06:24.509Z"
+    }
+  }
+}

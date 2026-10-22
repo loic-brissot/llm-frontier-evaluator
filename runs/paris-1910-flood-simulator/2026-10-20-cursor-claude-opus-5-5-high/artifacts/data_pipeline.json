@@ -3,8 +3,8 @@
   "passed": true,
   "authenticity": "real_open_data",
   "score": 1.0,
-  "total_data_files": 12,
-  "total_records": 141396,
+  "total_data_files": 145,
+  "total_records": 351022,
   "synthetic_signals": [],
   "checks": [
     {
@@ -16,9 +16,37 @@
         "data/raw/gares_idf.geojson",
         "data/raw/ppri_zones.geojson",
         "data/raw/apur_emprise_batie.json",
-        "data/raw/reperes_nivellement.geojson"
+        "data/raw/reperes_nivellement.geojson",
+        ".env/lib/python3.13/site-packages/numpy/random/tests/data/philox-testset-1.csv",
+        ".env/lib/python3.13/site-packages/numpy/random/tests/data/philox-testset-2.csv",
+        ".env/lib/python3.13/site-packages/numpy/random/tests/data/sfc64-testset-1.csv",
+        ".env/lib/python3.13/site-packages/numpy/random/tests/data/sfc64-testset-2.csv",
+        ".env/lib/python3.13/site-packages/numpy/random/tests/data/mt19937-testset-2.csv",
+        ".env/lib/python3.13/site-packages/numpy/random/tests/data/mt19937-testset-1.csv",
+        ".env/lib/python3.13/site-packages/numpy/random/tests/data/pcg64-testset-1.csv",
+        ".env/lib/python3.13/site-packages/numpy/random/tests/data/pcg64-testset-2.csv",
+        ".env/lib/python3.13/site-packages/numpy/random/tests/data/pcg64dxsm-testset-1.csv",
+        ".env/lib/python3.13/site-packages/numpy/random/tests/data/pcg64dxsm-testset-2.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-log2.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-arcsinh.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-arctanh.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-sin.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-cos.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-cbrt.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-arctan.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-cosh.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-expm1.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-sinh.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-tanh.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-log10.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-arcsin.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-arccos.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-log1p.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-exp2.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-arccosh.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-tan.csv"
       ],
-      "detail": "Matched 4 file(s) with 128206 observed records (min: 1000)"
+      "detail": "Matched 32 file(s) with 128206 observed records (min: 1000)"
     },
     {
       "id": "ppri_flood_risk_zones",
@@ -64,7 +92,7 @@
       "id": "historical_flood_markers",
       "description": "Historical flood markers (1910 at +8.62m, 2018 at +5.84m, 2016 at +6.10m, 1955 at +7.12m)",
       "passed": true,
-      "observed_records": 140046,
+      "observed_records": 147089,
       "matched_files": [
         "data/raw/osm_bois_vincennes.json",
         "data/raw/ppri_zones.geojson",
@@ -72,10 +100,17 @@
         "data/raw/arrondissements.geojson",
         "data/raw/reperes_nivellement.geojson",
         "data/raw/voies_deau.geojson",
+        ".env/lib/python3.13/site-packages/scipy/signal/tests/data/GLB.Ts+dSST.csv",
+        ".env/lib/python3.13/site-packages/numpy/random/tests/data/philox-testset-2.csv",
+        ".env/lib/python3.13/site-packages/numpy/random/tests/data/pcg64-testset-2.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-cbrt.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-cosh.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-log10.csv",
+        ".env/lib/python3.13/site-packages/numpy/_core/tests/data/umath-validation-set-exp.csv",
         "public/data/meta.json"
       ],
-      "detail": "Matched 7 file(s) with 140046 observed records (min: 1)"
+      "detail": "Matched 14 file(s) with 147089 observed records (min: 1)"
     }
   ],
-  "verified_at": "2026-10-21T05:39:45.212Z"
+  "verified_at": "2026-10-22T09:02:30.694Z"
 }

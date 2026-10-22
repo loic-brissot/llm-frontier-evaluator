@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "http_status": 200,
+  "url": "http://127.0.0.1:61926",
+  "server_mode": "static",
+  "load_time_ms": 5090.62,
+  "console_errors": [],
+  "console_warnings_count": 1,
+  "page_errors": [],
+  "failed_requests": [],
+  "dom": {
+    "title": "PARIS SOUS LES EAUX \u2014 Atlas 3D Interactif des Crues de la Seine (0 \u00e0 +10 m)",
+    "canvas_count": 1,
+    "svg_count": 0,
+    "webgl_context": true,
+    "text_length": 3831
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "verified_at": "2026-10-22T08:59:59.963Z"
+}

@@ -1,0 +1,295 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-22-cursor-gemini-4-argon-medium",
+  "series_id": "paris-1910-flood-simulator-cursor",
+  "prompt_id": "paris-1910-flood-simulator",
+  "prompt_sha256": "1c2103d2016d41e7263c8012c13ee555b6397ac5d8e4908e1b76a766ff49a9c3",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "google",
+    "name": "Gemini 4 Argon",
+    "context": null,
+    "reasoning": "medium"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": "2026.10.19-6bbf2c4",
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-21T22:22:41.849Z",
+    "ended_at": "2026-10-21T23:02:48.749Z"
+  },
+  "tokens": {
+    "split_rule": "combined_output_as_visible",
+    "reasoning_tokens": 0,
+    "visible_tokens": 133013,
+    "raw": {
+      "usage_csv": {
+        "events_in_file": 435,
+        "events_selected": 1,
+        "selection": "1 of 435 events. Exact model match for Gemini 4 Argon. Events from 2026-10-21T22:22:41.849000+00:00 through 2026-10-21T23:02:48.749000+00:00. Selected session start event 2026-10-21T22:22:37.389Z for Gemini session.",
+        "files": [
+          "team-usage-events-2026-10-22.csv"
+        ],
+        "models": {
+          "gemini-4-argon-medium": 1
+        },
+        "kinds": {
+          "Included": 1
+        },
+        "users": 0,
+        "fields": {
+          "cache_write_tokens": "Input (w/ Cache Write)",
+          "uncached_input_tokens": "Input (w/o Cache Write)",
+          "cache_read_tokens": "Cache Read",
+          "output_tokens": "Output Tokens",
+          "total_tokens": "Total Tokens"
+        },
+        "max_mode": {
+          "No": 1
+        },
+        "first_event_at": "2026-10-21T22:22:37.389Z",
+        "last_event_at": "2026-10-21T22:22:37.389Z",
+        "cache_read_tokens": 6039207,
+        "cache_write_tokens": 0,
+        "uncached_input_tokens": 361553,
+        "output_tokens": 133013,
+        "total_tokens": 6533773,
+        "total_tokens_checked": 1,
+        "total_tokens_mismatches": 0,
+        "total_tokens_check": "matches",
+        "cost": "4.16"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "gemini-4-argon",
+        "context_variant": null,
+        "long_context_applied": false,
+        "harness": "cursor",
+        "harness_token_rate_per_1m": "0.25",
+        "harness_surcharge_usd": "1.63",
+        "rates_per_1m_usd": {
+          "input": "2.00",
+          "cache_write": "0.00",
+          "cache_read": "0.10",
+          "output": "10.00"
+        },
+        "estimated_cost_usd": "2.66",
+        "estimated_cost_with_harness_usd": "4.29"
+      },
+      "provider_usage": {
+        "type": "result",
+        "subtype": "success",
+        "duration_ms": 2433188,
+        "duration_api_ms": 2433188,
+        "is_error": false,
+        "result": "I have built the interactive 3D flood simulator of inner Paris (**Paris \u2014 Crues de la Seine : Observatoire Hydraulique 3D**), running at `http://localhost:5173/`.\n\n### Key Features & Architecture\n\n1. **Real Open Data Pipeline (`/workspace/scripts/build_data.py` & `/workspace/public/data/`)**\n   - **Apur *Emprise b\u00e2tie Paris*** (`buildings.bin`): All **127,426 buildings** in inner Paris (*intra-muros*, strictly excluding the 760 buildings in the Bois de Boulogne and Bois de Vincennes via Apur's `B_BOIS = 'N'` boundary) are extruded from their real ground elevation (`al_med_mnt`, IGN69) to their real height (`h_moy`), preserving real polygon footprints (`1,415,821` vertices at `0.25 m` resolution).\n   - **Paris Open Data *Rep\u00e8res de nivellement* & *Voies d'eau*** (`terrain_dem.bin`, `paris_vectors.json`): 9,416 inner-Paris street elevation benchmarks (`altitude_ign69` and `altitude_nvp`, filtering out bridge deck points so the valley floor isn't artificially raised) and 5,996 street segments are combined with the Seine and canal channels to model the topography and the hydraulic slope of the Seine across Paris (`26.95 m IGN69` at Bercy upstream to `24.28 m IGN69` at Point-du-Jour downstream, anchored at `26.25 m IGN69` for `0.00 m` at the Pont d'Austerlitz gauge).\n   - **Paris Open Data *PLU bioclimatique \u2013 Secteurs de risque \u2013 Inondations (PPRI)***: All 1,615 regulatory flood risk polygons (`1,382.3 ha` across inner Paris: *Zone Rouge R*, *Zone Bleue Simple BS*, *Zone Bleue Centre Urbain BC*, and *Zones de pr\u00e9caution BCH/BSH*) are integrated both into the 3D terrain shader and as vector overlays.\n   - **\u00cele-de-France Mobilit\u00e9s *Emplacement des gares IDF***: All **260 unique inner-Paris Metro, RER, and mainline rail stations** are mapped with their street-level access elevations and connected transit lines.\n\n2. **Real-Time 3D WebGL Engine (`/workspace/src/scene/ParisFloodScene.js`)**\n   - **Custom GLSL Building Shader**: Evaluates the exact local water surface elevation against every building's ground altitude (`al_med_mnt`) in real time:\n     - **Deep submersion (`> 1.0 m`)**: Crimson highlight with an animated bright meniscus ring at the exact height of the water on the facade.\n     - **Shallow submersion (`0.01 m \u2013 1.0 m`)**: Amber/orange highlight with waterline meniscus.\n     - **Basement / phreatic infiltration (`-0.80 m \u2013 0.00 m`)**: Subtle cyan basal glow before surface overflow.\n   - **3D Sloped Water Surface**: Animated water surface following the longitudinal slope of the Seine, with depth-based Beer-Lambert absorption and shoreline foam where water meets the terrain.\n   - **Flooded Streets & Transit Beacons**: Street segments and benchmarks illuminate as water reaches their IGN69 elevation; 3D station beacons and ground rings switch state between **Normal** (cyan), **Vigilance Batardeaux** (amber, water within `1.20 m` of station access), and **Inond\u00e9e** (pulsing crimson).\n\n3. **Museum-Grade Interactive Interface (`/workspace/index.html`, `/workspace/src/main.js`, `/workspace/src/style.css`)**\n   - **Centimeter-by-Centimeter Hydrometric Dock**: Continuous slider from `0.00 m` to `+10.00 m` (`0.01 m` step), `-1 cm` / `+1 cm` steppers, keyboard arrow controls (`1 cm` or `10 cm` with `Shift`), live IGN69 and NVP elevations, and one-click historical flood markers:\n     - **Normal (`0.00 m`)**: `0.0 ha`, `0` buildings, `0` stations\n     - **Jan. 2018 (`+5.84 m`)**: `49.9 ha`, `182` buildings, `5` stations flooded (`1` in alert)\n     - **June 2016 (`+6.10 m`)**: `56.4 ha`, `240` buildings, `6` stations flooded (`1` in alert)\n     - **Jan. 1955 (`+7.12 m`)**: `177.5 ha`, `2,020` buildings, `8` stations flooded (`17` in alert)\n     - **Jan. 1910 \u2014 Crue Centennale / PHEC (`+8.62 m`)**: `923.8 ha` (`10.7%` of inner Paris), `13,974` buildings, `37` stations flooded (`24` in alert)\n     - **Crue Extr\u00eame (`+10.00 m`)**: `1,657.1 ha` (`19.1%` of inner Paris), `27,200` buildings, `69` stations flooded\n   - **Live Impact Dashboard & 3D Inspector**: Real-time counters and interactive tabs for all 20 arrondissements, stations, and flooded streets (clicking any district, station, or building flies the 3D camera to it and inspects its exact IGN69 altitude, submersion depth, and PPRI zone).",
+        "session_id": "7909e273-01e5-43fa-8b76-ec28b2aad400",
+        "request_id": "88441b8f-af40-4ae1-af82-e9715996210e",
+        "usage": {
+          "inputTokens": 332354,
+          "outputTokens": 127253,
+          "cacheReadTokens": 6034510,
+          "cacheWriteTokens": 0
+        }
+      },
+      "hook_tokens": {
+        "source": "transcript_or_hook",
+        "model": "gemini-4-argon",
+        "input_tokens": 6366864,
+        "uncached_input_tokens": 332354,
+        "cache_read_tokens": 6034510,
+        "cache_write_tokens": 0,
+        "output_tokens": 127253,
+        "split_rule": "unavailable"
+      }
+    }
+  },
+  "model_time": {
+    "source": "wall_clock_minus_tool_time",
+    "generating_seconds": 1942.6,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 2406.9,
+        "tool_seconds_merged": 464.4,
+        "tool_seconds_summed": 470.3,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": 1942.5,
+        "thinking_seconds": 1044.6,
+        "thought_blocks": 55
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 60,
+      "failures": 10,
+      "by_tool": {
+        "Shell": {
+          "calls": 60,
+          "failures": 10
+        }
+      }
+    },
+    "files": {
+      "calls": 41,
+      "failures": 0,
+      "by_tool": {
+        "Grep": {
+          "calls": 1,
+          "failures": 0
+        },
+        "Write": {
+          "calls": 18,
+          "failures": 0
+        },
+        "Read": {
+          "calls": 21,
+          "failures": 0
+        },
+        "Glob": {
+          "calls": 1,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    }
+  },
+  "context_reread": {
+    "source": "cursor_usage_csv",
+    "cache_read_tokens": 6039207,
+    "cache_write_tokens": 0,
+    "uncached_input_tokens": 361553,
+    "raw": {
+      "selection": "1 of 435 events. Exact model match for Gemini 4 Argon. Events from 2026-10-21T22:22:41.849000+00:00 through 2026-10-21T23:02:48.749000+00:00. Selected session start event 2026-10-21T22:22:37.389Z for Gemini session.",
+      "events_selected": 1,
+      "fields": {
+        "cache_write_tokens": "Input (w/ Cache Write)",
+        "uncached_input_tokens": "Input (w/o Cache Write)",
+        "cache_read_tokens": "Cache Read",
+        "output_tokens": "Output Tokens",
+        "total_tokens": "Total Tokens"
+      },
+      "cache_read_tokens": 6039207,
+      "cache_write_tokens": 0,
+      "uncached_input_tokens": 361553,
+      "total_tokens_check": "matches"
+    }
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": true,
+    "summary": ""
+  },
+  "observations": "1 transcript/tool-event lines were not JSON objects. No stop event recorded; capped run end time at the last non-idle tool/thought event. Isolation audit flagged 2 potential contamination event(s): Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..')",
+  "verification": {
+    "runtime": {
+      "passed": true,
+      "http_status": 200,
+      "url": "http://127.0.0.1:61926",
+      "server_mode": "static",
+      "load_time_ms": 5090.62,
+      "console_errors": [],
+      "console_warnings_count": 1,
+      "page_errors": [],
+      "failed_requests": [],
+      "dom": {
+        "title": "PARIS SOUS LES EAUX \u2014 Atlas 3D Interactif des Crues de la Seine (0 \u00e0 +10 m)",
+        "canvas_count": 1,
+        "svg_count": 0,
+        "webgl_context": true,
+        "text_length": 3831
+      },
+      "screenshot_path": "artifacts/screenshot.png",
+      "verified_at": "2026-10-22T08:59:59.963Z"
+    },
+    "data_pipeline": {
+      "prompt_id": "paris-1910-flood-simulator",
+      "passed": true,
+      "authenticity": "real_open_data",
+      "score": 1.0,
+      "total_data_files": 3,
+      "total_records": 9486,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "buildings_elevation_dataset",
+          "description": "Paris buildings footprint dataset with height and median ground elevation",
+          "passed": true,
+          "observed_records": 9416,
+          "matched_files": [
+            "public/data/paris_vectors.json"
+          ],
+          "detail": "Matched 1 file(s) with 9416 observed records (min: 1000)"
+        },
+        {
+          "id": "ppri_flood_risk_zones",
+          "description": "PPRI flood risk zones (plub_pprizone)",
+          "passed": true,
+          "observed_records": 9416,
+          "matched_files": [
+            "public/data/paris_vectors.json"
+          ],
+          "detail": "Matched 1 file(s) with 9416 observed records (min: 1)"
+        },
+        {
+          "id": "street_elevation_benchmarks",
+          "description": "Street elevation leveling benchmarks (repere-de-nivellement)",
+          "passed": true,
+          "observed_records": 9416,
+          "matched_files": [
+            "public/data/paris_vectors.json"
+          ],
+          "detail": "Matched 1 file(s) with 9416 observed records (min: 50)"
+        },
+        {
+          "id": "stations_dataset",
+          "description": "\u00cele-de-France metro and rail stations (emplacement-des-gares-idf)",
+          "passed": true,
+          "observed_records": 9416,
+          "matched_files": [
+            "public/data/paris_vectors.json"
+          ],
+          "detail": "Matched 1 file(s) with 9416 observed records (min: 20)"
+        },
+        {
+          "id": "arrondissements_dataset",
+          "description": "Paris 20 arrondissements district boundaries",
+          "passed": true,
+          "observed_records": 9416,
+          "matched_files": [
+            "public/data/paris_vectors.json"
+          ],
+          "detail": "Matched 1 file(s) with 9416 observed records (min: 20)"
+        },
+        {
+          "id": "historical_flood_markers",
+          "description": "Historical flood markers (1910 at +8.62m, 2018 at +5.84m, 2016 at +6.10m, 1955 at +7.12m)",
+          "passed": true,
+          "observed_records": 9416,
+          "matched_files": [
+            "public/data/paris_vectors.json"
+          ],
+          "detail": "Matched 1 file(s) with 9416 observed records (min: 1)"
+        }
+      ],
+      "verified_at": "2026-10-22T09:00:06.480Z"
+    }
+  }
+}

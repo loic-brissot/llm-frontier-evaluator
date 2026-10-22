@@ -3,9 +3,10 @@ id: TASK-46
 title: >-
   Reconcile schema/run.schema.json enums with finish_run.py values and repair
   incomplete paris-1910-flood-simulator run records
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-22 02:10'
+updated_date: '2026-10-22 09:48'
 labels:
   - tech-debt
   - schema
@@ -35,7 +36,7 @@ Additionally, the three `paris-1910-flood-simulator` runs (`2026-10-20-cursor-cl
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 schema/run.schema.json and scripts/run_common.py include all active splitRule and cacheSource enum values (combined_output_as_visible, cursor_usage_csv) with schema validation tests
-- [ ] #2 Re-running finish_run.py / backfill_usage_export on the paris-1910-flood-simulator runs populates accurate token usage, cost, tool_calls, and verification telemetry without false-positive errors
-- [ ] #3 All unit tests, ruff lint checks, and compare_runs.py --check-readme pass
+- [x] #1 schema/run.schema.json and scripts/run_common.py include all active splitRule and cacheSource enum values (combined_output_as_visible, cursor_usage_csv) with schema validation tests
+- [x] #2 Re-running finish_run.py / backfill_usage_export on the paris-1910-flood-simulator runs populates accurate token usage, cost, tool_calls, and verification telemetry without false-positive errors
+- [x] #3 All unit tests, ruff lint checks, and compare_runs.py --check-readme pass
 <!-- AC:END -->

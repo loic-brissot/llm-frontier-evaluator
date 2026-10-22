@@ -20,6 +20,7 @@ from finish_run import (
     discover_tmp_usage_csv,
     event_in_window,
     load_usage_json,
+    models_match,
     observation_default,
     parse_decimal,
     parse_timestamp,
@@ -79,11 +80,23 @@ class TestFinishRun(unittest.TestCase):
         started = parse_timestamp("2026-10-17T02:47:30Z")
         ended = parse_timestamp("2026-10-17T02:53:59Z")
 
-        event_before = make_event("2026-10-17T02:47:20.000Z")
+        # More than 60s pre-start grace buffer
+        event_before = make_event("2026-10-17T02:46:20.000Z")
         event_after = make_event("2026-10-17T02:54:10.000Z")
 
         self.assertFalse(event_in_window(event_before, started, ended))
         self.assertFalse(event_in_window(event_after, started, ended))
+
+    def test_event_in_window_pre_start_grace_buffer(self):
+        started = parse_timestamp("2026-10-17T02:47:30Z")
+        ended = parse_timestamp("2026-10-17T02:53:59Z")
+
+        # 10s before started_at is within default 60s pre-start grace buffer
+        event_pre = make_event("2026-10-17T02:47:20.000Z")
+        self.assertTrue(event_in_window(event_pre, started, ended))
+
+        # Explicit pre_grace_seconds can tighten the window
+        self.assertFalse(event_in_window(event_pre, started, ended, pre_grace_seconds=5.0))
 
     def test_event_in_window_handles_missing_date(self):
         event = UsageEvent(
@@ -282,6 +295,139 @@ class TestFinishRun(unittest.TestCase):
 
             discovered = discover_tmp_usage_csv(run_dir, tmp_dir=tmp_dir)
             self.assertEqual(discovered, csv_new)
+
+    def test_models_match_reasoning_aware(self):
+        # When reasoning is specified, matching effort matches exact/longer
+        self.assertEqual(
+            models_match("Claude Opus 5.5", "claude-opus-5-5-medium", run_reasoning="medium"),
+            "exact",
+        )
+        self.assertEqual(
+            models_match("Claude Opus 5.5", "claude-opus-5-5-300k-medium", run_reasoning="medium"),
+            "longer",
+        )
+        # Conflicting reasoning effort is rejected
+        self.assertIsNone(
+            models_match("Claude Opus 5.5", "claude-opus-5-5-high", run_reasoning="medium")
+        )
+        self.assertIsNone(
+            models_match("Claude Opus 5.5", "claude-opus-5-5-low", run_reasoning="medium")
+        )
+        # Base model without reasoning suffix in CSV matches as shorter fallback
+        self.assertEqual(
+            models_match("Claude Opus 5.5", "claude-opus-5-5", run_reasoning="medium"),
+            "shorter",
+        )
+        # When reasoning is unknown / none / unset, regular matching applies
+        self.assertEqual(
+            models_match("Claude Opus 5.5", "claude-opus-5-5-high", run_reasoning="unknown"),
+            "longer",
+        )
+        self.assertEqual(
+            models_match("Claude Opus 5.5", "claude-opus-5-5-medium", run_reasoning=None),
+            "longer",
+        )
+
+    def test_default_csv_selection_reasoning_disambiguation(self):
+        ev_medium = UsageEvent(
+            source="test.csv",
+            date=parse_timestamp("2026-10-21T12:00:00Z"),
+            date_text="2026-10-21T12:00:00Z",
+            model="claude-opus-5-5-medium",
+            kind="",
+            max_mode="",
+            user="",
+            numbers={"output_tokens": 500},
+            fields={},
+            cost=None,
+            cost_unparsed=False,
+            generating_seconds=None,
+        )
+        ev_high = UsageEvent(
+            source="test.csv",
+            date=parse_timestamp("2026-10-21T12:00:00Z"),
+            date_text="2026-10-21T12:00:00Z",
+            model="claude-opus-5-5-high",
+            kind="",
+            max_mode="",
+            user="",
+            numbers={"output_tokens": 1000},
+            fields={},
+            cost=None,
+            cost_unparsed=False,
+            generating_seconds=None,
+        )
+        run_medium = {
+            "model": {"name": "Claude Opus 5.5", "reasoning": "medium"},
+            "wall_clock": {
+                "started_at": "2026-10-21T11:59:00Z",
+                "ended_at": "2026-10-21T12:05:00Z",
+            },
+        }
+        run_high = {
+            "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+            "wall_clock": {
+                "started_at": "2026-10-21T11:59:00Z",
+                "ended_at": "2026-10-21T12:05:00Z",
+            },
+        }
+        chosen_med, _, kind_med = default_csv_selection([ev_medium, ev_high], run_medium)
+        self.assertEqual(chosen_med, [ev_medium])
+        self.assertEqual(kind_med, "exact")
+
+        chosen_hi, _, kind_hi = default_csv_selection([ev_medium, ev_high], run_high)
+        self.assertEqual(chosen_hi, [ev_high])
+        self.assertEqual(kind_hi, "exact")
+
+    def test_stale_csv_rejection_in_non_interactive_mode(self):
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            tmp_dir = Path(tmp_dir_str)
+            run_dir = tmp_dir / "run_dir"
+            run_dir.mkdir()
+            run_json = run_dir / "run.json"
+            run_json.write_text(
+                '{"model": {"name": "gemini-3.1-pro"}, "wall_clock": {"started_at": "2026-10-22T02:00:00Z", "ended_at": "2026-10-22T02:10:00Z"}}',
+                encoding="utf-8",
+            )
+
+            # Stale CSV with matching model but timestamps 5 days earlier
+            csv_stale = tmp_dir / "stale_run.csv"
+            csv_stale.write_text(
+                "Date,Model,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost (USD)\n"
+                "2026-10-17T02:05:00Z,gemini-3.1-pro,100,500,200,300,1100,$0.25\n",
+                encoding="utf-8",
+            )
+
+            # When window is known, stale CSV without window overlap must not be selected
+            discovered = discover_tmp_usage_csv(run_dir, tmp_dir=tmp_dir)
+            self.assertIsNone(discovered)
+
+        # In non-interactive mode, default_csv_selection returns empty list when no events are in window
+        ev_stale = UsageEvent(
+            source="stale.csv",
+            date=parse_timestamp("2026-10-17T02:05:00Z"),
+            date_text="2026-10-17T02:05:00Z",
+            model="gemini-3.1-pro",
+            kind="",
+            max_mode="",
+            user="",
+            numbers={},
+            fields={},
+            cost=None,
+            cost_unparsed=False,
+            generating_seconds=None,
+        )
+        run = {
+            "model": {"name": "gemini-3.1-pro"},
+            "wall_clock": {
+                "started_at": "2026-10-22T02:00:00Z",
+                "ended_at": "2026-10-22T02:10:00Z",
+            },
+        }
+        chosen, note, kind = default_csv_selection([ev_stale], run, interactive=False)
+        self.assertEqual(chosen, [])
+        self.assertEqual(kind, "none")
+        self.assertIn("No events fall inside the run window", note)
 
     def test_complete_run_json_verification_triggers(self):
         with tempfile.TemporaryDirectory() as tmp_dir_str:
@@ -510,16 +656,16 @@ class TestFinishRun(unittest.TestCase):
             complete_run_json(run_dir, [], non_interactive=True, skip_verify=True)
 
             updated = json.loads(run_json.read_text(encoding="utf-8"))
-            self.assertEqual(updated["wall_clock"]["started_at"], "2026-10-21T10:00:02Z")
+            self.assertEqual(updated["wall_clock"]["started_at"], "2026-10-21T10:00:00Z")
             self.assertEqual(updated["wall_clock"]["ended_at"], "2026-10-21T10:00:20Z")
             self.assertEqual(updated["outcome"]["model_stopped"], True)
             self.assertEqual(updated["tool_calls"]["shell"]["calls"], 1)
             self.assertEqual(updated["context_reread"]["cache_read_tokens"], 1000)
             self.assertEqual(updated["context_reread"]["source"], "provider_cache_read")
-            self.assertEqual(updated["model_time"]["generating_seconds"], 14.0)
+            self.assertEqual(updated["model_time"]["generating_seconds"], 16.0)
             self.assertEqual(updated["model_time"]["source"], "wall_clock_minus_tool_time")
             self.assertIn("wall_seconds", updated["model_time"]["raw"]["tool_events"])
-            self.assertEqual(updated["model_time"]["raw"]["tool_events"]["wall_seconds"], 18.0)
+            self.assertEqual(updated["model_time"]["raw"]["tool_events"]["wall_seconds"], 20.0)
             self.assertEqual(updated["model_time"]["raw"]["tool_events"]["thinking_seconds"], 2.0)
 
     def test_complete_run_json_with_pii_csv_and_team_id(self):

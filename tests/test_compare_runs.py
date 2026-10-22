@@ -676,6 +676,31 @@ class TestCompareRuns(unittest.TestCase):
                 self.assertEqual(code, 0)
                 self.assertIn("No local runs yet.", out.getvalue())
 
+    def test_schema_enums_validation(self):
+        from run_common import (
+            CACHE_SOURCES,
+            ROOT,
+            SPLIT_RULES,
+            load_json,
+            run_schema_errors,
+        )
+
+        self.assertIn("combined_output_as_visible", SPLIT_RULES)
+        self.assertIn("cursor_usage_csv", CACHE_SOURCES)
+
+        run_path = (
+            ROOT
+            / "runs"
+            / "paris-1910-flood-simulator"
+            / "2026-10-22-cursor-gemini-4-argon-medium"
+            / "run.json"
+        )
+        run_data = load_json(run_path)
+        self.assertEqual(run_data["tokens"]["split_rule"], "combined_output_as_visible")
+        self.assertEqual(run_data["context_reread"]["source"], "cursor_usage_csv")
+        errors = run_schema_errors(run_data)
+        self.assertEqual(errors, [])
+
 
 if __name__ == "__main__":
     unittest.main()

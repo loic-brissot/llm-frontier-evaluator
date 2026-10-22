@@ -233,9 +233,21 @@ def bucket_for(tool_name: str, tool_input: object = None) -> str:
 
 
 def parse_time(value: object) -> datetime | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if value > 1e11:
+            return datetime.fromtimestamp(value / 1000.0, tz=timezone.utc)
+        elif value > 0:
+            return datetime.fromtimestamp(value, tz=timezone.utc)
+        return None
     if not isinstance(value, str) or not value.strip():
         return None
     text = value.strip()
+    if text.isdigit():
+        val = int(text)
+        if val > 1e11:
+            return datetime.fromtimestamp(val / 1000.0, tz=timezone.utc)
+        elif val > 0:
+            return datetime.fromtimestamp(val, tz=timezone.utc)
     if text.endswith("Z"):
         text = text[:-1] + "+00:00"
     try:
@@ -611,10 +623,13 @@ def summarize_records(
 
     hook_records = [r for r in records if r.get("hook_event_name") is not None]
     if hook_records:
-        summary = _summarize_cursor_hook_records(
-            hook_records, notes=notes, expected_prompt_path=expected_prompt_path
-        )
         transcript_records = [r for r in records if r.get("hook_event_name") is None]
+        summary = _summarize_cursor_hook_records(
+            hook_records,
+            notes=notes,
+            expected_prompt_path=expected_prompt_path,
+            cli_records=transcript_records,
+        )
         if transcript_records:
             t_summary = _process_transcript_records(transcript_records, ToolEventSummary())
             if not summary.token_turns and summary.input_tokens is None and summary.output_tokens is None:
@@ -650,7 +665,7 @@ def summarize_records(
                         continue
                     if norm_t in WRITE_EDIT_TOOL_NAMES and any(w in existing_tools_in_bucket for w in WRITE_EDIT_TOOL_NAMES):
                         continue
-                    if norm_t not in all_summary_tools or (norm_t == "glob" and "glob" not in existing_tools_in_bucket):
+                    if norm_t == "glob" and "glob" not in existing_tools_in_bucket:
                         s_bdata["calls"] += t_counts["calls"]
                         s_bdata["failures"] += t_counts["failures"]
                         s_bdata.setdefault("by_tool", {})[t_tool] = dict(t_counts)
@@ -1011,6 +1026,7 @@ def _summarize_cursor_hook_records(
     notes: list[str] | None = None,
     *,
     expected_prompt_path: Path | None = None,
+    cli_records: list[dict] | None = None,
 ) -> ToolEventSummary:
     summary = ToolEventSummary(notes=list(notes or []))
     if not records:
@@ -1060,13 +1076,44 @@ def _summarize_cursor_hook_records(
     start = parse_time(prompts[0].get("logged_at")) if prompts else None
     if start is None:
         # Fall back to timestamp of the first event when beforeSubmitPrompt is missing (e.g. headless mode)
-        all_times = [
-            parse_time(r.get("logged_at") or r.get("timestamp"))
-            for r in records
-        ]
-        valid_times = [t for t in all_times if t is not None]
-        if valid_times:
-            start = min(valid_times)
+        candidate_times = []
+        for r in records:
+            t = parse_time(r.get("logged_at") or r.get("timestamp"))
+            if t is not None:
+                dur = (
+                    _duration(r.get("duration_ms"))
+                    if r.get("duration_ms") is not None
+                    else _duration(r.get("duration"))
+                )
+                if dur is not None and dur > 0:
+                    t = t - timedelta(milliseconds=dur)
+                candidate_times.append(t)
+        if candidate_times:
+            start = min(candidate_times)
+
+    if cli_records:
+        cli_times = []
+        for r in cli_records:
+            t = parse_time(r.get("logged_at") or r.get("timestamp"))
+            if t is None and r.get("timestamp_ms") is not None:
+                t = parse_time(r.get("timestamp_ms"))
+            if t is None:
+                tc = r.get("tool_call")
+                if isinstance(tc, dict) and tc.get("startedAtMs") is not None:
+                    t = parse_time(tc.get("startedAtMs"))
+            if t is not None:
+                dur = (
+                    _duration(r.get("duration_ms"))
+                    if r.get("duration_ms") is not None
+                    else _duration(r.get("duration"))
+                )
+                if dur is not None and dur > 0:
+                    t = t - timedelta(milliseconds=dur)
+                cli_times.append(t)
+        if cli_times:
+            earliest_cli = min(cli_times)
+            if start is None or earliest_cli < start:
+                start = earliest_cli
 
     end: datetime | None = None
     end_exclusive: datetime | None = None

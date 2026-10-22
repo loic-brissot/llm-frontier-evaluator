@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "http_status": 200,
+  "url": "http://127.0.0.1:63918",
+  "server_mode": "static",
+  "load_time_ms": 3685.81,
+  "console_errors": [],
+  "console_warnings_count": 2,
+  "page_errors": [],
+  "failed_requests": [],
+  "dom": {
+    "title": "Paris \u00b7 La Crue \u2014 3D flood simulator of the Seine",
+    "canvas_count": 1,
+    "svg_count": 1,
+    "webgl_context": true,
+    "text_length": 1148
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "verified_at": "2026-10-22T09:06:09.889Z"
+}
