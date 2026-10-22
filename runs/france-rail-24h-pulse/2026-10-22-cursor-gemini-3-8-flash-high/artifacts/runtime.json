@@ -1,0 +1,29 @@
+{
+  "passed": true,
+  "http_status": 200,
+  "url": "http://127.0.0.1:54015",
+  "server_mode": "static",
+  "load_time_ms": 3977.3,
+  "console_errors": [
+    "Error: Worker failed to load. Check that the worker URL is correct.\n    at Worker.<anonymous> (http://127.0.0.1:54015/assets/index-CW07vDdA.js:1:442956)",
+    "Error: Worker failed to load. Check that the worker URL is correct.\n    at Worker.<anonymous> (http://127.0.0.1:54015/assets/index-CW07vDdA.js:1:442956)"
+  ],
+  "console_warnings_count": 5,
+  "page_errors": [],
+  "failed_requests": [
+    {
+      "url": "http://127.0.0.1:54015/assets/maplibre-gl-worker.mjs?v=6.15.0",
+      "reason": "HTTP 404",
+      "status": 404
+    }
+  ],
+  "dom": {
+    "title": "Atlas Ferroviaire Fran\u00e7ais \u2022 Contr\u00f4le National & Accessibilit\u00e9 SNCF",
+    "canvas_count": 3,
+    "svg_count": 10,
+    "webgl_context": true,
+    "text_length": 878
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "verified_at": "2026-10-22T14:34:27.932Z"
+}

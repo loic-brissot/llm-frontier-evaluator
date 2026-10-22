@@ -1,0 +1,36 @@
+{
+  "prompt_id": "france-rail-24h-pulse",
+  "passed": false,
+  "authenticity": "partial_or_filtered",
+  "score": 0.0,
+  "total_data_files": 2,
+  "total_records": 118,
+  "synthetic_signals": [],
+  "checks": [
+    {
+      "id": "sncf_stations_dataset",
+      "description": "SNCF stations list with UIC codes or coordinates",
+      "passed": false,
+      "observed_records": 0,
+      "matched_files": [],
+      "detail": "No files matched patterns ['*gare*', '*station*', '*uic*'] or required markers ['gare', 'uic', 'latitude', 'longitude']"
+    },
+    {
+      "id": "rail_network_lines_dataset",
+      "description": "RFN rail line shapes / geometries",
+      "passed": false,
+      "observed_records": 0,
+      "matched_files": [],
+      "detail": "No files matched patterns ['*rfn*', '*ligne*', '*rail*', '*shapes*'] or required markers []"
+    },
+    {
+      "id": "gtfs_timetables_trips_dataset",
+      "description": "GTFS schedules or processed timetables/trips for TGV, Intercit\u00e9s, TER",
+      "passed": false,
+      "observed_records": 0,
+      "matched_files": [],
+      "detail": "No files matched patterns ['*gtfs*', '*trip*', '*stop_time*', '*horaire*', '*timetable*'] or required markers ['trip_id', 'stop_id', 'departure_time', 'arrival_time']"
+    }
+  ],
+  "verified_at": "2026-10-22T13:29:58.823Z"
+}

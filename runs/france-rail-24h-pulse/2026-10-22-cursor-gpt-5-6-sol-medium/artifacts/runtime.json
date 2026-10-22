@@ -1,0 +1,22 @@
+{
+  "passed": false,
+  "http_status": 200,
+  "url": "http://127.0.0.1:56760",
+  "server_mode": "static",
+  "load_time_ms": 4805.51,
+  "console_errors": [],
+  "console_warnings_count": 0,
+  "page_errors": [
+    "React is not defined"
+  ],
+  "failed_requests": [],
+  "dom": {
+    "title": "Hexagone \u2014 Atlas ferroviaire",
+    "canvas_count": 0,
+    "svg_count": 0,
+    "webgl_context": false,
+    "text_length": 0
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "verified_at": "2026-10-22T13:29:53.583Z"
+}

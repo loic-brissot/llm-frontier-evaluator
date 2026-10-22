@@ -433,7 +433,7 @@ class TestSetupRun(unittest.TestCase):
             self.assertTrue(any("Docker image 'llm-frontier-evaluator-runner:latest' not found" in w for w in warns))
 
         with patch.dict(os.environ, {}, clear=True):
-            warns = check_environment()
+            warns = check_environment(env={})
             self.assertTrue(any("Neither CURSOR_API_KEY nor ANTHROPIC_API_KEY" in w for w in warns))
 
     def test_check_environment_env_file(self):
