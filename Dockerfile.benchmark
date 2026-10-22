@@ -32,8 +32,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2 \
     && rm -rf /var/lib/apt-get/lists/*
 
-# Install Claude Code globally via npm
-RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
+# Install Claude Code and Playwright globally via npm, and Python Playwright
+RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} playwright \
+    && pip3 install --no-cache-dir --break-system-packages playwright
 
 # Reconfigure UID 1000 user as 'benchmark' with home /home/benchmark
 RUN if id -u node >/dev/null 2>&1; then \
@@ -43,13 +44,16 @@ RUN if id -u node >/dev/null 2>&1; then \
         useradd -m -s /bin/bash -u 1000 benchmark ; \
     fi
 
-# Pre-create clean-room directories under /home/benchmark and ensure PATH includes ~/.local/bin
+# Pre-create clean-room directories under /home/benchmark and configure environment
 ENV PATH="/home/benchmark/.local/bin:${PATH}"
+ENV PLAYWRIGHT_BROWSERS_PATH="/home/benchmark/.cache/ms-playwright"
+ENV NODE_PATH="/usr/local/lib/node_modules"
 
 RUN mkdir -p /home/benchmark/.cursor/skills \
              /home/benchmark/.cursor/plugins \
              /home/benchmark/.claude \
              /home/benchmark/.local/bin \
+             /home/benchmark/.cache/ms-playwright \
              /home/benchmark/.local/share/cursor-agent/versions/default \
     && chown -R benchmark:benchmark /home/benchmark
 
@@ -62,6 +66,9 @@ RUN mkdir -p /home/benchmark/.local/share/cursor-agent/versions/default \
     | tar --strip-components=1 -xzf - -C /home/benchmark/.local/share/cursor-agent/versions/default \
     && ln -s /home/benchmark/.local/share/cursor-agent/versions/default/cursor-agent /home/benchmark/.local/bin/agent \
     && ln -s /home/benchmark/.local/share/cursor-agent/versions/default/cursor-agent /home/benchmark/.local/bin/cursor-agent
+
+# Pre-install Playwright Chromium in user cache
+RUN playwright install chromium
 
 # Create staged workspace directory owned by benchmark
 USER root
