@@ -861,6 +861,163 @@ class TestToolEvents(unittest.TestCase):
             self.assertEqual(len(records), 2)
             self.assertTrue(any(r.get("type") == "result" for r in records))
 
+    def test_ellipsis_before_quotes_not_flagged_as_isolation_breach(self):
+        # 1. audit_isolation on parsed dict with ellipsis before quote
+        records = [
+            {
+                "hook_event_name": "postToolUse",
+                "tool_name": "Shell",
+                "tool_input": {
+                    "command": 'console.log("Navigating...");\nawait page.goto("http://localhost:5173/");',
+                },
+            },
+            {
+                "hook_event_name": "preToolUse",
+                "tool_name": "Shell",
+                "tool_input": '{"command": "console.log(\\"Navigating...\\");"}',
+            },
+            {
+                "hook_event_name": "preToolUse",
+                "tool_name": "Shell",
+                "tool_input": '{"command": "console.log(\\"Navigating...\\");',
+            },
+        ]
+        breaches = audit_isolation(records)
+        self.assertEqual(len(breaches), 0)
+
+        # 2. check_isolation_violation in log-tool-event.py
+        import importlib.util
+
+        script_path = (
+            Path(__file__).resolve().parent.parent
+            / "templates"
+            / "cursor"
+            / "hooks"
+            / "log-tool-event.py"
+        )
+        spec = importlib.util.spec_from_file_location("log_tool_event", script_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        self.assertIsNone(
+            mod.check_isolation_violation(
+                {
+                    "tool_name": "Shell",
+                    "tool_input": {"command": 'console.log("Navigating...");'},
+                }
+            )
+        )
+        self.assertIsNone(
+            mod.check_isolation_violation(
+                {
+                    "tool_name": "Shell",
+                    "tool_input": '{"command": "console.log(\\"Navigating...\\");"}',
+                }
+            )
+        )
+        self.assertIsNone(
+            mod.check_isolation_violation(
+                {
+                    "tool_name": "Shell",
+                    "tool_input": '{"command": "console.log(\\"Navigating...\\");',
+                }
+            )
+        )
+        # Legitimate traversal should still be blocked
+        self.assertIsNotNone(
+            mod.check_isolation_violation(
+                {
+                    "tool_name": "Shell",
+                    "tool_input": {"command": "cat ../run.json"},
+                }
+            )
+        )
+
+    def test_read_write_tool_use_id_collision_deduplication(self):
+        records = [
+            {
+                "tool_use_id": "0_tool_collision_123",
+                "tool_name": "Read",
+                "hook_event_name": "postToolUseFailure",
+                "failed": True,
+                "duration": 9.5,
+            },
+            {
+                "tool_use_id": "0_tool_collision_123",
+                "tool_name": "Write",
+                "hook_event_name": "postToolUse",
+                "failed": False,
+                "duration": 218.0,
+            },
+        ]
+        deduped = _dedupe_tools(records)
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["tool_name"], "Write")
+        self.assertFalse(deduped[0]["failed"])
+        self.assertEqual(deduped[0]["duration"], 227.5)
+
+    def test_cursor_stream_glob_tool_call_supplements_hooks(self):
+        hook_records = [
+            {
+                "hook_event_name": "beforeSubmitPrompt",
+                "prompt": "Test prompt",
+                "logged_at": "2026-10-22T00:00:00.000Z",
+            },
+            {
+                "tool_use_id": "0_tool_edit_1",
+                "hook_event_name": "postToolUseFailure",
+                "tool_name": "Read",
+                "failed": True,
+                "duration": 10.0,
+                "logged_at": "2026-10-22T00:00:05.000Z",
+            },
+            {
+                "tool_use_id": "0_tool_edit_1",
+                "hook_event_name": "postToolUse",
+                "tool_name": "Write",
+                "failed": False,
+                "duration": 200.0,
+                "logged_at": "2026-10-22T00:00:06.000Z",
+            },
+            {
+                "tool_use_id": "0_tool_shell_1",
+                "hook_event_name": "postToolUse",
+                "tool_name": "Shell",
+                "failed": False,
+                "duration": 500.0,
+                "logged_at": "2026-10-22T00:00:10.000Z",
+            },
+        ]
+        transcript_records = [
+            {
+                "type": "tool_call",
+                "subtype": "completed",
+                "call_id": "0_tool_glob_1",
+                "tool_call": {
+                    "globToolCall": {
+                        "args": {"globPattern": "**/*"},
+                        "result": {
+                            "success": {
+                                "files": ["a.txt", "b.txt"],
+                                "totalFiles": 2,
+                            }
+                        },
+                    },
+                },
+            },
+        ]
+        summary = summarize_records(hook_records + transcript_records)
+        files_bucket = summary.buckets.get("files", {})
+        self.assertEqual(files_bucket.get("calls"), 2)  # 1 Write + 1 Glob
+        self.assertEqual(files_bucket.get("failures"), 0)
+        self.assertIn("Write", files_bucket.get("by_tool", {}))
+        self.assertEqual(files_bucket["by_tool"]["Write"]["calls"], 1)
+        self.assertEqual(files_bucket["by_tool"]["Write"]["failures"], 0)
+        self.assertIn("Glob", files_bucket.get("by_tool", {}))
+        self.assertEqual(files_bucket["by_tool"]["Glob"]["calls"], 1)
+        self.assertEqual(files_bucket["by_tool"]["Glob"]["failures"], 0)
+        self.assertNotIn("Read", files_bucket.get("by_tool", {}))
+
 
 if __name__ == "__main__":
     unittest.main()

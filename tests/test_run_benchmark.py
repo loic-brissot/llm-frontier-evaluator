@@ -873,7 +873,7 @@ class TestRunBenchmark(unittest.TestCase):
                     )
 
                 self.assertIn("Docker image 'llm-frontier-evaluator-runner:latest' not found", str(ctx.exception))
-                self.assertIn("--platform linux/amd64", str(ctx.exception))
+                self.assertIn("docker build -f Dockerfile.benchmark -t", str(ctx.exception))
                 mock_create_dir.assert_not_called()
                 self.assertEqual(list((runs_tmp / "france-road-accidents").glob("*")), [])
 
@@ -1062,7 +1062,7 @@ class TestRunBenchmark(unittest.TestCase):
         with patch("subprocess.run", return_value=MagicMock(returncode=1)):
             errors = check_preflight(harness="cursor")
             self.assertTrue(any(
-                "docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest ."
+                "docker build -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest ."
                 in e for e in errors
             ))
 
@@ -1075,7 +1075,7 @@ class TestRunBenchmark(unittest.TestCase):
         with patch("subprocess.run", side_effect=mock_run):
             warnings = check_environment()
             self.assertTrue(any(
-                "docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest ."
+                "docker build -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest ."
                 in w for w in warnings
             ))
 
@@ -1180,6 +1180,57 @@ class TestRunBenchmark(unittest.TestCase):
                 cli_stream_path = run_dir / "tool-events" / "cli-stream.jsonl"
                 self.assertTrue(cli_stream_path.is_file())
                 self.assertEqual(len(cli_stream_path.read_text(encoding="utf-8").splitlines()), 3)
+
+    def test_cli_stream_filters_non_json_docker_stderr_warnings(self):
+        # Test Popen streaming reader ignores docker warning lines
+        warning_line = "WARNING: The requested image's platform (linux/amd64) does not match the detected host platform (linux/arm64/v8)"
+        valid_system_line = json.dumps({"type": "system", "subtype": "init"})
+        valid_result_line = json.dumps({"type": "result", "subtype": "success"})
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            staging_dir = tmp_path / "frontier-workspace-docker-warning-test"
+            staging_dir.mkdir(parents=True)
+            run_dir = tmp_path / "runs" / "france-road-accidents" / "docker-warning-test"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(
+                json.dumps({
+                    "prompt_id": "france-road-accidents",
+                    "harness": {"name": "cursor"},
+                    "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+                }),
+                encoding="utf-8",
+            )
+
+            mock_proc = MagicMock()
+            mock_proc.stdout = iter([warning_line + "\n", valid_system_line + "\n", valid_result_line + "\n"])
+            mock_proc.wait.return_value = 0
+            mock_proc.returncode = 0
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.Popen", return_value=mock_proc):
+
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id="docker-warning-test",
+                    auto_finish=False,
+                )
+                self.assertEqual(exit_code, 0)
+
+                cli_stream_path = run_dir / "tool-events" / "cli-stream.jsonl"
+                self.assertTrue(cli_stream_path.is_file())
+                lines = cli_stream_path.read_text(encoding="utf-8").splitlines()
+                self.assertEqual(len(lines), 2)
+                for line in lines:
+                    parsed = json.loads(line)
+                    self.assertIsInstance(parsed, dict)
+                self.assertNotIn("WARNING", cli_stream_path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
