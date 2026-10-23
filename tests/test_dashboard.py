@@ -138,3 +138,60 @@ class TestDashboardAppDecoupledFetchingAndUrlSync:
     def test_popstate_event_listener(self) -> None:
         js = JS_PATH.read_text(encoding="utf-8")
         assert "window.addEventListener('popstate'" in js
+
+
+class TestPromptShowcaseAndLiveDemos:
+    """Validate dedicated Prompt Showcase & Live Demos view, iframe sandbox, and actions (AC 1, AC 2, AC 3)."""
+
+    def test_showcase_tab_nav_in_html(self) -> None:
+        html = HTML_PATH.read_text(encoding="utf-8")
+        assert 'data-tab="showcase"' in html
+        assert 'id="tab-showcase"' in html
+
+    def test_showcase_iframe_sandbox_attributes(self) -> None:
+        html = HTML_PATH.read_text(encoding="utf-8")
+        assert 'id="showcase-iframe"' in html
+        assert 'sandbox="allow-scripts allow-same-origin allow-forms allow-popups"' in html
+
+    def test_showcase_header_elements(self) -> None:
+        html = HTML_PATH.read_text(encoding="utf-8")
+        assert 'id="showcase-prompt-select"' in html
+        assert 'id="showcase-model-tabs"' in html
+        assert 'id="showcase-open-fullscreen"' in html
+        assert 'id="showcase-meta-bar"' in html
+        assert 'id="showcase-metric-cost"' in html
+        assert 'id="showcase-metric-time"' in html
+        assert 'id="showcase-metric-score"' in html
+        assert 'id="showcase-metric-tokens"' in html
+        assert 'id="showcase-fallback"' in html
+
+    def test_modal_and_gallery_live_demo_actions_in_html_and_css(self) -> None:
+        html = HTML_PATH.read_text(encoding="utf-8")
+        assert 'id="modal-launch-demo-btn"' in html
+        css = CSS_PATH.read_text(encoding="utf-8")
+        assert ".btn-demo-action" in css
+        assert ".btn-launch-demo-modal" in css
+        assert ".showcase-container" in css
+        assert ".showcase-iframe" in css
+        assert ".showcase-fallback" in css
+
+    def test_app_js_showcase_logic(self) -> None:
+        js = JS_PATH.read_text(encoding="utf-8")
+        assert "renderShowcase()" in js
+        assert "function renderShowcase" in js
+        assert "showcase-prompt-select" in js
+        assert "showcase-model-tabs" in js
+        assert "showcase-iframe" in js
+        assert "showcase-open-fullscreen" in js
+        assert "btn-demo-action" in js
+        assert "modal-launch-demo-btn" in js
+        assert "'showcase'" in js
+
+    def test_deploy_pages_workflow_packages_web_demos(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        assert "package_web_demos.py --output-dir dashboard/demos" in workflow
+
+    def test_build_dashboard_copies_demos(self) -> None:
+        build_dashboard_path = ROOT / "scripts" / "build_dashboard.py"
+        source = build_dashboard_path.read_text(encoding="utf-8")
+        assert "source_demos" in source or "demos" in source

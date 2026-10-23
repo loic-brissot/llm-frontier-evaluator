@@ -27,7 +27,7 @@
   <script id="benchmark-data" type="application/json">
 {
   "version": "1.0.0",
-  "generated_at": "2026-10-23T23:14:40Z",
+  "generated_at": "2026-10-23T23:29:25Z",
   "summary": {
     "total_runs": 11,
     "successful_runs": 7,
@@ -19011,6 +19011,9 @@
         <button class="nav-tab" data-tab="gallery">
           <span class="tab-icon">🖼️</span> Run Gallery & Previews
         </button>
+        <button class="nav-tab" data-tab="showcase">
+          <span class="tab-icon">✨</span> Prompt Showcase & Live Demos
+        </button>
       </nav>
     </header>
 
@@ -19223,6 +19226,70 @@
         <!-- Run cards populated dynamically by app.js -->
       </div>
     </main>
+
+    <!-- TAB 4: PROMPT SHOWCASE & LIVE DEMOS -->
+    <main id="tab-showcase" class="tab-content">
+      <div class="showcase-container">
+        <!-- Top Controls: Prompt selector, Model selector/tabs, and Action buttons -->
+        <div class="showcase-header-bar">
+          <div class="showcase-selectors">
+            <div class="showcase-field">
+              <label for="showcase-prompt-select">Prompt:</label>
+              <select id="showcase-prompt-select" class="showcase-select"></select>
+            </div>
+            <div class="showcase-field">
+              <label>Model / Run:</label>
+              <div id="showcase-model-tabs" class="showcase-model-tabs"></div>
+            </div>
+          </div>
+          <div class="showcase-actions">
+            <a id="showcase-open-fullscreen" href="#" target="_blank" rel="noopener noreferrer" class="btn-launch-showcase" style="display: none;">
+              Open full page ↗
+            </a>
+          </div>
+        </div>
+
+        <!-- Run Metadata Bar -->
+        <div id="showcase-meta-bar" class="showcase-meta-bar" style="display: none;">
+          <div class="showcase-meta-left">
+            <span id="showcase-badge-status" class="badge">PASSED</span>
+            <span id="showcase-model-name" class="showcase-title">Model Name</span>
+            <span id="showcase-provider" class="provider-badge">Provider</span>
+          </div>
+          <div class="showcase-meta-metrics">
+            <div class="showcase-metric">
+              <span class="label">Est. Cost</span>
+              <span id="showcase-metric-cost" class="val">-</span>
+            </div>
+            <div class="showcase-metric">
+              <span class="label">Model Time</span>
+              <span id="showcase-metric-time" class="val">-</span>
+            </div>
+            <div class="showcase-metric">
+              <span class="label">Score / Pass</span>
+              <span id="showcase-metric-score" class="val">-</span>
+            </div>
+            <div class="showcase-metric">
+              <span class="label">Output Tokens</span>
+              <span id="showcase-metric-tokens" class="val">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Frame & Fallback Area -->
+        <div class="showcase-viewer-container">
+          <iframe id="showcase-iframe" class="showcase-iframe" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" style="display: none;"></iframe>
+          <div id="showcase-fallback" class="showcase-fallback" style="display: none;">
+            <div class="fallback-icon">🎮</div>
+            <div id="showcase-fallback-title" class="fallback-title">No Interactive Demo Available</div>
+            <div id="showcase-fallback-desc" class="fallback-desc">A live web demo has not been packaged or verified for this run.</div>
+            <div id="showcase-fallback-preview" class="fallback-preview" style="display: none;">
+              <img id="showcase-fallback-img" src="" alt="Run Screenshot Preview">
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
   </div>
 
   <!-- RUN DRILL-DOWN MODAL -->
@@ -19233,6 +19300,9 @@
           <span class="badge" id="modal-status-badge">PASSED</span>
           <h2 id="modal-model-title">Model Display Name</h2>
           <span class="modal-series-tag" id="modal-series-tag">Prompt Series</span>
+          <a id="modal-launch-demo-btn" href="#" target="_blank" rel="noopener noreferrer" class="btn-launch-demo-modal" style="display: none;">
+            🚀 Launch Live Demo
+          </a>
         </div>
         <button class="modal-close-btn" id="modal-close-btn" aria-label="Close modal">✕</button>
       </header>

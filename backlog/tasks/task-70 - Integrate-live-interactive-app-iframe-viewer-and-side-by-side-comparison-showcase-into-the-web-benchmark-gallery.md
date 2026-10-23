@@ -3,9 +3,10 @@ id: TASK-70
 title: >-
   Integrate live interactive app iframe viewer and side-by-side comparison
   showcase into the web benchmark gallery
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-23 19:45'
+updated_date: '2026-10-23 23:32'
 labels: []
 milestone: m-8
 dependencies:
@@ -28,7 +29,7 @@ Once run workspaces are packaged as static web demos (TASK-69) and the dashboard
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Add a dedicated Prompt Showcase / Live Demo view in the web dashboard (dashboard/) where users can switch between models for a selected prompt and interact with the live generated web application inside a sandboxed iframe alongside an Open full page button (demos/<prompt-id>/<run-id>/index.html)
-- [ ] #2 Add Launch Live Demo actions to every run card in the Gallery, Pareto table, drill-down modal, and generated README.md comparison tables when a packaged demo is available
-- [ ] #3 Integrate package_web_demos.py output into the static web deployment artifact so both the dashboard and all packaged model demos are served under one unified web site
+- [x] #1 Add a dedicated Prompt Showcase / Live Demo view in the web dashboard (dashboard/) where users can switch between models for a selected prompt and interact with the live generated web application inside a sandboxed iframe alongside an Open full page button (demos/<prompt-id>/<run-id>/index.html)
+- [x] #2 Add Launch Live Demo actions to every run card in the Gallery, Pareto table, drill-down modal, and generated README.md comparison tables when a packaged demo is available
+- [x] #3 Integrate package_web_demos.py output into the static web deployment artifact so both the dashboard and all packaged model demos are served under one unified web site
 <!-- AC:END -->
