@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generated_at": "2026-10-23T23:02:40Z",
+  "generated_at": "2026-10-23T23:14:40Z",
   "summary": {
     "total_runs": 11,
     "successful_runs": 7,
@@ -217,6 +217,7 @@
         }
       },
       "screenshot_path": "screenshots/2026-10-19-cursor-gemini-4-argon-1m-medium.png",
+      "demo_url": null,
       "tool_timeline": [
         {
           "call_index": 1,
@@ -1900,6 +1901,7 @@
         }
       },
       "screenshot_path": "screenshots/2026-10-19-cursor-claude-opus-5-5-high-300k-high.png",
+      "demo_url": null,
       "tool_timeline": [
         {
           "call_index": 1,
@@ -3496,6 +3498,7 @@
         }
       },
       "screenshot_path": "screenshots/2026-10-22-cursor-gpt-5-6-sol-medium.png",
+      "demo_url": null,
       "tool_timeline": [
         {
           "call_index": 1,
@@ -3804,6 +3807,7 @@
         }
       },
       "screenshot_path": "screenshots/2026-10-22-cursor-muse-wonder-medium.png",
+      "demo_url": null,
       "tool_timeline": [
         {
           "call_index": 1,
@@ -4316,6 +4320,7 @@
         }
       },
       "screenshot_path": "screenshots/2026-10-22-cursor-gemini-3-8-flash-high.png",
+      "demo_url": null,
       "tool_timeline": [
         {
           "call_index": 1,
@@ -7030,6 +7035,7 @@
         }
       },
       "screenshot_path": null,
+      "demo_url": null,
       "tool_timeline": [
         {
           "call_index": 1,
@@ -8604,6 +8610,7 @@
         }
       },
       "screenshot_path": null,
+      "demo_url": null,
       "tool_timeline": [
         {
           "call_index": 1,
@@ -10858,6 +10865,7 @@
         }
       },
       "screenshot_path": "screenshots/2026-10-19-cursor-muse-wonder-300k-medium.png",
+      "demo_url": null,
       "tool_timeline": [
         {
           "call_index": 1,
@@ -11543,6 +11551,7 @@
         }
       },
       "screenshot_path": "screenshots/2026-10-20-cursor-claude-opus-5-5-high.png",
+      "demo_url": null,
       "tool_timeline": [
         {
           "call_index": 1,
@@ -14195,6 +14204,7 @@
         }
       },
       "screenshot_path": "screenshots/2026-10-21-cursor-claude-opus-5-5-medium.png",
+      "demo_url": null,
       "tool_timeline": [
         {
           "call_index": 1,
@@ -16969,6 +16979,7 @@
         }
       },
       "screenshot_path": "screenshots/2026-10-22-cursor-gemini-4-argon-medium.png",
+      "demo_url": null,
       "tool_timeline": [
         {
           "call_index": 1,
