@@ -1,0 +1,16 @@
+Build an interactive live bike-share observatory and station availability explorer for the Vélib' Métropole network across Paris and Île-de-France.
+The goal is an exceptional visual result, as responsive, clear and intuitive as a modern transit monitoring control room, not a mere technical demo.
+Expected result:
+
+* An interactive map of Greater Paris plots all active Vélib' stations, dynamically colored and styled by real-time status (empty, low availability, balanced, full) or by mechanical versus electric bike proportion.
+* Instant search and multi-criteria filters let users filter by station name, commune or Paris arrondissement, minimum available mechanical bikes, minimum available electric bikes (e-bikes), and available return docks.
+* A live network overview dashboard displays aggregate network metrics: total active stations, total operational bikes, mechanical vs. e-bike fleet share, global dock occupancy percentage, and critical shortage or surplus alerts.
+* Interactive station inspection card opens on selection showing mechanical bikes, e-bikes, available empty docks, total capacity, and a visual fill-rate gauge.
+* Territorial distribution analytics aggregate and rank bike availability, station density, and electric bike share across Paris arrondissements and neighboring Île-de-France municipalities.
+* A toggle to inspect station status details (operational, closed, overflow) and quick shortcuts to highlight stations with high electric bike availability or available docks.
+
+Available data sources (ODbL / Open Licence):
+
+* Paris Open Data, "Vélib' - Disponibilité en temps réel des stations" (real-time station status, mechanical and e-bike counts, available docks, and coordinates): https://opendata.paris.fr/explore/dataset/velib-disponibilite-en-temps-reel
+* Paris Open Data, "Vélib' - Emplacement des stations" (station locations, capacity, and terminal specifications): https://opendata.paris.fr/explore/dataset/velib-emplacement-des-stations
+* transport.data.gouv.fr, "Vélib' Métropole GBFS" (official GBFS feeds for real-time station status and information): https://transport.data.gouv.fr/datasets/velib-metropole-donnees-temps-reel-gbfs

@@ -1,0 +1,16 @@
+Build an interactive map and biodiversity explorer of the municipal tree canopy of Paris.
+The goal is an exceptional visual result, as clear, elegant and engaging as an environmental atlas or urban forestry dashboard, not a mere technical demo.
+Expected result:
+
+* An interactive map of Paris displays municipal trees with smooth spatial aggregation or clustering at high zooms and individual tree markers at close zooms, color-coded by botanical family/genus or height, with prominent visual badges for remarkable heritage trees (arbres remarquables).
+* Interactive filters slice trees by arrondissement (1er to 20e), botanical genus/species (e.g., Platanus, Aesculus, Tilia, Sophora, Celtis), tree height and circumference ranges, and a one-click toggle for remarkable trees.
+* An urban forest analytics panel provides summary metrics: total tree count, species and genus diversity breakdown (top species distribution chart), mean and median height/circumference, and canopy density by arrondissement.
+* A remarkable trees showcase highlights Paris's heritage trees with their common name, scientific name, estimated planting date or age, remarkable criteria, and direct pan-to-map inspection.
+* A district comparison view compares tree coverage across arrondissements, contrasting street trees against parks and public squares, with species variety indicators.
+* Selecting any tree opens a detail card showing its exact location, French common name, botanical genus/species, height, circumference, and stage of development.
+
+Available data sources (ODbL / Open Licence):
+
+* Paris Open Data, "Les arbres" (municipal tree inventory with botanical name, height, circumference, address and coordinates): https://opendata.paris.fr/explore/dataset/les-arbres
+* Paris Open Data, "Arbres remarquables" (heritage and remarkable trees of Paris with botanical data and history): https://opendata.paris.fr/explore/dataset/arbresremarquablesparis
+* Paris Open Data, "Arrondissements" (Paris 20 administrative arrondissements boundaries): https://opendata.paris.fr/explore/dataset/arrondissements
