@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 from typing import Any
 
 from build_dashboard import (
@@ -15,8 +16,10 @@ from build_dashboard import (
     check_dashboard_sync,
     compile_dashboard_payload,
     compute_pareto_frontiers,
+    embed_data_in_html,
     extract_run_record,
     find_run_dirs,
+    serialize_safe_embedded_json,
     validate_payload_schema,
 )
 from run_common import RUNS_DIR
@@ -253,8 +256,16 @@ class TestCliAndBuild:
         # Check embedded JSON in index.html
         html_content = (out_dir / "index.html").read_text(encoding="utf-8")
         assert '<script id="benchmark-data" type="application/json">' in html_content
+        match = re.search(
+            r'<script id="benchmark-data" type="application/json">\s*(.*?)\s*</script>',
+            html_content,
+            re.DOTALL,
+        )
+        assert match is not None
+        embedded_json = json.loads(match.group(1))
         data_json = json.loads((out_dir / "data.json").read_text(encoding="utf-8"))
         assert data_json["summary"]["total_runs"] >= 11
+        assert embedded_json["summary"]["total_runs"] == data_json["summary"]["total_runs"]
 
     def test_check_flag_in_sync(self, tmp_path: Path) -> None:
         out_dir = tmp_path / "dashboard_sync"
@@ -275,6 +286,19 @@ class TestCliAndBuild:
 
         assert check_dashboard_sync(runs_dir=RUNS_DIR, output_dir=out_dir) == 1
 
+    def test_check_flag_detects_html_corruption(self, tmp_path: Path) -> None:
+        out_dir = tmp_path / "dashboard_html_corrupt"
+        build_dashboard(runs_dir=RUNS_DIR, output_dir=out_dir)
+
+        # Corrupt index.html by truncating the embedded script
+        html_file = out_dir / "index.html"
+        html_file.write_text(
+            "<!DOCTYPE html><html><head><script id=\"benchmark-data\" type=\"application/json\">{bad json</script></head><body></body></html>",
+            encoding="utf-8",
+        )
+
+        assert check_dashboard_sync(runs_dir=RUNS_DIR, output_dir=out_dir) == 1
+
     def test_check_flag_missing_files(self, tmp_path: Path) -> None:
         empty_dir = tmp_path / "empty"
         empty_dir.mkdir()
@@ -287,3 +311,59 @@ class TestCliAndBuild:
         assert ret == 0
         data_json = json.loads((out_dir / "data.json").read_text(encoding="utf-8"))
         assert data_json["summary"]["total_runs"] == 0
+
+
+class TestHtmlScriptEmbedding:
+    """Test safe script tag serialization and embedding into index.html."""
+
+    def test_serialize_safe_embedded_json_escapes_tags(self) -> None:
+        payload = {
+            "snippet": "js=html.split('<script>')[1].split('</script>')[0]",
+            "comment": "<!-- HTML comment -->",
+            "amp": "Rock & Roll",
+        }
+        safe_str = serialize_safe_embedded_json(payload)
+
+        # Assert no HTML delimiters exist in the raw serialized string
+        assert "<" not in safe_str
+        assert ">" not in safe_str
+        assert "&" not in safe_str
+        assert r"\u003c" in safe_str
+        assert r"\u003e" in safe_str
+        assert r"\u0026" in safe_str
+
+        # Assert lossless round-trip with standard JSON parser
+        decoded = json.loads(safe_str)
+        assert decoded == payload
+
+    def test_embed_data_in_html_prevents_script_splitting(self, tmp_path: Path) -> None:
+        template = tmp_path / "template.html"
+        template.write_text(
+            "<!DOCTYPE html><html><head><script id=\"benchmark-data\" type=\"application/json\"></script></head><body><h1>Hi</h1></body></html>",
+            encoding="utf-8",
+        )
+        out_html = tmp_path / "out.html"
+        payload = {
+            "summary": {"total_runs": 1},
+            "commands": [
+                "cat << 'EOF' > test.html\n<script>alert(1)</script>\nEOF",
+                "html.split('</script>')[0]",
+            ],
+        }
+
+        embed_data_in_html(template, payload, out_html)
+        content = out_html.read_text(encoding="utf-8")
+
+        # The only closing script tag must be the element's own closing tag
+        assert content.count("</script>") == 1
+        assert "alert(1)" in content
+
+        # Extract payload using non-greedy match (like a browser HTML tokenizer)
+        match = re.search(
+            r'<script id="benchmark-data" type="application/json">\s*(.*?)\s*</script>',
+            content,
+            re.DOTALL,
+        )
+        assert match is not None
+        extracted = json.loads(match.group(1))
+        assert extracted == payload
