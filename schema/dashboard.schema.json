@@ -155,6 +155,7 @@
           },
           "screenshot_path": { "type": ["string", "null"] },
           "demo_url": { "type": ["string", "null"] },
+          "results_paths": { "type": "object" },
           "tool_timeline": { "type": "array" },
           "turns": { "type": "array" },
           "pareto": {
@@ -180,6 +181,9 @@
           "provider": { "type": "string" }
         }
       }
+    },
+    "warehouse": {
+      "type": "object"
     }
   }
 }

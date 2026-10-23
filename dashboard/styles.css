@@ -1457,6 +1457,199 @@ svg.chart-svg {
 }
 
 /* ==========================================================================
+   Warehouse & Analytical Tables View
+   ========================================================================== */
+
+.warehouse-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.warehouse-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.btn-download-primary {
+  background: linear-gradient(135deg, #0284c7, #2563eb);
+  color: #ffffff;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.btn-download-primary:hover {
+  opacity: 0.95;
+  transform: translateY(-1px);
+}
+
+.warehouse-tables-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  overflow: hidden;
+}
+
+.warehouse-views-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+}
+
+.warehouse-views-section h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 0.5rem;
+}
+
+.views-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.view-item {
+  background: var(--bg-surface);
+  border: 1px solid #1f2a3f;
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.view-item code {
+  color: var(--accent-cyan);
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.view-item span {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.btn-download-sm {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: var(--text-main);
+  padding: 0.3rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s;
+}
+
+.btn-download-sm:hover {
+  background: #334155;
+  border-color: #475569;
+  color: #ffffff;
+}
+
+/* Modal Downloads Section */
+.downloads-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.download-artifact-card {
+  background: var(--bg-surface);
+  border: 1px solid #1f2a3f;
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.download-artifact-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.download-artifact-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.download-artifact-info h4 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 0.25rem 0;
+}
+
+.download-artifact-info p {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.35;
+}
+
+.download-artifact-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-artifact-download {
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: opacity 0.15s;
+}
+
+.btn-artifact-download:hover {
+  opacity: 0.9;
+}
+
+.btn-artifact-view {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  transition: all 0.15s;
+}
+
+.btn-artifact-view:hover {
+  color: #ffffff;
+  border-color: #64748b;
+}
+
+/* ==========================================================================
    Loading Overlay & Decoupled Fetch Progress Indicator
    ========================================================================== */
 
