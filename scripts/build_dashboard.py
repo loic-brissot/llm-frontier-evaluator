@@ -799,23 +799,51 @@ def copy_static_assets(source_dir: Path, output_dir: Path) -> None:
             shutil.copy2(src, output_dir / fname)
 
 
+def serialize_safe_embedded_json(payload: dict[str, Any]) -> str:
+    """Serialize a JSON payload safely for embedding inside an HTML <script> element.
+
+    Standard JSON serialization emits literal '<', '>', and '&' characters.
+    In HTML, any occurrence of '</script' (or '<!--') inside a script tag causes
+    the browser HTML parser to terminate the script element prematurely, spilling
+    the rest of the JSON into the DOM as visible text and breaking JSON.parse.
+
+    Escaping '<' to r'\\u003c', '>' to r'\\u003e', and '&' to r'\\u0026' preserves
+    full JSON RFC 8259 compliance, decodes transparently with JSON.parse() and json.loads(),
+    and guarantees that no HTML markup delimiters exist inside the script body.
+    """
+    raw_json = json.dumps(payload, indent=2, ensure_ascii=False)
+    return (
+        raw_json
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+    )
+
+
 def embed_data_in_html(html_template_path: Path, payload: dict[str, Any], output_html_path: Path) -> None:
     """Embed the JSON payload into index.html for offline / file:// execution."""
     if not html_template_path.is_file():
         return
 
     content = html_template_path.read_text(encoding="utf-8")
-    payload_json = json.dumps(payload, indent=2, ensure_ascii=False)
+    payload_json = serialize_safe_embedded_json(payload)
 
-    # Replace existing script payload or placeholder
+    # Replace existing script payload or placeholder.
+    # Also consume any orphaned text fragments before </head> if previous builds were corrupted.
     pattern = re.compile(
+        r'<script id="benchmark-data" type="application/json">.*?</script>(?:\s*[^<]*?</script>)*(?=\s*</head>)',
+        re.DOTALL,
+    )
+    fallback_pattern = re.compile(
         r'<script id="benchmark-data" type="application/json">.*?</script>',
         re.DOTALL,
     )
     replacement = f'<script id="benchmark-data" type="application/json">\n{payload_json}\n</script>'
 
     if pattern.search(content):
-        new_content = pattern.sub(replacement, content, count=1)
+        new_content = pattern.sub(lambda _: replacement, content, count=1)
+    elif fallback_pattern.search(content):
+        new_content = fallback_pattern.sub(lambda _: replacement, content, count=1)
     else:
         # Insert before closing </head> or <body>
         if "</head>" in content:
@@ -864,6 +892,26 @@ def check_dashboard_sync(runs_dir: Path, output_dir: Path) -> int:
             n=3,
         )
         print("".join(diff)[:2000], file=sys.stderr)
+        return 1
+
+    # Verify embedded JSON in index.html is present, valid, and matches payload
+    try:
+        html_text = index_html_path.read_text(encoding="utf-8")
+        match = re.search(
+            r'<script id="benchmark-data" type="application/json">\s*(.*?)\s*</script>',
+            html_text,
+            re.DOTALL,
+        )
+        if not match:
+            print("Error: Could not find <script id=\"benchmark-data\"> in index.html.", file=sys.stderr)
+            return 1
+        embedded_payload = json.loads(match.group(1))
+        embedded_str = json.dumps(embedded_payload, indent=2, sort_keys=True)
+        if embedded_str != fresh_str:
+            print("Error: Embedded index.html payload is out of sync with repository records.", file=sys.stderr)
+            return 1
+    except Exception as exc:
+        print(f"Error: Failed to parse embedded benchmark-data in index.html: {exc}", file=sys.stderr)
         return 1
 
     print("Dashboard payload is in sync with repository records.")
