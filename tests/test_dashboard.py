@@ -195,3 +195,50 @@ class TestPromptShowcaseAndLiveDemos:
         build_dashboard_path = ROOT / "scripts" / "build_dashboard.py"
         source = build_dashboard_path.read_text(encoding="utf-8")
         assert "source_demos" in source or "demos" in source
+
+
+class TestDashboardDownloadsAndWarehouse:
+    """Validate run artifacts export, analytical tables, and download links (TASK-71: AC 1, AC 2, AC 3)."""
+
+    def test_workflow_exports_warehouse(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+        assert "export_warehouse.py --output-dir dashboard/warehouse" in workflow
+
+    def test_build_dashboard_copies_run_artifacts_and_warehouse(self) -> None:
+        build_dashboard_path = ROOT / "scripts" / "build_dashboard.py"
+        source = build_dashboard_path.read_text(encoding="utf-8")
+        assert "def copy_run_artifacts" in source
+        assert "dest_run_dir = results_base / prompt_id / run_id" in source
+        assert "copy_run_artifacts(runs_dir, output_dir)" in source
+        assert "results_paths" in source
+
+    def test_warehouse_tab_in_html(self) -> None:
+        html = HTML_PATH.read_text(encoding="utf-8")
+        assert 'data-tab="warehouse"' in html
+        assert 'id="tab-warehouse"' in html
+        assert 'id="warehouse-tables-list"' in html
+        assert 'id="warehouse-tables-tbody"' in html
+        assert 'id="btn-download-duckdb"' in html
+
+    def test_modal_downloads_tab_in_html(self) -> None:
+        html = HTML_PATH.read_text(encoding="utf-8")
+        assert 'data-modaltab="downloads"' in html
+        assert 'id="modal-tab-downloads"' in html
+        assert 'id="modal-downloads-container"' in html
+
+    def test_app_js_warehouse_and_downloads_logic(self) -> None:
+        js = JS_PATH.read_text(encoding="utf-8")
+        assert "function renderWarehouse" in js
+        assert "function setupModalDownloads" in js
+        assert "btn-download-sm" in js
+        assert "btn-artifact-download" in js
+        assert "results_paths" in js
+        assert "benchmark.duckdb" in js
+
+    def test_styles_contain_downloads_and_warehouse_classes(self) -> None:
+        css = CSS_PATH.read_text(encoding="utf-8")
+        assert ".warehouse-container" in css
+        assert ".btn-download-primary" in css
+        assert ".download-artifact-card" in css
+        assert ".btn-artifact-download" in css
+

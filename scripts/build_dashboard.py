@@ -450,6 +450,19 @@ def extract_run_record(run_dir: Path) -> dict[str, Any] | None:
                 demo_url = f"demos/{prompt_id}/{run_id}/index.html"
                 break
 
+    # Public static results paths
+    results_base = f"results/{prompt_id}/{run_id}"
+    results_paths = {
+        "run_json": f"{results_base}/run.json",
+        "runtime_json": f"{results_base}/artifacts/runtime.json" if runtime_art.is_file() else None,
+        "data_pipeline_json": f"{results_base}/artifacts/data_pipeline.json" if pipeline_art.is_file() else None,
+        "verification_log": (
+            f"{results_base}/verification.log"
+            if (run_dir / "verification.log").is_file()
+            else (f"{results_base}/artifacts/verification.log" if (run_dir / "artifacts" / "verification.log").is_file() else None)
+        ),
+    }
+
     # Tool timeline and turns
     timeline = extract_tool_timeline(run_dir, run_id)
     turns = extract_turns(run_dir, run)
@@ -540,6 +553,7 @@ def extract_run_record(run_dir: Path) -> dict[str, Any] | None:
         },
         "screenshot_path": screenshot_rel,
         "demo_url": demo_url,
+        "results_paths": results_paths,
         "tool_timeline": timeline,
         "turns": turns,
         "pareto": {
@@ -731,6 +745,50 @@ def compile_dashboard_payload(
         for r in runs
     )
 
+    # Warehouse exports metadata
+    warehouse_info: dict[str, Any] = {
+        "available": False,
+        "tables": [],
+        "formats": ["parquet", "duckdb"],
+        "duckdb_path": "warehouse/benchmark.duckdb",
+    }
+    # Check default warehouse locations
+    possible_wh_dirs = [ROOT / "warehouse", ROOT / "dashboard" / "warehouse"]
+    wh_meta = None
+    for wh_d in possible_wh_dirs:
+        if (wh_d / "metadata.json").is_file():
+            try:
+                wh_meta = json.loads((wh_d / "metadata.json").read_text(encoding="utf-8"))
+                break
+            except Exception:
+                pass
+
+    table_definitions = [
+        {"name": "fact_runs", "type": "fact", "description": "Core benchmark runs fact table with duration, tokens, cost, and verification status"},
+        {"name": "fact_tool_calls", "type": "fact", "description": "Individual tool calls with bucket classification, latency, and failure flags"},
+        {"name": "fact_turns", "type": "fact", "description": "Turn-level telemetry capturing cache re-reads and prompt growth across conversational turns"},
+        {"name": "fact_thought_blocks", "type": "fact", "description": "Model reasoning and thinking block durations and token counts"},
+        {"name": "dim_models", "type": "dimension", "description": "Catalog of evaluated frontier LLM models, providers, and pricing rates"},
+        {"name": "dim_prompts", "type": "dimension", "description": "Frozen prompt definitions, verification probe criteria, and complexity types"},
+    ]
+
+    wh_counts = (wh_meta or {}).get("counts", {})
+    tables_list = []
+    for t_def in table_definitions:
+        t_name = t_def["name"]
+        cnt = wh_counts.get(t_name, len(runs) if t_name == "fact_runs" else None)
+        tables_list.append({
+            "name": t_name,
+            "type": t_def["type"],
+            "description": t_def["description"],
+            "row_count": cnt,
+            "parquet_path": f"warehouse/parquet/{t_name}.parquet",
+        })
+
+    warehouse_info["available"] = True
+    warehouse_info["tables"] = tables_list
+    warehouse_info["counts"] = wh_counts or {"fact_runs": len(runs)}
+
     # Clean internal helper attributes before serialization
     cleaned_runs = []
     for r in runs:
@@ -754,6 +812,7 @@ def compile_dashboard_payload(
         "prompts": prompts_list,
         "runs": cleaned_runs,
         "models": models_list,
+        "warehouse": warehouse_info,
     }
 
     return payload
@@ -798,6 +857,42 @@ def copy_dashboard_screenshots(runs_dir: Path, output_dir: Path) -> int:
         if scr.is_file():
             dest = screenshots_dir / f"{rd.name}.png"
             shutil.copy2(scr, dest)
+            count += 1
+
+    return count
+
+
+def copy_run_artifacts(runs_dir: Path, output_dir: Path) -> int:
+    """Copy run artifacts (run.json, runtime.json, data_pipeline.json, verification.log) to output_dir/results/<prompt-id>/<run-id>/."""
+    count = 0
+    results_base = output_dir / "results"
+
+    for rd in find_run_dirs(runs_dir):
+        prompt_id = rd.parent.name
+        run_id = rd.name
+        dest_run_dir = results_base / prompt_id / run_id
+        dest_run_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1. run.json
+        run_json = rd / "run.json"
+        if run_json.is_file():
+            shutil.copy2(run_json, dest_run_dir / "run.json")
+            count += 1
+
+        # 2. artifacts/ (runtime.json, data_pipeline.json, verification.log, etc.)
+        src_artifacts = rd / "artifacts"
+        if src_artifacts.is_dir():
+            dest_artifacts = dest_run_dir / "artifacts"
+            dest_artifacts.mkdir(parents=True, exist_ok=True)
+            for art in src_artifacts.iterdir():
+                if art.is_file():
+                    shutil.copy2(art, dest_artifacts / art.name)
+                    count += 1
+
+        # 3. If verification.log exists in root of rd, copy as well
+        vlog = rd / "verification.log"
+        if vlog.is_file():
+            shutil.copy2(vlog, dest_run_dir / "verification.log")
             count += 1
 
     return count
@@ -989,6 +1084,23 @@ def build_dashboard(
     # 6. Copy screenshots
     scr_count = copy_dashboard_screenshots(runs_dir, output_dir)
 
+    # 6b. Copy run artifacts & probe results to results/<prompt-id>/<run-id>/
+    art_count = copy_run_artifacts(runs_dir, output_dir)
+
+    # 6c. Copy warehouse analytical tables if present in ROOT/warehouse or DASHBOARD_DIR/warehouse
+    wh_source = ROOT / "warehouse" if (ROOT / "warehouse").is_dir() else (DASHBOARD_DIR / "warehouse" if (DASHBOARD_DIR / "warehouse").is_dir() else None)
+    if wh_source and wh_source.is_dir() and output_dir != wh_source:
+        dest_wh = output_dir / "warehouse"
+        dest_wh.mkdir(parents=True, exist_ok=True)
+        for wh_item in wh_source.iterdir():
+            dest_wh_item = dest_wh / wh_item.name
+            if wh_item.is_dir():
+                if dest_wh_item.exists():
+                    shutil.rmtree(dest_wh_item)
+                shutil.copytree(wh_item, dest_wh_item)
+            elif wh_item.is_file():
+                shutil.copy2(wh_item, dest_wh_item)
+
     # 7. Copy packaged demos if present in DASHBOARD_DIR / site and output_dir is different
     if output_dir != DASHBOARD_DIR:
         source_demos = DASHBOARD_DIR / "demos"
@@ -1009,7 +1121,7 @@ def build_dashboard(
     print(
         f"Dashboard built successfully in '{output_dir}': "
         f"{payload['summary']['total_runs']} runs across {payload['summary']['total_series']} series, "
-        f"{scr_count} screenshots copied."
+        f"{scr_count} screenshots copied, {art_count} run artifacts copied."
     )
 
     if serve_port is not None:

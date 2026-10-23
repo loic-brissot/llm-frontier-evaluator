@@ -44,6 +44,9 @@ jobs:
             uv run python3 scripts/package_web_demos.py --output-dir dashboard/demos || true
           fi
 
+      - name: Export warehouse analytical tables
+        run: uv run python3 scripts/export_warehouse.py --output-dir dashboard/warehouse || true
+
       - name: Build dashboard
         run: uv run python3 scripts/build_dashboard.py
 

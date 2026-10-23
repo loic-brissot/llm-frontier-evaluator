@@ -215,7 +215,7 @@
 
       // Active tab
       const tabParam = params.get('tab');
-      if (tabParam && ['pareto', 'analytics', 'gallery', 'showcase'].includes(tabParam)) {
+      if (tabParam && ['pareto', 'analytics', 'gallery', 'showcase', 'warehouse'].includes(tabParam)) {
         switchTab(tabParam, false);
       }
 
@@ -548,6 +548,8 @@
       renderGallery();
     } else if (activeTab === 'showcase') {
       renderShowcase();
+    } else if (activeTab === 'warehouse') {
+      renderWarehouse();
     }
   }
 
@@ -1503,6 +1505,121 @@
   }
 
   // ==========================================================================
+  // WAREHOUSE ANALYTICAL TABLES & DOWNLOADS VIEW
+  // ==========================================================================
+
+  function renderWarehouse() {
+    const tbody = document.getElementById('warehouse-tables-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const wh = (benchmarkData && benchmarkData.warehouse) || {};
+    const duckdbLink = document.getElementById('btn-download-duckdb');
+    if (duckdbLink) {
+      duckdbLink.href = wh.duckdb_path || 'warehouse/benchmark.duckdb';
+    }
+
+    const tables = wh.tables || [
+      { name: 'fact_runs', type: 'fact', description: 'Core benchmark runs fact table with duration, tokens, cost, and verification status', row_count: benchmarkData?.runs?.length || 0, parquet_path: 'warehouse/parquet/fact_runs.parquet' },
+      { name: 'fact_tool_calls', type: 'fact', description: 'Individual tool calls with bucket classification, latency, and failure flags', row_count: null, parquet_path: 'warehouse/parquet/fact_tool_calls.parquet' },
+      { name: 'fact_turns', type: 'fact', description: 'Turn-level telemetry capturing cache re-reads and prompt growth across conversational turns', row_count: null, parquet_path: 'warehouse/parquet/fact_turns.parquet' },
+      { name: 'fact_thought_blocks', type: 'fact', description: 'Model reasoning and thinking block durations and token counts', row_count: null, parquet_path: 'warehouse/parquet/fact_thought_blocks.parquet' },
+      { name: 'dim_models', type: 'dimension', description: 'Catalog of evaluated frontier LLM models, providers, and pricing rates', row_count: benchmarkData?.models?.length || 0, parquet_path: 'warehouse/parquet/dim_models.parquet' },
+      { name: 'dim_prompts', type: 'dimension', description: 'Frozen prompt definitions, verification probe criteria, and complexity types', row_count: benchmarkData?.prompts?.length || 0, parquet_path: 'warehouse/parquet/dim_prompts.parquet' },
+    ];
+
+    tables.forEach((t) => {
+      const tr = document.createElement('tr');
+      const rowCountDisplay = t.row_count != null ? formatNumber(t.row_count) : 'Exported';
+      const typeBadge = t.type === 'fact' ? '<span class="badge" style="background:#0284c7;color:#fff;">FACT</span>' : '<span class="badge" style="background:#64748b;color:#fff;">DIM</span>';
+      
+      tr.innerHTML = `
+        <td><code style="font-weight:700;color:var(--accent-cyan);">${escapeHtml(t.name)}</code></td>
+        <td>${typeBadge}</td>
+        <td style="color:var(--text-muted);font-size:0.85rem;">${escapeHtml(t.description)}</td>
+        <td style="font-family:var(--font-mono);font-weight:600;">${rowCountDisplay}</td>
+        <td>
+          <a href="${escapeHtml(t.parquet_path)}" download="${escapeHtml(t.name)}.parquet" class="btn-download-sm">
+            <span>📦</span> Parquet
+          </a>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function setupModalDownloads(run) {
+    const container = document.getElementById('modal-downloads-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const rp = run.results_paths || {
+      run_json: `results/${run.prompt_id}/${run.run_id}/run.json`,
+      runtime_json: `results/${run.prompt_id}/${run.run_id}/artifacts/runtime.json`,
+      data_pipeline_json: `results/${run.prompt_id}/${run.run_id}/artifacts/data_pipeline.json`,
+      verification_log: `results/${run.prompt_id}/${run.run_id}/verification.log`,
+    };
+
+    const artifacts = [
+      {
+        id: 'run-json',
+        title: 'Run Record Metadata (run.json)',
+        icon: '📋',
+        desc: 'Canonical run manifest with token usage, pricing calculation, model config, and timing.',
+        path: rp.run_json || `results/${run.prompt_id}/${run.run_id}/run.json`,
+        filename: `${run.run_id}-run.json`,
+      },
+      {
+        id: 'runtime-json',
+        title: 'Runtime Playwright Diagnostics (runtime.json)',
+        icon: '🎭',
+        desc: 'Browser page load telemetry, HTTP status, console logs, errors, and DOM visual element counts.',
+        path: rp.runtime_json || `results/${run.prompt_id}/${run.run_id}/artifacts/runtime.json`,
+        filename: `${run.run_id}-runtime.json`,
+      },
+      {
+        id: 'pipeline-json',
+        title: 'Data Pipeline & Verification Probe Report (data_pipeline.json)',
+        icon: '🔬',
+        desc: 'Granular checks, record counts, file match criteria, and authenticity scoring.',
+        path: rp.data_pipeline_json || `results/${run.prompt_id}/${run.run_id}/artifacts/data_pipeline.json`,
+        filename: `${run.run_id}-data_pipeline.json`,
+      },
+      {
+        id: 'verification-log',
+        title: 'Verification Output Log (verification.log)',
+        icon: '📜',
+        desc: 'Full console execution trace and log output generated during automated verification.',
+        path: rp.verification_log || `results/${run.prompt_id}/${run.run_id}/verification.log`,
+        filename: `${run.run_id}-verification.log`,
+      },
+    ];
+
+    artifacts.forEach((art) => {
+      const card = document.createElement('div');
+      card.className = 'download-artifact-card';
+      card.innerHTML = `
+        <div class="download-artifact-header">
+          <span class="download-artifact-icon">${art.icon}</span>
+          <div class="download-artifact-info">
+            <h4>${escapeHtml(art.title)}</h4>
+            <p>${escapeHtml(art.desc)}</p>
+          </div>
+        </div>
+        <div class="download-artifact-actions">
+          <a href="${escapeHtml(art.path)}" download="${escapeHtml(art.filename)}" class="btn-artifact-download">
+            <span>⬇</span> Download
+          </a>
+          <a href="${escapeHtml(art.path)}" target="_blank" rel="noopener noreferrer" class="btn-artifact-view">
+            <span>👁</span> View Raw
+          </a>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  // ==========================================================================
   // DRILL-DOWN MODAL INSPECTOR
   // ==========================================================================
 
@@ -1627,6 +1744,9 @@
     document.getElementById('modal-meta-wall-time').textContent = formatDurationSec(run.wall_clock.seconds);
     document.getElementById('modal-meta-gen-time').textContent = formatDurationSec(run.model_time.generating_seconds);
     document.getElementById('modal-meta-thinking-time').textContent = formatDurationSec(run.model_time.thinking_seconds);
+
+    // Tab 5: Downloads & Raw Artifacts
+    setupModalDownloads(run);
 
     // Reset active modal tab
     document.querySelectorAll('.modal-tab').forEach((t) => t.classList.remove('active'));

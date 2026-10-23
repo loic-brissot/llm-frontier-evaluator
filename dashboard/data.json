@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "generated_at": "2026-10-23T23:29:25Z",
+  "generated_at": "2026-10-23T23:48:30Z",
   "summary": {
     "total_runs": 11,
     "successful_runs": 7,
@@ -218,6 +218,12 @@
       },
       "screenshot_path": "screenshots/2026-10-19-cursor-gemini-4-argon-1m-medium.png",
       "demo_url": null,
+      "results_paths": {
+        "run_json": "results/france-electricity-carbon-flow/2026-10-19-cursor-gemini-4-argon-1m-medium/run.json",
+        "runtime_json": "results/france-electricity-carbon-flow/2026-10-19-cursor-gemini-4-argon-1m-medium/artifacts/runtime.json",
+        "data_pipeline_json": "results/france-electricity-carbon-flow/2026-10-19-cursor-gemini-4-argon-1m-medium/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
       "tool_timeline": [
         {
           "call_index": 1,
@@ -1902,6 +1908,12 @@
       },
       "screenshot_path": "screenshots/2026-10-19-cursor-claude-opus-5-5-high-300k-high.png",
       "demo_url": null,
+      "results_paths": {
+        "run_json": "results/france-rail-24h-pulse/2026-10-19-cursor-claude-opus-5-5-high-300k-high/run.json",
+        "runtime_json": "results/france-rail-24h-pulse/2026-10-19-cursor-claude-opus-5-5-high-300k-high/artifacts/runtime.json",
+        "data_pipeline_json": "results/france-rail-24h-pulse/2026-10-19-cursor-claude-opus-5-5-high-300k-high/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
       "tool_timeline": [
         {
           "call_index": 1,
@@ -3499,6 +3511,12 @@
       },
       "screenshot_path": "screenshots/2026-10-22-cursor-gpt-5-6-sol-medium.png",
       "demo_url": null,
+      "results_paths": {
+        "run_json": "results/france-rail-24h-pulse/2026-10-22-cursor-gpt-5-6-sol-medium/run.json",
+        "runtime_json": "results/france-rail-24h-pulse/2026-10-22-cursor-gpt-5-6-sol-medium/artifacts/runtime.json",
+        "data_pipeline_json": "results/france-rail-24h-pulse/2026-10-22-cursor-gpt-5-6-sol-medium/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
       "tool_timeline": [
         {
           "call_index": 1,
@@ -3808,6 +3826,12 @@
       },
       "screenshot_path": "screenshots/2026-10-22-cursor-muse-wonder-medium.png",
       "demo_url": null,
+      "results_paths": {
+        "run_json": "results/france-rail-24h-pulse/2026-10-22-cursor-muse-wonder-medium/run.json",
+        "runtime_json": "results/france-rail-24h-pulse/2026-10-22-cursor-muse-wonder-medium/artifacts/runtime.json",
+        "data_pipeline_json": "results/france-rail-24h-pulse/2026-10-22-cursor-muse-wonder-medium/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
       "tool_timeline": [
         {
           "call_index": 1,
@@ -4321,6 +4345,12 @@
       },
       "screenshot_path": "screenshots/2026-10-22-cursor-gemini-3-8-flash-high.png",
       "demo_url": null,
+      "results_paths": {
+        "run_json": "results/france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high/run.json",
+        "runtime_json": "results/france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high/artifacts/runtime.json",
+        "data_pipeline_json": "results/france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
       "tool_timeline": [
         {
           "call_index": 1,
@@ -7036,6 +7066,12 @@
       },
       "screenshot_path": null,
       "demo_url": null,
+      "results_paths": {
+        "run_json": "results/france-rail-24h-pulse/2026-10-22-cursor-glm-5-3-high/run.json",
+        "runtime_json": "results/france-rail-24h-pulse/2026-10-22-cursor-glm-5-3-high/artifacts/runtime.json",
+        "data_pipeline_json": "results/france-rail-24h-pulse/2026-10-22-cursor-glm-5-3-high/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
       "tool_timeline": [
         {
           "call_index": 1,
@@ -8611,6 +8647,12 @@
       },
       "screenshot_path": null,
       "demo_url": null,
+      "results_paths": {
+        "run_json": "results/france-rail-24h-pulse/2026-10-22-cursor-grok-4-7-high/run.json",
+        "runtime_json": "results/france-rail-24h-pulse/2026-10-22-cursor-grok-4-7-high/artifacts/runtime.json",
+        "data_pipeline_json": "results/france-rail-24h-pulse/2026-10-22-cursor-grok-4-7-high/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
       "tool_timeline": [
         {
           "call_index": 1,
@@ -10866,6 +10908,12 @@
       },
       "screenshot_path": "screenshots/2026-10-19-cursor-muse-wonder-300k-medium.png",
       "demo_url": null,
+      "results_paths": {
+        "run_json": "results/france-road-accidents/2026-10-19-cursor-muse-wonder-300k-medium/run.json",
+        "runtime_json": "results/france-road-accidents/2026-10-19-cursor-muse-wonder-300k-medium/artifacts/runtime.json",
+        "data_pipeline_json": "results/france-road-accidents/2026-10-19-cursor-muse-wonder-300k-medium/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
       "tool_timeline": [
         {
           "call_index": 1,
@@ -11552,6 +11600,12 @@
       },
       "screenshot_path": "screenshots/2026-10-20-cursor-claude-opus-5-5-high.png",
       "demo_url": null,
+      "results_paths": {
+        "run_json": "results/paris-1910-flood-simulator/2026-10-20-cursor-claude-opus-5-5-high/run.json",
+        "runtime_json": "results/paris-1910-flood-simulator/2026-10-20-cursor-claude-opus-5-5-high/artifacts/runtime.json",
+        "data_pipeline_json": "results/paris-1910-flood-simulator/2026-10-20-cursor-claude-opus-5-5-high/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
       "tool_timeline": [
         {
           "call_index": 1,
@@ -14205,6 +14259,12 @@
       },
       "screenshot_path": "screenshots/2026-10-21-cursor-claude-opus-5-5-medium.png",
       "demo_url": null,
+      "results_paths": {
+        "run_json": "results/paris-1910-flood-simulator/2026-10-21-cursor-claude-opus-5-5-medium/run.json",
+        "runtime_json": "results/paris-1910-flood-simulator/2026-10-21-cursor-claude-opus-5-5-medium/artifacts/runtime.json",
+        "data_pipeline_json": "results/paris-1910-flood-simulator/2026-10-21-cursor-claude-opus-5-5-medium/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
       "tool_timeline": [
         {
           "call_index": 1,
@@ -16980,6 +17040,12 @@
       },
       "screenshot_path": "screenshots/2026-10-22-cursor-gemini-4-argon-medium.png",
       "demo_url": null,
+      "results_paths": {
+        "run_json": "results/paris-1910-flood-simulator/2026-10-22-cursor-gemini-4-argon-medium/run.json",
+        "runtime_json": "results/paris-1910-flood-simulator/2026-10-22-cursor-gemini-4-argon-medium/artifacts/runtime.json",
+        "data_pipeline_json": "results/paris-1910-flood-simulator/2026-10-22-cursor-gemini-4-argon-medium/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
       "tool_timeline": [
         {
           "call_index": 1,
@@ -18924,5 +18990,65 @@
       "name": "Muse Wonder",
       "provider": "meta"
     }
-  ]
+  ],
+  "warehouse": {
+    "available": true,
+    "tables": [
+      {
+        "name": "fact_runs",
+        "type": "fact",
+        "description": "Core benchmark runs fact table with duration, tokens, cost, and verification status",
+        "row_count": 11,
+        "parquet_path": "warehouse/parquet/fact_runs.parquet"
+      },
+      {
+        "name": "fact_tool_calls",
+        "type": "fact",
+        "description": "Individual tool calls with bucket classification, latency, and failure flags",
+        "row_count": 1475,
+        "parquet_path": "warehouse/parquet/fact_tool_calls.parquet"
+      },
+      {
+        "name": "fact_turns",
+        "type": "fact",
+        "description": "Turn-level telemetry capturing cache re-reads and prompt growth across conversational turns",
+        "row_count": 53,
+        "parquet_path": "warehouse/parquet/fact_turns.parquet"
+      },
+      {
+        "name": "fact_thought_blocks",
+        "type": "fact",
+        "description": "Model reasoning and thinking block durations and token counts",
+        "row_count": 701,
+        "parquet_path": "warehouse/parquet/fact_thought_blocks.parquet"
+      },
+      {
+        "name": "dim_models",
+        "type": "dimension",
+        "description": "Catalog of evaluated frontier LLM models, providers, and pricing rates",
+        "row_count": 30,
+        "parquet_path": "warehouse/parquet/dim_models.parquet"
+      },
+      {
+        "name": "dim_prompts",
+        "type": "dimension",
+        "description": "Frozen prompt definitions, verification probe criteria, and complexity types",
+        "row_count": 8,
+        "parquet_path": "warehouse/parquet/dim_prompts.parquet"
+      }
+    ],
+    "formats": [
+      "parquet",
+      "duckdb"
+    ],
+    "duckdb_path": "warehouse/benchmark.duckdb",
+    "counts": {
+      "fact_runs": 11,
+      "fact_tool_calls": 1475,
+      "fact_turns": 53,
+      "fact_thought_blocks": 701,
+      "dim_models": 30,
+      "dim_prompts": 8
+    }
+  }
 }
