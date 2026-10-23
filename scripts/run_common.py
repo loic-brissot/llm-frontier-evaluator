@@ -506,8 +506,7 @@ def _run_validator():
             from jsonschema import Draft202012Validator
         except ImportError as exc:
             raise RuntimeError(
-                "Validating run.json needs the jsonschema package: "
-                "python3 -m pip install -r requirements.txt"
+                "Validating run.json needs the jsonschema package (run: uv sync)"
             ) from exc
     Draft202012Validator.check_schema(RUN_SCHEMA)
     return Draft202012Validator(RUN_SCHEMA)

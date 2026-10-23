@@ -318,7 +318,7 @@ class TestVerifyRun(unittest.TestCase):
             "load_time_ms": None,
             "console_errors": ["Uncaught ReferenceError: foo is not defined"],
             "console_warnings_count": 0,
-            "page_errors": ["Playwright Python package is not installed (run: python3 -m pip install playwright && python3 -m playwright install chromium)"],
+            "page_errors": ["Playwright Python package is not installed (run: uv sync --extra verify && uv run playwright install chromium)"],
             "failed_requests": [],
             "dom": None,
             "screenshot_path": None,
@@ -352,7 +352,7 @@ class TestVerifyRun(unittest.TestCase):
             mock_add_venv.assert_called_once()
             self.assertFalse(telemetry["passed"])
             self.assertIn("Playwright Python package is not installed", telemetry["page_errors"][0])
-            self.assertIn("python3 -m pip install playwright", telemetry["page_errors"][0])
+            self.assertIn("uv sync --extra verify", telemetry["page_errors"][0])
 
     def test_finish_run_playwright_env_error_does_not_default_operator_saw_a_page_to_false(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -369,7 +369,7 @@ class TestVerifyRun(unittest.TestCase):
                 "load_time_ms": None,
                 "console_errors": [],
                 "console_warnings_count": 0,
-                "page_errors": ["Playwright Python package is not installed (run: python3 -m pip install playwright && python3 -m playwright install chromium)"],
+                "page_errors": ["Playwright Python package is not installed (run: uv sync --extra verify && uv run playwright install chromium)"],
                 "failed_requests": [],
                 "dom": None,
                 "screenshot_path": None,

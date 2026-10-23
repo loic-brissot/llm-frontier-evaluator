@@ -91,8 +91,8 @@ Each benchmark run evaluates one model and one agent harness on a single frozen 
 ### Prerequisites
 
 ```bash
-python3 -m pip install -r requirements.txt
-python3 -m pip install playwright && python3 -m playwright install chromium
+uv sync --all-extras
+uv run playwright install chromium
 ```
 
 ### Option A: Headless in Docker (Recommended)

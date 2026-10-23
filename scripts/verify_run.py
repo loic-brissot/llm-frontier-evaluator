@@ -631,11 +631,11 @@ def run_playwright_telemetry(
                 "console_errors": [],
                 "console_warnings_count": 0,
                 "page_errors": [
-                    "Playwright Python package is not installed (run: python3 -m pip install playwright && python3 -m playwright install chromium)"
+                    "Playwright Python package is not installed (run: uv sync --extra verify && uv run playwright install chromium)"
                 ],
                 "failed_requests": [],
                 "critical_failures": [
-                    "Playwright Python package is not installed (run: python3 -m pip install playwright && python3 -m playwright install chromium)"
+                    "Playwright Python package is not installed (run: uv sync --extra verify && uv run playwright install chromium)"
                 ],
                 "dom": None,
                 "screenshot_path": None,
@@ -672,7 +672,7 @@ def run_playwright_telemetry(
         err_msg = str(exc)
         if "Executable doesn't exist" in err_msg or "playwright install" in err_msg:
             page_errors.append(
-                f"Playwright browser executable is missing (run: python3 -m playwright install chromium): {exc}"
+                f"Playwright browser executable is missing (run: uv run playwright install chromium): {exc}"
             )
         else:
             page_errors.append(f"Playwright run error: {exc}")

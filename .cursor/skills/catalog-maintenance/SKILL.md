@@ -100,17 +100,17 @@ After performing catalog maintenance, run the complete suite of verification too
 
 ```bash
 # Check prompt catalog hashes and model pricing consistency
-python3 scripts/compare_runs.py
+uv run python3 scripts/compare_runs.py
 
 # Check README comparison table sync
-python3 scripts/compare_runs.py --check-readme
+uv run python3 scripts/compare_runs.py --check-readme
 
 # Run unit tests
-python3 -m unittest discover -s tests -v
-pytest
+uv run python3 -m unittest discover -s tests -v
+uv run pytest
 
 # Code formatting and linting
-ruff check scripts tests
+uv run ruff check scripts tests
 # Or inside Cursor sandbox:
 UV_CACHE_DIR=/tmp/uv-cache UV_TOOL_DIR=/tmp/uv-tools uvx --index-url https://pypi.org/simple ruff check scripts tests
 ```
