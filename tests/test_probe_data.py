@@ -16,7 +16,7 @@ class TestProbeData(unittest.TestCase):
     def test_probe_specs_cover_all_prompts(self):
         specs = load_probe_specs()
         prompt_files = sorted(PROMPTS_DIR.glob("*.txt"))
-        self.assertEqual(len(prompt_files), 6, "Expected exactly 6 prompt files in prompt/")
+        self.assertEqual(len(prompt_files), 8, "Expected exactly 8 prompt files in prompt/")
 
         for prompt_file in prompt_files:
             prompt_id = prompt_file.stem

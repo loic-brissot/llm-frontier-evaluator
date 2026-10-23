@@ -18,6 +18,8 @@ Runs for a prompt live in `runs/<prompt-id>/<run-id>/`, and a run record's
 | `france-road-accidents` | `france-road-accidents.txt` | `982eebe095732d52f4ca2e904d1cc284b76e9522d3f6f634c571f60ee96747a9` | 2378 | No |
 | `france-socio-electoral-atlas` | `france-socio-electoral-atlas.txt` | `c4e7a3e9c1b5ac5781adfd5e889577576acfa79c7dbf2b6e07b5387b2c173d63` | 3043 | No |
 | `paris-1910-flood-simulator` | `paris-1910-flood-simulator.txt` | `1c2103d2016d41e7263c8012c13ee555b6397ac5d8e4908e1b76a766ff49a9c3` | 2277 | No |
+| `paris-tree-canopy` | `paris-tree-canopy.txt` | `69f692b4adcfe21e0dbcab273537095a344735479a4309ab4a85b8a76288bfaf` | 2085 | No |
+| `velib-realtime-flow` | `velib-realtime-flow.txt` | `c38f333f908f94ba80b5c085d818deeaffceb14e9beca9ce3123342a9aa9f440` | 2190 | No |
 
 The hash is of the exact bytes. A final newline is a different prompt.
 

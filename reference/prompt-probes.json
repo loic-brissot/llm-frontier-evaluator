@@ -220,5 +220,68 @@
       "fake_flood",
       "mockData"
     ]
+  },
+  "paris-tree-canopy": {
+    "prompt_id": "paris-tree-canopy",
+    "type": "open_data",
+    "description": "Paris municipal tree canopy and remarkable trees biodiversity explorer",
+    "checks": [
+      {
+        "id": "trees_dataset",
+        "description": "Paris municipal trees inventory with botanical species and measurements",
+        "file_patterns": ["*arbre*", "*tree*", "*canopy*"],
+        "required_markers": ["genre", "espece", "hauteur", "circonference"],
+        "min_records": 1000
+      },
+      {
+        "id": "remarkable_trees_dataset",
+        "description": "Paris remarkable heritage trees (arbres remarquables)",
+        "file_patterns": ["*remarquable*", "*remarkable*", "*arbre*", "*tree*"],
+        "required_markers": ["remarquable"],
+        "min_records": 20
+      },
+      {
+        "id": "arrondissements_dataset",
+        "description": "Paris arrondissements administrative boundaries",
+        "file_patterns": ["*arrondissement*", "*district*"],
+        "min_records": 20
+      }
+    ],
+    "synthetic_patterns": [
+      "generateMockTrees",
+      "fakeTrees",
+      "mockCanopy",
+      "generateRandomTrees",
+      "mockData"
+    ]
+  },
+  "velib-realtime-flow": {
+    "prompt_id": "velib-realtime-flow",
+    "type": "open_data",
+    "description": "Paris and Île-de-France Vélib real-time station availability and bike-share flow observatory",
+    "checks": [
+      {
+        "id": "velib_stations_realtime_dataset",
+        "description": "Vélib real-time station status and bike availability dataset (mechanical and electric)",
+        "file_patterns": ["*velib*", "*station*", "*disponibilite*", "*gbfs*"],
+        "required_markers": ["stationcode", "station_id", "numbikesavailable", "numdocksavailable", "capacity", "mechanical", "ebike"],
+        "min_records": 500
+      },
+      {
+        "id": "station_coordinates_or_communes",
+        "description": "Station geolocations or commune/arrondissement breakdown",
+        "file_patterns": ["*velib*", "*station*", "*commune*", "*geo*"],
+        "required_markers": ["coordonnees_geo", "latitude", "lat", "lon", "nom", "name"],
+        "min_records": 500
+      }
+    ],
+    "synthetic_patterns": [
+      "generateMockVelib",
+      "fakeStations",
+      "mockBikes",
+      "generateRandomStations",
+      "mockVelib",
+      "mockData"
+    ]
   }
 }

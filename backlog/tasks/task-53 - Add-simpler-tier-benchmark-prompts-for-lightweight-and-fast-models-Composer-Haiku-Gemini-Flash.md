@@ -3,9 +3,10 @@ id: TASK-53
 title: >-
   Add simpler tier benchmark prompts for lightweight and fast models (Composer,
   Haiku, Gemini Flash)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-22 16:23'
+updated_date: '2026-10-23 11:01'
 labels:
   - prompts
   - catalog
@@ -36,8 +37,8 @@ Follow the Prompt Catalog Maintenance Checklist:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Add at least 2 simpler frozen prompts under prompt/<prompt-id>.txt targeting fast/lightweight models while preserving real open-data requirements
-- [ ] #2 Update prompt/README.md with exact SHA-256, byte count, and newline metadata for the new prompts
-- [ ] #3 Add data verification probes in reference/prompt-probes.json and update README.md ## Prompts list
-- [ ] #4 python3 scripts/compare_runs.py and unit tests pass catalog integrity checks
+- [x] #1 Add at least 2 simpler frozen prompts under prompt/<prompt-id>.txt targeting fast/lightweight models while preserving real open-data requirements
+- [x] #2 Update prompt/README.md with exact SHA-256, byte count, and newline metadata for the new prompts
+- [x] #3 Add data verification probes in reference/prompt-probes.json and update README.md ## Prompts list
+- [x] #4 python3 scripts/compare_runs.py and unit tests pass catalog integrity checks
 <!-- AC:END -->
