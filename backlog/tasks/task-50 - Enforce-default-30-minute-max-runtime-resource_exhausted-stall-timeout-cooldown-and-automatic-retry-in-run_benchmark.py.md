@@ -3,9 +3,10 @@ id: TASK-50
 title: >-
   Enforce default 30-minute max runtime, resource_exhausted stall timeout,
   cooldown, and automatic retry in run_benchmark.py
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-22 16:22'
+updated_date: '2026-10-23 10:22'
 labels:
   - runner
   - resilience
@@ -31,8 +32,8 @@ Add runtime guardrails and automatic recovery to `scripts/run_benchmark.py` for 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Default --timeout in scripts/run_benchmark.py is set to 1800 seconds (30 minutes) and cleanly stops the container when exceeded
-- [ ] #2 Stream monitor detects prolonged RetriableError / resource_exhausted stalls and terminates the blocked container early
-- [ ] #3 Cooldown system waits before retrying or resuming a session when a container exits with a non-zero return code or rate-limit error
-- [ ] #4 Unit tests in tests/test_run_benchmark.py cover default 30m timeout, resource_exhausted stall detection, cooldown, and retry/resume behavior
+- [x] #1 Default --timeout in scripts/run_benchmark.py is set to 1800 seconds (30 minutes) and cleanly stops the container when exceeded
+- [x] #2 Stream monitor detects prolonged RetriableError / resource_exhausted stalls and terminates the blocked container early
+- [x] #3 Cooldown system waits before retrying or resuming a session when a container exits with a non-zero return code or rate-limit error
+- [x] #4 Unit tests in tests/test_run_benchmark.py cover default 30m timeout, resource_exhausted stall detection, cooldown, and retry/resume behavior
 <!-- AC:END -->
