@@ -282,6 +282,267 @@ def discover_and_start_server(
     return None, "none", lambda: None
 
 
+DOM_INSPECTION_SCRIPT = """
+() => {
+    try {
+        const vw = window.innerWidth || document.documentElement.clientWidth || 1440;
+        const vh = window.innerHeight || document.documentElement.clientHeight || 900;
+
+        const canvases = Array.from(document.querySelectorAll('canvas'));
+        let webglContext = false;
+        let visibleCanvasCount = 0;
+
+        for (const c of canvases) {
+            const stopErr = (e) => e.stopImmediatePropagation();
+            c.addEventListener('webglcontextcreationerror', stopErr, true);
+            try {
+                if (c.getContext('webgl2') || c.getContext('webgl') || c.getContext('experimental-webgl')) {
+                    webglContext = true;
+                    break;
+                }
+            } catch (e) {
+            } finally {
+                c.removeEventListener('webglcontextcreationerror', stopErr, true);
+            }
+        }
+
+        for (const c of canvases) {
+            try {
+                const rect = c.getBoundingClientRect();
+                const style = window.getComputedStyle(c);
+                const isVisible = rect.width > 0 && rect.height > 0 &&
+                                  style.display !== 'none' &&
+                                  style.visibility !== 'hidden' &&
+                                  parseFloat(style.opacity || '1') > 0.05;
+                if (isVisible) {
+                    visibleCanvasCount++;
+                }
+            } catch (e) {}
+        }
+
+        const svgs = document.querySelectorAll('svg').length;
+        const textLength = (document.body ? document.body.innerText : '').trim().length;
+        const title = document.title || '';
+
+        // Patterns for loading / splash screens and progress overlays
+        const loadingTextRegex = /(?:initialis|chargement|loading|en cours|patientez|veuillez patienter|preparing|préparation|fetching|démarrage|synchronis)/i;
+        const loadingAttrRegex = /(?:loading|loader|spinner|splash|overlay|backdrop|progress|initializ)/i;
+
+        let detectedOverlay = null;
+        let canvasObscured = false;
+
+        // 1. Inspect visible full-viewport or large overlays covering the screen
+        const allElements = Array.from(document.body ? document.body.querySelectorAll('*') : []);
+        for (const el of allElements) {
+            try {
+                const style = window.getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden') continue;
+                const opacity = parseFloat(style.opacity || '1');
+                if (opacity <= 0.05) continue;
+
+                const rect = el.getBoundingClientRect();
+                const isLarge = (rect.width >= vw * 0.5 && rect.height >= vh * 0.5);
+                if (!isLarge) continue;
+
+                const id = el.id || '';
+                const className = typeof el.className === 'string' ? el.className : (el.getAttribute('class') || '');
+                const role = el.getAttribute('role') || '';
+                const ariaLabel = el.getAttribute('aria-label') || '';
+                const text = (el.innerText || el.textContent || '').trim();
+
+                const matchesAttrs = loadingAttrRegex.test(id) || loadingAttrRegex.test(className) || loadingAttrRegex.test(role);
+                const matchesText = loadingTextRegex.test(text) || loadingTextRegex.test(ariaLabel);
+                const hasSpinner = Boolean(el.querySelector('.spinner, .loader, [class*="spin"], [id*="spin"], [role="progressbar"], svg[class*="spin"]'));
+
+                if ((matchesAttrs || matchesText || hasSpinner) && (matchesText || hasSpinner || (matchesAttrs && isLarge))) {
+                    const pos = style.position;
+                    const zIndex = parseInt(style.zIndex, 10);
+                    const isPositioned = (pos === 'fixed' || pos === 'absolute') || (!isNaN(zIndex) && zIndex >= 10);
+
+                    const centerEl = document.elementFromPoint(vw / 2, vh / 2);
+                    const coversCenter = Boolean(centerEl && (el === centerEl || el.contains(centerEl)));
+
+                    if (coversCenter || isPositioned) {
+                        detectedOverlay = {
+                            detected: true,
+                            selector: id ? `#${id}` : (className ? `.${className.trim().split(/\\s+/)[0]}` : el.tagName.toLowerCase()),
+                            id: id,
+                            class: className.slice(0, 100),
+                            text: text.slice(0, 200),
+                            covers_center: coversCenter,
+                        };
+                        break;
+                    }
+                }
+            } catch (e) {}
+        }
+
+        // 2. Inspect element at viewport center if overlay not yet found
+        if (!detectedOverlay) {
+            try {
+                let curr = document.elementFromPoint(vw / 2, vh / 2);
+                while (curr && curr !== document.body && curr !== document.documentElement) {
+                    const style = window.getComputedStyle(curr);
+                    if (style.display !== 'none' && style.visibility !== 'hidden' && parseFloat(style.opacity || '1') > 0.05) {
+                        const rect = curr.getBoundingClientRect();
+                        const isLarge = (rect.width >= vw * 0.4 && rect.height >= vh * 0.4);
+                        const id = curr.id || '';
+                        const className = typeof curr.className === 'string' ? curr.className : (curr.getAttribute('class') || '');
+                        const text = (curr.innerText || curr.textContent || '').trim();
+
+                        if ((loadingAttrRegex.test(id) || loadingAttrRegex.test(className) || loadingTextRegex.test(text)) && isLarge) {
+                            detectedOverlay = {
+                                detected: true,
+                                selector: id ? `#${id}` : (className ? `.${className.trim().split(/\\s+/)[0]}` : curr.tagName.toLowerCase()),
+                                id: id,
+                                class: className.slice(0, 100),
+                                text: text.slice(0, 200),
+                                covers_center: true,
+                            };
+                            break;
+                        }
+                    }
+                    curr = curr.parentElement;
+                }
+            } catch (e) {}
+        }
+
+        // 3. Inspect whether any canvas is obscured by a loading overlay
+        if (canvases.length > 0) {
+            for (const c of canvases) {
+                try {
+                    const rect = c.getBoundingClientRect();
+                    if (rect.width > 0 && rect.height > 0) {
+                        const cx = Math.max(0, Math.min(vw - 1, rect.left + rect.width / 2));
+                        const cy = Math.max(0, Math.min(vh - 1, rect.top + rect.height / 2));
+                        const topEl = document.elementFromPoint(cx, cy);
+                        if (topEl && topEl !== c && !c.contains(topEl)) {
+                            let anc = topEl;
+                            while (anc && anc !== document.body && anc !== document.documentElement) {
+                                const aid = anc.id || '';
+                                const aclass = typeof anc.className === 'string' ? anc.className : '';
+                                const atext = (anc.innerText || anc.textContent || '').trim();
+                                if (loadingAttrRegex.test(aid) || loadingAttrRegex.test(aclass) || loadingTextRegex.test(atext)) {
+                                    canvasObscured = true;
+                                    if (!detectedOverlay) {
+                                        detectedOverlay = {
+                                            detected: true,
+                                            selector: aid ? `#${aid}` : (aclass ? `.${aclass.trim().split(/\\s+/)[0]}` : anc.tagName.toLowerCase()),
+                                            id: aid,
+                                            class: aclass.slice(0, 100),
+                                            text: atext.slice(0, 200),
+                                            covers_center: true,
+                                        };
+                                    }
+                                    break;
+                                }
+                                anc = anc.parentElement;
+                            }
+                        }
+                    }
+                } catch (e) {}
+            }
+        }
+
+        return {
+            title: title,
+            canvas_count: canvases.length,
+            visible_canvas_count: visibleCanvasCount,
+            canvas_obscured: canvasObscured,
+            loading_overlay: detectedOverlay,
+            svg_count: svgs,
+            webgl_context: webglContext,
+            text_length: textLength,
+        };
+    } catch (err) {
+        return {
+            title: document.title || '',
+            canvas_count: 0,
+            visible_canvas_count: 0,
+            canvas_obscured: false,
+            loading_overlay: null,
+            svg_count: 0,
+            webgl_context: false,
+            text_length: 0,
+            evaluation_error: String(err),
+        };
+    }
+}
+"""
+
+FATAL_CONSOLE_ERROR_PATTERNS = [
+    re.compile(r"worker failed to load", re.IGNORECASE),
+    re.compile(r"failed to construct ['\"]?worker['\"]?", re.IGNORECASE),
+    re.compile(r"importscripts failed", re.IGNORECASE),
+    re.compile(r"failed to load worker", re.IGNORECASE),
+    re.compile(r"failed to fetch dynamically imported module", re.IGNORECASE),
+    re.compile(r"chunkloaderror", re.IGNORECASE),
+    re.compile(r"loading chunk .* failed", re.IGNORECASE),
+    re.compile(r"(?:initialization error|failed to initialize|error during initialization)", re.IGNORECASE),
+    re.compile(r"(?:erreur lors de l'initialisation|initialisation impossible)", re.IGNORECASE),
+]
+
+
+def identify_critical_failures(
+    failed_requests: list[dict],
+    console_errors: list[str],
+    dom: dict | None,
+) -> list[str]:
+    """Inspect failed requests, console errors, and DOM state for fatal initialization failures.
+
+    Returns a list of human-readable critical failure messages. If empty, no critical
+    failure occurred.
+    """
+    critical: list[str] = []
+
+    # 1. Loading overlay / splash screen detection
+    if dom:
+        loading_overlay = dom.get("loading_overlay")
+        if isinstance(loading_overlay, dict) and loading_overlay.get("detected"):
+            sel = loading_overlay.get("selector") or "overlay"
+            raw_text = (loading_overlay.get("text") or "").strip()
+            clean_text = " ".join(raw_text.split())
+            snippet = f": '{clean_text[:80]}...'" if len(clean_text) > 80 else (f": '{clean_text}'" if clean_text else "")
+            critical.append(f"Persistent loading overlay detected ({sel}){snippet}")
+
+        # 2. Canvas visibility and obscuration
+        canvas_count = dom.get("canvas_count", 0)
+        visible_canvas_count = dom.get("visible_canvas_count", canvas_count)
+        if canvas_count > 0 and visible_canvas_count == 0:
+            critical.append(f"All canvas elements ({canvas_count}) are hidden or zero-sized")
+        elif dom.get("canvas_obscured"):
+            critical.append("Primary canvas is obscured by a loading overlay")
+
+    has_loading_issue = bool(critical) or not (
+        dom and (dom.get("canvas_count", 0) > 0 or dom.get("svg_count", 0) > 0 or dom.get("text_length", 0) > 0)
+    )
+
+    # 3. Critical request failures (scripts, workers, WASM, or critical data files required during init)
+    for req in failed_requests:
+        raw_url = req.get("url", "")
+        clean_url = raw_url.split("?")[0].split("#")[0].lower()
+        reason = req.get("reason", "failed")
+
+        is_script_or_wasm = any(clean_url.endswith(ext) for ext in (".js", ".mjs", ".cjs", ".wasm"))
+        is_worker = "worker" in clean_url
+        if is_script_or_wasm or is_worker:
+            critical.append(f"Critical script/worker request failed ({reason}): {raw_url}")
+            continue
+
+        is_data = any(clean_url.endswith(ext) for ext in (".json", ".geojson", ".csv", ".parquet", ".arrow")) or "/data/" in clean_url
+        if is_data and has_loading_issue:
+            critical.append(f"Critical data request failed during initialization ({reason}): {raw_url}")
+
+    # 4. Fatal initialization console errors
+    for err in console_errors:
+        err_str = str(err)
+        if any(pat.search(err_str) for pat in FATAL_CONSOLE_ERROR_PATTERNS):
+            first_line = err_str.strip().split("\n")[0]
+            critical.append(f"Fatal initialization console error: {first_line[:120]}")
+
+    return critical
+
+
 def run_playwright_telemetry(
     url: str | None,
     server_mode: str,
@@ -303,6 +564,7 @@ def run_playwright_telemetry(
             "console_warnings_count": 0,
             "page_errors": ["No workspace server found or started"],
             "failed_requests": [],
+            "critical_failures": ["No workspace server found or started"],
             "dom": None,
             "screenshot_path": None,
             "verified_at": verified_at,
@@ -372,6 +634,9 @@ def run_playwright_telemetry(
                     "Playwright Python package is not installed (run: python3 -m pip install playwright && python3 -m playwright install chromium)"
                 ],
                 "failed_requests": [],
+                "critical_failures": [
+                    "Playwright Python package is not installed (run: python3 -m pip install playwright && python3 -m playwright install chromium)"
+                ],
                 "dom": None,
                 "screenshot_path": None,
                 "verified_at": verified_at,
@@ -396,35 +661,7 @@ def run_playwright_telemetry(
 
             collecting_telemetry = False
 
-            dom = page.evaluate("""
-                () => {
-                    const canvases = Array.from(document.querySelectorAll('canvas'));
-                    let webglContext = false;
-                    for (const c of canvases) {
-                        const stopErr = (e) => e.stopImmediatePropagation();
-                        c.addEventListener('webglcontextcreationerror', stopErr, true);
-                        try {
-                            if (c.getContext('webgl2') || c.getContext('webgl') || c.getContext('experimental-webgl')) {
-                                webglContext = true;
-                                break;
-                            }
-                        } catch (e) {
-                        } finally {
-                            c.removeEventListener('webglcontextcreationerror', stopErr, true);
-                        }
-                    }
-                    const svgs = document.querySelectorAll('svg').length;
-                    const textLength = (document.body ? document.body.innerText : '').trim().length;
-                    const title = document.title || '';
-                    return {
-                        title: title,
-                        canvas_count: canvases.length,
-                        svg_count: svgs,
-                        webgl_context: webglContext,
-                        text_length: textLength
-                    };
-                }
-            """)
+            dom = page.evaluate(DOM_INSPECTION_SCRIPT)
 
             artifacts_dir.mkdir(parents=True, exist_ok=True)
             screenshot_file = artifacts_dir / "screenshot.png"
@@ -459,8 +696,10 @@ def run_playwright_telemetry(
             or dom.get("svg_count", 0) > 0
             or dom.get("text_length", 0) > 0
         )
+    critical_failures = identify_critical_failures(deduped_failed_requests, console_errors, dom)
+    has_no_critical_failures = (len(critical_failures) == 0)
 
-    passed = bool(has_ok_status and has_no_page_errors and has_content)
+    passed = bool(has_ok_status and has_no_page_errors and has_content and has_no_critical_failures)
 
     return {
         "passed": passed,
@@ -472,6 +711,7 @@ def run_playwright_telemetry(
         "console_warnings_count": console_warnings_count,
         "page_errors": page_errors,
         "failed_requests": deduped_failed_requests,
+        "critical_failures": critical_failures,
         "dom": dom,
         "screenshot_path": screenshot_path,
         "verified_at": verified_at,
@@ -645,6 +885,11 @@ def main() -> int:
         print(f"  Console Errors: {len(telemetry['console_errors'])}")
         for err in telemetry["console_errors"]:
             print(f"    - {err}")
+        critical_fails = telemetry.get("critical_failures") or []
+        if critical_fails:
+            print(f"  Critical Failures: {len(critical_fails)}")
+            for fail in critical_fails:
+                print(f"    - {fail}")
         print(f"  DOM: {telemetry['dom']}")
         print(f"  Screenshot: {telemetry['screenshot_path']}")
         print(f"Saved runtime telemetry to {run_dir / 'artifacts' / 'runtime.json'}")

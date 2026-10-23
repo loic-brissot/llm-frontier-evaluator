@@ -1709,6 +1709,11 @@ def complete_run_json(
         print(f"  Console errors: {len(console_errors)}")
         for err in console_errors:
             print(f"    - {err}")
+        critical_failures = runtime_data.get("critical_failures") or []
+        if critical_failures:
+            print(f"  Critical failures: {len(critical_failures)}")
+            for cf in critical_failures:
+                print(f"    - {cf}")
 
     data_pipeline_file = run_dir / "artifacts" / "data_pipeline.json"
     data_pipeline_data: dict | None = None
