@@ -155,6 +155,21 @@ Use the native Cursor GUI or test specific context window variants (e.g. `--cont
    python3 scripts/finish_run.py --prompt paris-1910-flood-simulator --run-id <run-id> --verify
    ```
 
+### Interactive Visual Benchmark Explorer
+
+To generate or launch the interactive static dashboard and Pareto frontier gallery:
+
+```bash
+# Build the dashboard data payload and static bundle
+uv run python3 scripts/build_dashboard.py
+
+# Verify the dashboard is synchronized with repository run records
+uv run python3 scripts/build_dashboard.py --check
+
+# Serve locally
+uv run python3 scripts/build_dashboard.py --serve 8000
+```
+
 ### Synchronize comparison tables
 
 After completing or updating runs, synchronize the comparison tables in `README.md`:

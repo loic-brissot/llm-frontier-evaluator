@@ -37,7 +37,7 @@ verify = [
 
 [tool.setuptools]
 package-dir = {"" = "scripts"}
-py-modules = ["compare_runs", "export_warehouse", "finish_run", "probe_data", "run_common", "setup_run", "tool_events", "verify_run"]
+py-modules = ["build_dashboard", "compare_runs", "export_warehouse", "finish_run", "probe_data", "run_common", "setup_run", "tool_events", "verify_run"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
