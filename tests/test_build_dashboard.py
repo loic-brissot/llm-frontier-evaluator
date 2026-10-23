@@ -367,3 +367,29 @@ class TestHtmlScriptEmbedding:
         assert match is not None
         extracted = json.loads(match.group(1))
         assert extracted == payload
+
+
+class TestDashboardVisualStability:
+    """Test SVG chart styling and hover stability for Pareto frontier scatter points."""
+
+    def test_scatter_point_css_has_transform_origin_and_box(self) -> None:
+        css_path = Path(__file__).parent.parent / "dashboard" / "styles.css"
+        assert css_path.is_file()
+        css = css_path.read_text(encoding="utf-8")
+
+        # Must specify transform-box: fill-box and transform-origin: center to avoid scaling from (0, 0)
+        assert "transform-box: fill-box;" in css
+        assert "transform-origin: center;" in css
+
+        # Pulsing halo must ignore pointer events so its animation doesn't cause hover flutter
+        halo_block = re.search(r"\.pareto-halo\s*\{([^}]+)\}", css)
+        assert halo_block is not None
+        assert "pointer-events: none;" in halo_block.group(1)
+
+    def test_app_js_sets_transform_properties_on_scatter_point(self) -> None:
+        js_path = Path(__file__).parent.parent / "dashboard" / "app.js"
+        assert js_path.is_file()
+        js = js_path.read_text(encoding="utf-8")
+
+        assert "g.style.transformBox = 'fill-box';" in js
+        assert "g.style.transformOrigin = 'center';" in js

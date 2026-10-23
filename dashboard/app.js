@@ -461,6 +461,8 @@
       // Group
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       g.setAttribute('class', 'scatter-point');
+      g.style.transformBox = 'fill-box';
+      g.style.transformOrigin = 'center';
 
       // Halo for Pareto runs
       if (isPareto) {
