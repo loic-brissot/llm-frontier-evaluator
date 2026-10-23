@@ -92,13 +92,15 @@ A single, reusable Docker image (`llm-frontier-evaluator-runner:latest`) provide
 ```bash
 docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
 ```
-- **Base OS & Runtimes**: `node:22-bookworm` with `python3`, `python3-venv`, `python3-pip`, `git`, `curl`, `jq`, `unzip`, `sqlite3`, and common build tools.
-- **Harnesses Installed**:
-  - Cursor Agent CLI (`cursor-agent` pinned via `ARG CURSOR_AGENT_VERSION=2026.10.19-6bbf2c4`, installed under `/home/benchmark/.local/bin`)
+- **Base OS & Runtimes**: `node:22-bookworm` with `python3`, `python3-venv`, `python3-pip`, `uv` (`ghcr.io/astral-sh/uv`), `git`, `curl`, `jq`, `unzip`, `sqlite3`, and Chromium system shared libraries.
+- **Harnesses & Verification Browsers Installed**:
+  - Cursor Agent CLI (`cursor-agent` pinned via `ARG CURSOR_AGENT_VERSION=2026.10.19-6bbf2c4`, dynamically selecting `arm64` or `x64` Linux archive under `/home/benchmark/.local/bin`)
   - Claude Code CLI (`@anthropic-ai/claude-code` -> `claude`)
+  - Pre-installed Playwright Python/Node packages and headless Chromium browser binary under `/home/benchmark/.cache/ms-playwright`
 - **Unprivileged User (`benchmark`, UID 1000)**:
   - `HOME=/home/benchmark` contains `ENV PATH="/home/benchmark/.local/bin:${PATH}"` and empty `~/.cursor/skills`, `~/.cursor/plugins`, and `~/.claude/` directories.
   - No personal MCP servers (`mcp.json`), agent transcripts, or host credentials exist inside the image.
+  - Containers launch with `--init` (to reap orphaned child dev servers) and `--shm-size=2g` (to prevent Chromium `/dev/shm` crashes).
 
 ### 3.3 Step 1: Run Setup & External Staging (`scripts/setup_run.py`)
 When the operator runs `python3 scripts/setup_run.py --prompt <prompt-id> ...`:

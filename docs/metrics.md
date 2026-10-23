@@ -34,7 +34,8 @@ Copy the provider usage object into `tokens.raw` first. Then set `tokens.split_r
 | `output_includes_reasoning` | The output total includes reasoning tokens. OpenAI `completion_tokens` is this kind of total. `completion_tokens_details.reasoning_tokens` is the reasoning part. | output total minus reasoning tokens |
 | `output_excludes_reasoning` | The output total already omits reasoning tokens, and reasoning is a separate field. | the output total |
 | `harness_pre_split` | The harness export already gives reasoning and visible as two final counts. | the visible count from the export |
-| `unavailable` | The export has no split. | null |
+| `combined_output_as_visible` | Non-interactive CSV/CLI ingestion where the export provides a single combined `Output Tokens` count without a reasoning split (`reasoning_tokens` recorded as `0`, `visible_tokens` recorded as total output). | the combined output total |
+| `unavailable` | The export has no split (or no output token count is available). | null |
 
 Leave both token fields null when the split is `unavailable`. Do not estimate a split. A single output total, including Cursor `Output Tokens`, is this case. Keep that total in `tokens.raw`.
 
@@ -106,7 +107,7 @@ Store `context_reread.cache_read_tokens`.
 | Cursor `Input (w/ Cache Write)` / `stop` hook `cache_write_tokens` | `cache_write_tokens`. This column is the cache write alone. |
 | Cursor `Input (w/o Cache Write)` / `stop` hook `input_tokens - cache_read_tokens - cache_write_tokens` | `uncached_input_tokens` |
 
-Set `source` to `provider_cache_read` when the export has a cache-read field. Set `unavailable` and leave `cache_read_tokens` null when it does not.
+Set `source` to `provider_cache_read` when the export or hook log has a cache-read field, or `cursor_usage_csv` when populated from a Cursor billing CSV export in non-interactive/backfill mode. Set `unavailable` and leave `cache_read_tokens` null when it does not.
 
 Cursor `Total Tokens` is a checksum of cache write, uncached input, cache read, and output. It is not tokens generated. The usage CSV section below is the full reading.
 
