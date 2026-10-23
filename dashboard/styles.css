@@ -394,6 +394,7 @@ svg.chart-svg {
 
 .pareto-halo {
   fill: rgba(56, 189, 248, 0.18);
+  pointer-events: none;
   animation: pulse-ring 2.5s infinite ease-in-out;
 }
 
@@ -405,11 +406,13 @@ svg.chart-svg {
 
 .scatter-point {
   cursor: pointer;
+  transform-box: fill-box;
+  transform-origin: center;
   transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .scatter-point:hover {
-  transform: scale(1.4);
+  transform: scale(1.35);
 }
 
 /* Chart Legends */
