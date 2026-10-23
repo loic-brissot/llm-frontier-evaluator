@@ -24,16 +24,36 @@
 
   let toolsChartMode = 'count'; // 'count' or 'pct'
   let selectedCacheRunId = null;
+  let currentModalRunId = null;
 
   // DOM Elements
   const tooltip = document.getElementById('chart-tooltip');
   const modal = document.getElementById('run-modal');
 
   // ==========================================================================
-  // Data Loading & Bootstrapping
+  // Data Loading & Bootstrapping (Decoupled Web Fetching & Offline Fallback)
   // ==========================================================================
 
-  async function loadData() {
+  function showLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+      overlay.classList.remove('fade-out');
+      overlay.classList.add('active');
+    }
+  }
+
+  function hideLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+      overlay.classList.remove('active');
+      overlay.classList.add('fade-out');
+      setTimeout(() => {
+        overlay.classList.remove('fade-out');
+      }, 400);
+    }
+  }
+
+  function getEmbeddedData() {
     const embeddedScript = document.getElementById('benchmark-data');
     if (embeddedScript && embeddedScript.textContent.trim().length > 0) {
       try {
@@ -42,12 +62,208 @@
         console.warn('Could not parse embedded benchmark data:', err);
       }
     }
-    // Fallback for web server hosting
-    const resp = await fetch('data.json');
-    if (!resp.ok) {
-      throw new Error(`Failed to load data.json: HTTP ${resp.status}`);
+    return null;
+  }
+
+  async function loadData() {
+    const isWeb = typeof window !== 'undefined' &&
+      typeof window.location !== 'undefined' &&
+      (window.location.protocol === 'http:' || window.location.protocol === 'https:');
+
+    if (isWeb) {
+      showLoading();
+      try {
+        const resp = await fetch('./data.json');
+        if (!resp.ok) {
+          throw new Error(`Failed to load ./data.json: HTTP ${resp.status}`);
+        }
+        return await resp.json();
+      } catch (err) {
+        console.warn('Network fetch of ./data.json failed, falling back to embedded benchmark data:', err);
+        const embedded = getEmbeddedData();
+        if (embedded) {
+          return embedded;
+        }
+        throw err;
+      } finally {
+        hideLoading();
+      }
     }
-    return await resp.json();
+
+    // Offline / file:// protocol mode
+    const embedded = getEmbeddedData();
+    if (embedded) {
+      return embedded;
+    }
+
+    // Secondary fallback in case file:// or local environment supports fetch
+    try {
+      const resp = await fetch('./data.json');
+      if (resp.ok) {
+        return await resp.json();
+      }
+    } catch (_) {}
+
+    throw new Error('No benchmark data found: embedded script is empty and local fetch failed');
+  }
+
+  // ==========================================================================
+  // URL Parameter Synchronization & Deep Linking
+  // ==========================================================================
+
+  function updateUrlParams(options = {}) {
+    try {
+      if (typeof window === 'undefined' || !window.location) return;
+      const url = new URL(window.location.href);
+
+      // Active tab (omit default 'pareto' to keep base URL clean)
+      if (activeTab && activeTab !== 'pareto') {
+        url.searchParams.set('tab', activeTab);
+      } else {
+        url.searchParams.delete('tab');
+      }
+
+      // Prompt / Series (canonical URL param is 'prompt')
+      if (filters.series && filters.series !== 'all') {
+        url.searchParams.set('prompt', filters.series);
+        url.searchParams.delete('series');
+      } else {
+        url.searchParams.delete('prompt');
+        url.searchParams.delete('series');
+      }
+
+      // Provider
+      if (filters.provider && filters.provider !== 'all') {
+        url.searchParams.set('provider', filters.provider);
+      } else {
+        url.searchParams.delete('provider');
+      }
+
+      // Status
+      if (filters.status && filters.status !== 'all') {
+        url.searchParams.set('status', filters.status);
+      } else {
+        url.searchParams.delete('status');
+      }
+
+      // Sort
+      if (filters.sort && filters.sort !== 'pareto') {
+        url.searchParams.set('sort', filters.sort);
+      } else {
+        url.searchParams.delete('sort');
+      }
+
+      // Modal run ID
+      if (currentModalRunId) {
+        url.searchParams.set('run', currentModalRunId);
+      } else {
+        url.searchParams.delete('run');
+      }
+
+      const queryString = url.searchParams.toString();
+      const newUrl = url.pathname + (queryString ? `?${queryString}` : '') + url.hash;
+      const currentUrl = window.location.pathname + window.location.search + window.location.hash;
+
+      if (newUrl !== currentUrl) {
+        if (options.replace) {
+          window.history.replaceState(null, '', newUrl);
+        } else {
+          window.history.pushState(null, '', newUrl);
+        }
+      }
+    } catch (err) {
+      console.debug('Failed to update URL parameters:', err);
+    }
+  }
+
+  function switchTab(tabName, updateHistory = true) {
+    const tabBtn = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
+    const tabContent = document.getElementById(`tab-${tabName}`);
+    if (!tabBtn || !tabContent) return;
+
+    document.querySelectorAll('.nav-tab').forEach((b) => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+
+    tabBtn.classList.add('active');
+    tabContent.classList.add('active');
+    activeTab = tabName;
+
+    if (updateHistory !== false) {
+      updateUrlParams();
+    }
+  }
+
+  function restoreStateFromUrl(options = { updateHistory: false }) {
+    try {
+      if (typeof window === 'undefined' || !window.location) return;
+      const params = new URLSearchParams(window.location.search);
+
+      // Active tab
+      const tabParam = params.get('tab');
+      if (tabParam && ['pareto', 'analytics', 'gallery'].includes(tabParam)) {
+        switchTab(tabParam, false);
+      }
+
+      // Prompt / Series filter (supports ?prompt=... or ?series=...)
+      const promptParam = params.get('prompt') || params.get('series');
+      if (promptParam) {
+        filters.series = promptParam;
+        const seriesSelect = document.getElementById('filter-series');
+        if (seriesSelect) {
+          seriesSelect.value = promptParam;
+        }
+      }
+
+      // Status filter
+      const statusParam = params.get('status');
+      if (statusParam && ['all', 'passed', 'failed'].includes(statusParam)) {
+        filters.status = statusParam;
+        const statusSelect = document.getElementById('filter-status');
+        if (statusSelect) {
+          statusSelect.value = statusParam;
+        }
+      }
+
+      // Provider filter
+      const providerParam = params.get('provider');
+      if (providerParam) {
+        filters.provider = providerParam;
+        const providerSelect = document.getElementById('filter-provider');
+        if (providerSelect) {
+          providerSelect.value = providerParam;
+        }
+      }
+
+      // Sort
+      const sortParam = params.get('sort');
+      if (sortParam) {
+        const normalizedSort = sortParam.replace('_', '-');
+        if (['pareto', 'cost-asc', 'cost-desc', 'time-asc', 'time-desc', 'tokens-desc', 'name-asc'].includes(normalizedSort)) {
+          filters.sort = normalizedSort;
+          const sortSelect = document.getElementById('filter-sort');
+          if (sortSelect) {
+            sortSelect.value = normalizedSort;
+          }
+        }
+      }
+
+      // Run modal
+      const runParam = params.get('run');
+      if (runParam && benchmarkData && benchmarkData.runs) {
+        const targetRun = benchmarkData.runs.find((r) => r.run_id === runParam);
+        if (targetRun) {
+          openModal(targetRun, false);
+        }
+      } else if (!runParam && currentModalRunId) {
+        closeModal(false);
+      }
+
+      if (options.updateHistory) {
+        updateUrlParams({ replace: true });
+      }
+    } catch (err) {
+      console.warn('Could not restore state from URL:', err);
+    }
   }
 
   async function init() {
@@ -56,13 +272,14 @@
       setupHeaderStats();
       setupFilterDropdowns();
       setupEventListeners();
+      restoreStateFromUrl({ updateHistory: false });
       renderAllViews();
     } catch (err) {
       console.error('Failed to initialize dashboard:', err);
       document.body.innerHTML = `
         <div style="padding: 2rem; color: #f87171; font-family: monospace;">
           <h2>Failed to load benchmark data</h2>
-          <p>${err.message}</p>
+          <p>${escapeHtml(err.message)}</p>
         </div>
       `;
     }
@@ -120,12 +337,7 @@
     // Tabs Navigation
     document.querySelectorAll('.nav-tab').forEach((tabBtn) => {
       tabBtn.addEventListener('click', () => {
-        document.querySelectorAll('.nav-tab').forEach((b) => b.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
-
-        tabBtn.classList.add('active');
-        activeTab = tabBtn.dataset.tab;
-        document.getElementById(`tab-${activeTab}`).classList.add('active');
+        switchTab(tabBtn.dataset.tab);
         renderAllViews();
       });
     });
@@ -133,16 +345,19 @@
     // Filter controls
     document.getElementById('filter-series').addEventListener('change', (e) => {
       filters.series = e.target.value;
+      updateUrlParams();
       renderAllViews();
     });
 
     document.getElementById('filter-status').addEventListener('change', (e) => {
       filters.status = e.target.value;
+      updateUrlParams();
       renderAllViews();
     });
 
     document.getElementById('filter-provider').addEventListener('change', (e) => {
       filters.provider = e.target.value;
+      updateUrlParams();
       renderAllViews();
     });
 
@@ -153,6 +368,7 @@
 
     document.getElementById('filter-sort').addEventListener('change', (e) => {
       filters.sort = e.target.value;
+      updateUrlParams();
       renderAllViews();
     });
 
@@ -207,12 +423,18 @@
     });
 
     // Modal close events
-    document.getElementById('modal-close-btn').addEventListener('click', closeModal);
+    document.getElementById('modal-close-btn').addEventListener('click', () => closeModal());
     modal.addEventListener('click', (e) => {
       if (e.target === modal) closeModal();
     });
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && modal.style.display !== 'none') closeModal();
+    });
+
+    // Browser history popstate (back / forward navigation)
+    window.addEventListener('popstate', () => {
+      restoreStateFromUrl({ updateHistory: false });
+      renderAllViews();
     });
 
     // Modal tabs
@@ -1103,7 +1325,8 @@
   // DRILL-DOWN MODAL INSPECTOR
   // ==========================================================================
 
-  function openModal(run) {
+  function openModal(run, updateHistory = true) {
+    currentModalRunId = run.run_id;
     const isPass = run.verification.passed;
     const statusBadge = document.getElementById('modal-status-badge');
     statusBadge.textContent = isPass ? '✓ PASSED (100%)' : '✗ FAILED';
@@ -1221,6 +1444,9 @@
     document.getElementById('modal-tab-verification').classList.add('active');
 
     modal.style.display = 'flex';
+    if (updateHistory !== false) {
+      updateUrlParams();
+    }
   }
 
   function setupModalTimeline(timeline) {
@@ -1277,8 +1503,12 @@
     renderTimelineItems();
   }
 
-  function closeModal() {
+  function closeModal(updateHistory = true) {
     modal.style.display = 'none';
+    currentModalRunId = null;
+    if (updateHistory !== false) {
+      updateUrlParams();
+    }
   }
 
   // ==========================================================================
