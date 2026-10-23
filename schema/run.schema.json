@@ -176,6 +176,7 @@
             "passed": {"type": "boolean"},
             "http_status": {"type": ["integer", "null"]},
             "url": {"type": "string"},
+            "demo_url": {"type": ["string", "null"]},
             "server_mode": {
               "type": "string",
               "enum": ["static", "command", "external_url", "none"]

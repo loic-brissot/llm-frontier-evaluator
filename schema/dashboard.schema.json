@@ -154,6 +154,7 @@
             }
           },
           "screenshot_path": { "type": ["string", "null"] },
+          "demo_url": { "type": ["string", "null"] },
           "tool_timeline": { "type": "array" },
           "turns": { "type": "array" },
           "pareto": {

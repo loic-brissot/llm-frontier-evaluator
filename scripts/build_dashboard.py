@@ -438,6 +438,18 @@ def extract_run_record(run_dir: Path) -> dict[str, Any] | None:
     screenshot_file = run_dir / "artifacts" / "screenshot.png"
     screenshot_rel = f"screenshots/{run_id}.png" if screenshot_file.is_file() else None
 
+    # Published demo relative URL
+    demo_url = (
+        runtime_data.get("demo_url")
+        or run.get("demo_url")
+        or (run.get("verification") or {}).get("runtime", {}).get("demo_url")
+    )
+    if not demo_url:
+        for prefix in ("site", "dashboard"):
+            if (ROOT / prefix / "demos" / prompt_id / run_id / "index.html").is_file():
+                demo_url = f"demos/{prompt_id}/{run_id}/index.html"
+                break
+
     # Tool timeline and turns
     timeline = extract_tool_timeline(run_dir, run_id)
     turns = extract_turns(run_dir, run)
@@ -527,6 +539,7 @@ def extract_run_record(run_dir: Path) -> dict[str, Any] | None:
             },
         },
         "screenshot_path": screenshot_rel,
+        "demo_url": demo_url,
         "tool_timeline": timeline,
         "turns": turns,
         "pareto": {
