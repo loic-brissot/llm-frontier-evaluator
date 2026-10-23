@@ -989,6 +989,23 @@ def build_dashboard(
     # 6. Copy screenshots
     scr_count = copy_dashboard_screenshots(runs_dir, output_dir)
 
+    # 7. Copy packaged demos if present in DASHBOARD_DIR / site and output_dir is different
+    if output_dir != DASHBOARD_DIR:
+        source_demos = DASHBOARD_DIR / "demos"
+        if not source_demos.is_dir():
+            source_demos = ROOT / "site" / "demos"
+        if source_demos.is_dir():
+            dest_demos = output_dir / "demos"
+            dest_demos.mkdir(parents=True, exist_ok=True)
+            for item in source_demos.iterdir():
+                dest_item = dest_demos / item.name
+                if item.is_dir():
+                    if dest_item.exists():
+                        shutil.rmtree(dest_item)
+                    shutil.copytree(item, dest_item)
+                elif item.is_file():
+                    shutil.copy2(item, dest_item)
+
     print(
         f"Dashboard built successfully in '{output_dir}': "
         f"{payload['summary']['total_runs']} runs across {payload['summary']['total_series']} series, "

@@ -38,6 +38,12 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras
 
+      - name: Package web demos
+        run: |
+          if [ -d "runs" ]; then
+            uv run python3 scripts/package_web_demos.py --output-dir dashboard/demos || true
+          fi
+
       - name: Build dashboard
         run: uv run python3 scripts/build_dashboard.py
 

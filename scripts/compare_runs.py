@@ -767,6 +767,12 @@ def readme_row(run: dict) -> str:
             sum(bucket["failures"] for bucket in chart),
         )
     ver_cell = format_verification_readme(run)
+    demo_url = (
+        (run.get("verification") or {}).get("runtime", {}).get("demo_url")
+        or run.get("demo_url")
+    )
+    if demo_url:
+        ver_cell = f"{ver_cell}<br>[Live Demo]({demo_url})"
     return f"| {label} | {harness_display} | {token_cell} | {time_cell} | {tool_cell} | {cache_cell} | {cost_cell} | {ver_cell} |"
 
 

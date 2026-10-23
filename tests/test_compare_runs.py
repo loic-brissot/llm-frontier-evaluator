@@ -563,6 +563,31 @@ class TestCompareRuns(unittest.TestCase):
             self.assertTrue(any("expected 'prompt/test-prompt.txt'" in err for err in errors))
             self.assertTrue(any("Orphan prompt id 'orphan-prompt'" in err for err in errors))
 
+    def test_readme_row_includes_demo_url_link(self):
+        run_with_demo = {
+            "prompt_id": "paris-1910-flood-simulator",
+            "series_id": "paris-1910-flood-simulator-cursor",
+            "shot": "clean-room",
+            "model": {"name": "claude-opus-5-5-high", "reasoning": "high"},
+            "harness": {"name": "cursor", "version": "0.45"},
+            "tokens": {"reasoning_tokens": 1000, "visible_tokens": 2000, "total_output": 3000},
+            "model_time": {"source": "wall_clock", "generating_seconds": 120.0},
+            "tool_calls": {
+                "shell": {"calls": 10, "failures": 1},
+                "files": {"calls": 5, "failures": 0},
+                "visual_checks": {"calls": 2, "failures": 0},
+                "web": {"calls": 0, "failures": 0},
+                "other": {"calls": 0, "failures": 0},
+            },
+            "context_reread": {"source": "unavailable", "cache_read_tokens": None},
+            "verification": {
+                "runtime": {"passed": True, "demo_url": "demos/paris-1910-flood-simulator/run-1/index.html"},
+                "data_pipeline": {"passed": True, "score": 1.0, "total_records": 1000, "checks": [{"id": "c1", "passed": True}]},
+            },
+        }
+        row = readme_row(run_with_demo)
+        self.assertIn("[Live Demo](demos/paris-1910-flood-simulator/run-1/index.html)", row)
+
     def test_check_pricing_passes_on_real_pricing_file(self):
         errors = check_pricing()
         self.assertEqual(errors, [])

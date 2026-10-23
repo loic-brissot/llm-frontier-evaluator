@@ -25,6 +25,8 @@
   let toolsChartMode = 'count'; // 'count' or 'pct'
   let selectedCacheRunId = null;
   let currentModalRunId = null;
+  let showcasePromptId = null;
+  let showcaseRunId = null;
 
   // DOM Elements
   const tooltip = document.getElementById('chart-tooltip');
@@ -160,6 +162,19 @@
         url.searchParams.delete('run');
       }
 
+      // Showcase params
+      if (activeTab === 'showcase') {
+        if (showcasePromptId) {
+          url.searchParams.set('showcase_prompt', showcasePromptId);
+        }
+        if (showcaseRunId) {
+          url.searchParams.set('showcase_run', showcaseRunId);
+        }
+      } else {
+        url.searchParams.delete('showcase_prompt');
+        url.searchParams.delete('showcase_run');
+      }
+
       const queryString = url.searchParams.toString();
       const newUrl = url.pathname + (queryString ? `?${queryString}` : '') + url.hash;
       const currentUrl = window.location.pathname + window.location.search + window.location.hash;
@@ -200,8 +215,18 @@
 
       // Active tab
       const tabParam = params.get('tab');
-      if (tabParam && ['pareto', 'analytics', 'gallery'].includes(tabParam)) {
+      if (tabParam && ['pareto', 'analytics', 'gallery', 'showcase'].includes(tabParam)) {
         switchTab(tabParam, false);
+      }
+
+      // Showcase prompt and run URL params
+      const scPrompt = params.get('showcase_prompt');
+      if (scPrompt) {
+        showcasePromptId = scPrompt;
+      }
+      const scRun = params.get('showcase_run');
+      if (scRun) {
+        showcaseRunId = scRun;
       }
 
       // Prompt / Series filter (supports ?prompt=... or ?series=...)
@@ -521,6 +546,8 @@
       renderCacheCurveChart();
     } else if (activeTab === 'gallery') {
       renderGallery();
+    } else if (activeTab === 'showcase') {
+      renderShowcase();
     }
   }
 
@@ -745,6 +772,10 @@
       const t = r.model_time.generating_seconds ?? r.wall_clock.seconds ?? 0;
       const tok = r.tokens.total_output ?? 0;
 
+      const demoBtnHtml = r.demo_url
+        ? `<a href="${escapeHtml(r.demo_url)}" target="_blank" rel="noopener noreferrer" class="btn-demo-action" title="Launch packaged demo">🚀 Demo</a>`
+        : '';
+
       tr.innerHTML = `
         <td><span class="badge ${isPass ? 'pass' : 'fail'}">${isPass ? '✓ PASS' : '✗ FAIL'}</span></td>
         <td><strong>${escapeHtml(r.model.name)}</strong> <span style="font-size:0.75rem;color:#64748b;">(${escapeHtml(r.model.provider)})</span></td>
@@ -753,7 +784,12 @@
         <td style="font-family:var(--font-mono);">${formatDurationSec(t)}</td>
         <td style="font-family:var(--font-mono);">${((r.pareto.quality_score ?? 0) * 100).toFixed(0)}%</td>
         <td style="font-family:var(--font-mono);">${formatCompactNumber(tok)}</td>
-        <td><button class="btn-inspect" data-runid="${r.run_id}">Inspect</button></td>
+        <td>
+          <div class="table-actions">
+            <button class="btn-inspect" data-runid="${r.run_id}">Inspect</button>
+            ${demoBtnHtml}
+          </div>
+        </td>
       `;
 
       tr.querySelector('.btn-inspect').addEventListener('click', () => openModal(r));
@@ -1310,7 +1346,14 @@
 
         <div class="run-card-footer">
           <span style="font-size:0.75rem;color:#64748b;font-family:var(--font-mono);">${escapeHtml(run.run_id.slice(0, 22))}...</span>
-          <button class="btn-inspect" data-runid="${run.run_id}">Inspect Details</button>
+          <div class="run-card-actions">
+            ${
+              run.demo_url
+                ? `<a href="${escapeHtml(run.demo_url)}" target="_blank" rel="noopener noreferrer" class="btn-demo-action" title="Launch packaged live demo">🚀 Launch Demo</a>`
+                : ''
+            }
+            <button class="btn-inspect" data-runid="${run.run_id}">Inspect Details</button>
+          </div>
         </div>
       `;
 
@@ -1319,6 +1362,144 @@
 
       grid.appendChild(card);
     });
+  }
+
+  // ==========================================================================
+  // PROMPT SHOWCASE & LIVE DEMOS VIEW
+  // ==========================================================================
+
+  function renderShowcase() {
+    if (!benchmarkData || !benchmarkData.prompts || benchmarkData.prompts.length === 0) return;
+
+    const promptSelect = document.getElementById('showcase-prompt-select');
+    if (!promptSelect) return;
+
+    // Populate prompts dropdown if not populated or out of sync
+    if (promptSelect.options.length === 0) {
+      benchmarkData.prompts.forEach((p) => {
+        const opt = document.createElement('option');
+        opt.value = p.prompt_id;
+        opt.textContent = `${p.prompt_id} (${p.runs_count} runs)`;
+        promptSelect.appendChild(opt);
+      });
+
+      promptSelect.addEventListener('change', (e) => {
+        showcasePromptId = e.target.value;
+        showcaseRunId = null; // reset selected run when changing prompt
+        updateUrlParams();
+        renderShowcase();
+      });
+    }
+
+    // Determine current showcase prompt
+    if (!showcasePromptId) {
+      if (filters.series && filters.series !== 'all') {
+        showcasePromptId = filters.series;
+      } else {
+        // Prefer prompt with demo_url runs if available
+        const runWithDemo = benchmarkData.runs.find((r) => Boolean(r.demo_url));
+        showcasePromptId = runWithDemo ? runWithDemo.prompt_id : benchmarkData.prompts[0].prompt_id;
+      }
+    }
+    promptSelect.value = showcasePromptId;
+
+    // Runs for this prompt
+    const promptRuns = benchmarkData.runs.filter((r) => r.prompt_id === showcasePromptId);
+    const modelTabsContainer = document.getElementById('showcase-model-tabs');
+    modelTabsContainer.innerHTML = '';
+
+    if (promptRuns.length === 0) {
+      document.getElementById('showcase-meta-bar').style.display = 'none';
+      document.getElementById('showcase-open-fullscreen').style.display = 'none';
+      document.getElementById('showcase-iframe').style.display = 'none';
+      const fallback = document.getElementById('showcase-fallback');
+      fallback.style.display = 'flex';
+      document.getElementById('showcase-fallback-title').textContent = 'No runs found';
+      document.getElementById('showcase-fallback-desc').textContent = `No runs recorded for prompt ${showcasePromptId}.`;
+      document.getElementById('showcase-fallback-preview').style.display = 'none';
+      return;
+    }
+
+    // Determine current showcase run
+    if (!showcaseRunId || !promptRuns.some((r) => r.run_id === showcaseRunId)) {
+      // Pick first run that has demo_url, else first run
+      const firstWithDemo = promptRuns.find((r) => Boolean(r.demo_url));
+      showcaseRunId = firstWithDemo ? firstWithDemo.run_id : promptRuns[0].run_id;
+    }
+
+    // Populate model tabs
+    promptRuns.forEach((r) => {
+      const btn = document.createElement('button');
+      btn.className = `model-tab-btn ${r.run_id === showcaseRunId ? 'active' : ''}`;
+      const hasDemoIcon = r.demo_url ? '🎮 ' : '';
+      btn.innerHTML = `${hasDemoIcon}${escapeHtml(r.model.name)} <span style="font-size:0.7rem;opacity:0.75;">(${r.verification.passed ? '✓' : '✗'})</span>`;
+      btn.addEventListener('click', () => {
+        showcaseRunId = r.run_id;
+        updateUrlParams();
+        renderShowcase();
+      });
+      modelTabsContainer.appendChild(btn);
+    });
+
+    const activeRun = promptRuns.find((r) => r.run_id === showcaseRunId) || promptRuns[0];
+
+    // Update Header Metadata Bar
+    const metaBar = document.getElementById('showcase-meta-bar');
+    metaBar.style.display = 'flex';
+
+    const statusBadge = document.getElementById('showcase-badge-status');
+    const isPass = activeRun.verification.passed;
+    statusBadge.textContent = isPass ? '✓ PASSED' : '✗ FAILED';
+    statusBadge.className = `badge ${isPass ? 'pass' : 'fail'}`;
+
+    document.getElementById('showcase-model-name').textContent = activeRun.model.label || activeRun.model.name;
+    document.getElementById('showcase-provider').textContent = activeRun.model.provider || 'cursor';
+
+    const cost = activeRun.cost.estimated_with_harness_usd ?? activeRun.cost.estimated_usd ?? 0;
+    const genTime = activeRun.model_time.generating_seconds ?? activeRun.wall_clock.seconds ?? 0;
+    const score = activeRun.pareto.quality_score != null ? `${((activeRun.pareto.quality_score) * 100).toFixed(0)}%` : (isPass ? '100%' : '0%');
+    const outTokens = activeRun.tokens.total_output ?? 0;
+
+    document.getElementById('showcase-metric-cost').textContent = `$${cost.toFixed(2)}`;
+    document.getElementById('showcase-metric-time').textContent = formatDurationSec(genTime);
+    document.getElementById('showcase-metric-score').textContent = score;
+    document.getElementById('showcase-metric-tokens').textContent = formatCompactNumber(outTokens);
+
+    // Update Open full page button
+    const openBtn = document.getElementById('showcase-open-fullscreen');
+    const iframe = document.getElementById('showcase-iframe');
+    const fallback = document.getElementById('showcase-fallback');
+    const fallbackPreview = document.getElementById('showcase-fallback-preview');
+    const fallbackImg = document.getElementById('showcase-fallback-img');
+
+    if (activeRun.demo_url) {
+      openBtn.href = activeRun.demo_url;
+      openBtn.style.display = 'inline-flex';
+      openBtn.target = '_blank';
+      openBtn.rel = 'noopener noreferrer';
+
+      // Load iframe if different
+      if (iframe.getAttribute('src') !== activeRun.demo_url) {
+        iframe.src = activeRun.demo_url;
+      }
+      iframe.style.display = 'block';
+      fallback.style.display = 'none';
+    } else {
+      openBtn.style.display = 'none';
+      iframe.src = 'about:blank';
+      iframe.style.display = 'none';
+      fallback.style.display = 'flex';
+
+      document.getElementById('showcase-fallback-title').textContent = 'No Live Demo App Packaged';
+      document.getElementById('showcase-fallback-desc').textContent = `Run ${activeRun.run_id} does not have a packaged interactive web demo yet. Package it using scripts/package_web_demos.py.`;
+
+      if (activeRun.screenshot_path) {
+        fallbackImg.src = activeRun.screenshot_path;
+        fallbackPreview.style.display = 'block';
+      } else {
+        fallbackPreview.style.display = 'none';
+      }
+    }
   }
 
   // ==========================================================================
@@ -1335,6 +1516,16 @@
     document.getElementById('modal-model-title').textContent = run.model.label || run.model.name;
     document.getElementById('modal-series-tag').textContent = `${run.prompt_id} / ${run.run_id}`;
     document.getElementById('modal-tool-count').textContent = run.tool_timeline ? run.tool_timeline.length : 0;
+
+    const modalDemoBtn = document.getElementById('modal-launch-demo-btn');
+    if (modalDemoBtn) {
+      if (run.demo_url) {
+        modalDemoBtn.href = run.demo_url;
+        modalDemoBtn.style.display = 'inline-flex';
+      } else {
+        modalDemoBtn.style.display = 'none';
+      }
+    }
 
     // Tab 1: Verification & Runtime
     const scrImg = document.getElementById('modal-screenshot-img');
