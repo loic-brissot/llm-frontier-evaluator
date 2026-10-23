@@ -2,18 +2,20 @@
 
 **A clean-room, telemetry-driven benchmark for evaluating frontier LLMs and AI agent harnesses on complex, data-heavy, end-to-end engineering builds.**
 
-Standard coding benchmarks test isolated function completions or single-PR patches. In production engineering, frontier agents are tasked with building entire data pipelines and interactive applications from messy, multi-table open data APIs—where models frequently fail silently by **synthesizing fake data** when an API or join fails, or burn millions of cached tokens in retry loops.
+Standard coding benchmarks test isolated function completions or single-PR patches. Production engineering demands building full data pipelines and interactive applications from messy, multi-table open datasets—where agents frequently fail silently by **synthesizing fake data** or burning millions of cached tokens in retry loops.
 
-Each run in this repository sends one model one frozen prompt from [`prompt/`](prompt/README.md) inside a hermetic environment and audits both **how the agent worked** (output tokens, active generation vs. thinking time, successful vs. failed tool calls, prompt-cache re-reads, and API list-price cost) and **what it actually built** (automated Playwright UI smoke tests + anti-cheating data authenticity probes).
+Each run evaluates a single frozen prompt from [`prompt/`](prompt/README.md) inside a hermetic environment, auditing two complementary dimensions:
+- **Process Telemetry**: Active generation vs. thinking time, output tokens, prompt-cache reuse, tool success/failure rates, and public list-price API costs.
+- **Artifact Verification**: Automated Playwright UI smoke tests and anti-cheating data authenticity probes.
 
 Inspired by Charles de Lassence's 11 October 2026 benchmark post: [Building a 3D atlas of Paris as model benchmark](https://lassence.net/posts/personal-benchmark-3d-atlas-of-paris/) / [bench.lassence.net](https://bench.lassence.net/).
 
 ### Engineering Highlights
 
-- **Hermetic Clean-Room & Container Isolation**: Runs execute in an isolated staging workspace (`/tmp/frontier-workspace-<run-id>/`)—either headless inside a Linux Docker container (`Dockerfile.benchmark`) or in a sterile GUI profile—enforced by `preToolUse` boundary hooks and post-run transcript contamination audits (`audit_isolation`). Models cannot read grading probes, parent repo files, or sibling runs.
-- **Anti-Cheating Data Pipeline Probes (`probe_data.py`)**: Models often fall back to hardcoded or `Math.random()` data when open-data endpoints fail. Every run is audited against declarative probe specs in [`reference/prompt-probes.json`](reference/prompt-probes.json) verifying minimum record counts (up to ~394k rows), required schema markers, spatial bounding boxes, and synthetic-pattern absence.
-- **Automated Runtime Smoke Tests (`verify_run.py`)**: Boots the model's application in a local server, drives headless Chromium via Playwright, asserts HTTP 200 and zero uncaught page errors, inspects DOM/Canvas/WebGL rendering contexts, and captures deterministic `1440×900` screenshots.
-- **Zero-Estimation Telemetry & Cost Engine (`tool_events.py`, `run_common.py`)**: Computes active generation time by subtracting the interval union of parallel tool executions from wall clock (`wall_clock_minus_tool_time`), deduplicates model thinking blocks (`afterAgentThought`), reconciles hook telemetry against billing CSV exports (with automatic PII scrubbing), and prices token usage across context variants (`300k`, `500k`, `1m`), long-context step-ups, and harness surcharges.
+- **Hermetic Clean-Room Isolation**: Runs execute in isolated staging workspaces (`/tmp/frontier-workspace-<run-id>/`)—headless in Docker (`Dockerfile.benchmark`) or sterile GUI profiles—enforced by `preToolUse` boundary hooks and post-run audits (`audit_isolation`) to prevent repo or grader leakage.
+- **Anti-Cheating Data Probes (`probe_data.py`)**: Audits output against declarative specs in [`reference/prompt-probes.json`](reference/prompt-probes.json)—verifying record counts (up to ~394k rows), required schema markers, spatial bounding boxes, and absence of synthetic or randomized mock data.
+- **Automated Runtime Smoke Tests (`verify_run.py`)**: Boots applications locally, drives headless Chromium via Playwright, asserts HTTP 200 with zero page errors, validates DOM/Canvas/WebGL rendering contexts, and captures deterministic `1440×900` screenshots.
+- **Zero-Estimation Telemetry Engine (`tool_events.py`, `run_common.py`)**: Measures generation time by subtracting parallel tool intervals (`wall_clock_minus_tool_time`), deduplicates thinking blocks (`afterAgentThought`), reconciles telemetry against billing CSVs, and computes list-price API costs across context variants and tiers.
 
 ## Comparisons
 
@@ -27,7 +29,7 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Gemini 4 Argon 1m medium | Cursor | 73k | 17.7 min<br>14.6 min thinking | 21 ✓<br>7 ✗ | 1.0M | $2.55 | UI ✓ · Data 4/4 ✓<br>3.5k records |
+| Gemini 4 Argon 1m medium | Cursor | 73k | 17.7 min<br>14.6 min thinking | 21 ✓<br>7 ✗ | 1.0M | $2.55 | UI ✓<br>Data 4/4 ✓<br>3.5k records |
 
 ### `france-rail-24h-pulse`
 
@@ -37,12 +39,12 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Claude Opus 5.5 300k high | Cursor | 90k | 20.1 min<br>7.7 min thinking | 40 ✓<br>10 ✗ | 5.5M | $6.53 | UI ✓ · Data 3/3 ✓<br>820k records |
-| Gemini 3.8 Flash high | Cursor | 118k | 18.1 min<br>5.8 min thinking | 122 ✓<br>8 ✗ | 11.0M | $4.75 | UI ✓ · Data 3/3 ✓<br>828k records |
-| GLM 5.3 high | Cursor | 59k | 10.4 min<br>3.9 min thinking | 78 ✓<br>5 ✗ | 5.0M | $2.95 | UI ✗ · Data 3/3 ✓<br>827k records |
-| GPT-5.6 Sol medium | Cursor | 15k | 2.8 min<br>0.2 min thinking | 13 ✓<br>0 ✗ | 0.2M | $0.60 | UI ✗ · Data 0/3 ⚠<br>118 records |
-| Grok 4.7 high | Cursor | n/a | 60.1 min<br>49.8 min thinking | 138 ✓<br>4 ✗ | n/a | n/a | UI ✗ · Data 3/3 ✓<br>888k records |
-| Muse Wonder medium | Cursor | 25k | 3.4 min | 18 ✓<br>1 ✗ | 0.6M | $0.93 | UI ✓ · Data 0/3 ⚠<br>0 records |
+| Claude Opus 5.5 300k high | Cursor | 90k | 20.1 min<br>7.7 min thinking | 40 ✓<br>10 ✗ | 5.5M | $6.53 | UI ✓<br>Data 3/3 ✓<br>820k records |
+| Gemini 3.8 Flash high | Cursor | 118k | 18.1 min<br>5.8 min thinking | 122 ✓<br>8 ✗ | 11.0M | $4.75 | UI ✓<br>Data 3/3 ✓<br>828k records |
+| GLM 5.3 high | Cursor | 59k | 10.4 min<br>3.9 min thinking | 78 ✓<br>5 ✗ | 5.0M | $2.95 | UI ✗<br>Data 3/3 ✓<br>827k records |
+| GPT-5.6 Sol medium | Cursor | 15k | 2.8 min<br>0.2 min thinking | 13 ✓<br>0 ✗ | 0.2M | $0.60 | UI ✗<br>Data 0/3 ⚠<br>118 records |
+| Grok 4.7 high | Cursor | n/a | 60.1 min<br>49.8 min thinking | 138 ✓<br>4 ✗ | n/a | n/a | UI ✗<br>Data 3/3 ✓<br>888k records |
+| Muse Wonder medium | Cursor | 25k | 3.4 min | 18 ✓<br>1 ✗ | 0.6M | $0.93 | UI ✓<br>Data 0/3 ⚠<br>0 records |
 
 *Note: Token and cost columns show `n/a` for headless CLI runs until a Cursor billing CSV export is ingested (`finish_run.py --usage-export`).*
 
@@ -54,7 +56,7 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Muse Wonder 300k medium | Cursor | 25k | 4.8 min | 34 ✓<br>7 ✗ | 1.7M | $1.76 | UI ✓ · Data 2/2 ✓<br>394k records |
+| Muse Wonder 300k medium | Cursor | 25k | 4.8 min | 34 ✓<br>7 ✗ | 1.7M | $1.76 | UI ✓<br>Data 2/2 ✓<br>394k records |
 
 ### `paris-1910-flood-simulator`
 
@@ -64,18 +66,18 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Claude Opus 5.5 high | Cursor | 228k | 42.2 min<br>19.6 min thinking | 134 ✓<br>11 ✗ | 12.9M | $12.08 | UI ✓ · Data 6/6 ✓<br>351k records |
-| Claude Opus 5.5 medium | Cursor | 198k | 39.2 min<br>15.4 min thinking | 171 ✓<br>2 ✗ | 16.0M | $13.81 | UI ✓ · Data 6/6 ✓<br>142k records |
-| Gemini 4 Argon medium | Cursor | 133k | 32.4 min<br>17.4 min thinking | 91 ✓<br>10 ✗ | 6.0M | $4.29 | UI ✓ · Data 6/6 ✓<br>9.5k records |
+| Claude Opus 5.5 high | Cursor | 228k | 42.2 min<br>19.6 min thinking | 134 ✓<br>11 ✗ | 12.9M | $12.08 | UI ✓<br>Data 6/6 ✓<br>351k records |
+| Claude Opus 5.5 medium | Cursor | 198k | 39.2 min<br>15.4 min thinking | 171 ✓<br>2 ✗ | 16.0M | $13.81 | UI ✓<br>Data 6/6 ✓<br>142k records |
+| Gemini 4 Argon medium | Cursor | 133k | 32.4 min<br>17.4 min thinking | 91 ✓<br>10 ✗ | 6.0M | $4.29 | UI ✓<br>Data 6/6 ✓<br>9.5k records |
 
 ## Protocol
 
-Each benchmark run evaluates one model and one agent harness on a single frozen prompt under controlled conditions ([`docs/protocol.md`](docs/protocol.md)):
+Each benchmark run evaluates one model and agent harness against a single frozen prompt under controlled conditions ([`docs/protocol.md`](docs/protocol.md)):
 
-- **Single-prompt, zero-intervention execution**: Every primary run sends the exact byte sequence of `prompt/<prompt-id>.txt` (verified by SHA-256 hash) as a single user message with zero operator intervention, hints, or manual workspace edits during initial execution.
-- **Clean-room isolation**: Runs execute inside an external staged workspace (`/tmp/frontier-workspace-<run-id>/`) initialized with its own `.git` boundary—either headless inside a Linux Docker container (`Dockerfile.benchmark`) or via an isolated clean-room GUI profile. This prevents models from accessing parent repository files, evaluation graders (`verify_run.py`, `prompt-probes.json`), sibling runs, or host-global skills, plugins, and MCP servers ([`docs/design-run-isolation.md`](docs/design-run-isolation.md)).
-- **Token & cost accounting**: Output tokens (`Output tokens (k)`) and prompt-cache reads (`Context re-read`, serving `cache_read_tokens`) are recorded strictly from harness telemetry and usage exports without estimation. Estimated cost reflects public per-1M-token API list prices from [`reference/pricing-2026-10-18.json`](reference/pricing-2026-10-18.json) (accounting for context-window variants and long-context thresholds) plus harness-adjusted rates from Cursor usage CSV exports ([`docs/metrics.md`](docs/metrics.md)).
-- **Model time & tool telemetry**: Every tool invocation is captured via harness hooks or CLI transcripts and classified into chart buckets (`shell`, `files`, `visual_checks`, `web`, plus `other`), displaying successful calls (`✓`) and failed calls (`✗`) on two lines ([`docs/tool-buckets.md`](docs/tool-buckets.md)). Model time reports active generation time with tool execution intervals excluded (`wall_clock_minus_tool_time` or provider request durations), along with deduplicated thinking time (`afterAgentThought`) when logged. When the model stops, automated Playwright smoke tests (`verify_run.py`) and data-pipeline verification (`probe_data.py`) audit the output.
+- **Single-prompt, zero-intervention execution**: Sends the exact byte sequence of `prompt/<prompt-id>.txt` (verified by SHA-256) as a single user prompt with no operator intervention, hints, or mid-run edits.
+- **Clean-room isolation**: Runs in `/tmp/frontier-workspace-<run-id>/` (Docker container or sterile GUI profile) with an independent git boundary, isolating parent repo files, grading probes, sibling runs, and global skills ([`docs/design-run-isolation.md`](docs/design-run-isolation.md)).
+- **Token & cost accounting**: Extracts token output and prompt-cache reads directly from harness telemetry and usage exports without heuristic estimation ([`docs/metrics.md`](docs/metrics.md)). Estimated cost reflects public list prices from [`reference/pricing-2026-10-18.json`](reference/pricing-2026-10-18.json).
+- **Model time & tool telemetry**: Classifies tool calls (`✓` / `✗`) into standard buckets ([`docs/tool-buckets.md`](docs/tool-buckets.md)), separates model generation time from tool runtime, and verifies outputs via Playwright (`verify_run.py`) and data probes (`probe_data.py`).
 
 ## Prompts
 
@@ -99,59 +101,56 @@ uv run playwright install chromium
 
 ### Option A: Headless in Docker (Recommended)
 
-Execute a fully automated, reproducible benchmark evaluation run inside an isolated Linux container with automatic Docker setup, `.env` credential loading, automatic scaffolding, and unattended verification.
+Automated, reproducible evaluation runs inside an isolated Linux container with preflight checks and unattended verification.
 
-1. **Configure or export your harness API key**:
+1. **Configure harness API key**:
    ```bash
-   export CURSOR_API_KEY="your-key"          # for Cursor harness
-   # or: export ANTHROPIC_API_KEY="your-key" # for Claude Code harness
+   export CURSOR_API_KEY="your-key"          # Cursor harness
+   # or: export ANTHROPIC_API_KEY="your-key" # Claude Code harness
    ```
-   *Alternatively*, place your API key in a local `.env` file in the repository root (`CURSOR_API_KEY="your-key"`, automatically loaded and git-ignored), specify a secondary key file path in `.env` (`CURSOR_API_KEY_FILE=~/.cursor/key.txt` or `ENV_FILE=custom.env`), or pass `--env-file <path>`.
+   *Tip*: Store keys in a local, git-ignored `.env` file (`CURSOR_API_KEY="..."`), a custom key file (`CURSOR_API_KEY_FILE=...`), or pass `--env-file <path>`.
 
-2. **Execute the benchmark with a single one-shot command**:
+2. **Execute one-shot benchmark**:
    ```bash
    python3 scripts/run_benchmark.py --prompt paris-1910-flood-simulator --harness cursor --model "Claude Opus 5.5" --reasoning high
    ```
-   This single entrypoint automatically:
-   - Ensures Docker is running (launching Docker Desktop on macOS if unreachable; bypass with `--no-docker-setup`).
-   - Automatically builds the runner image `llm-frontier-evaluator-runner:latest` from `Dockerfile.benchmark` if missing (or when `--build-image` is passed).
-   - Loads harness API keys from `.env` or custom key files while honoring shell environment variable precedence (`export CURSOR_API_KEY=...`).
-   - Validates preflight checks (Docker daemon, image tag, and API keys).
-   - Scaffolds the run directory under `runs/<prompt-id>/<run-id>/` and an isolated staging workspace at `/tmp/frontier-workspace-<run-id>/`.
+   The runner automatically:
+   - Verifies preflight requirements (Docker daemon, image tag, credentials).
+   - Builds runner image `llm-frontier-evaluator-runner:latest` from `Dockerfile.benchmark` if missing.
+   - Scaffolds run directory under `runs/` and isolated workspace at `/tmp/frontier-workspace-<run-id>/`.
    - Executes the agent inside the container without global skills, plugins, or repo leakage.
-   - Automatically triggers `finish_run.py --verify --skip-usage-copy --non-interactive` to repatriate artifacts, run Playwright and data-pipeline verification, and populate `run.json`.
+   - Auto-triggers `finish_run.py --verify --skip-usage-copy --non-interactive` to collect artifacts, run Playwright/data probes, and write `run.json`.
 
    *(Optional manual image build)*:
    ```bash
    docker build --platform linux/amd64 -f Dockerfile.benchmark -t llm-frontier-evaluator-runner:latest .
    ```
-   *(The `--platform linux/amd64` flag is used because `Dockerfile.benchmark` installs the x86_64 `cursor-agent` binary, ensuring reliable emulation and execution on Apple Silicon and Linux hosts alike.)*
+   *(Uses `--platform linux/amd64` for x86_64 `cursor-agent` binary compatibility across Apple Silicon and Linux hosts.)*
 
-   *Note on context windows*: Headless CLI runs omit the `--context` flag because `cursor-agent` and `claude` CLIs cannot select context windows. (If executing against a pre-scaffolded run directory that specified a context, pass `--allow-cli-context-override` only if overriding that run's context to `null`.)
+   *Note on context windows*: Headless CLI runs omit `--context` because CLI harnesses do not configure context window sizes. If executing against a pre-scaffolded directory with a set context, pass `--allow-cli-context-override` only to override context to `null`.
 
-3. **Optional: Ingest usage export CSV**:
-   If you later export a billing CSV from the Cursor dashboard (`~/.cursor/usage-exports/<run-id>.csv`), ingest it into the completed run:
+3. **Optional: Ingest billing usage export**:
+   Ingest a CSV export from the Cursor dashboard (`~/.cursor/usage-exports/<run-id>.csv`) into the completed run:
    ```bash
    python3 scripts/finish_run.py --prompt paris-1910-flood-simulator --run-id <run-id> --usage-export ~/.cursor/usage-exports/<run-id>.csv --non-interactive
    ```
 
 ### Option B: Clean-Room GUI
 
-When using the native Cursor GUI or testing specific context window variants (e.g. `--context 500k` or `--context 1m`), use the Clean-Room GUI workflow:
+Use the native Cursor GUI or test specific context window variants (e.g. `--context 500k`, `--context 1m`):
 
-1. **Scaffold the run with `--context`**:
+1. **Scaffold run directory**:
    ```bash
    python3 scripts/setup_run.py --prompt paris-1910-flood-simulator --harness cursor --model "Claude Opus 5.5" --reasoning high --context 500k
    ```
-   *(The `--context` flag records the requested context variant in `run.json` and in the allocated run ID. This is supported in Clean-Room GUI runs where the operator selects the context window in the IDE.)*
 
-2. **Launch the isolated GUI session**:
+2. **Launch isolated GUI session**:
    ```bash
    /tmp/frontier-workspace-<run-id>-launch.sh
    ```
-   The launcher script sets up a sterile profile, blocks paths outside `/tmp/frontier-workspace-<run-id>/` via `preToolUse` hooks, and copies the exact frozen prompt bytes to your clipboard (`pbcopy`). Paste the prompt as the single initial user message and wait for the agent to finish.
+   Sets up a sterile profile, blocks external paths via `preToolUse` boundary hooks, and copies prompt bytes to clipboard (`pbcopy`). Paste the prompt as the single user message and let the agent run.
 
-3. **Finish and verify the run**:
+3. **Verify and finish**:
    ```bash
    python3 scripts/finish_run.py --prompt paris-1910-flood-simulator --run-id <run-id> --verify
    ```

@@ -168,25 +168,27 @@ def format_verification_readme(run: dict) -> str:
     if rt is None and dp is None:
         return "n/a"
 
-    parts_line1: list[str] = []
+    items: list[str] = []
     if rt is not None:
         rt_icon = "✓" if rt.get("passed") else "✗"
-        parts_line1.append(f"UI {rt_icon}")
+        items.append(f"UI {rt_icon}")
     if dp is not None:
         checks = dp.get("checks") if isinstance(dp.get("checks"), list) else []
         passed_checks = sum(1 for c in checks if isinstance(c, dict) and c.get("passed"))
         total_checks = len(checks)
         dp_icon = "✓" if dp.get("passed") else "⚠"
         if total_checks > 0:
-            parts_line1.append(f"Data {passed_checks}/{total_checks} {dp_icon}")
+            items.append(f"Data {passed_checks}/{total_checks} {dp_icon}")
         else:
-            parts_line1.append(f"Data {dp_icon}")
+            items.append(f"Data {dp_icon}")
+        if isinstance(dp.get("total_records"), int) and not isinstance(dp.get("total_records"), bool):
+            rec_str = format_record_count(dp["total_records"])
+            items.append(f"{rec_str} records")
 
-    line1 = " · ".join(parts_line1) if parts_line1 else "n/a"
-    if dp is not None and isinstance(dp.get("total_records"), int) and not isinstance(dp.get("total_records"), bool):
-        rec_str = format_record_count(dp["total_records"])
-        return f"{line1}<br>{rec_str} records"
-    return line1
+    return "<br>".join(items) if items else "n/a"
+
+
+format_verification_cell = format_verification_readme
 
 
 def format_reference_cost(run: dict) -> str:
@@ -1025,6 +1027,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--sync-readme",
+        "--update-readme",
+        dest="sync_readme",
         action="store_true",
         help="Update README.md comparison tables to match run records.",
     )

@@ -18,6 +18,7 @@ from compare_runs import (
     format_output_tokens,
     format_tools,
     format_tools_readme,
+    format_verification_cell,
     format_verification_readme,
     generate_readme_comparisons,
     local_row,
@@ -236,13 +237,14 @@ class TestCompareRuns(unittest.TestCase):
         self.assertNotIn("france-road-accidents", row)
         self.assertNotIn("Good visualization", row)
         self.assertTrue(row.startswith("| Muse Wonder 300k medium | Cursor | 25k | 4.8 min<br>2.0 min thinking | 34 ✓<br>7 ✗ | 1.7M |"))
-        self.assertIn("| UI ✓ · Data 2/2 ✓<br>394k records |", row)
+        self.assertIn("| UI ✓<br>Data 2/2 ✓<br>394k records |", row)
 
         self.assertEqual(format_output_tokens(25021), "25k")
         self.assertEqual(extract_output_tokens(sample_run), 25021)
         self.assertEqual(format_tools_readme(41, 7), "34 ✓<br>7 ✗")
         self.assertEqual(format_model_time_readme(sample_run), "4.8 min<br>2.0 min thinking")
-        self.assertEqual(format_verification_readme(sample_run), "UI ✓ · Data 2/2 ✓<br>394k records")
+        self.assertEqual(format_verification_readme(sample_run), "UI ✓<br>Data 2/2 ✓<br>394k records")
+        self.assertEqual(format_verification_cell(sample_run), "UI ✓<br>Data 2/2 ✓<br>394k records")
 
         generated = generate_readme_comparisons()
         self.assertIn("### `france-electricity-carbon-flow`", generated)
