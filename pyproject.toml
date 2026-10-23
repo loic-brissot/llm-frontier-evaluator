@@ -22,6 +22,15 @@ verify = [
     "playwright>=1.40",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+verify = [
+    "playwright>=1.40",
+]
+
 [tool.setuptools]
 package-dir = {"" = "scripts"}
 py-modules = ["compare_runs", "finish_run", "probe_data", "run_common", "setup_run", "tool_events", "verify_run"]

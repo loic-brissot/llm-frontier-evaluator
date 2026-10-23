@@ -103,12 +103,12 @@ def check_environment(
 
     if importlib.util.find_spec("jsonschema") is None:
         warnings.append(
-            "jsonschema Python package is not installed (run: python3 -m pip install -r requirements.txt)"
+            "jsonschema Python package is not installed (run: uv sync)"
         )
 
     if importlib.util.find_spec("playwright") is None:
         warnings.append(
-            "Playwright Python package is not installed (run: python3 -m pip install playwright && python3 -m playwright install chromium)"
+            "Playwright Python package is not installed (run: uv sync --extra verify && uv run playwright install chromium)"
         )
     else:
         try:
@@ -118,11 +118,11 @@ def check_environment(
                 executable = Path(p.chromium.executable_path)
                 if not executable.exists():
                     warnings.append(
-                        f"Playwright Chromium browser binary is missing at {executable} (run: python3 -m playwright install chromium)"
+                        f"Playwright Chromium browser binary is missing at {executable} (run: uv run playwright install chromium)"
                     )
         except Exception as exc:
             warnings.append(
-                f"Playwright Chromium browser check failed (run: python3 -m playwright install chromium): {exc}"
+                f"Playwright Chromium browser check failed (run: uv run playwright install chromium): {exc}"
             )
 
     try:

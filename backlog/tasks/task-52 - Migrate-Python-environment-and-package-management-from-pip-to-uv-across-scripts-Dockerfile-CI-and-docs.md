@@ -3,9 +3,10 @@ id: TASK-52
 title: >-
   Migrate Python environment and package management from pip to uv across
   scripts, Dockerfile, CI, and docs
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-22 16:23'
+updated_date: '2026-10-23 10:49'
 labels:
   - tooling
   - uv
@@ -34,7 +35,7 @@ Scope:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 pyproject.toml declares all required dependencies and supports uv sync / uv run without polluting the global Python environment
-- [ ] #2 README.md, CONTRIBUTING.md, AGENTS.md, and .cursor/skills/ use uv commands instead of python3 -m pip install
-- [ ] #3 CI workflows and Dockerfile.benchmark use uv where appropriate and all unit tests pass
+- [x] #1 pyproject.toml declares all required dependencies and supports uv sync / uv run without polluting the global Python environment
+- [x] #2 README.md, CONTRIBUTING.md, AGENTS.md, and .cursor/skills/ use uv commands instead of python3 -m pip install
+- [x] #3 CI workflows and Dockerfile.benchmark use uv where appropriate and all unit tests pass
 <!-- AC:END -->

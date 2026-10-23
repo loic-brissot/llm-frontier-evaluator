@@ -18,29 +18,32 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
       - name: Install dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements.txt pytest ruff
+        run: uv sync --all-extras
 
       - name: Run linter (ruff)
-        run: ruff check scripts tests
+        run: uv run ruff check scripts tests
 
       - name: Run unit tests (unittest)
-        run: python3 -m unittest discover -s tests -v
+        run: uv run python3 -m unittest discover -s tests -v
 
       - name: Run unit tests (pytest)
-        run: pytest
+        run: uv run pytest
 
       - name: Run compare_runs
-        run: python3 scripts/compare_runs.py
+        run: uv run python3 scripts/compare_runs.py
 
       - name: Check README comparison tables
-        run: python3 scripts/compare_runs.py --check-readme
+        run: uv run python3 scripts/compare_runs.py --check-readme
 
       - name: Verify frozen prompt hashes
         run: |
-          python3 -c '
+          uv run python3 -c '
           import hashlib, os, sys
 
           with open("prompt/README.md", encoding="utf-8") as f:

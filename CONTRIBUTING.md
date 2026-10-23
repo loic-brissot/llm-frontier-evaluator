@@ -22,17 +22,17 @@ Run all local verification checks and linters before opening or merging a pull r
 
 ```bash
 # Code formatting and linting
-ruff check scripts tests
+uv run ruff check scripts tests
 # Alternatively inside Cursor sandbox:
 UV_CACHE_DIR=/tmp/uv-cache UV_TOOL_DIR=/tmp/uv-tools uvx --index-url https://pypi.org/simple ruff check scripts tests
 
 # Unit test suites
-python3 -m unittest discover -s tests -v
-pytest
+uv run python3 -m unittest discover -s tests -v
+uv run pytest
 
 # Benchmark run consistency and README sync check
-python3 scripts/compare_runs.py
-python3 scripts/compare_runs.py --check-readme
+uv run python3 scripts/compare_runs.py
+uv run python3 scripts/compare_runs.py --check-readme
 ```
 
 ## Pull request format

@@ -19,8 +19,9 @@ This document describes the repository structure, script roles, execution lifecy
 | `scripts/probe_data.py` | Data-pipeline authenticity and record probe executor. |
 | `scripts/tool_events.py` | Parser and aggregator for raw harness tool hook logs. |
 | `scripts/compare_runs.py` | Validates run records against `schema/run.schema.json`, verifies catalog consistency, and syncs comparison tables in `README.md`. |
-| `Dockerfile.benchmark` | Container definition providing an isolated clean-room environment for headless benchmark runs. |
-| `requirements.txt` | Core Python dependencies (`jsonschema`). |
+| `Dockerfile.benchmark` | Container definition providing an isolated clean-room environment for headless benchmark runs with pre-installed uv and Playwright. |
+| `pyproject.toml` | Project metadata, build configuration, and dependency definitions (uv / pip). |
+| `requirements.txt` | Core Python dependencies (`jsonschema`) and uv onboarding notes. |
 | `CONTRIBUTING.md` | Developer workflow, branching, pull request formatting, and verification guidelines. |
 
 ## End-to-End Lifecycle & Script Roles

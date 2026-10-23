@@ -32,9 +32,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2 \
     && rm -rf /var/lib/apt-get/lists/*
 
-# Install Claude Code and Playwright globally via npm, and Python Playwright
+# Install uv from official image
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Install Claude Code and Playwright globally via npm, and Python Playwright via uv
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} playwright \
-    && pip3 install --no-cache-dir --break-system-packages playwright
+    && uv pip install --system playwright
 
 # Reconfigure UID 1000 user as 'benchmark' with home /home/benchmark
 RUN if id -u node >/dev/null 2>&1; then \
