@@ -12,6 +12,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 import io
 from run_benchmark import (
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_RETRY_COOLDOWN_SECONDS,
+    DEFAULT_STALL_TIMEOUT_SECONDS,
+    DEFAULT_TIMEOUT_SECONDS,
+    StreamMonitor,
     build_container_command,
     build_parser,
     check_preflight,
@@ -19,8 +24,12 @@ from run_benchmark import (
     detect_container_harness_version,
     ensure_docker_ready,
     extract_cli_result,
+    extract_session_id,
     fetch_cursor_available_models,
     format_stream_progress_line,
+    has_completion_result,
+    is_forward_progress_event,
+    is_rate_limit_error,
     main,
     normalize_cache_setting,
     parse_run_spec,
@@ -1993,6 +2002,418 @@ class TestRunBenchmark(unittest.TestCase):
         self.assertTrue(args.build_image)
         self.assertFalse(args.auto_docker_setup)
 
+    def test_default_timeout_and_runtime_guardrail(self):
+        parser = build_parser()
+        # Verify defaults from backlog requirements
+        self.assertEqual(parser.get_default("timeout"), 1800.0)
+        self.assertEqual(parser.get_default("stall_timeout"), 300.0)
+        self.assertEqual(parser.get_default("retry_cooldown"), 60.0)
+        self.assertEqual(parser.get_default("max_retries"), 2)
+
+        self.assertEqual(DEFAULT_TIMEOUT_SECONDS, 1800.0)
+        self.assertEqual(DEFAULT_STALL_TIMEOUT_SECONDS, 300.0)
+        self.assertEqual(DEFAULT_RETRY_COOLDOWN_SECONDS, 60.0)
+        self.assertEqual(DEFAULT_MAX_RETRIES, 2)
+
+        # Verify run_benchmark_container uses default timeout 1800s when timeout_seconds is omitted
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            staging_dir = tmp_path / "frontier-workspace-default-timeout-test"
+            staging_dir.mkdir(parents=True)
+            run_dir = tmp_path / "runs" / "france-road-accidents" / "default-timeout-test"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "cursor"},
+                "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+            }), encoding="utf-8")
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0, stdout='{"type":"result","status":"success"}\n')
+
+                rc = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id="default-timeout-test",
+                    auto_finish=False,
+                )
+                self.assertEqual(rc, 0)
+                # Verify that subprocess.run was invoked with default timeout 1800.0
+                call_kwargs = mock_run.call_args[1]
+                self.assertEqual(call_kwargs.get("timeout"), 1800.0)
+
+    def test_stream_monitor_rate_limit_and_stall_detection(self):
+        # 1. is_rate_limit_error
+        self.assertTrue(is_rate_limit_error("RetriableError: [resource_exhausted]"))
+        self.assertTrue(is_rate_limit_error("RateLimitError: 429 Too Many Requests"))
+        self.assertTrue(is_rate_limit_error("upstream rate limit exceeded"))
+        self.assertTrue(is_rate_limit_error('{"error": "resource_exhausted"}', {"error": "resource_exhausted"}))
+        self.assertTrue(is_rate_limit_error('{"status": 429}', {"status": 429}))
+        self.assertFalse(is_rate_limit_error("Just a normal log line"))
+        self.assertFalse(is_rate_limit_error('{"type": "system", "message": "init"}', {"type": "system", "message": "init"}))
+
+        # 2. is_forward_progress_event
+        self.assertTrue(is_forward_progress_event(
+            "", {"type": "tool_call", "subtype": "started"}
+        ))
+        self.assertTrue(is_forward_progress_event(
+            "", {"type": "assistant", "message": {"content": "Writing file"}}
+        ))
+        self.assertTrue(is_forward_progress_event(
+            "", {"type": "thinking", "subtype": "delta", "text": "planning"}
+        ))
+        self.assertTrue(is_forward_progress_event(
+            "", {"hook_event_name": "afterAgentThought"}
+        ))
+        self.assertTrue(is_forward_progress_event(
+            "", {"type": "result", "status": "success"}
+        ))
+        self.assertFalse(is_forward_progress_event(
+            "RetriableError: [resource_exhausted]", None
+        ))
+        self.assertFalse(is_forward_progress_event(
+            '{"type": "system", "message": "error"}', {"type": "system", "message": "error"}
+        ))
+
+        # 3. StreamMonitor stall state machine
+        monitor = StreamMonitor(stall_timeout=300.0)
+        t0 = 1000.0
+        self.assertFalse(monitor.check_stall(current_time=t0))
+
+        # Feed rate limit error line
+        monitor.process_line("RetriableError: [resource_exhausted] Rate limit reached", current_time=t0)
+        self.assertEqual(monitor.stall_start, t0)
+        self.assertFalse(monitor.check_stall(current_time=t0 + 299.9, stall_threshold=300.0))
+        self.assertTrue(monitor.check_stall(current_time=t0 + 300.0, stall_threshold=300.0))
+        self.assertTrue(monitor.is_stalled)
+
+        # 4. Forward progress resets stall
+        monitor2 = StreamMonitor(stall_timeout=300.0)
+        monitor2.process_line("RetriableError: [resource_exhausted]", current_time=t0)
+        self.assertEqual(monitor2.stall_start, t0)
+        # Advance 200s, then forward progress arrives
+        progress_line = json.dumps({"type": "tool_call", "subtype": "started", "tool_call": {"shellToolCall": {}}})
+        monitor2.process_line(progress_line, current_time=t0 + 200.0)
+        self.assertIsNone(monitor2.stall_start)
+        # Check at t0 + 350.0 (more than 300s after initial error) -> should NOT stall because progress was made
+        self.assertFalse(monitor2.check_stall(current_time=t0 + 350.0, stall_threshold=300.0))
+
+    def test_stream_monitor_session_id_extraction_and_completion_check(self):
+        monitor = StreamMonitor()
+        # session_id in JSON
+        monitor.process_line('{"type": "session", "id": "sess-alpha-123"}')
+        self.assertEqual(monitor.session_id, "sess-alpha-123")
+
+        # session_id extraction from various sources
+        self.assertEqual(extract_session_id('{"session_id": "sess-beta-456"}\n'), "sess-beta-456")
+        self.assertEqual(extract_session_id('{"sessionId": "sess-gamma-789"}\n'), "sess-gamma-789")
+        self.assertEqual(extract_session_id('{"conversation_id": "conv-delta-001"}\n'), "conv-delta-001")
+
+        # Extract session ID from workspace directory
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            ws = Path(tmp_dir) / "workspace"
+            sessions_dir = ws / ".cursor-agent" / "sessions"
+            sessions_dir.mkdir(parents=True)
+            (sessions_dir / "sess-workspace-999.json").write_text("{}", encoding="utf-8")
+            self.assertEqual(extract_session_id(None, staging_dir=ws), "sess-workspace-999")
+
+        # Extract session ID from run directory tool-events
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            run_d = Path(tmp_dir) / "run"
+            te_dir = run_d / "tool-events"
+            te_dir.mkdir(parents=True)
+            (te_dir / "cli-stream.jsonl").write_text("", encoding="utf-8")
+            (te_dir / "12345678-abcd-ef01-2345-6789abcdef01.jsonl").write_text("", encoding="utf-8")
+            self.assertEqual(extract_session_id(None, run_dir=run_d), "12345678-abcd-ef01-2345-6789abcdef01")
+
+        # has_completion_result
+        self.assertTrue(has_completion_result('{"type": "result", "status": "success"}'))
+        self.assertTrue(has_completion_result('{"event_msg": "session_summary", "tokens": 50}'))
+        self.assertFalse(has_completion_result('{"type": "result", "status": "error"}'))
+        self.assertFalse(has_completion_result('{"type": "system", "message": "init"}'))
+        self.assertFalse(has_completion_result(""))
+
+    def test_build_container_command_with_resume_flags(self):
+        staging_dir = Path("/tmp/frontier-workspace-resume-test")
+        env = {"CURSOR_API_KEY": "test-key", "ANTHROPIC_API_KEY": "test-ant"}
+
+        # 1. Cursor harness with resume_session_id
+        cmd_cursor_resume = build_container_command(
+            staging_dir=staging_dir,
+            docker_image="llm-frontier-evaluator-runner:latest",
+            harness="cursor",
+            resolved_model="claude-opus-5-5-high",
+            effort=None,
+            prompt_text="Continue.",
+            env=env,
+            resume_session_id="sess-resume-123",
+            is_resume=True,
+        )
+        self.assertIn("--resume", cmd_cursor_resume)
+        idx = cmd_cursor_resume.index("--resume")
+        self.assertEqual(cmd_cursor_resume[idx + 1], "sess-resume-123")
+        self.assertEqual(cmd_cursor_resume[-1], "Continue.")
+
+        # 2. Cursor harness with is_resume without session ID -> --continue
+        cmd_cursor_continue = build_container_command(
+            staging_dir=staging_dir,
+            docker_image="llm-frontier-evaluator-runner:latest",
+            harness="cursor",
+            resolved_model="claude-opus-5-5-high",
+            effort=None,
+            prompt_text="Continue.",
+            env=env,
+            resume_session_id=None,
+            is_resume=True,
+        )
+        self.assertIn("--continue", cmd_cursor_continue)
+        self.assertNotIn("--resume", cmd_cursor_continue)
+
+        # 3. Claude harness with is_resume -> --continue
+        cmd_claude_resume = build_container_command(
+            staging_dir=staging_dir,
+            docker_image="llm-frontier-evaluator-runner:latest",
+            harness="claude-code",
+            resolved_model="claude-opus-5-5",
+            effort="high",
+            prompt_text="Continue.",
+            env=env,
+            resume_session_id="sess-claude-123",
+            is_resume=True,
+        )
+        self.assertIn("--continue", cmd_claude_resume)
+        self.assertNotIn("--resume", cmd_claude_resume)
+
+    def test_resource_exhausted_stall_terminates_container_early(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            staging_dir = tmp_path / "frontier-workspace-stall-test"
+            staging_dir.mkdir(parents=True)
+            run_dir = tmp_path / "runs" / "france-road-accidents" / "stall-test"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "cursor"},
+                "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+            }), encoding="utf-8")
+
+            # Simulate output containing RetriableError: [resource_exhausted]
+            error_line = "RetriableError: [resource_exhausted] Rate limit reached. Retrying..."
+            mock_proc = MagicMock()
+            mock_proc.stdout = iter([error_line + "\n"])
+            mock_proc.poll.return_value = None
+
+            # Simulate monotonic time advancing beyond stall_timeout_seconds=5
+            base_time = 1000.0
+            time_calls = [base_time, base_time, base_time + 1.0, base_time + 6.0, base_time + 10.0]
+
+            def fake_monotonic():
+                if time_calls:
+                    return time_calls.pop(0)
+                return base_time + 20.0
+
+            # proc.wait raises TimeoutExpired until killed
+            def fake_wait(timeout=None):
+                raise subprocess.TimeoutExpired(cmd="docker", timeout=timeout or 0.2)
+
+            mock_proc.wait.side_effect = fake_wait
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch("time.monotonic", side_effect=fake_monotonic), \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.Popen", return_value=mock_proc), \
+                 patch("subprocess.run") as mock_run:
+
+                # Run with max_retries=0 to test stall termination directly
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id="stall-test",
+                    stall_timeout_seconds=5.0,
+                    max_retries=0,
+                    auto_finish=False,
+                )
+
+                self.assertEqual(exit_code, 125)
+                # Verify container was killed early
+                mock_proc.kill.assert_called()
+                docker_rm_called = any(
+                    isinstance(call.args[0], list) and call.args[0][:3] == ["docker", "rm", "-f"]
+                    for call in mock_run.call_args_list
+                )
+                self.assertTrue(docker_rm_called, "docker rm -f should be called to terminate stalled container")
+
+    def test_cooldown_wait_and_automatic_retry_resume_success(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            staging_dir = tmp_path / "frontier-workspace-retry-test"
+            staging_dir.mkdir(parents=True)
+            run_dir = tmp_path / "runs" / "france-road-accidents" / "retry-test"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "cursor"},
+                "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+            }), encoding="utf-8")
+
+            # First attempt fails with returncode 1, output includes session_id
+            stdout_fail = ['{"type":"session","id":"sess-retry-123"}\n', '{"error":"temporary error"}\n']
+            # Second attempt succeeds with returncode 0
+            stdout_success = ['{"type":"result","status":"success"}\n']
+
+            attempt_counter = 0
+            docker_commands_run = []
+
+            def mock_popen(cmd, **kwargs):
+                nonlocal attempt_counter
+                docker_commands_run.append(cmd)
+                proc = MagicMock()
+                if attempt_counter == 0:
+                    attempt_counter += 1
+                    proc.stdout = iter(stdout_fail)
+                    proc.wait.return_value = 1
+                    proc.returncode = 1
+                else:
+                    attempt_counter += 1
+                    proc.stdout = iter(stdout_success)
+                    proc.wait.return_value = 0
+                    proc.returncode = 0
+                return proc
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run") as mock_finish, \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch("time.sleep") as mock_sleep, \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.Popen", side_effect=mock_popen):
+
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id="retry-test",
+                    retry_cooldown_seconds=60.0,
+                    max_retries=2,
+                    auto_finish=True,
+                )
+
+                self.assertEqual(exit_code, 0)
+                # Verify cooldown time.sleep was called with 60.0s
+                mock_sleep.assert_called_once_with(60.0)
+                # Verify exactly 2 attempts were executed
+                self.assertEqual(attempt_counter, 2)
+                # Verify attempt 1 used --resume sess-retry-123
+                second_cmd = docker_commands_run[1]
+                self.assertIn("--resume", second_cmd)
+                idx = second_cmd.index("--resume")
+                self.assertEqual(second_cmd[idx + 1], "sess-retry-123")
+                mock_finish.assert_called_once_with("france-road-accidents", "retry-test")
+
+    def test_retry_exhausted_fails_after_max_retries(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            staging_dir = tmp_path / "frontier-workspace-exhaust-test"
+            staging_dir.mkdir(parents=True)
+            run_dir = tmp_path / "runs" / "france-road-accidents" / "exhaust-test"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "cursor"},
+                "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+            }), encoding="utf-8")
+
+            attempt_counter = 0
+
+            def mock_popen(cmd, **kwargs):
+                nonlocal attempt_counter
+                attempt_counter += 1
+                proc = MagicMock()
+                proc.stdout = iter(['{"type":"error"}\n'])
+                proc.wait.return_value = 1
+                proc.returncode = 1
+                return proc
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch("time.sleep") as mock_sleep, \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.Popen", side_effect=mock_popen):
+
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id="exhaust-test",
+                    retry_cooldown_seconds=45.0,
+                    max_retries=2,
+                    auto_finish=False,
+                )
+
+                self.assertEqual(exit_code, 1)
+                # 1 initial + 2 retries = 3 attempts total
+                self.assertEqual(attempt_counter, 3)
+                # 2 cooldown sleeps between the 3 attempts
+                self.assertEqual(mock_sleep.call_count, 2)
+                mock_sleep.assert_called_with(45.0)
+
+    def test_no_retry_on_completion_result_or_interrupt(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            staging_dir = tmp_path / "frontier-workspace-no-retry-test"
+            staging_dir.mkdir(parents=True)
+            run_dir = tmp_path / "runs" / "france-road-accidents" / "no-retry-test"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({
+                "prompt_id": "france-road-accidents",
+                "harness": {"name": "cursor"},
+                "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+            }), encoding="utf-8")
+
+            # 1. Non-zero exit code but has completion result -> do not retry
+            attempt_counter = 0
+
+            def mock_popen_with_result(cmd, **kwargs):
+                nonlocal attempt_counter
+                attempt_counter += 1
+                proc = MagicMock()
+                proc.stdout = iter(['{"type":"result","status":"success"}\n'])
+                proc.wait.return_value = 1  # non-zero returncode but has result
+                proc.returncode = 1
+                return proc
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.find_run_dir", return_value=run_dir), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2026.10.19"), \
+                 patch("run_benchmark.fetch_cursor_available_models", return_value=["claude-opus-5-5-high"]), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch("time.sleep") as mock_sleep, \
+                 patch.dict(os.environ, {"CURSOR_API_KEY": "test-key"}), \
+                 patch("subprocess.Popen", side_effect=mock_popen_with_result):
+
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    run_id="no-retry-test",
+                    max_retries=2,
+                    auto_finish=False,
+                )
+                self.assertEqual(exit_code, 1)
+                self.assertEqual(attempt_counter, 1)
+                mock_sleep.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -7,6 +7,7 @@ import argparse
 import atexit
 import concurrent.futures
 import json
+import re
 import shutil
 import signal
 import subprocess
@@ -45,6 +46,11 @@ DOCKER_IMAGE = "llm-frontier-evaluator-runner:latest"
 DEFAULT_DOCKERFILE = ROOT / "Dockerfile.benchmark"
 DEFAULT_ENV_FILE = ROOT / ".env"
 STAGING_PARENT = _COMMON_STAGING_PARENT
+
+DEFAULT_TIMEOUT_SECONDS: float = 1800.0
+DEFAULT_STALL_TIMEOUT_SECONDS: float = 300.0
+DEFAULT_RETRY_COOLDOWN_SECONDS: float = 60.0
+DEFAULT_MAX_RETRIES: int = 2
 
 
 def ensure_docker_ready(
@@ -281,6 +287,27 @@ def parse_run_spec(
     else:
         res["cache"] = None
 
+    if "timeout" in res and res["timeout"] is not None:
+        try:
+            res["timeout"] = float(res["timeout"])
+        except (ValueError, TypeError):
+            pass
+    if "stall_timeout" in res and res["stall_timeout"] is not None:
+        try:
+            res["stall_timeout"] = float(res["stall_timeout"])
+        except (ValueError, TypeError):
+            pass
+    if "retry_cooldown" in res and res["retry_cooldown"] is not None:
+        try:
+            res["retry_cooldown"] = float(res["retry_cooldown"])
+        except (ValueError, TypeError):
+            pass
+    if "max_retries" in res and res["max_retries"] is not None:
+        try:
+            res["max_retries"] = int(res["max_retries"])
+        except (ValueError, TypeError):
+            pass
+
     if ("model" not in res or not res["model"]) and ("run_id" not in res or not res["run_id"]):
         raise ValueError(f"Run spec must specify 'model' or 'run_id': {spec}")
 
@@ -313,6 +340,8 @@ def build_container_command(
     env: dict,
     container_name: str | None = None,
     cache: bool | str | None = None,
+    resume_session_id: str | None = None,
+    is_resume: bool = False,
 ) -> list[str]:
     """Construct docker run command for running harness CLI in container."""
     norm_harness = canonical_harness(harness)
@@ -340,9 +369,16 @@ def build_container_command(
     if norm_harness == "cursor" or is_cursor_harness(norm_harness):
         if "CURSOR_API_KEY" in env:
             cmd.extend(["-e", "CURSOR_API_KEY"])
+        resume_flags: list[str] = []
+        if resume_session_id:
+            resume_flags = ["--resume", resume_session_id]
+        elif is_resume:
+            resume_flags = ["--continue"]
+
         cmd.extend([
             docker_image,
             "cursor-agent",
+            *resume_flags,
             "-p",
             "--workspace",
             "/workspace",
@@ -361,9 +397,14 @@ def build_container_command(
         if "ANTHROPIC_API_KEY" in env:
             cmd.extend(["-e", "ANTHROPIC_API_KEY"])
         effort_flag = ["--effort", effort] if effort else []
+        resume_flags = []
+        if is_resume or resume_session_id:
+            resume_flags = ["--continue"]
+
         cmd.extend([
             docker_image,
             "claude",
+            *resume_flags,
             "-p",
             "--model",
             resolved_model,
@@ -422,6 +463,240 @@ def extract_cli_result(content: str | Path) -> dict | None:
             return rec
 
     return json_records[-1]
+
+
+_RATE_LIMIT_MARKERS = (
+    "resource_exhausted",
+    "retriableerror",
+    "rate_limit",
+    "rate limit",
+    "status: 429",
+    "status 429",
+    "status_code: 429",
+    "\"status\": 429",
+    "\"statuscode\": 429",
+    "429 too many requests",
+    "overloaded_error",
+)
+
+
+def is_rate_limit_error(raw_line: str, parsed: dict | None = None) -> bool:
+    """Check whether a line or parsed event represents a resource_exhausted or rate-limit stall."""
+    lower = raw_line.lower()
+    if any(m in lower for m in _RATE_LIMIT_MARKERS):
+        return True
+    if parsed:
+        err = parsed.get("error")
+        if isinstance(err, str) and any(m in err.lower() for m in _RATE_LIMIT_MARKERS):
+            return True
+        if isinstance(err, dict):
+            err_str = json.dumps(err).lower()
+            if any(m in err_str for m in _RATE_LIMIT_MARKERS):
+                return True
+        msg = parsed.get("message")
+        if isinstance(msg, str) and any(m in msg.lower() for m in _RATE_LIMIT_MARKERS):
+            return True
+    return False
+
+
+def is_forward_progress_event(raw_line: str, parsed: dict | None = None) -> bool:
+    """Check whether a line or parsed event represents forward model/tool progress."""
+    if parsed is not None:
+        t = parsed.get("type")
+        sub = parsed.get("subtype")
+        if t in ("tool_call", "tool_use"):
+            return True
+        if t == "assistant":
+            msg = parsed.get("message")
+            if isinstance(msg, dict):
+                content = msg.get("content")
+                if content:
+                    return True
+            return True
+        if t in ("thinking", "thought"):
+            return True
+        if sub in ("started", "completed") and t == "tool_call":
+            return True
+        hook_name = parsed.get("hook_event_name")
+        if hook_name in ("afterAgentThought", "postToolUse", "beforeToolUse", "afterAgentResponse"):
+            return True
+        if t in ("result", "session_summary") or parsed.get("event_msg") == "session_summary":
+            return True
+    return False
+
+
+def extract_session_id_from_line(line: str, parsed: dict | None = None) -> str | None:
+    """Extract session or conversation ID from a single line or parsed JSON object."""
+    if "\n" in line:
+        for sub in line.splitlines():
+            sid = extract_session_id_from_line(sub)
+            if sid:
+                return sid
+
+    if parsed is not None:
+        for key in ("session_id", "sessionId", "conversation_id", "conversationId"):
+            val = parsed.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+        session_obj = parsed.get("session")
+        if isinstance(session_obj, dict):
+            sid = session_obj.get("id") or session_obj.get("session_id")
+            if isinstance(sid, str) and sid.strip():
+                return sid.strip()
+        if parsed.get("type") in ("session", "init", "system", "result", "session_summary"):
+            cid = parsed.get("id")
+            if isinstance(cid, str) and cid.strip() and not cid.startswith("msg_"):
+                return cid.strip()
+    m = re.search(r'"(?:session_id|sessionId|conversation_id)"\s*:\s*"([a-zA-Z0-9_\-\.]+)"', line)
+    if m:
+        return m.group(1).strip()
+    m2 = re.search(r'"id"\s*:\s*"(sess-[a-zA-Z0-9_\-\.]+)"', line)
+    if m2:
+        return m2.group(1).strip()
+    return None
+
+
+def extract_session_id(
+    stream_content: str | Path | list[str] | None = None,
+    staging_dir: Path | None = None,
+    run_dir: Path | None = None,
+) -> str | None:
+    """Extract session ID from stream lines, staging directory, or run directory."""
+    if stream_content is not None:
+        lines: list[str] = []
+        if isinstance(stream_content, Path) and stream_content.is_file():
+            try:
+                lines = stream_content.read_text(encoding="utf-8").splitlines()
+            except Exception:
+                pass
+        elif isinstance(stream_content, str):
+            lines = stream_content.splitlines()
+        elif isinstance(stream_content, list):
+            lines = stream_content
+
+        for line in reversed(lines):
+            sid = extract_session_id_from_line(line)
+            if sid:
+                return sid
+
+    if run_dir is not None:
+        tool_events = run_dir / "tool-events"
+        if tool_events.is_dir():
+            for p in sorted(tool_events.glob("*.jsonl")):
+                if p.name != "cli-stream.jsonl" and p.stem:
+                    return p.stem
+
+    if staging_dir is not None and staging_dir.is_dir():
+        for sess_dir in (
+            staging_dir / ".cursor" / "sessions",
+            staging_dir / ".cursor-agent" / "sessions",
+            staging_dir / "sessions",
+            staging_dir / ".cursor",
+        ):
+            if sess_dir.is_dir():
+                for f in sorted(sess_dir.glob("*.json")):
+                    if f.stem:
+                        return f.stem
+
+    return None
+
+
+def has_completion_result(content: str | Path | list[dict] | None) -> bool:
+    """Check if stream content includes a final successful/completed result event."""
+    if content is None:
+        return False
+    lines: list[str] = []
+    if isinstance(content, Path):
+        if not content.is_file():
+            return False
+        try:
+            lines = content.read_text(encoding="utf-8").splitlines()
+        except Exception:
+            return False
+    elif isinstance(content, str):
+        lines = content.splitlines()
+    elif isinstance(content, list):
+        if content and isinstance(content[0], dict):
+            for rec in reversed(content):
+                if rec.get("type") in ("result", "session_summary") or rec.get("event_msg") == "session_summary":
+                    status = str(rec.get("status") or rec.get("subtype") or "").lower()
+                    if status not in ("error", "failed", "failure"):
+                        return True
+            return False
+        lines = [str(item) for item in content]
+
+    for line in reversed(lines):
+        line = line.strip()
+        if not line or not line.startswith("{"):
+            continue
+        try:
+            rec = json.loads(line)
+            if isinstance(rec, dict):
+                if rec.get("type") in ("result", "session_summary") or rec.get("event_msg") == "session_summary":
+                    status = str(rec.get("status") or rec.get("subtype") or "").lower()
+                    if status not in ("error", "failed", "failure"):
+                        return True
+        except json.JSONDecodeError:
+            continue
+    return False
+
+
+class StreamMonitor:
+    """Monitors live stream lines for rate limit stalls, forward progress, and session IDs."""
+
+    def __init__(self, stall_timeout: float = DEFAULT_STALL_TIMEOUT_SECONDS):
+        self.stall_timeout = stall_timeout
+        self.stall_start: float | None = None
+        self.is_stalled: bool = False
+        self.has_completion: bool = False
+        self.session_id: str | None = None
+        self.last_progress_time: float = time.monotonic()
+        self.stall_reason: str | None = None
+
+    def process_line(self, line: str, current_time: float | None = None) -> None:
+        now = time.monotonic() if current_time is None else current_time
+        stripped = line.strip()
+        if not stripped:
+            return
+
+        parsed: dict | None = None
+        if stripped.startswith("{"):
+            try:
+                candidate = json.loads(stripped)
+                if isinstance(candidate, dict):
+                    parsed = candidate
+            except json.JSONDecodeError:
+                pass
+
+        sid = extract_session_id_from_line(stripped, parsed)
+        if sid and not self.session_id:
+            self.session_id = sid
+
+        if parsed:
+            t = parsed.get("type")
+            em = parsed.get("event_msg")
+            if t in ("result", "session_summary") or em == "session_summary":
+                status = str(parsed.get("status") or parsed.get("subtype") or "").lower()
+                if status not in ("error", "failed", "failure"):
+                    self.has_completion = True
+
+        if is_forward_progress_event(stripped, parsed):
+            self.stall_start = None
+            self.last_progress_time = now
+        elif is_rate_limit_error(stripped, parsed):
+            if self.stall_start is None:
+                self.stall_start = now
+                self.stall_reason = stripped[:120]
+
+    def check_stall(self, current_time: float | None = None, stall_threshold: float | None = None) -> bool:
+        threshold = stall_threshold if stall_threshold is not None else self.stall_timeout
+        if threshold <= 0 or self.stall_start is None:
+            return False
+        now = time.monotonic() if current_time is None else current_time
+        if (now - self.stall_start) >= threshold:
+            self.is_stalled = True
+            return True
+        return False
 
 
 def _human_tool_label(raw_key: str) -> str:
@@ -806,7 +1081,10 @@ def run_benchmark_container(
     harness_detail: str = "",
     docker_image: str = DOCKER_IMAGE,
     check_models: bool = True,
-    timeout_seconds: int | float | None = None,
+    timeout_seconds: int | float | None = DEFAULT_TIMEOUT_SECONDS,
+    stall_timeout_seconds: int | float | None = DEFAULT_STALL_TIMEOUT_SECONDS,
+    retry_cooldown_seconds: int | float | None = DEFAULT_RETRY_COOLDOWN_SECONDS,
+    max_retries: int = DEFAULT_MAX_RETRIES,
     auto_finish: bool = True,
     cache: bool | str | None = None,
     stream_prefix: str | None = None,
@@ -822,6 +1100,15 @@ def run_benchmark_container(
     final_harness: str
     resolved_model: str
     effort: str | None = None
+
+    if timeout_seconds is None:
+        timeout_seconds = DEFAULT_TIMEOUT_SECONDS
+    if stall_timeout_seconds is None:
+        stall_timeout_seconds = DEFAULT_STALL_TIMEOUT_SECONDS
+    if retry_cooldown_seconds is None:
+        retry_cooldown_seconds = DEFAULT_RETRY_COOLDOWN_SECONDS
+    if max_retries is None:
+        max_retries = DEFAULT_MAX_RETRIES
 
     norm_cache = normalize_cache_setting(cache)
     if norm_cache is False:
@@ -1111,21 +1398,6 @@ def run_benchmark_container(
     if harness_version and run_dir is not None:
         record_container_harness_version(run_dir, harness_version)
 
-    container_name = f"frontier-runner-{run_id}"
-    full_cmd = build_container_command(
-        staging_dir=staging_dir,
-        docker_image=docker_image,
-        harness=final_harness,
-        resolved_model=resolved_model,
-        effort=effort,
-        prompt_text=prompt_text,
-        env=env,
-        container_name=container_name,
-        cache=norm_cache,
-    )
-
-    _log(f"Running benchmark container for run {run_id} ({final_harness})...")
-
     tool_events_dir: Path | None = None
     cli_stream_file: Path | None = None
     cli_result_file: Path | None = None
@@ -1135,174 +1407,278 @@ def run_benchmark_container(
         cli_stream_file = tool_events_dir / "cli-stream.jsonl"
         cli_result_file = tool_events_dir / "cli-result.json"
 
-    stdout_content: str | None = None
-    return_code: int = 0
+    current_session_id: str | None = None
+    last_return_code: int = 0
+    total_attempts = max_retries + 1
 
-    if isinstance(subprocess.run, MagicMock) and not isinstance(subprocess.Popen, MagicMock):
-        try:
-            res = subprocess.run(
-                full_cmd,
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=timeout_seconds,
-            )
-            return_code = res.returncode
-            stdout_content = res.stdout
-        except subprocess.TimeoutExpired as exc:
-            return_code = 124
-            if isinstance(exc.stdout, str):
-                stdout_content = exc.stdout
-            elif isinstance(exc.stdout, bytes):
-                stdout_content = exc.stdout.decode("utf-8")
+    for attempt in range(total_attempts):
+        if attempt > 0:
+            _log(f"Waiting {retry_cooldown_seconds}s cooldown before retry {attempt}/{max_retries}...")
+            time.sleep(retry_cooldown_seconds)
+            if not current_session_id:
+                current_session_id = extract_session_id(cli_stream_file, staging_dir, run_dir)
+            if current_session_id:
+                _log(f"Resuming session {current_session_id} for run {run_id} (attempt {attempt + 1}/{total_attempts})...")
             else:
-                stdout_content = ""
-            print(f"Timeout expired after {timeout_seconds}s for container {container_name}. Cleaning up...", file=sys.stderr)
-            cleanup_container(container_name)
-        except KeyboardInterrupt:
-            return_code = 130
-            cleanup_container(container_name)
-        except Exception:
-            cleanup_container(container_name)
-            raise
+                _log(f"Retrying run {run_id} (attempt {attempt + 1}/{total_attempts})...")
 
-        if cli_stream_file is not None and stdout_content is not None and isinstance(stdout_content, str):
-            json_lines: list[str] = []
-            for line in stdout_content.splitlines():
-                stripped = line.strip()
-                if stripped.startswith("{"):
-                    try:
-                        parsed = json.loads(stripped)
-                        if isinstance(parsed, dict):
-                            json_lines.append(stripped)
-                    except json.JSONDecodeError:
-                        pass
-            cli_stream_file.write_text("\n".join(json_lines) + ("\n" if json_lines else ""), encoding="utf-8")
-            result_event = extract_cli_result(stdout_content)
-            if result_event is not None and cli_result_file is not None:
-                cli_result_file.write_text(json.dumps(result_event, indent=2) + "\n", encoding="utf-8")
-    else:
-        stream_fp = None
-        if cli_stream_file is not None:
-            stream_fp = open(cli_stream_file, "w", encoding="utf-8")
+        is_resume = (attempt > 0)
+        container_suffix = f"-retry{attempt}" if attempt > 0 else ""
+        container_name = f"frontier-runner-{run_id}{container_suffix}"
 
-        proc = None
-        reader_thread: threading.Thread | None = None
-        orig_sigterm = None
-        orig_sighup = None
-        cleanup_registered = False
-        cleaned_up = False
-        start_monotonic = time.monotonic()
+        effective_prompt = "Continue." if (is_resume and (current_session_id or is_cursor_harness(final_harness))) else prompt_text
 
-        def _do_cleanup() -> None:
-            nonlocal cleaned_up
-            if not cleaned_up:
-                cleaned_up = True
-                cleanup_container(container_name, proc)
+        full_cmd = build_container_command(
+            staging_dir=staging_dir,
+            docker_image=docker_image,
+            harness=final_harness,
+            resolved_model=resolved_model,
+            effort=effort,
+            prompt_text=effective_prompt,
+            env=env,
+            container_name=container_name,
+            cache=norm_cache,
+            resume_session_id=current_session_id if is_resume else None,
+            is_resume=is_resume,
+        )
 
-        def _signal_handler(signum, frame):
-            raise KeyboardInterrupt()
+        _log(f"Running benchmark container for run {run_id} ({final_harness}, attempt {attempt + 1}/{total_attempts})...")
 
-        try:
-            if threading.current_thread() is threading.main_thread():
-                try:
-                    orig_sigterm = signal.signal(signal.SIGTERM, _signal_handler)
-                except (ValueError, AttributeError):
-                    pass
-                if hasattr(signal, "SIGHUP"):
-                    try:
-                        orig_sighup = signal.signal(signal.SIGHUP, _signal_handler)
-                    except (ValueError, AttributeError):
-                        pass
+        stream_monitor = StreamMonitor(stall_timeout=stall_timeout_seconds)
+        stopped_due_to_stall = False
+        stdout_content: str | None = None
+        return_code: int = 0
 
-            proc = subprocess.Popen(
-                full_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                env=env,
-            )
-            atexit.register(_do_cleanup)
-            cleanup_registered = True
+        if isinstance(subprocess.run, MagicMock) and not isinstance(subprocess.Popen, MagicMock):
+            try:
+                res = subprocess.run(
+                    full_cmd,
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                    timeout=timeout_seconds,
+                )
+                return_code = res.returncode
+                stdout_content = res.stdout
+            except subprocess.TimeoutExpired as exc:
+                return_code = 124
+                if isinstance(exc.stdout, str):
+                    stdout_content = exc.stdout
+                elif isinstance(exc.stdout, bytes):
+                    stdout_content = exc.stdout.decode("utf-8")
+                else:
+                    stdout_content = ""
+                print(f"Timeout expired after {timeout_seconds}s for container {container_name}. Cleaning up...", file=sys.stderr)
+                cleanup_container(container_name)
+            except KeyboardInterrupt:
+                return_code = 130
+                cleanup_container(container_name)
+            except Exception:
+                cleanup_container(container_name)
+                raise
 
-            def _stream_reader() -> None:
-                if proc is None or proc.stdout is None:
-                    return
-                try:
-                    for line in proc.stdout:
-                        stripped = line.strip()
-                        is_json = False
-                        if stripped.startswith("{"):
-                            try:
-                                parsed = json.loads(stripped)
-                                if isinstance(parsed, dict):
-                                    is_json = True
-                            except json.JSONDecodeError:
-                                pass
-                        if is_json and stream_fp is not None:
-                            stream_fp.write(line if line.endswith("\n") else line + "\n")
-                            stream_fp.flush()
-                        progress = format_stream_progress_line(line, time.monotonic() - start_monotonic, run_label=effective_label)
-                        if progress:
-                            print(progress, flush=True)
-                except Exception:
-                    pass
+            if stdout_content and isinstance(stdout_content, str):
+                for line in stdout_content.splitlines():
+                    stream_monitor.process_line(line)
 
-            reader_thread = threading.Thread(target=_stream_reader, daemon=True)
-            reader_thread.start()
+            if stream_monitor.session_id and not current_session_id:
+                current_session_id = stream_monitor.session_id
 
-            proc.wait(timeout=timeout_seconds)
-            return_code = proc.returncode
-        except subprocess.TimeoutExpired:
-            return_code = 124
-            _log(f"Timeout expired after {timeout_seconds}s for container {container_name}. Cleaning up...", is_err=True)
-            _do_cleanup()
-        except KeyboardInterrupt:
-            return_code = 130
-            _log(f"\nExecution interrupted by user. Stopping container {container_name}...", is_err=True)
-            _do_cleanup()
-        finally:
-            if cleanup_registered:
-                try:
-                    atexit.unregister(_do_cleanup)
-                except Exception:
-                    pass
-            if proc is not None and proc.poll() is None:
-                _do_cleanup()
-            if orig_sigterm is not None:
-                try:
-                    signal.signal(signal.SIGTERM, orig_sigterm)
-                except (ValueError, AttributeError):
-                    pass
-            if orig_sighup is not None and hasattr(signal, "SIGHUP"):
-                try:
-                    signal.signal(signal.SIGHUP, orig_sighup)
-                except (ValueError, AttributeError):
-                    pass
-            if reader_thread is not None:
-                try:
-                    reader_thread.join(timeout=2.0)
-                except Exception:
-                    pass
-            if stream_fp is not None:
-                try:
-                    stream_fp.flush()
-                    stream_fp.close()
-                except Exception:
-                    pass
-
-            if cli_stream_file is not None and cli_stream_file.is_file():
-                result_event = extract_cli_result(cli_stream_file)
+            if cli_stream_file is not None and stdout_content is not None and isinstance(stdout_content, str):
+                json_lines: list[str] = []
+                for line in stdout_content.splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith("{"):
+                        try:
+                            parsed = json.loads(stripped)
+                            if isinstance(parsed, dict):
+                                json_lines.append(stripped)
+                        except json.JSONDecodeError:
+                            pass
+                file_mode = "w" if attempt == 0 else "a"
+                with open(cli_stream_file, file_mode, encoding="utf-8") as f:
+                    if json_lines:
+                        f.write("\n".join(json_lines) + "\n")
+                result_event = extract_cli_result(stdout_content)
                 if result_event is not None and cli_result_file is not None:
                     cli_result_file.write_text(json.dumps(result_event, indent=2) + "\n", encoding="utf-8")
+        else:
+            stream_fp = None
+            if cli_stream_file is not None:
+                file_mode = "w" if attempt == 0 else "a"
+                stream_fp = open(cli_stream_file, file_mode, encoding="utf-8")
+                if attempt > 0:
+                    retry_meta = {
+                        "type": "system",
+                        "subtype": "retry_start",
+                        "attempt": attempt,
+                        "session_id": current_session_id,
+                    }
+                    stream_fp.write(json.dumps(retry_meta) + "\n")
+                    stream_fp.flush()
+
+            proc = None
+            reader_thread: threading.Thread | None = None
+            orig_sigterm = None
+            orig_sighup = None
+            cleanup_registered = False
+            cleaned_up = False
+            start_monotonic = time.monotonic()
+
+            def _do_cleanup() -> None:
+                nonlocal cleaned_up
+                if not cleaned_up:
+                    cleaned_up = True
+                    cleanup_container(container_name, proc)
+
+            def _signal_handler(signum, frame):
+                raise KeyboardInterrupt()
+
+            try:
+                if threading.current_thread() is threading.main_thread():
+                    try:
+                        orig_sigterm = signal.signal(signal.SIGTERM, _signal_handler)
+                    except (ValueError, AttributeError):
+                        pass
+                    if hasattr(signal, "SIGHUP"):
+                        try:
+                            orig_sighup = signal.signal(signal.SIGHUP, _signal_handler)
+                        except (ValueError, AttributeError):
+                            pass
+
+                proc = subprocess.Popen(
+                    full_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    env=env,
+                )
+                atexit.register(_do_cleanup)
+                cleanup_registered = True
+
+                def _stream_reader() -> None:
+                    if proc is None or proc.stdout is None:
+                        return
+                    try:
+                        for line in proc.stdout:
+                            stripped = line.strip()
+                            is_json = False
+                            if stripped.startswith("{"):
+                                try:
+                                    parsed = json.loads(stripped)
+                                    if isinstance(parsed, dict):
+                                        is_json = True
+                                except json.JSONDecodeError:
+                                    pass
+                            if is_json and stream_fp is not None:
+                                stream_fp.write(line if line.endswith("\n") else line + "\n")
+                                stream_fp.flush()
+
+                            stream_monitor.process_line(line)
+
+                            progress = format_stream_progress_line(line, time.monotonic() - start_monotonic, run_label=effective_label)
+                            if progress:
+                                print(progress, flush=True)
+                    except Exception:
+                        pass
+
+                reader_thread = threading.Thread(target=_stream_reader, daemon=True)
+                reader_thread.start()
+
+                deadline = (start_monotonic + timeout_seconds) if (timeout_seconds and timeout_seconds > 0) else None
+
+                while True:
+                    try:
+                        proc.wait(timeout=0.2)
+                        return_code = proc.returncode
+                        break
+                    except subprocess.TimeoutExpired:
+                        now = time.monotonic()
+                        if deadline and now >= deadline:
+                            return_code = 124
+                            _log(f"Timeout expired after {timeout_seconds}s for container {container_name}. Cleaning up...", is_err=True)
+                            _do_cleanup()
+                            break
+                        if stall_timeout_seconds and stall_timeout_seconds > 0:
+                            if stream_monitor.check_stall(now, stall_timeout_seconds):
+                                return_code = 125
+                                stopped_due_to_stall = True
+                                _log(
+                                    f"Container {container_name} terminated early due to resource_exhausted stall "
+                                    f"({stall_timeout_seconds}s without progress). Cleaning up...",
+                                    is_err=True,
+                                )
+                                _do_cleanup()
+                                break
+            except KeyboardInterrupt:
+                return_code = 130
+                _log(f"\nExecution interrupted by user. Stopping container {container_name}...", is_err=True)
+                _do_cleanup()
+            finally:
+                if cleanup_registered:
+                    try:
+                        atexit.unregister(_do_cleanup)
+                    except Exception:
+                        pass
+                if proc is not None and proc.poll() is None:
+                    _do_cleanup()
+                if orig_sigterm is not None:
+                    try:
+                        signal.signal(signal.SIGTERM, orig_sigterm)
+                    except (ValueError, AttributeError):
+                        pass
+                if orig_sighup is not None and hasattr(signal, "SIGHUP"):
+                    try:
+                        signal.signal(signal.SIGHUP, orig_sighup)
+                    except (ValueError, AttributeError):
+                        pass
+                if reader_thread is not None:
+                    try:
+                        reader_thread.join(timeout=2.0)
+                    except Exception:
+                        pass
+                if stream_fp is not None:
+                    try:
+                        stream_fp.flush()
+                        stream_fp.close()
+                    except Exception:
+                        pass
+
+                if cli_stream_file is not None and cli_stream_file.is_file():
+                    result_event = extract_cli_result(cli_stream_file)
+                    if result_event is not None and cli_result_file is not None:
+                        cli_result_file.write_text(json.dumps(result_event, indent=2) + "\n", encoding="utf-8")
+
+        if stream_monitor.session_id and not current_session_id:
+            current_session_id = stream_monitor.session_id
+        if not current_session_id:
+            current_session_id = extract_session_id(cli_stream_file, staging_dir, run_dir)
+
+        last_return_code = return_code
+
+        if return_code == 0:
+            break
+
+        if return_code in (124, 130) and not stopped_due_to_stall:
+            break
+
+        if has_completion_result(cli_stream_file) and not stopped_due_to_stall:
+            _log(f"Run {run_id} exited with code {return_code} but emitted completion result; skipping retry.")
+            break
+
+        if attempt >= max_retries:
+            _log(f"Run {run_id} failed with exit code {return_code} (max retries exhausted: {max_retries}).", is_err=True)
+            break
+
+        _log(f"Run {run_id} failed with exit code {return_code} (stall={stopped_due_to_stall}). Scheduling retry {attempt + 1}/{max_retries}...")
 
     if auto_finish and run_dir is not None:
         _log(f"Triggering finish_run.py --verify for run {run_id}...")
         with _FINISH_LOCK:
             trigger_finish_run(prompt_id, run_id)
 
-    return return_code
+    return last_return_code
 
 
 def run_parallel_benchmarks(
@@ -1312,7 +1688,10 @@ def run_parallel_benchmarks(
     docker_image: str = DOCKER_IMAGE,
     max_parallel: int | None = None,
     check_models: bool = True,
-    timeout_seconds: int | float | None = None,
+    timeout_seconds: int | float | None = DEFAULT_TIMEOUT_SECONDS,
+    stall_timeout_seconds: int | float | None = DEFAULT_STALL_TIMEOUT_SECONDS,
+    retry_cooldown_seconds: int | float | None = DEFAULT_RETRY_COOLDOWN_SECONDS,
+    max_retries: int = DEFAULT_MAX_RETRIES,
     auto_finish: bool = True,
     allow_cli_context_override: bool = False,
     default_harness: str = "cursor",
@@ -1379,7 +1758,10 @@ def run_parallel_benchmarks(
             harness_detail=s_detail,
             docker_image=docker_image,
             check_models=check_models,
-            timeout_seconds=timeout_seconds,
+            timeout_seconds=spec.get("timeout", timeout_seconds),
+            stall_timeout_seconds=spec.get("stall_timeout", stall_timeout_seconds),
+            retry_cooldown_seconds=spec.get("retry_cooldown", retry_cooldown_seconds),
+            max_retries=spec.get("max_retries", max_retries),
             auto_finish=auto_finish,
             cache=s_cache,
             run_label=s_label,
@@ -1461,8 +1843,29 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--timeout",
         type=float,
-        default=None,
-        help="Execution timeout in seconds for container run.",
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help=f"Execution timeout in seconds for container run (default: {int(DEFAULT_TIMEOUT_SECONDS)}s / 30m).",
+    )
+    parser.add_argument(
+        "--stall-timeout",
+        dest="stall_timeout",
+        type=float,
+        default=DEFAULT_STALL_TIMEOUT_SECONDS,
+        help=f"Stall timeout in seconds for prolonged resource_exhausted rate-limit blocks without progress (default: {int(DEFAULT_STALL_TIMEOUT_SECONDS)}s).",
+    )
+    parser.add_argument(
+        "--retry-cooldown",
+        dest="retry_cooldown",
+        type=float,
+        default=DEFAULT_RETRY_COOLDOWN_SECONDS,
+        help=f"Cooldown wait in seconds before automatic retry or resume on failure or stall (default: {int(DEFAULT_RETRY_COOLDOWN_SECONDS)}s).",
+    )
+    parser.add_argument(
+        "--max-retries",
+        dest="max_retries",
+        type=int,
+        default=DEFAULT_MAX_RETRIES,
+        help=f"Maximum automatic retries/resumes on non-zero exit or stall (default: {DEFAULT_MAX_RETRIES}).",
     )
     parser.add_argument(
         "--no-finish",
@@ -1562,6 +1965,9 @@ def main() -> int:
             max_parallel=args.max_parallel,
             check_models=args.check_models,
             timeout_seconds=args.timeout,
+            stall_timeout_seconds=args.stall_timeout,
+            retry_cooldown_seconds=args.retry_cooldown,
+            max_retries=args.max_retries,
             auto_finish=args.auto_finish,
             allow_cli_context_override=args.allow_cli_context_override,
             default_harness=args.harness,
@@ -1592,6 +1998,9 @@ def main() -> int:
             docker_image=args.docker_image,
             check_models=args.check_models,
             timeout_seconds=args.timeout,
+            stall_timeout_seconds=args.stall_timeout,
+            retry_cooldown_seconds=args.retry_cooldown,
+            max_retries=args.max_retries,
             auto_finish=args.auto_finish,
             cache=args.cache,
             env_file=args.env_file,
