@@ -4,11 +4,30 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LLM Frontier Benchmark Explorer</title>
+
+  <!-- Primary Meta Tags -->
+  <meta name="title" content="LLM Frontier Benchmark Explorer">
+  <meta name="description" content="Interactive performance, cost, and Pareto frontier observatory for frontier LLM code generation and tool-use benchmarks.">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://loic-brissot.github.io/llm-frontier-evaluator/">
+  <meta property="og:title" content="LLM Frontier Benchmark Explorer">
+  <meta property="og:description" content="Interactive performance, cost, and Pareto frontier observatory for frontier LLM code generation and tool-use benchmarks.">
+  <meta property="og:image" content="https://loic-brissot.github.io/llm-frontier-evaluator/screenshots/2026-10-19-cursor-claude-opus-5-5-high-300k-high.png">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://loic-brissot.github.io/llm-frontier-evaluator/">
+  <meta name="twitter:title" content="LLM Frontier Benchmark Explorer">
+  <meta name="twitter:description" content="Interactive performance, cost, and Pareto frontier observatory for frontier LLM code generation and tool-use benchmarks.">
+  <meta name="twitter:image" content="https://loic-brissot.github.io/llm-frontier-evaluator/screenshots/2026-10-19-cursor-claude-opus-5-5-high-300k-high.png">
+
   <link rel="stylesheet" href="styles.css">
   <script id="benchmark-data" type="application/json">
 {
   "version": "1.0.0",
-  "generated_at": "2026-10-23T19:09:50Z",
+  "generated_at": "2026-10-23T23:02:40Z",
   "summary": {
     "total_runs": 11,
     "successful_runs": 7,
@@ -18926,6 +18945,15 @@
 </script>
 </head>
 <body>
+  <!-- Loading Overlay for Decoupled Web Data Fetching -->
+  <div id="loading-overlay" class="loading-overlay" aria-live="polite">
+    <div class="loading-card">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Loading benchmark data...</div>
+      <div class="loading-subtext">Fetching performance telemetry &amp; Pareto frontiers</div>
+    </div>
+  </div>
+
   <div class="app-container">
     <!-- Top Header -->
     <header class="app-header">
