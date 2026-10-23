@@ -1,9 +1,10 @@
 ---
 id: TASK-13
 title: Build an interactive visual benchmark explorer and gallery dashboard
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-18 02:19'
+updated_date: '2026-10-23 12:33'
 labels:
   - visualization
   - portfolio
@@ -29,7 +30,7 @@ A Markdown table in README.md is useful in Git, but a startup hiring manager or 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A static web dashboard (deployable via GitHub Pages) renders interactive charts for tokens generated, model time, tool buckets, context re-read, and estimated vs. billed cost across series
-- [ ] #2 The explorer includes a Pareto frontier view (cost vs. time vs. completion quality) and per-run drill-down with tool-call timelines and workspace screenshots
-- [ ] #3 A build command regenerates the dashboard data payload directly from the repository records
+- [x] #1 A static web dashboard (deployable via GitHub Pages) renders interactive charts for tokens generated, model time, tool buckets, context re-read, and estimated vs. billed cost across series
+- [x] #2 The explorer includes a Pareto frontier view (cost vs. time vs. completion quality) and per-run drill-down with tool-call timelines and workspace screenshots
+- [x] #3 A build command regenerates the dashboard data payload directly from the repository records
 <!-- AC:END -->

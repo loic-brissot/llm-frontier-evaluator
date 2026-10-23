@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local/llm-frontier-evaluator/dashboard.schema.json",
+  "title": "LLM frontier benchmark dashboard payload",
+  "description": "Structured data payload compiled by scripts/build_dashboard.py for the interactive visual benchmark explorer.",
+  "type": "object",
+  "required": [
+    "version",
+    "generated_at",
+    "summary",
+    "prompts",
+    "runs",
+    "models"
+  ],
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "total_runs",
+        "successful_runs",
+        "total_series",
+        "total_models",
+        "total_tokens_generated",
+        "total_estimated_cost_usd"
+      ],
+      "properties": {
+        "total_runs": { "type": "integer", "minimum": 0 },
+        "successful_runs": { "type": "integer", "minimum": 0 },
+        "total_series": { "type": "integer", "minimum": 0 },
+        "total_models": { "type": "integer", "minimum": 0 },
+        "total_tokens_generated": { "type": "integer", "minimum": 0 },
+        "total_estimated_cost_usd": { "type": "number", "minimum": 0 }
+      }
+    },
+    "prompts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["prompt_id", "description", "runs_count"],
+        "properties": {
+          "prompt_id": { "type": "string" },
+          "description": { "type": "string" },
+          "type": { "type": "string" },
+          "runs_count": { "type": "integer" },
+          "checks_count": { "type": "integer" }
+        }
+      }
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "prompt_id",
+          "series_id",
+          "model",
+          "harness",
+          "wall_clock",
+          "tokens",
+          "cost",
+          "tool_calls",
+          "verification",
+          "pareto"
+        ],
+        "properties": {
+          "run_id": { "type": "string" },
+          "prompt_id": { "type": "string" },
+          "series_id": { "type": "string" },
+          "shot": { "type": "string" },
+          "model": {
+            "type": "object",
+            "required": ["name", "label", "provider"],
+            "properties": {
+              "name": { "type": "string" },
+              "label": { "type": "string" },
+              "id": { "type": ["string", "null"] },
+              "provider": { "type": "string" },
+              "reasoning": { "type": ["string", "null"] },
+              "context": { "type": ["string", "null"] }
+            }
+          },
+          "harness": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" },
+              "version": { "type": "string" }
+            }
+          },
+          "wall_clock": {
+            "type": "object",
+            "properties": {
+              "started_at": { "type": ["string", "null"] },
+              "ended_at": { "type": ["string", "null"] },
+              "seconds": { "type": ["number", "null"] }
+            }
+          },
+          "model_time": {
+            "type": "object",
+            "properties": {
+              "generating_seconds": { "type": ["number", "null"] },
+              "thinking_seconds": { "type": ["number", "null"] },
+              "source": { "type": "string" }
+            }
+          },
+          "tokens": {
+            "type": "object",
+            "properties": {
+              "reasoning": { "type": ["integer", "null"] },
+              "visible": { "type": ["integer", "null"] },
+              "total_output": { "type": ["integer", "null"] },
+              "input": { "type": ["integer", "null"] },
+              "uncached_input": { "type": ["integer", "null"] },
+              "cache_read": { "type": ["integer", "null"] },
+              "cache_write": { "type": ["integer", "null"] },
+              "split_rule": { "type": "string" }
+            }
+          },
+          "cost": {
+            "type": "object",
+            "properties": {
+              "estimated_usd": { "type": ["number", "null"] },
+              "estimated_with_harness_usd": { "type": ["number", "null"] },
+              "billed_usd": { "type": ["number", "null"] },
+              "rates": { "type": "object" }
+            }
+          },
+          "tool_calls": {
+            "type": "object",
+            "properties": {
+              "shell": { "type": "object" },
+              "files": { "type": "object" },
+              "visual_checks": { "type": "object" },
+              "web": { "type": "object" },
+              "other": { "type": "object" },
+              "total": { "type": "object" },
+              "failure_rate_pct": { "type": "number" }
+            }
+          },
+          "verification": {
+            "type": "object",
+            "required": ["passed"],
+            "properties": {
+              "passed": { "type": "boolean" },
+              "runtime": { "type": "object" },
+              "data_pipeline": { "type": "object" }
+            }
+          },
+          "screenshot_path": { "type": ["string", "null"] },
+          "tool_timeline": { "type": "array" },
+          "turns": { "type": "array" },
+          "pareto": {
+            "type": "object",
+            "required": ["is_pareto_series", "is_pareto_global", "quality_score"],
+            "properties": {
+              "is_pareto_series": { "type": "boolean" },
+              "is_pareto_global": { "type": "boolean" },
+              "is_pareto_successful": { "type": "boolean" },
+              "quality_score": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "provider"],
+        "properties": {
+          "name": { "type": "string" },
+          "provider": { "type": "string" }
+        }
+      }
+    }
+  }
+}
