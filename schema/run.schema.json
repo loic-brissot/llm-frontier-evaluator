@@ -202,12 +202,22 @@
                 }
               }
             },
+            "critical_failures": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
             "dom": {
               "type": ["object", "null"],
               "additionalProperties": true,
               "properties": {
                 "title": {"type": "string"},
                 "canvas_count": {"type": "integer", "minimum": 0},
+                "visible_canvas_count": {"type": "integer", "minimum": 0},
+                "canvas_obscured": {"type": "boolean"},
+                "loading_overlay": {
+                  "type": ["object", "null"],
+                  "additionalProperties": true
+                },
                 "svg_count": {"type": "integer", "minimum": 0},
                 "webgl_context": {"type": "boolean"},
                 "text_length": {"type": "integer", "minimum": 0}

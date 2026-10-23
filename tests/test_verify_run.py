@@ -11,9 +11,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from finish_run import complete_run_json
 from run_common import load_json, run_schema_errors
 from verify_run import (
+    DOM_INSPECTION_SCRIPT,
     EphemeralStaticServer,
     discover_and_start_server,
     extract_listening_url,
+    identify_critical_failures,
     is_uncompiled_source_html,
     run_playwright_telemetry,
     select_static_dir,
@@ -575,6 +577,336 @@ class TestVerifyRun(unittest.TestCase):
             self.assertIn("c.getContext('webgl2') || c.getContext('webgl')", eval_code)
             self.assertIn("stopImmediatePropagation", eval_code)
             self.assertIn("webglcontextcreationerror", eval_code)
+
+    def test_identify_critical_failures_stuck_loading_overlay(self):
+        dom = {
+            "title": "French Railway Atlas",
+            "canvas_count": 3,
+            "visible_canvas_count": 3,
+            "canvas_obscured": False,
+            "loading_overlay": {
+                "detected": True,
+                "selector": "#loading-screen",
+                "text": "Initialisation de la cartographie vectorielle...",
+            },
+            "svg_count": 0,
+            "text_length": 100,
+        }
+        critical = identify_critical_failures([], [], dom)
+        self.assertTrue(any("Persistent loading overlay detected" in c for c in critical))
+        self.assertTrue(any("#loading-screen" in c for c in critical))
+
+    def test_identify_critical_failures_obscured_and_hidden_canvas(self):
+        # Case 1: canvases exist but all are hidden/zero-sized
+        dom_hidden = {
+            "title": "Hidden Canvas",
+            "canvas_count": 2,
+            "visible_canvas_count": 0,
+            "canvas_obscured": False,
+            "loading_overlay": None,
+            "svg_count": 0,
+            "text_length": 50,
+        }
+        critical = identify_critical_failures([], [], dom_hidden)
+        self.assertTrue(any("All canvas elements (2) are hidden or zero-sized" in c for c in critical))
+
+        # Case 2: canvas is obscured by an overlay
+        dom_obscured = {
+            "title": "Obscured Canvas",
+            "canvas_count": 1,
+            "visible_canvas_count": 1,
+            "canvas_obscured": True,
+            "loading_overlay": None,
+            "svg_count": 0,
+            "text_length": 50,
+        }
+        critical = identify_critical_failures([], [], dom_obscured)
+        self.assertTrue(any("Primary canvas is obscured by a loading overlay" in c for c in critical))
+
+    def test_identify_critical_failures_critical_worker_or_script_404(self):
+        failed_requests = [
+            {
+                "url": "http://127.0.0.1:54015/assets/maplibre-gl-worker.mjs?v=6.15.0",
+                "reason": "HTTP 404",
+                "status": 404,
+            },
+            {
+                "url": "http://127.0.0.1:54015/engine/physics.wasm",
+                "reason": "HTTP 404",
+                "status": 404,
+            },
+            {
+                "url": "http://127.0.0.1:54015/src/app-bundle.js",
+                "reason": "HTTP 500",
+                "status": 500,
+            },
+        ]
+        dom = {
+            "title": "App",
+            "canvas_count": 1,
+            "visible_canvas_count": 1,
+            "canvas_obscured": False,
+            "loading_overlay": None,
+            "svg_count": 0,
+            "text_length": 50,
+        }
+        critical = identify_critical_failures(failed_requests, [], dom)
+        self.assertEqual(len(critical), 3)
+        self.assertTrue(any("maplibre-gl-worker.mjs" in c for c in critical))
+        self.assertTrue(any("physics.wasm" in c for c in critical))
+        self.assertTrue(any("app-bundle.js" in c for c in critical))
+
+    def test_identify_critical_failures_fatal_console_errors(self):
+        fatal_errors = [
+            "Error: Worker failed to load. Check that the worker URL is correct.\n at Worker.<anonymous>",
+            "Failed to construct 'Worker': Script at 'http://...' cannot be accessed from origin",
+            "Uncaught Error: importScripts failed on worker.js",
+            "TypeError: Failed to fetch dynamically imported module: http://127.0.0.1/chunk.js",
+            "ChunkLoadError: Loading chunk 4 failed",
+            "Uncaught Error: Initialization error: WebGL2 context required",
+            "Erreur lors de l'initialisation du moteur cartographique",
+        ]
+        dom = {
+            "title": "App",
+            "canvas_count": 1,
+            "visible_canvas_count": 1,
+            "canvas_obscured": False,
+            "loading_overlay": None,
+            "svg_count": 0,
+            "text_length": 50,
+        }
+        critical = identify_critical_failures([], fatal_errors, dom)
+        self.assertEqual(len(critical), len(fatal_errors))
+        for err_msg in critical:
+            self.assertTrue(err_msg.startswith("Fatal initialization console error:"))
+
+    def test_identify_critical_failures_critical_data_404_when_stuck(self):
+        failed_requests = [
+            {"url": "http://127.0.0.1:8000/data/stations.json", "reason": "HTTP 404", "status": 404}
+        ]
+        # When stuck on loading overlay
+        dom_stuck = {
+            "title": "App",
+            "canvas_count": 1,
+            "visible_canvas_count": 1,
+            "canvas_obscured": False,
+            "loading_overlay": {"detected": True, "selector": "#loader", "text": "Chargement..."},
+            "svg_count": 0,
+            "text_length": 20,
+        }
+        critical = identify_critical_failures(failed_requests, [], dom_stuck)
+        self.assertTrue(any("stations.json" in c and "data request failed" in c for c in critical))
+
+    def test_identify_critical_failures_benign_requests_and_warnings_pass(self):
+        failed_requests = [
+            {"url": "http://127.0.0.1:8000/favicon.ico", "reason": "HTTP 404", "status": 404},
+            {"url": "http://127.0.0.1:8000/fonts/inter.woff2", "reason": "HTTP 404", "status": 404},
+        ]
+        console_errors = [
+            "Warning: [WebGL] clear() called with uninitialized buffer",
+            "User notice: telemetry tracking disabled",
+        ]
+        dom = {
+            "title": "Normal App",
+            "canvas_count": 1,
+            "visible_canvas_count": 1,
+            "canvas_obscured": False,
+            "loading_overlay": None,
+            "svg_count": 1,
+            "text_length": 200,
+        }
+        critical = identify_critical_failures(failed_requests, console_errors, dom)
+        self.assertEqual(critical, [])
+
+    def test_playwright_telemetry_detects_stuck_loading_overlay(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            artifacts_dir = Path(tmpdir) / "artifacts"
+            mock_p = MagicMock()
+            mock_browser = MagicMock()
+            mock_context = MagicMock()
+            mock_page = MagicMock()
+
+            mock_p.chromium.launch.return_value = mock_browser
+            mock_browser.new_context.return_value = mock_context
+            mock_context.new_page.return_value = mock_page
+
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_page.goto.return_value = mock_response
+
+            mock_page.evaluate.return_value = {
+                "title": "Stuck App",
+                "canvas_count": 1,
+                "visible_canvas_count": 1,
+                "canvas_obscured": True,
+                "loading_overlay": {
+                    "detected": True,
+                    "selector": "#loading-screen",
+                    "text": "Initialisation de la cartographie vectorielle...",
+                },
+                "svg_count": 0,
+                "webgl_context": True,
+                "text_length": 50,
+            }
+
+            fake_sync_playwright = MagicMock()
+            fake_sync_playwright.return_value.__enter__.return_value = mock_p
+
+            with patch.dict("sys.modules", {"playwright.sync_api": MagicMock(sync_playwright=fake_sync_playwright)}):
+                telemetry = run_playwright_telemetry("http://127.0.0.1:8000", "static", artifacts_dir)
+
+            self.assertFalse(telemetry["passed"])
+            self.assertTrue(any("Persistent loading overlay detected" in f for f in telemetry["critical_failures"]))
+            self.assertTrue(any("#loading-screen" in f for f in telemetry["critical_failures"]))
+
+    def test_playwright_telemetry_detects_worker_404_failure(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            artifacts_dir = Path(tmpdir) / "artifacts"
+            mock_p = MagicMock()
+            mock_browser = MagicMock()
+            mock_context = MagicMock()
+            mock_page = MagicMock()
+
+            mock_p.chromium.launch.return_value = mock_browser
+            mock_browser.new_context.return_value = mock_context
+            mock_context.new_page.return_value = mock_page
+
+            registered_listeners = {}
+
+            def fake_on(event, handler):
+                registered_listeners[event] = handler
+
+            mock_page.on.side_effect = fake_on
+
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_page.goto.return_value = mock_response
+
+            mock_page.evaluate.return_value = {
+                "title": "App",
+                "canvas_count": 1,
+                "visible_canvas_count": 1,
+                "canvas_obscured": False,
+                "loading_overlay": None,
+                "svg_count": 0,
+                "webgl_context": True,
+                "text_length": 50,
+            }
+
+            def fake_wait(ms):
+                if "response" in registered_listeners:
+                    res_mock = MagicMock()
+                    res_mock.status = 404
+                    res_mock.url = "http://127.0.0.1:8000/assets/maplibre-gl-worker.mjs?v=6.15.0"
+                    registered_listeners["response"](res_mock)
+
+            mock_page.wait_for_timeout.side_effect = fake_wait
+
+            fake_sync_playwright = MagicMock()
+            fake_sync_playwright.return_value.__enter__.return_value = mock_p
+
+            with patch.dict("sys.modules", {"playwright.sync_api": MagicMock(sync_playwright=fake_sync_playwright)}):
+                telemetry = run_playwright_telemetry("http://127.0.0.1:8000", "static", artifacts_dir)
+
+            self.assertFalse(telemetry["passed"])
+            self.assertTrue(any("maplibre-gl-worker.mjs" in f for f in telemetry["critical_failures"]))
+
+    def test_playwright_telemetry_detects_fatal_console_error(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            artifacts_dir = Path(tmpdir) / "artifacts"
+            mock_p = MagicMock()
+            mock_browser = MagicMock()
+            mock_context = MagicMock()
+            mock_page = MagicMock()
+
+            mock_p.chromium.launch.return_value = mock_browser
+            mock_browser.new_context.return_value = mock_context
+            mock_context.new_page.return_value = mock_page
+
+            registered_listeners = {}
+
+            def fake_on(event, handler):
+                registered_listeners[event] = handler
+
+            mock_page.on.side_effect = fake_on
+
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_page.goto.return_value = mock_response
+
+            mock_page.evaluate.return_value = {
+                "title": "App",
+                "canvas_count": 1,
+                "visible_canvas_count": 1,
+                "canvas_obscured": False,
+                "loading_overlay": None,
+                "svg_count": 0,
+                "webgl_context": True,
+                "text_length": 50,
+            }
+
+            def fake_wait(ms):
+                if "console" in registered_listeners:
+                    c_mock = MagicMock()
+                    c_mock.type = "error"
+                    c_mock.text = "Error: Worker failed to load. Check that the worker URL is correct."
+                    registered_listeners["console"](c_mock)
+
+            mock_page.wait_for_timeout.side_effect = fake_wait
+
+            fake_sync_playwright = MagicMock()
+            fake_sync_playwright.return_value.__enter__.return_value = mock_p
+
+            with patch.dict("sys.modules", {"playwright.sync_api": MagicMock(sync_playwright=fake_sync_playwright)}):
+                telemetry = run_playwright_telemetry("http://127.0.0.1:8000", "static", artifacts_dir)
+
+            self.assertFalse(telemetry["passed"])
+            self.assertTrue(any("Worker failed to load" in f for f in telemetry["critical_failures"]))
+
+    def test_playwright_telemetry_normal_application_passes(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            artifacts_dir = Path(tmpdir) / "artifacts"
+            mock_p = MagicMock()
+            mock_browser = MagicMock()
+            mock_context = MagicMock()
+            mock_page = MagicMock()
+
+            mock_p.chromium.launch.return_value = mock_browser
+            mock_browser.new_context.return_value = mock_context
+            mock_context.new_page.return_value = mock_page
+
+            mock_response = MagicMock()
+            mock_response.status = 200
+            mock_page.goto.return_value = mock_response
+
+            mock_page.evaluate.return_value = {
+                "title": "Railway Atlas",
+                "canvas_count": 2,
+                "visible_canvas_count": 2,
+                "canvas_obscured": False,
+                "loading_overlay": None,
+                "svg_count": 5,
+                "webgl_context": True,
+                "text_length": 500,
+            }
+
+            fake_sync_playwright = MagicMock()
+            fake_sync_playwright.return_value.__enter__.return_value = mock_p
+
+            with patch.dict("sys.modules", {"playwright.sync_api": MagicMock(sync_playwright=fake_sync_playwright)}):
+                telemetry = run_playwright_telemetry("http://127.0.0.1:8000", "static", artifacts_dir)
+
+            self.assertTrue(telemetry["passed"])
+            self.assertEqual(telemetry["critical_failures"], [])
+            self.assertEqual(telemetry["dom"]["visible_canvas_count"], 2)
+            self.assertIsNone(telemetry["dom"]["loading_overlay"])
+
+    def test_dom_inspection_script_patterns(self):
+        self.assertIn("loadingTextRegex", DOM_INSPECTION_SCRIPT)
+        self.assertIn("loadingAttrRegex", DOM_INSPECTION_SCRIPT)
+        self.assertIn("visibleCanvasCount", DOM_INSPECTION_SCRIPT)
+        self.assertIn("canvasObscured", DOM_INSPECTION_SCRIPT)
+        self.assertIn("elementFromPoint", DOM_INSPECTION_SCRIPT)
 
 
 if __name__ == "__main__":

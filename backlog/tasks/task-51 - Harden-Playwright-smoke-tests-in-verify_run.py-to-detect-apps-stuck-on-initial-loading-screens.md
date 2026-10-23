@@ -3,9 +3,10 @@ id: TASK-51
 title: >-
   Harden Playwright smoke tests in verify_run.py to detect apps stuck on initial
   loading screens
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-22 16:23'
+updated_date: '2026-10-23 10:36'
 labels:
   - verification
   - playwright
@@ -31,7 +32,7 @@ Improve `scripts/verify_run.py` so smoke tests accurately fail when an applicati
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 verify_run.py detects persistent loading/initialization overlays or splash screens that remain visible after page settle and marks runtime.passed as false
-- [ ] #2 Failed critical script/worker/data requests (e.g. HTTP 404 on .mjs/.js workers) or fatal initialization console errors are surfaced and fail the smoke test when initialization hangs
-- [ ] #3 Unit tests in tests/test_verify_run.py cover stuck loading screen detection and critical worker/asset failure cases
+- [x] #1 verify_run.py detects persistent loading/initialization overlays or splash screens that remain visible after page settle and marks runtime.passed as false
+- [x] #2 Failed critical script/worker/data requests (e.g. HTTP 404 on .mjs/.js workers) or fatal initialization console errors are surfaced and fail the smoke test when initialization hangs
+- [x] #3 Unit tests in tests/test_verify_run.py cover stuck loading screen detection and critical worker/asset failure cases
 <!-- AC:END -->
