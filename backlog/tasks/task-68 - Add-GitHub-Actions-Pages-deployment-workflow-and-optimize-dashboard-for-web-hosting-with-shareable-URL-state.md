@@ -1,8 +1,6 @@
 ---
 id: TASK-68
-title: >-
-  Add GitHub Actions Pages deployment workflow and optimize dashboard/ for web
-  hosting with shareable URL state
+title: Deploy interactive benchmark dashboard to GitHub Pages with decoupled fetching and shareable URL state
 status: To Do
 assignee: []
 created_date: '2026-10-23 19:45'
@@ -19,12 +17,12 @@ ordinal: 12000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-The interactive benchmark explorer in dashboard/ currently works only by opening dashboard/index.html locally or running build_dashboard.py --serve. Furthermore, dashboard/index.html embeds the entire ~800 KB data.json inline inside <script id="benchmark-data">, which will grow to several megabytes as m-4 and m-5 runs accumulate, and filter/tab/modal states are not reflected in URL query/hash parameters for sharing links on the web.
+Deploy the static benchmark explorer (`dashboard/`) to GitHub Pages via automated GitHub Actions continuous deployment. Optimize the static bundle by decoupling the inline payload into an asynchronous `fetch('./data.json')` call (with fallback to embedded JSON when loaded offline via `file://`), and synchronize dashboard filter, sort, active tab, and modal state with URL query parameters for direct link sharing.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Add a GitHub Actions workflow (.github/workflows/deploy-pages.yml) that builds the static site (build_dashboard.py) and deploys it to GitHub Pages on pushes to main
-- [ ] #2 Add a web-mode / lazy-loading build option in build_dashboard.py so initial page load remains fast as the run catalog scales while preserving offline file:// compatibility
-- [ ] #3 Synchronize dashboard state (series, status, provider, sort, active tab, and inspected run_id modal) with URL query/hash parameters (?series=...&tab=...&run=...) and add OpenGraph/meta tags and repository header links
+- [ ] #1 Add a GitHub Actions deployment workflow (.github/workflows/deploy-pages.yml) using actions/upload-pages-artifact and actions/deploy-pages on pushes to main (and manual dispatch)
+- [ ] #2 Implement decoupled data fetching in app.js: fetch data.json asynchronously on web environments with progress indicator, while preserving offline file:// mode compatibility
+- [ ] #3 Synchronize dashboard state (series/prompt, provider, sort, active tab, and open run modal) with URL search parameters (?prompt=...&tab=...&run=...) and add OpenGraph and social preview meta tags
 <!-- AC:END -->
