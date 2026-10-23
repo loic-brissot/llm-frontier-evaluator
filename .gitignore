@@ -18,3 +18,10 @@ tmp/*
 # Counts from a run are copied into run.json.
 .cursor/tool-events/
 runs/*/*/tool-events/
+
+# Local analytical warehouse files and DuckDB databases
+warehouse/*
+!warehouse/README.md
+*.duckdb
+*.duckdb.wal
+*.egg-info/

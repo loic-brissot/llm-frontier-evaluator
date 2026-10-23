@@ -3,9 +3,10 @@ id: TASK-12
 title: >-
   Export benchmark runs and hook telemetry to analytical tables (Parquet /
   DuckDB / chDB)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-18 02:19'
+updated_date: '2026-10-23 12:10'
 labels:
   - data-platform
   - analytics
@@ -30,7 +31,7 @@ To showcase Data Platform Engineering skills, raw run.json files and tool-events
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 An export script transforms runs/*/*/run.json, reference/*.json, and tool-events/*.jsonl into versioned Parquet tables and/or a DuckDB/chDB analytical dataset
-- [ ] #2 Analytical views compute agent behavior metrics: cumulative cache-read curve per turn, tool call retry chains, failure rate by tool bucket, and cost efficiency
-- [ ] #3 Sample SQL queries and documentation demonstrate how to query the benchmark warehouse locally
+- [x] #1 An export script transforms runs/*/*/run.json, reference/*.json, and tool-events/*.jsonl into versioned Parquet tables and/or a DuckDB/chDB analytical dataset
+- [x] #2 Analytical views compute agent behavior metrics: cumulative cache-read curve per turn, tool call retry chains, failure rate by tool bucket, and cost efficiency
+- [x] #3 Sample SQL queries and documentation demonstrate how to query the benchmark warehouse locally
 <!-- AC:END -->
