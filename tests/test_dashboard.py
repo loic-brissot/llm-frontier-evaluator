@@ -243,6 +243,22 @@ class TestDashboardDownloadsAndWarehouse:
         assert ".btn-artifact-download" in css
 
 
+class TestControlsBarVisibility:
+    """Validate controls bar visibility toggling across tabs (TASK-78: AC 1, AC 2, AC 3)."""
+
+    def test_controls_bar_has_id_in_html(self) -> None:
+        html = HTML_PATH.read_text(encoding="utf-8")
+        assert 'id="global-controls-bar"' in html
+
+    def test_app_js_controls_bar_visibility_logic(self) -> None:
+        js = JS_PATH.read_text(encoding="utf-8")
+        assert "function updateControlsBarVisibility" in js
+        assert "global-controls-bar" in js
+        assert "tabName === 'showcase' || tabName === 'warehouse'" in js
+        assert "controlsBar.style.display = 'none'" in js
+        assert "controlsBar.style.display = ''" in js
+
+
 class TestCrossRunCacheEfficiencyChart:
     """Validate cross-run context re-read and cache efficiency chart (TASK-81)."""
 

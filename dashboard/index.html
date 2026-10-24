@@ -3651,7 +3651,7 @@
         }
       ],
       "pareto": {
-        "is_pareto_series": true,
+        "is_pareto_series": false,
         "is_pareto_global": false,
         "is_pareto_successful": false,
         "quality_score": 0.0,
@@ -8471,7 +8471,7 @@
         }
       ],
       "pareto": {
-        "is_pareto_series": true,
+        "is_pareto_series": false,
         "is_pareto_global": false,
         "is_pareto_successful": false,
         "quality_score": 0.5,
@@ -19563,8 +19563,8 @@
         }
       ],
       "pareto": {
-        "is_pareto_series": true,
-        "is_pareto_global": true,
+        "is_pareto_series": false,
+        "is_pareto_global": false,
         "is_pareto_successful": false,
         "quality_score": 0.5,
         "is_pareto_successful_series": false,
@@ -24693,8 +24693,8 @@
         }
       ],
       "pareto": {
-        "is_pareto_series": true,
-        "is_pareto_global": true,
+        "is_pareto_series": false,
+        "is_pareto_global": false,
         "is_pareto_successful": false,
         "quality_score": 0.0,
         "is_pareto_successful_series": false,
@@ -24759,55 +24759,62 @@
         "name": "fact_runs",
         "type": "fact",
         "description": "Core benchmark runs fact table with duration, tokens, cost, and verification status",
-        "row_count": 11,
-        "parquet_path": "warehouse/parquet/fact_runs.parquet"
+        "row_count": 16,
+        "parquet_path": "warehouse/parquet/fact_runs.parquet",
+        "csv_path": "warehouse/csv/fact_runs.csv"
       },
       {
         "name": "fact_tool_calls",
         "type": "fact",
         "description": "Individual tool calls with bucket classification, latency, and failure flags",
-        "row_count": 1475,
-        "parquet_path": "warehouse/parquet/fact_tool_calls.parquet"
+        "row_count": 1960,
+        "parquet_path": "warehouse/parquet/fact_tool_calls.parquet",
+        "csv_path": "warehouse/csv/fact_tool_calls.csv"
       },
       {
         "name": "fact_turns",
         "type": "fact",
         "description": "Turn-level telemetry capturing cache re-reads and prompt growth across conversational turns",
-        "row_count": 53,
-        "parquet_path": "warehouse/parquet/fact_turns.parquet"
+        "row_count": 22,
+        "parquet_path": "warehouse/parquet/fact_turns.parquet",
+        "csv_path": "warehouse/csv/fact_turns.csv"
       },
       {
         "name": "fact_thought_blocks",
         "type": "fact",
         "description": "Model reasoning and thinking block durations and token counts",
-        "row_count": 701,
-        "parquet_path": "warehouse/parquet/fact_thought_blocks.parquet"
+        "row_count": 838,
+        "parquet_path": "warehouse/parquet/fact_thought_blocks.parquet",
+        "csv_path": "warehouse/csv/fact_thought_blocks.csv"
       },
       {
         "name": "dim_models",
         "type": "dimension",
         "description": "Catalog of evaluated frontier LLM models, providers, and pricing rates",
         "row_count": 30,
-        "parquet_path": "warehouse/parquet/dim_models.parquet"
+        "parquet_path": "warehouse/parquet/dim_models.parquet",
+        "csv_path": "warehouse/csv/dim_models.csv"
       },
       {
         "name": "dim_prompts",
         "type": "dimension",
         "description": "Frozen prompt definitions, verification probe criteria, and complexity types",
         "row_count": 8,
-        "parquet_path": "warehouse/parquet/dim_prompts.parquet"
+        "parquet_path": "warehouse/parquet/dim_prompts.parquet",
+        "csv_path": "warehouse/csv/dim_prompts.csv"
       }
     ],
     "formats": [
+      "csv",
       "parquet",
       "duckdb"
     ],
     "duckdb_path": "warehouse/benchmark.duckdb",
     "counts": {
-      "fact_runs": 11,
-      "fact_tool_calls": 1475,
-      "fact_turns": 53,
-      "fact_thought_blocks": 701,
+      "fact_runs": 16,
+      "fact_tool_calls": 1960,
+      "fact_turns": 22,
+      "fact_thought_blocks": 838,
       "dim_models": 30,
       "dim_prompts": 8
     }
@@ -24881,7 +24888,7 @@
     </header>
 
     <!-- Global Filter Controls -->
-    <section class="controls-bar">
+    <section class="controls-bar" id="global-controls-bar">
       <div class="filter-group">
         <label for="filter-series">Prompt Series</label>
         <select id="filter-series">

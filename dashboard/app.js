@@ -213,6 +213,7 @@
     tabBtn.classList.add('active');
     tabContent.classList.add('active');
     activeTab = tabName;
+    updateControlsBarVisibility(tabName);
 
     updateControlsBarVisibility(tabName);
 
@@ -1798,19 +1799,19 @@
     }
 
     const tables = wh.tables || [
-      { name: 'fact_runs', type: 'fact', description: 'Core benchmark runs fact table with duration, tokens, cost, and verification status', row_count: benchmarkData?.runs?.length || 0, csv_path: 'warehouse/csv/fact_runs.csv' },
-      { name: 'fact_tool_calls', type: 'fact', description: 'Individual tool calls with bucket classification, latency, and failure flags', row_count: null, csv_path: 'warehouse/csv/fact_tool_calls.csv' },
-      { name: 'fact_turns', type: 'fact', description: 'Turn-level telemetry capturing cache re-reads and prompt growth across conversational turns', row_count: null, csv_path: 'warehouse/csv/fact_turns.csv' },
-      { name: 'fact_thought_blocks', type: 'fact', description: 'Model reasoning and thinking block durations and token counts', row_count: null, csv_path: 'warehouse/csv/fact_thought_blocks.csv' },
-      { name: 'dim_models', type: 'dimension', description: 'Catalog of evaluated frontier LLM models, providers, and pricing rates', row_count: benchmarkData?.models?.length || 0, csv_path: 'warehouse/csv/dim_models.csv' },
-      { name: 'dim_prompts', type: 'dimension', description: 'Frozen prompt definitions, verification probe criteria, and complexity types', row_count: benchmarkData?.prompts?.length || 0, csv_path: 'warehouse/csv/dim_prompts.csv' },
+      { name: 'fact_runs', type: 'fact', description: 'Core benchmark runs fact table with duration, tokens, cost, and verification status', row_count: benchmarkData?.runs?.length || 0, csv_path: 'warehouse/csv/fact_runs.csv', parquet_path: 'warehouse/parquet/fact_runs.parquet' },
+      { name: 'fact_tool_calls', type: 'fact', description: 'Individual tool calls with bucket classification, latency, and failure flags', row_count: null, csv_path: 'warehouse/csv/fact_tool_calls.csv', parquet_path: 'warehouse/parquet/fact_tool_calls.parquet' },
+      { name: 'fact_turns', type: 'fact', description: 'Turn-level telemetry capturing cache re-reads and prompt growth across conversational turns', row_count: null, csv_path: 'warehouse/csv/fact_turns.csv', parquet_path: 'warehouse/parquet/fact_turns.parquet' },
+      { name: 'fact_thought_blocks', type: 'fact', description: 'Model reasoning and thinking block durations and token counts', row_count: null, csv_path: 'warehouse/csv/fact_thought_blocks.csv', parquet_path: 'warehouse/parquet/fact_thought_blocks.parquet' },
+      { name: 'dim_models', type: 'dimension', description: 'Catalog of evaluated frontier LLM models, providers, and pricing rates', row_count: benchmarkData?.models?.length || 0, csv_path: 'warehouse/csv/dim_models.csv', parquet_path: 'warehouse/parquet/dim_models.parquet' },
+      { name: 'dim_prompts', type: 'dimension', description: 'Frozen prompt definitions, verification probe criteria, and complexity types', row_count: benchmarkData?.prompts?.length || 0, csv_path: 'warehouse/csv/dim_prompts.csv', parquet_path: 'warehouse/parquet/dim_prompts.parquet' },
     ];
 
     tables.forEach((t) => {
       const tr = document.createElement('tr');
       const rowCountDisplay = t.row_count != null ? formatNumber(t.row_count) : 'Exported';
       const typeBadge = t.type === 'fact' ? '<span class="badge" style="background:#0284c7;color:#fff;">FACT</span>' : '<span class="badge" style="background:#64748b;color:#fff;">DIM</span>';
-      const csvPath = t.csv_path || `warehouse/csv/${t.name}.csv`;
+      const csvPath = t.csv_path || ('warehouse/csv/' + t.name + '.csv');
 
       tr.innerHTML = `
         <td><code style="font-weight:700;color:var(--accent-cyan);">${escapeHtml(t.name)}</code></td>
