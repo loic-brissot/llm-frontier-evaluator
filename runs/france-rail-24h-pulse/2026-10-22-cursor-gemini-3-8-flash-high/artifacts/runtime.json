@@ -25,5 +25,6 @@
     "text_length": 878
   },
   "screenshot_path": "artifacts/screenshot.png",
-  "verified_at": "2026-10-22T14:34:27.932Z"
+  "verified_at": "2026-10-22T14:34:27.932Z",
+  "demo_url": "demos/france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high/index.html"
 }

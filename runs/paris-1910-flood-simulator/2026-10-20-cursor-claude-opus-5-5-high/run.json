@@ -191,7 +191,8 @@
         "text_length": 1797
       },
       "screenshot_path": "artifacts/screenshot.png",
-      "verified_at": "2026-10-22T09:02:15.135Z"
+      "verified_at": "2026-10-22T09:02:15.135Z",
+      "demo_url": "demos/paris-1910-flood-simulator/2026-10-20-cursor-claude-opus-5-5-high/index.html"
     },
     "data_pipeline": {
       "prompt_id": "paris-1910-flood-simulator",

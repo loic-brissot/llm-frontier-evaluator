@@ -1,0 +1,149 @@
+{
+  "demos": [
+    {
+      "prompt_id": "paris-tree-canopy",
+      "run_id": "2026-10-24-cursor-gpt-5-6-luna-high",
+      "demo_url": "paris-tree-canopy/2026-10-24-cursor-gpt-5-6-luna-high/index.html",
+      "file_count": 3,
+      "total_bytes": 52121,
+      "verified": false,
+      "passed": null
+    },
+    {
+      "prompt_id": "paris-tree-canopy",
+      "run_id": "2026-10-24-cursor-gemini-3-8-flash-high",
+      "demo_url": "paris-tree-canopy/2026-10-24-cursor-gemini-3-8-flash-high/index.html",
+      "file_count": 7,
+      "total_bytes": 2266845,
+      "verified": false,
+      "passed": null
+    },
+    {
+      "prompt_id": "paris-tree-canopy",
+      "run_id": "2026-10-24-cursor-composer-2-5-high",
+      "demo_url": "paris-tree-canopy/2026-10-24-cursor-composer-2-5-high/index.html",
+      "file_count": 9,
+      "total_bytes": 46814495,
+      "verified": false,
+      "passed": null
+    },
+    {
+      "prompt_id": "paris-tree-canopy",
+      "run_id": "2026-10-24-cursor-claude-sonnet-5-5-high",
+      "demo_url": "paris-tree-canopy/2026-10-24-cursor-claude-sonnet-5-5-high/index.html",
+      "file_count": 20,
+      "total_bytes": 6619371,
+      "verified": false,
+      "passed": null
+    },
+    {
+      "prompt_id": "paris-tree-canopy",
+      "run_id": "2026-10-24-cursor-claude-haiku-5-5-high",
+      "demo_url": "paris-tree-canopy/2026-10-24-cursor-claude-haiku-5-5-high/index.html",
+      "file_count": 6,
+      "total_bytes": 15946712,
+      "verified": false,
+      "passed": null
+    },
+    {
+      "prompt_id": "france-rail-24h-pulse",
+      "run_id": "2026-10-22-cursor-muse-wonder-medium",
+      "demo_url": "france-rail-24h-pulse/2026-10-22-cursor-muse-wonder-medium/index.html",
+      "file_count": 2,
+      "total_bytes": 42918,
+      "verified": false,
+      "passed": null
+    },
+    {
+      "prompt_id": "france-rail-24h-pulse",
+      "run_id": "2026-10-22-cursor-grok-4-7-high",
+      "demo_url": "france-rail-24h-pulse/2026-10-22-cursor-grok-4-7-high/index.html",
+      "file_count": 14,
+      "total_bytes": 6379226,
+      "verified": false,
+      "passed": null
+    },
+    {
+      "prompt_id": "france-rail-24h-pulse",
+      "run_id": "2026-10-22-cursor-gpt-5-6-sol-medium",
+      "demo_url": "france-rail-24h-pulse/2026-10-22-cursor-gpt-5-6-sol-medium/index.html",
+      "file_count": 3,
+      "total_bytes": 267056,
+      "verified": false,
+      "passed": null
+    },
+    {
+      "prompt_id": "france-rail-24h-pulse",
+      "run_id": "2026-10-22-cursor-glm-5-3-high",
+      "demo_url": "france-rail-24h-pulse/2026-10-22-cursor-glm-5-3-high/index.html",
+      "file_count": 15,
+      "total_bytes": 7766028,
+      "verified": false,
+      "passed": null
+    },
+    {
+      "prompt_id": "paris-1910-flood-simulator",
+      "run_id": "2026-10-22-cursor-gemini-4-argon-medium",
+      "demo_url": "paris-1910-flood-simulator/2026-10-22-cursor-gemini-4-argon-medium/index.html",
+      "file_count": 6,
+      "total_bytes": 10726142,
+      "verified": false,
+      "passed": null
+    },
+    {
+      "prompt_id": "france-rail-24h-pulse",
+      "run_id": "2026-10-22-cursor-gemini-3-8-flash-high",
+      "demo_url": "france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high/index.html",
+      "file_count": 9,
+      "total_bytes": 12734857,
+      "verified": false,
+      "passed": null
+    },
+    {
+      "prompt_id": "paris-1910-flood-simulator",
+      "run_id": "2026-10-21-cursor-claude-opus-5-5-medium",
+      "demo_url": "paris-1910-flood-simulator/2026-10-21-cursor-claude-opus-5-5-medium/index.html",
+      "file_count": 9,
+      "total_bytes": 16176313,
+      "verified": false,
+      "passed": null
+    },
+    {
+      "prompt_id": "paris-1910-flood-simulator",
+      "run_id": "2026-10-20-cursor-claude-opus-5-5-high",
+      "demo_url": "paris-1910-flood-simulator/2026-10-20-cursor-claude-opus-5-5-high/index.html",
+      "file_count": 20,
+      "total_bytes": 92114735,
+      "verified": false,
+      "passed": null
+    },
+    {
+      "prompt_id": "france-road-accidents",
+      "run_id": "2026-10-19-cursor-muse-wonder-300k-medium",
+      "demo_url": "france-road-accidents/2026-10-19-cursor-muse-wonder-300k-medium/index.html",
+      "file_count": 8,
+      "total_bytes": 15619221,
+      "verified": false,
+      "passed": null
+    },
+    {
+      "prompt_id": "france-electricity-carbon-flow",
+      "run_id": "2026-10-19-cursor-gemini-4-argon-1m-medium",
+      "demo_url": "france-electricity-carbon-flow/2026-10-19-cursor-gemini-4-argon-1m-medium/index.html",
+      "file_count": 9,
+      "total_bytes": 4185563,
+      "verified": false,
+      "passed": null
+    },
+    {
+      "prompt_id": "france-rail-24h-pulse",
+      "run_id": "2026-10-19-cursor-claude-opus-5-5-high-300k-high",
+      "demo_url": "france-rail-24h-pulse/2026-10-19-cursor-claude-opus-5-5-high-300k-high/index.html",
+      "file_count": 16,
+      "total_bytes": 6290358,
+      "verified": false,
+      "passed": null
+    }
+  ],
+  "total_demos": 16
+}

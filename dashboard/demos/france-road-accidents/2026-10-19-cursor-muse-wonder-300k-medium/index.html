@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Qui percute qui ? — Observatoire des accidents corporels · France métropolitaine 2024</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,900&family=Inter:wght@400;600;800&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui;background:#f6f1e7;color:#1c1917}
+header{background:#111827;color:#fff;padding:22px 28px 16px}header h1{font-family:Fraunces,serif;font-size:42px;line-height:.95;margin:0;max-width:900px}header h1 em{color:#facc15;font-style:normal}
+header p{color:#d6d3d1;max-width:980px;line-height:1.5}.kpis{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}.kpi{background:#1f2937;border:1px solid #374151;border-radius:12px;padding:10px 14px;min-width:150px}.kpi b{font-size:24px;display:block}.kpi span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#a8a29e}
+.layout{display:grid;grid-template-columns:290px 1fr 330px;gap:14px;padding:14px;align-items:start}
+.card{background:#fff;border:1px solid #e7e0cf;border-radius:16px;padding:16px;box-shadow:0 4px 20px rgba(0,0,0,.05)}
+.card h2{font-family:Fraunces,serif;margin:0 0 6px;font-size:22px}.card h3{margin:16px 0 8px;font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:#78716c}
+label{font-size:13px;display:block;margin:7px 0}select,input[type=range]{width:100%} .checks label{display:flex;gap:8px;align-items:center}
+button{background:#111827;color:#fff;border:0;border-radius:999px;padding:9px 14px;font-weight:700;cursor:pointer}button.ghost{background:#fff;color:#111827;border:1px solid #d6d3d1}
+#map{height:640px;border-radius:16px;overflow:hidden;border:1px solid #e7e0cf}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;margin-top:10px}.dot{width:11px;height:11px;border-radius:50%;display:inline-block;vertical-align:-1px;margin-right:5px;border:1px solid rgba(0,0,0,.35)}
+.matrix{overflow:auto}table.matrix{border-collapse:separate;border-spacing:3px}table.matrix td,table.matrix th{font-size:11px;padding:7px 8px;text-align:center;border-radius:7px}table.matrix th{background:#f5f0e1}td.cell{cursor:pointer;color:#111827;font-weight:700}td.cell:hover{outline:2px solid #111827}td.sel{outline:3px solid #111827}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 14px 14px}.full{grid-column:1/-1}
+.bar-row{display:grid;grid-template-columns:1fr auto;gap:8px;font-size:12px;margin:5px 0}.bar{height:8px;background:#fde68a;border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:#dc2626}
+.dept{cursor:pointer}.dept:hover td{background:#fef9c3}table.rank{width:100%;border-collapse:collapse;font-size:12px}table.rank td,table.rank th{padding:6px 4px;border-bottom:1px solid #f0ead8;text-align:right}table.rank td:first-child,table.rank th:first-child{text-align:left}
+.mono{font-family:"IBM Plex Mono",monospace;font-size:11px;color:#57534e}.insight{background:#fef3c7;border-left:5px solid #f59e0b;padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.5;margin:10px 0}
+canvas.chart{width:100%;height:120px}.small{font-size:12px;color:#78716c;line-height:1.5}
+#inspector{white-space:normal}.pill{display:inline-block;padding:3px 8px;border-radius:99px;background:#f5f0e1;font-size:11px;font-weight:700;margin:2px}
+footer{padding:20px 28px 30px;color:#57534e;font-size:12px;line-height:1.6}
+@media(max-width:1100px){.layout{grid-template-columns:1fr}#map{height:520px}}
+</style></head>
+<body>
+<header>
+<div class="mono" style="color:#facc15">ONISR · BAAC 2024 · FRANCE MÉTROPOLITAINE · OPEN LICENCE</div>
+<h1>Qui percute <em>qui</em> ?<br>L'observatoire des collisions</h1>
+<p>Chaque point est un accident corporel géolocalisé en 2024 — la dernière année validée publiée par l'ONISR. Rejoignez les quatre tables BAAC (<i>caractéristiques, lieux, véhicules, usagers</i>), filtrez par heure, lumière, météo, route et vitesse, cliquez une case de la matrice « qui percute qui », puis zoomez jusqu'à la rue pour inspecter un accident, véhicule par véhicule, usager par usager.</p>
+<div class="kpis" id="nationalKpis"></div>
+<p class="small" style="color:#a8a29e">Lecture : un accident « corporel » comporte au moins une victime blessée ou tuée — c'est pourquoi aucun accident n'est classé « indemne » au niveau accident ; les usagers indemnes apparaissent dans la fiche détaillée. La matrice compte les <b>victimes</b> (blessées ou tuées), une paire par victime : l'opposant est la première catégorie distincte parmi les autres véhicules, ou « Seul / sans tiers » en cas d'accident à véhicule unique.</p>
+</header>
+
+<div class="layout">
+<aside class="card">
+<h2>Filtrer l'observable</h2><p class="small">Tous les filtres se combinent (ET logique) et mettent à jour carte, matrice, graphiques et classement.</p>
+<h3>Colorer la carte par</h3>
+<label><input type="radio" name="color" value="sev" checked> Gravité maximale de l'accident</label>
+<label><input type="radio" name="color" value="mode"> Mode de la victime la plus grave</label>
+<div class="legend" id="legend"></div>
+<h3>Heure de la journée <span id="hourLabel" class="mono">0h – 23h</span></h3>
+<input type="range" id="hourMin" min="0" max="23" value="0"><input type="range" id="hourMax" min="0" max="23" value="23">
+<h3>Jour de semaine</h3><div class="checks" id="dowChecks"></div>
+<h3>Lumière</h3><select id="fLum"><option value="">Toutes</option></select>
+<h3>Météo</h3><select id="fAtm"><option value="">Toutes</option></select>
+<h3>Catégorie de route</h3><select id="fCatr"><option value="">Toutes</option></select>
+<h3>Vitesse limite (VMA)</h3><select id="fVma"><option value="">Toutes</option><option>30</option><option>50</option><option>70</option><option>80</option><option>90</option><option>110</option><option>130</option></select>
+<h3>Infrastructure cyclable (voie réservée)</h3><select id="fVosp"><option value="">Toutes</option><option value="1">Piste cyclable</option><option value="2">Bande cyclable</option><option value="3">Autre voie réservée</option><option value="0">Sans voie réservée / sans objet</option></select>
+<h3>Milieu</h3><select id="fAgg"><option value="">Tous</option><option value="2">En agglomération</option><option value="1">Hors agglomération</option></select>
+<br><button id="reset">Réinitialiser les filtres</button>
+<div class="insight" id="insightBox">Chargement des 51 000 accidents…</div>
+<h3>Méthode — « qui percute qui »</h3><p class="small">Victime = usager blessé léger, hospitalisé ou tué (<code>grav</code> 4/3/2). Son mode vient du véhicule occupé (<code>catv</code> regroupé) ou du statut piéton (<code>catu=3</code>). L'opposant est déduit des autres véhicules du même <code>Num_Acc</code>. Un piéton heurté est donc rattaché au véhicule qui l'a percuté, conformément au codebook BAAC.</p>
+</aside>
+
+<main>
+<div id="map"></div>
+<div class="grid2" style="padding:14px 0 0">
+<section class="card full"><h2>Qui percute qui ? — matrice des victimes</h2><p class="small">Lignes : mode de la victime · Colonnes : véhicule opposé dans le même accident. Cliquez une case pour ne garder que ces accidents sur la carte. Cliquez à nouveau pour libérer.</p><div class="matrix" id="matrix"></div><div id="matrixNote" class="small"></div></section>
+<section class="card"><h2>Le rythme des heures</h2><canvas class="chart" id="hourChart"></canvas><p class="small">Accidents filtrés par heure. Le pic de fin d'après-midi concentre les retours et la fatigue — comparez-le après avoir filtré « nuit sans éclairage ».</p></section>
+<section class="card"><h2>Qui sont les victimes ?</h2><canvas class="chart" id="ageChart"></canvas><div id="ageNote" class="small"></div></section>
+</div>
+</main>
+
+<aside>
+<div class="card"><h2>Dans la vue actuelle</h2><p class="small">Recalculé à chaque déplacement de carte et changement de filtre.</p><div id="summary"></div><h3>Âges des victimes (vue)</h3><div id="ageDist"></div><h3>Paires les plus fréquentes (vue)</h3><div id="topPairs"></div></div>
+<div class="card" style="margin-top:14px"><h2>Fiche accident</h2><div id="inspector"><p class="small">Cliquez un point de la carte (zoomez pour désagréger les grappes). La fiche complète s'affichera ici : route, vitesse, véhicules, choc, manœuvre, et chaque usager — rôle, âge, sexe, équipement, issue.</p></div></div>
+<div class="card" style="margin-top:14px"><h2>Départements</h2><p class="small">Taux pour 100 000 habitants (populations communales API Géo agrégées) sur la sélection filtrée. Cliquez pour voler vers le département.</p><div id="deptRank"></div></div>
+</aside>
+</div>
+
+<footer><b>Sources :</b> ONISR, Bases annuelles BAAC 2024 (data.gouv.fr, Licence Ouverte) — fichiers <i>caract-2024, lieux-2024, vehicules-2024, usagers-2024</i> joints sur <code>Num_Acc</code> ; Etalab, contours administratifs départements 100 m ; API Découpage administratif (geo.api.gouv.fr) pour noms et populations communales. Filtre : France métropolitaine (hors DROM), coordonnées valides dans l'emprise métropolitaine. <b>Limites :</b> la BAAC ne recense que les accidents corporels signalés aux forces de l'ordre ; les blessés légers non signalés sont sous-représentés, surtout à vélo et en EDPM seul. La case « Seul / sans tiers » inclut pertes de contrôle et chocs contre obstacle fixe. Préparation reproductible : <code>prep.py / prep2.py</code> dans ce dossier.</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const MODES=["Piéton","Vélo / VAE","EDPM / trottinette","Deux-roues motorisé","Voiture / utilitaire","Poids lourd / TC","Autre / indéterminé"];
+const MODE_SHORT=["Piéton","Vélo","EDPM","2RM","Voiture","PL/TC","Autre"];
+const OPP=[...MODE_SHORT,"Seul / sans tiers"];
+const SEV={2:["Tué (au moins 1 mort)","#991b1b"],3:["Hospitalisé (au moins 1)","#ea580c"],4:["Blessé léger (au plus)","#ca8a04"]};
+const MODE_COLORS=["#7c3aed","#059669","#0891b2","#dc2626","#2563eb","#92400e","#6b7280"];
+const CATV={0:"Indéterminable",1:"Bicyclette",2:"Cyclomoteur <50",3:"Voiturette",7:"Voiture (VL)",10:"Utilitaire",13:"PL ≤7,5t",14:"PL >7,5t",15:"PL + remorque",16:"Tracteur routier",17:"Tracteur + semi",20:"Engin spécial",21:"Tracteur agricole",30:"Scooter <50",31:"Moto ≤125",32:"Scooter ≤125",33:"Moto >125",34:"Scooter >125",35:"Quad léger",36:"Quad lourd",37:"Autobus",38:"Autocar",39:"Train",40:"Tramway",41:"3RM ≤50",42:"3RM ≤125",43:"3RM >125",50:"EDPM à moteur",60:"EDP sans moteur",80:"Vélo électrique (VAE)",99:"Autre"};
+const LUM={1:"Plein jour",2:"Crépuscule / aube",3:"Nuit sans éclairage",4:"Nuit, éclairage non allumé",5:"Nuit, éclairage allumé"};
+const ATM={1:"Normale",2:"Pluie légère",3:"Pluie forte",4:"Neige / grêle",5:"Brouillard / fumée",6:"Vent fort / tempête",7:"Temps éblouissant",8:"Temps couvert",9:"Autre"};
+const CATR={1:"Autoroute",2:"Route nationale",3:"Route départementale",4:"Voie communale",5:"Hors réseau ouvert",6:"Parc de stationnement",7:"Route de métropole urbaine",9:"Autre"};
+const VOSP={0:"Sans objet",1:"Piste cyclable",2:"Bande cyclable",3:"Voie réservée (autre)"};
+const GRAV={1:"Indemne",2:"Tué",3:"Blessé hospitalisé",4:"Blessé léger"};
+const SECU={1:"Ceinture",2:"Casque",3:"Dispositif enfant",4:"Gilet réfléchissant",5:"Airbag",6:"Gants"};
+const CHOC={0:"Aucun",1:"Avant",2:"Avant droit",3:"Avant gauche",4:"Arrière",5:"Arrière droit",6:"Arrière gauche",7:"Côté droit",8:"Côté gauche",9:"Chocs multiples"};
+const DOW=["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+let DATA=[],DEPTPOP={},DEPTNAME={},filtered=[],matrixSel=null,colorMode="sev";
+const $=id=>document.getElementById(id);
+function fill(sel,obj){Object.entries(obj).forEach(([k,v])=>{let o=document.createElement("option");o.value=k;o.textContent=v;sel.appendChild(o)})}
+fill($("fLum"),LUM);fill($("fAtm"),ATM);fill($("fCatr"),CATR);
+DOW.forEach((d,i)=>{$("dowChecks").innerHTML+=`<label><input type="checkbox" class="dow" value="${i}" checked> ${d}</label>`});
+
+const map=L.map("map").setView([46.7,2.5],6); window.__map=map;
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap contributors",maxZoom:19}).addTo(map);
+let deptLayer=null;
+fetch("data/departements.geojson").then(r=>r.json()).then(g=>{deptLayer=L.geoJSON(g,{style:{color:"#78716c",weight:1,fillOpacity:.03},onEachFeature:(f,l)=>l.bindTooltip(`${f.properties.code} — ${f.properties.nom}`)}).addTo(map)});
+
+// canvas overlay for points
+const pane=map.createPane("points");pane.style.zIndex=650;pane.style.pointerEvents="none";
+const canvas=document.createElement("canvas");canvas.style.position="absolute";canvas.style.pointerEvents="none";pane.appendChild(canvas);
+const ctx=canvas.getContext("2d");
+function victimPairs(a){
+  // returns list of [victimMode, oppIdx] per injured/killed user
+  const vm=a.v.map(v=>v[1]); const out=[];
+  for(const u of a.u){ if(![2,3,4].includes(u[1])) continue; const vmMode=u[4];
+    let opp=7;
+    // distinct other vehicle modes: vehicles excluding pedestrian pseudo; if multiple vehicles
+    if(a.v.length===0) opp=7;
+    else if(vmMode===0) opp=a.v[0][1];
+    else { const others=vm.filter(m=>m!==vmMode); if(others.length) opp=others[0]; else if(a.v.length>=2) opp=vmMode; else opp=7; }
+    out.push([vmMode,opp,u]); }
+  return out;
+}
+function worstVictimMode(a){let best=null,rank={2:0,3:1,4:2};for(const u of a.u){if(rank[u[1]]!==undefined&&(best===null||rank[u[1]]<rank[best[1]]))best=u}return best?best[4]:6}
+function accidentColor(a){return colorMode==="sev"?SEV[a.sev][1]:MODE_COLORS[worstVictimMode(a)]}
+function draw(){
+  const size=map.getSize();canvas.width=size.x;canvas.height=size.y;canvas.style.left=0;canvas.style.top=0;
+  L.DomUtil.setPosition(canvas,map.containerPointToLayerPoint([0,0]));
+  ctx.clearRect(0,0,size.x,size.y);
+  const b=map.getBounds();
+  for(const a of filtered){ if(a.y<b.getSouth()||a.y>b.getNorth()||a.x<b.getWest()||a.x>b.getEast()) continue;
+    const p=map.latLngToContainerPoint([a.y,a.x]); ctx.beginPath(); ctx.arc(p.x,p.y,a.sev===2?4.5:3,0,7); ctx.fillStyle=accidentColor(a); ctx.globalAlpha=.78; ctx.fill(); ctx.globalAlpha=1; ctx.strokeStyle="rgba(0,0,0,.35)"; ctx.lineWidth=.6; ctx.stroke(); }
+}
+map.on("move zoom resize moveend zoomend",()=>{draw();updateSummary()});
+
+function passes(a){
+  const hmin=+$("hourMin").value,hmax=+$("hourMax").value; if(a.h<hmin||a.h>hmax) return false;
+  const dows=[...document.querySelectorAll(".dow:checked")].map(x=>+x.value); if(!dows.includes(a.w)) return false;
+  if($("fLum").value && a.lum!=+$("fLum").value) return false;
+  if($("fAtm").value && a.atm!=+$("fAtm").value) return false;
+  if($("fCatr").value && a.catr!=+$("fCatr").value) return false;
+  if($("fVma").value && a.vma!=+$("fVma").value) return false;
+  if($("fVosp").value!=="" && a.vosp!==+$("fVosp").value) return false;
+  if($("fAgg").value && a.agg!=+$("fAgg").value) return false;
+  if(matrixSel){ const pairs=victimPairs(a); if(!pairs.some(p=>p[0]===matrixSel[0]&&p[1]===matrixSel[1])) return false; }
+  return true;
+}
+function apply(){ filtered=DATA.filter(passes); $("hourLabel").textContent=`${$("hourMin").value}h – ${$("hourMax").value}h`; draw(); renderMatrix(); renderCharts(); renderDept(); updateSummary(); renderLegend(); insight(); }
+function renderLegend(){ $("legend").innerHTML = colorMode==="sev" ? Object.entries(SEV).map(([k,v])=>`<span><i class="dot" style="background:${v[1]}"></i>${v[0]}</span>`).join("") : MODES.map((m,i)=>`<span><i class="dot" style="background:${MODE_COLORS[i]}"></i>${m}</span>`).join(""); }
+
+function renderMatrix(){
+  const M=Array.from({length:6},()=>Array(8).fill(0)); let tot=0;
+  // matrix ignores its own selection to stay explorable: recompute without matrixSel
+  const selBackup=matrixSel; matrixSel=null; const base=DATA.filter(passes); matrixSel=selBackup;
+  for(const a of base) for(const p of victimPairs(a)){ if(p[0]<6){M[p[0]][p[1]]++; tot++;} }
+  const max=Math.max(...M.flat(),1);
+  let h=`<table class="matrix"><tr><th>Victime \\ Opposant</th>${OPP.map(o=>`<th>${o}</th>`).join("")}<th>Total</th></tr>`;
+  M.forEach((row,i)=>{ h+=`<tr><th style="text-align:left">${MODES[i]}</th>`+row.map((v,j)=>{const t=v/max; const bg=`rgba(220,38,38,${.08+.85*t})`; const col=t>.45?"#fff":"#111827"; const sel=matrixSel&&matrixSel[0]===i&&matrixSel[1]===j?" sel":""; return `<td class="cell${sel}" data-i="${i}" data-j="${j}" style="background:${bg};color:${col}" title="${MODES[i]} × ${OPP[j]} : ${v.toLocaleString("fr")} victimes">${v.toLocaleString("fr")}</td>`}).join("")+`<td><b>${row.reduce((s,x)=>s+x,0).toLocaleString("fr")}</b></td></tr>`});
+  h+="</table>"; $("matrix").innerHTML=h;
+  document.querySelectorAll("td.cell").forEach(td=>td.onclick=()=>{const i=+td.dataset.i,j=+td.dataset.j; matrixSel=(matrixSel&&matrixSel[0]===i&&matrixSel[1]===j)?null:[i,j]; apply();});
+  $("matrixNote").textContent=`${tot.toLocaleString("fr")} victimes comptées dans la sélection (hors filtre matrice). `+(matrixSel?`Filtre actif : victimes « ${MODES[matrixSel[0]]} » contre « ${OPP[matrixSel[1]]} » — ${filtered.length.toLocaleString("fr")} accidents sur la carte.`:"Cliquez une case pour filtrer carte et graphiques.");
+}
+function drawBars(canvasId,labels,values,color="#dc2626"){
+  const cv=$(canvasId),dpr=devicePixelRatio||1,W=cv.clientWidth,H=120;cv.width=W*dpr;cv.height=H*dpr;const c=cv.getContext("2d");c.scale(dpr,dpr);c.clearRect(0,0,W,H);
+  const max=Math.max(...values,1),bw=W/values.length;
+  values.forEach((v,i)=>{const h=(H-28)*v/max;c.fillStyle=color;c.fillRect(i*bw+2,H-20-h,bw-4,h); if(i%Math.ceil(values.length/8)===0){c.fillStyle="#78716c";c.font="10px Inter";c.fillText(labels[i],i*bw+2,H-6)}});
+}
+function renderCharts(){
+  const hours=Array(24).fill(0); filtered.forEach(a=>hours[a.h]++);
+  drawBars("hourChart",hours.map((_,i)=>i+"h"),hours,"#2563eb");
+  const bins=[0,0,0,0,0,0,0],labels=["0–17","18–24","25–34","35–49","50–64","65–79","80+"];
+  let victims=0,killed=0;
+  filtered.forEach(a=>a.u.forEach(u=>{if([2,3,4].includes(u[1])){victims++; if(u[1]===2)killed++; const age=u[3]; if(age>=0){bins[age<18?0:age<25?1:age<35?2:age<50?3:age<65?4:age<80?5:6]++}}}));
+  drawBars("ageChart",labels,bins,"#7c3aed");
+  $("ageNote").textContent=`${victims.toLocaleString("fr")} victimes dans la sélection, dont ${killed.toLocaleString("fr")} tuées. Les 18–24 ans restent surreprésentés au regard de leur poids démographique.`;
+}
+function inView(a){const b=map.getBounds();return a.y>=b.getSouth()&&a.y<=b.getNorth()&&a.x>=b.getWest()&&a.x<=b.getEast()}
+function updateSummary(){
+  if(!filtered.length) return; const view=filtered.filter(inView);
+  const killedAcc=view.filter(a=>a.sev===2).length, hospAcc=view.filter(a=>a.sev===3).length;
+  let victims=0,killed=0,hosp=0; const pairs={}; const ages=[0,0,0,0,0,0,0];
+  view.forEach(a=>{ for(const p of victimPairs(a)){ const k=`${MODES[p[0]]} × ${OPP[p[1]]}`; pairs[k]=(pairs[k]||0)+1; } a.u.forEach(u=>{if([2,3,4].includes(u[1])){victims++; if(u[1]===2)killed++; if(u[1]===3)hosp++; if(u[3]>=0) ages[u[3]<18?0:u[3]<25?1:u[3]<35?2:u[3]<50?3:u[3]<65?4:u[3]<80?5:6]++}})});
+  $("summary").innerHTML=`<div class="kpis" style="margin:0"><div class="kpi" style="background:#fef3c7;border-color:#fde68a;color:#111827;min-width:120px"><b>${view.length.toLocaleString("fr")}</b><span style="color:#78716c">accidents dans la vue</span></div><div class="kpi" style="background:#fee2e2;border-color:#fecaca;color:#111827;min-width:120px"><b>${killed.toLocaleString("fr")}</b><span style="color:#78716c">personnes tuées</span></div></div>
+  <p class="small">Accidents mortels : <b>${view.length?(killedAcc/view.length*100).toFixed(1):0} %</b> · avec hospitalisé : <b>${view.length?(hospAcc/view.length*100).toFixed(1):0} %</b><br>Victimes : ${victims.toLocaleString("fr")} · tuées ${(victims?(killed/victims*100):0).toFixed(1)} % · hospitalisées ${(victims?(hosp/victims*100):0).toFixed(1)} % des victimes.<br><span class="mono">${filtered.length.toLocaleString("fr")} accidents après filtres (toute la France)</span></p>`;
+  const maxA=Math.max(...ages,1), labels=["0–17","18–24","25–34","35–49","50–64","65–79","80+"];
+  $("ageDist").innerHTML=labels.map((l,i)=>`<div class="bar-row"><span>${l} ans</span><span>${ages[i]}</span></div><div class="bar"><i style="width:${ages[i]/maxA*100}%"></i></div>`).join("");
+  $("topPairs").innerHTML=Object.entries(pairs).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v])=>`<div class="bar-row"><span>${k}</span><b>${v.toLocaleString("fr")}</b></div>`).join("")||"<p class='small'>Aucune victime dans la vue.</p>";
+}
+function renderDept(){
+  const agg={}; filtered.forEach(a=>{agg[a.d]=agg[a.d]||{n:0,k:0}; agg[a.d].n++; if(a.sev===2)agg[a.d].k++;});
+  const rows=Object.entries(agg).map(([d,v])=>({d,name:DEPTNAME[d]||d,n:v.n,rate:DEPTPOP[d]?v.n/DEPTPOP[d]*100000:0,fatal:v.n?v.k/v.n*100:0})).sort((a,b)=>b.rate-a.rate).slice(0,15);
+  $("deptRank").innerHTML=`<table class="rank"><tr><th>Département</th><th>Acc.</th><th>/100k hab.</th><th>% mortels</th></tr>${rows.map(r=>`<tr class="dept" data-dep="${r.d}"><td>${r.d} — ${r.name}</td><td>${r.n}</td><td><b>${r.rate.toFixed(1)}</b></td><td>${r.fatal.toFixed(1)}%</td></tr>`).join("")}</table>`;
+  document.querySelectorAll(".dept").forEach(tr=>tr.onclick=()=>{ if(deptLayer){ deptLayer.eachLayer(l=>{ if(l.feature.properties.code===tr.dataset.dep){ map.fitBounds(l.getBounds()); }})}});
+}
+function insight(){
+  if(!filtered.length){$("insightBox").textContent="Aucun accident ne correspond à ces filtres.";return}
+  const killed=filtered.filter(a=>a.sev===2).length;
+  const night=filtered.filter(a=>a.lum>=3).length;
+  $("insightBox").innerHTML=`<b>${filtered.length.toLocaleString("fr")} accidents</b> dans la sélection — ${killed.toLocaleString("fr")} mortels (${(killed/filtered.length*100).toFixed(1)} %), ${Math.round(night/filtered.length*100)} % de nuit. Zoomez : à partir du niveau régional, chaque point devient cliquable individuellement.`;
+}
+// inspector: click nearest filtered point
+map.on("click",e=>{
+  let best=null,bd=1e9; for(const a of filtered){ const p=map.latLngToContainerPoint([a.y,a.x]); const q=map.latLngToContainerPoint(e.latlng); const d=(p.x-q.x)**2+(p.y-q.y)**2; if(d<bd){bd=d;best=a} }
+  if(!best||bd>2500) { $("inspector").innerHTML="<p class='small'>Aucun point assez proche — zoomez davantage puis cliquez un point.</p>"; return; }
+  const a=best;
+  $("inspector").innerHTML=`<p><span class="pill">${SEV[a.sev][0]}</span> <span class="pill">${a.d} — ${DEPTNAME[a.d]||""}</span></p>
+  <p class="small"><b>${a.adr||"Adresse non libellée"}</b> · commune INSEE ${a.com}<br>${DOW[a.w]} · ${a.h}h · ${LUM[a.lum]||"Lumière ?"} · Météo : ${ATM[a.atm]||"—"}<br>Route : ${CATR[a.catr]||"—"} · VMA ${a.vma>0?a.vma+" km/h":"non renseignée"} · Voie réservée : ${VOSP[a.vosp]||"—"} · ${a.agg===2?"En agglomération":"Hors agglomération"}</p>
+  <h3>Véhicules (${a.v.length})</h3>${a.v.map((v,i)=>`<p class="small"><b>${String.fromCharCode(65+i)}</b> — ${CATV[v[0]]||"Catégorie "+v[0]} · choc : ${CHOC[v[2]]||"—"}</p>`).join("")}
+  <h3>Usagers (${a.u.length})</h3>${a.u.map(u=>`<p class="small"><span class="pill" style="background:${u[1]===2?"#fee2e2":u[1]===3?"#ffedd5":"#fef9c3"}">${GRAV[u[1]]}</span> <b>${{1:"Conducteur",2:"Passager",3:"Piéton"}[u[0]]}</b> · ${MODES[u[4]]} · ${u[2]===1?"Homme":u[2]===2?"Femme":"Sexe ?"}${u[3]>=0?", "+u[3]+" ans":""}${u[5]>0&&SECU[u[5]]?" · "+SECU[u[5]]:" · aucun équipement renseigné"}</p>`).join("")}
+  <p class="mono">Num_Acc ${a.i} · ${a.y}, ${a.x}</p>`;
+});
+document.querySelectorAll("input,select").forEach(el=>el.addEventListener("change",apply));
+$("reset").onclick=()=>location.reload();
+document.querySelectorAll('input[name=color]').forEach(r=>r.onchange=()=>{colorMode=r.value;draw();renderLegend()});
+
+Promise.all([fetch("data/accidents.json").then(r=>r.json()),fetch("data/dept_pop.json").then(r=>r.json()),fetch("https://geo.api.gouv.fr/departements?fields=nom,code").then(r=>r.json()).catch(()=>[])])
+.then(([acc,pop,deps])=>{ DATA=acc; DEPTPOP=pop; deps.forEach(d=>DEPTNAME[d.code]=d.nom);
+  const killed=DATA.filter(a=>a.sev===2).length, victims=DATA.reduce((s,a)=>s+a.u.filter(u=>[2,3,4].includes(u[1])).length,0), dead=DATA.reduce((s,a)=>s+a.u.filter(u=>u[1]===2).length,0);
+  $("nationalKpis").innerHTML=[[DATA.length.toLocaleString("fr"),"accidents géolocalisés en métropole"],[victims.toLocaleString("fr"),"victimes (blessées ou tuées)"],[dead.toLocaleString("fr"),"personnes tuées"],[killed.toLocaleString("fr"),"accidents mortels"]].map(x=>`<div class="kpi"><b>${x[0]}</b><span>${x[1]}</span></div>`).join("");
+  apply();
+}).catch(e=>{$("insightBox").textContent="Erreur de chargement : servez ce dossier en HTTP (python3 -m http.server) — "+e});
+</script></body></html>
