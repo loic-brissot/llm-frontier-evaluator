@@ -8,11 +8,9 @@ fact_thought_blocks, dim_models, dim_prompts) and analytical SQL views.
 from __future__ import annotations
 
 import argparse
-import csv
 import hashlib
 import json
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -22,16 +20,12 @@ from run_common import (
     RUNS_DIR,
     utc_now_iso,
 )
-from tool_events import (
-    _dedupe_thoughts,
-    _dedupe_tools,
-    _duration,
-    _extract_traversal_target,
-    bucket_for,
-    effective_tool_name,
-    is_failed,
-    load_records,
-    parse_time,
+from telemetry_extraction import (
+    extract_normalized_run_metrics,
+    extract_normalized_tool_calls,
+    extract_thought_blocks,
+    extract_turn_curve,
+    input_summary,
 )
 
 try:
@@ -438,233 +432,79 @@ def extract_dim_prompts(reference_dir: Path, prompts_dir: Path) -> list[dict[str
 def extract_fact_runs(run_dirs: list[Path]) -> list[dict[str, Any]]:
     runs_list: list[dict[str, Any]] = []
     for run_dir in run_dirs:
-        run_json_path = run_dir / "run.json"
-        if not run_json_path.is_file():
-            continue
-        try:
-            run = json.loads(run_json_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        norm = extract_normalized_run_metrics(run_dir)
+        if norm is None:
             continue
 
-        model_meta = run.get("model") or {}
-        harness_meta = run.get("harness") or {}
-        wall = run.get("wall_clock") or {}
-        model_time = run.get("model_time") or {}
-        tool_events_meta = (model_time.get("raw") or {}).get("tool_events") or {}
-        tokens = run.get("tokens") or {}
-        raw_tokens = tokens.get("raw") or {}
-        pricing_meta = raw_tokens.get("pricing") or {}
-        tool_calls = run.get("tool_calls") or {}
-        verification = run.get("verification") or {}
-        runtime = verification.get("runtime") or {}
-        pipeline = verification.get("data_pipeline") or {}
-
-        # Compute wall seconds
-        wall_sec = None
-        started_str = wall.get("started_at")
-        ended_str = wall.get("ended_at")
-        if started_str and ended_str:
-            st = parse_time(started_str)
-            et = parse_time(ended_str)
-            if st and et:
-                wall_sec = round((et - st).total_seconds(), 1)
-        if wall_sec is None:
-            wall_sec = tool_events_meta.get("wall_seconds")
-
-        # Input & cached tokens
-        hook_tokens = raw_tokens.get("hook_tokens") or {}
-        ctx_reread = run.get("context_reread") or {}
-        ctx_raw = ctx_reread.get("raw") or {}
-
-        tokens_input = (
-            hook_tokens.get("input_tokens")
-            or ctx_raw.get("input_tokens")
-            or (raw_tokens.get("usage") or {}).get("inputTokens")
-            or (raw_tokens.get("usage") or {}).get("input_tokens")
-        )
-        tokens_uncached = (
-            ctx_reread.get("uncached_input_tokens")
-            or hook_tokens.get("uncached_input_tokens")
-            or ctx_raw.get("uncached_input_tokens")
-        )
-        tokens_cache_read = (
-            ctx_reread.get("cache_read_tokens")
-            or hook_tokens.get("cache_read_tokens")
-            or ctx_raw.get("cache_read_tokens")
-            or (raw_tokens.get("usage") or {}).get("cacheReadTokens")
-        )
-        tokens_cache_write = (
-            ctx_reread.get("cache_write_tokens")
-            or hook_tokens.get("cache_write_tokens")
-            or ctx_raw.get("cache_write_tokens")
-            or (raw_tokens.get("usage") or {}).get("cacheWriteTokens")
-        )
-
-        tokens_reasoning = tokens.get("reasoning_tokens")
-        tokens_visible = tokens.get("visible_tokens")
-        tokens_total_out = None
-        if tokens_reasoning is not None or tokens_visible is not None:
-            tokens_total_out = (tokens_reasoning or 0) + (tokens_visible or 0)
-
-        # Tool calls breakdown
-        tc_shell = (tool_calls.get("shell") or {}).get("calls", 0)
-        tc_files = (tool_calls.get("files") or {}).get("calls", 0)
-        tc_visual = (tool_calls.get("visual_checks") or {}).get("calls", 0)
-        tc_web = (tool_calls.get("web") or {}).get("calls", 0)
-        tc_other = (tool_calls.get("other") or {}).get("calls", 0)
-        tc_total = tc_shell + tc_files + tc_visual + tc_web + tc_other
-
-        tf_shell = (tool_calls.get("shell") or {}).get("failures", 0)
-        tf_files = (tool_calls.get("files") or {}).get("failures", 0)
-        tf_visual = (tool_calls.get("visual_checks") or {}).get("failures", 0)
-        tf_web = (tool_calls.get("web") or {}).get("failures", 0)
-        tf_other = (tool_calls.get("other") or {}).get("failures", 0)
-        tf_total = tf_shell + tf_files + tf_visual + tf_web + tf_other
-
-        runtime_pass = bool(runtime.get("passed", False))
-        pipe_pass = bool(pipeline.get("passed", False))
-        is_success = runtime_pass and pipe_pass
+        runtime = norm["runtime_data"]
+        pipeline = norm["data_pipeline_data"]
 
         runs_list.append({
-            "run_id": str(run.get("run_id") or run_dir.name),
-            "prompt_id": str(run.get("prompt_id") or run_dir.parent.name),
-            "series_id": str(run.get("series_id", "")),
-            "rules_version": _safe_int(run.get("rules_version"), 2),
-            "shot": str(run.get("shot", "primary")),
-            "parent_run_id": str(run.get("parent_run_id")) if run.get("parent_run_id") else None,
-            "model_id": str(pricing_meta.get("model_id") or model_meta.get("name", "")),
-            "model_name": str(model_meta.get("name", "")),
-            "provider": str(model_meta.get("provider", "")),
-            "reasoning_effort": str(model_meta.get("reasoning", "")),
-            "context_window": str(model_meta.get("context")) if model_meta.get("context") else None,
-            "harness_name": str(harness_meta.get("name", "")),
-            "harness_version": str(harness_meta.get("version", "")),
-            "wall_clock_started_at": str(started_str) if started_str else None,
-            "wall_clock_ended_at": str(ended_str) if ended_str else None,
-            "wall_clock_seconds": _safe_float(wall_sec) if wall_sec is not None else None,
-            "generating_seconds": _safe_float(model_time.get("generating_seconds")) if model_time.get("generating_seconds") is not None else None,
-            "model_time_source": str(model_time.get("source", "")),
-            "thinking_seconds": _safe_float(tool_events_meta.get("thinking_seconds")) if tool_events_meta.get("thinking_seconds") is not None else None,
-            "thought_blocks_count": _safe_int(tool_events_meta.get("thought_blocks")) if tool_events_meta.get("thought_blocks") is not None else None,
-            "tokens_reasoning": _safe_int(tokens_reasoning) if tokens_reasoning is not None else None,
-            "tokens_visible": _safe_int(tokens_visible) if tokens_visible is not None else None,
-            "tokens_total_output": _safe_int(tokens_total_out) if tokens_total_out is not None else None,
-            "tokens_split_rule": str(tokens.get("split_rule", "")),
-            "tokens_input": _safe_int(tokens_input) if tokens_input is not None else None,
-            "tokens_uncached_input": _safe_int(tokens_uncached) if tokens_uncached is not None else None,
-            "tokens_cache_read": _safe_int(tokens_cache_read) if tokens_cache_read is not None else None,
-            "tokens_cache_write": _safe_int(tokens_cache_write) if tokens_cache_write is not None else None,
-            "estimated_cost_usd": _safe_float(pricing_meta.get("estimated_cost_usd")),
-            "estimated_cost_with_harness_usd": _safe_float(pricing_meta.get("estimated_cost_with_harness_usd")),
-            "tool_calls_shell": _safe_int(tc_shell),
-            "tool_calls_files": _safe_int(tc_files),
-            "tool_calls_visual_checks": _safe_int(tc_visual),
-            "tool_calls_web": _safe_int(tc_web),
-            "tool_calls_other": _safe_int(tc_other),
-            "tool_calls_total": _safe_int(tc_total),
-            "tool_failures_shell": _safe_int(tf_shell),
-            "tool_failures_files": _safe_int(tf_files),
-            "tool_failures_visual_checks": _safe_int(tf_visual),
-            "tool_failures_web": _safe_int(tf_web),
-            "tool_failures_other": _safe_int(tf_other),
-            "tool_failures_total": _safe_int(tf_total),
-            "runtime_passed": runtime_pass,
+            "run_id": norm["run_id"],
+            "prompt_id": norm["prompt_id"],
+            "series_id": norm["series_id"],
+            "rules_version": norm["rules_version"],
+            "shot": norm["shot"],
+            "parent_run_id": norm["parent_run_id"],
+            "model_id": norm["model_id"],
+            "model_name": norm["model_name"],
+            "provider": norm["provider"],
+            "reasoning_effort": norm["reasoning_effort"],
+            "context_window": norm["context_window"],
+            "harness_name": norm["harness_name"],
+            "harness_version": norm["harness_version"],
+            "wall_clock_started_at": norm["wall_clock_started_at"],
+            "wall_clock_ended_at": norm["wall_clock_ended_at"],
+            "wall_clock_seconds": norm["wall_clock_seconds"],
+            "generating_seconds": norm["generating_seconds"],
+            "model_time_source": norm["model_time_source"],
+            "thinking_seconds": norm["thinking_seconds"],
+            "thought_blocks_count": norm["thought_blocks_count"],
+            "tokens_reasoning": norm["tokens_reasoning"],
+            "tokens_visible": norm["tokens_visible"],
+            "tokens_total_output": norm["tokens_total_output"],
+            "tokens_split_rule": norm["tokens_split_rule"],
+            "tokens_input": norm["tokens_input"],
+            "tokens_uncached_input": norm["tokens_uncached_input"],
+            "tokens_cache_read": norm["tokens_cache_read"],
+            "tokens_cache_write": norm["tokens_cache_write"],
+            "estimated_cost_usd": norm["estimated_cost_usd"],
+            "estimated_cost_with_harness_usd": norm["estimated_cost_with_harness_usd"],
+            "tool_calls_shell": norm["tool_calls_shell"],
+            "tool_calls_files": norm["tool_calls_files"],
+            "tool_calls_visual_checks": norm["tool_calls_visual_checks"],
+            "tool_calls_web": norm["tool_calls_web"],
+            "tool_calls_other": norm["tool_calls_other"],
+            "tool_calls_total": norm["tool_calls_total"],
+            "tool_failures_shell": norm["tool_failures_shell"],
+            "tool_failures_files": norm["tool_failures_files"],
+            "tool_failures_visual_checks": norm["tool_failures_visual_checks"],
+            "tool_failures_web": norm["tool_failures_web"],
+            "tool_failures_other": norm["tool_failures_other"],
+            "tool_failures_total": norm["tool_failures_total"],
+            "runtime_passed": norm["runtime_passed"],
             "runtime_http_status": _safe_int(runtime.get("http_status")) if runtime.get("http_status") is not None else None,
             "runtime_load_time_ms": _safe_float(runtime.get("load_time_ms")) if runtime.get("load_time_ms") is not None else None,
-            "data_pipeline_passed": pipe_pass,
+            "data_pipeline_passed": norm["data_pipeline_passed"],
             "data_pipeline_score": _safe_float(pipeline.get("score")),
             "data_pipeline_authenticity": str(pipeline.get("authenticity", "")),
             "data_pipeline_total_records": _safe_int(pipeline.get("total_records")),
-            "is_successful": is_success,
-            "observations": str(run.get("observations", "")),
+            "is_successful": norm["is_successful"],
+            "observations": norm["observations"],
         })
     return runs_list
 
 
 def _input_summary(tool_input: Any) -> str:
-    if tool_input is None:
-        return ""
-    if isinstance(tool_input, dict):
-        target = tool_input.get("command") or tool_input.get("path") or tool_input.get("file_path") or tool_input.get("url")
-        if target:
-            return str(target)[:250]
-    raw = _extract_traversal_target(tool_input)
-    if not raw and isinstance(tool_input, (dict, list)):
-        raw = json.dumps(tool_input)
-    return str(raw).strip()[:250]
+    return input_summary(tool_input)
 
 
 def extract_fact_tool_calls(run_dirs: list[Path]) -> list[dict[str, Any]]:
     calls_list: list[dict[str, Any]] = []
 
     for run_dir in run_dirs:
-        run_id = run_dir.name
-        # Check if run.json gives a different run_id
-        run_json = run_dir / "run.json"
-        if run_json.is_file():
-            try:
-                run_id = json.loads(run_json.read_text(encoding="utf-8")).get("run_id") or run_id
-            except (OSError, json.JSONDecodeError):
-                pass
-
-        records, _ = load_records(run_dir)
-        if not records:
-            continue
-
-        selected_events: list[dict[str, Any]] = []
-        for r in records:
-            hook = r.get("hook_event_name")
-            rtype = r.get("type") or r.get("event_msg")
-            if hook in {"postToolUse", "postToolUseFailure"}:
-                selected_events.append(r)
-            elif rtype == "tool_call" and r.get("subtype") == "completed":
-                # CLI tool call format
-                tc = r.get("tool_call") or {}
-                for k, v in tc.items():
-                    if k.endswith("ToolCall") and isinstance(v, dict):
-                        raw_name = k[:-8]
-                        name = raw_name[0].upper() + raw_name[1:] if raw_name else "Tool"
-                        call_rec = {
-                            "tool_use_id": r.get("call_id") or tc.get("toolCallId") or r.get("id"),
-                            "tool_name": name,
-                            "tool_input": v.get("args") or v.get("parameters") or v.get("arguments"),
-                            "logged_at": r.get("logged_at") or r.get("timestamp"),
-                            "duration": r.get("duration_ms") or r.get("duration") or v.get("duration"),
-                            "exit_code": (v.get("result") or {}).get("success", {}).get("exitCode") if isinstance(v.get("result"), dict) else None,
-                            "failed": is_failed(r),
-                        }
-                        selected_events.append(call_rec)
-            elif rtype in ("function_call_output", "tool_result", "local_shell_call_output"):
-                selected_events.append(r)
-
-        deduped = _dedupe_tools(selected_events)
-        # Sort chronologically
-        deduped.sort(key=lambda x: parse_time(x.get("logged_at") or x.get("timestamp")) or datetime.min.replace(tzinfo=timezone.utc))
-
-        for idx, rec in enumerate(deduped, start=1):
-            t_name = str(rec.get("tool_name") or rec.get("name") or "unknown").strip()
-            t_input = rec.get("tool_input")
-            eff_name = effective_tool_name(t_name, t_input)
-            bucket = bucket_for(t_name, t_input)
-            dur = _duration(rec.get("duration") or rec.get("duration_ms")) or 0.0
-
-            exit_code = rec.get("exit_code")
-            if exit_code is not None and not isinstance(exit_code, int):
-                exit_code = None
-
-            calls_list.append({
-                "run_id": str(run_id),
-                "call_index": idx,
-                "tool_use_id": str(rec.get("tool_use_id") or rec.get("call_id") or rec.get("id") or f"{run_id}_call_{idx}"),
-                "tool_name": t_name,
-                "effective_tool_name": eff_name,
-                "bucket": bucket,
-                "logged_at": str(rec.get("logged_at") or rec.get("timestamp") or ""),
-                "duration_ms": float(dur),
-                "exit_code": exit_code,
-                "is_failed": bool(is_failed(rec)),
-                "tool_input_summary": _input_summary(t_input),
-            })
+        calls = extract_normalized_tool_calls(run_dir)
+        calls_list.extend(calls)
 
     return calls_list
 
@@ -673,32 +513,9 @@ def extract_fact_thought_blocks(run_dirs: list[Path]) -> list[dict[str, Any]]:
     blocks_list: list[dict[str, Any]] = []
 
     for run_dir in run_dirs:
-        run_id = run_dir.name
-        run_json = run_dir / "run.json"
-        if run_json.is_file():
-            try:
-                run_id = json.loads(run_json.read_text(encoding="utf-8")).get("run_id") or run_id
-            except (OSError, json.JSONDecodeError):
-                pass
+        blocks = extract_thought_blocks(run_dir)
+        blocks_list.extend(blocks)
 
-        records, _ = load_records(run_dir)
-        if not records:
-            continue
-
-        thoughts = [r for r in records if r.get("hook_event_name") == "afterAgentThought"]
-        deduped = _dedupe_thoughts(thoughts)
-        deduped.sort(key=lambda x: parse_time(x.get("logged_at") or x.get("timestamp")) or datetime.min.replace(tzinfo=timezone.utc))
-
-        for idx, rec in enumerate(deduped, start=1):
-            dur_ms = _duration(rec.get("duration_ms") or rec.get("duration")) or 0.0
-            blocks_list.append({
-                "run_id": str(run_id),
-                "block_index": idx,
-                "generation_id": str(rec.get("generation_id") or f"{run_id}_thought_{idx}"),
-                "logged_at": str(rec.get("logged_at") or rec.get("timestamp") or ""),
-                "duration_ms": float(dur_ms),
-                "duration_seconds": round(dur_ms / 1000.0, 3),
-            })
     return blocks_list
 
 
@@ -706,148 +523,22 @@ def extract_fact_turns(run_dirs: list[Path]) -> list[dict[str, Any]]:
     turns_list: list[dict[str, Any]] = []
 
     for run_dir in run_dirs:
-        run_id = run_dir.name
-        run_json_path = run_dir / "run.json"
-        run_data: dict[str, Any] = {}
-        if run_json_path.is_file():
-            try:
-                run_data = json.loads(run_json_path.read_text(encoding="utf-8"))
-                run_id = run_data.get("run_id") or run_id
-            except (OSError, json.JSONDecodeError):
-                pass
-
-        wall = run_data.get("wall_clock") or {}
-        started_str = wall.get("started_at")
-        ended_str = wall.get("ended_at")
-
-        # 1. Check for usage CSV files in run_dir / "usage"
-        csv_turns: list[dict[str, Any]] = []
-        usage_dir = run_dir / "usage"
-        if usage_dir.is_dir():
-            for csv_file in sorted(usage_dir.glob("*.csv")):
-                try:
-                    with csv_file.open(newline="", encoding="utf-8-sig") as h:
-                        reader = csv.DictReader(h)
-                        for row in reader:
-                            d_str = row.get("Date") or row.get("timestamp") or row.get("date")
-                            if started_str and d_str and d_str < started_str:
-                                continue
-                            if ended_str and d_str and d_str > ended_str:
-                                continue
-                            c_read = _safe_int(row.get("Cache Read") or row.get("cache_read_tokens"))
-                            c_write = _safe_int(row.get("Input (w/ Cache Write)") or row.get("cache_write_tokens"))
-                            in_uncached = _safe_int(row.get("Input (w/o Cache Write)") or row.get("uncached_input_tokens"))
-                            out_tok = _safe_int(row.get("Output Tokens") or row.get("output_tokens"))
-                            cost_val = _safe_float(row.get("Cost") or row.get("cost_usd"))
-                            csv_turns.append({
-                                "timestamp": d_str or "",
-                                "model_slug": str(row.get("Model") or row.get("model") or ""),
-                                "input_tokens": in_uncached + c_read + c_write,
-                                "uncached_input_tokens": in_uncached,
-                                "cache_read_tokens": c_read,
-                                "cache_write_tokens": c_write,
-                                "output_tokens": out_tok,
-                                "reasoning_tokens": 0,
-                                "cost_usd": cost_val,
-                            })
-                except OSError:
-                    continue
-
-        if csv_turns:
-            # Sort turns chronologically
-            csv_turns.sort(key=lambda x: parse_time(x.get("timestamp")) or datetime.min.replace(tzinfo=timezone.utc))
-            cum_cache = 0
-            for idx, turn in enumerate(csv_turns, start=1):
-                cum_cache += turn["cache_read_tokens"]
-                turns_list.append({
-                    "run_id": str(run_id),
-                    "turn_index": idx,
-                    "timestamp": turn["timestamp"],
-                    "model_slug": turn["model_slug"],
-                    "input_tokens": turn["input_tokens"],
-                    "uncached_input_tokens": turn["uncached_input_tokens"],
-                    "cache_read_tokens": turn["cache_read_tokens"],
-                    "cache_write_tokens": turn["cache_write_tokens"],
-                    "output_tokens": turn["output_tokens"],
-                    "reasoning_tokens": turn["reasoning_tokens"],
-                    "cost_usd": turn["cost_usd"],
-                    "cumulative_cache_read_tokens": cum_cache,
-                })
-            continue
-
-        # 2. Check for tool-events / usage JSONL turns (e.g. stop event or message usage)
-        jsonl_turns: list[dict[str, Any]] = []
-        records, _ = load_records(run_dir)
-        for r in records:
-            u = r.get("usage")
-            if isinstance(u, dict):
-                cr = _safe_int(u.get("cache_read_tokens") or u.get("cacheReadTokens") or u.get("cache_read_input_tokens"))
-                cw = _safe_int(u.get("cache_write_tokens") or u.get("cacheWriteTokens") or u.get("cache_creation_input_tokens"))
-                inp = _safe_int(u.get("input_tokens") or u.get("inputTokens") or u.get("prompt_tokens"))
-                unc = _safe_int(u.get("uncached_input_tokens") or u.get("uncachedInputTokens")) or max(0, inp - cr - cw)
-                out = _safe_int(u.get("output_tokens") or u.get("outputTokens") or u.get("completion_tokens"))
-                reas = _safe_int(u.get("reasoning_tokens") or u.get("reasoningTokens") or u.get("thinking_tokens"))
-                t_stamp = str(r.get("logged_at") or r.get("timestamp") or "")
-                jsonl_turns.append({
-                    "timestamp": t_stamp,
-                    "model_slug": str(r.get("model") or (run_data.get("model") or {}).get("name") or ""),
-                    "input_tokens": unc + cr + cw,
-                    "uncached_input_tokens": unc,
-                    "cache_read_tokens": cr,
-                    "cache_write_tokens": cw,
-                    "output_tokens": out,
-                    "reasoning_tokens": reas,
-                    "cost_usd": 0.0,
-                })
-
-        if len(jsonl_turns) > 1:
-            jsonl_turns.sort(key=lambda x: parse_time(x.get("timestamp")) or datetime.min.replace(tzinfo=timezone.utc))
-            cum_cache = 0
-            for idx, turn in enumerate(jsonl_turns, start=1):
-                cum_cache += turn["cache_read_tokens"]
-                turns_list.append({
-                    "run_id": str(run_id),
-                    "turn_index": idx,
-                    "timestamp": turn["timestamp"],
-                    "model_slug": turn["model_slug"],
-                    "input_tokens": turn["input_tokens"],
-                    "uncached_input_tokens": turn["uncached_input_tokens"],
-                    "cache_read_tokens": turn["cache_read_tokens"],
-                    "cache_write_tokens": turn["cache_write_tokens"],
-                    "output_tokens": turn["output_tokens"],
-                    "reasoning_tokens": turn["reasoning_tokens"],
-                    "cost_usd": turn["cost_usd"],
-                    "cumulative_cache_read_tokens": cum_cache,
-                })
-            continue
-
-        # 3. Fallback: single summary turn from run.json
-        ctx_reread = run_data.get("context_reread") or {}
-        cr = _safe_int(ctx_reread.get("cache_read_tokens"))
-        cw = _safe_int(ctx_reread.get("cache_write_tokens"))
-        unc = _safe_int(ctx_reread.get("uncached_input_tokens"))
-        inp = unc + cr + cw
-
-        tokens_meta = run_data.get("tokens") or {}
-        reas = _safe_int(tokens_meta.get("reasoning_tokens"))
-        vis = _safe_int(tokens_meta.get("visible_tokens"))
-        out = reas + vis
-        cost = _safe_float(((tokens_meta.get("raw") or {}).get("pricing") or {}).get("estimated_cost_usd"))
-
-        turns_list.append({
-            "run_id": str(run_id),
-            "turn_index": 1,
-            "timestamp": str(ended_str or started_str or ""),
-            "model_slug": str((run_data.get("model") or {}).get("name") or ""),
-            "input_tokens": inp,
-            "uncached_input_tokens": unc,
-            "cache_read_tokens": cr,
-            "cache_write_tokens": cw,
-            "output_tokens": out,
-            "reasoning_tokens": reas,
-            "cost_usd": cost,
-            "cumulative_cache_read_tokens": cr,
-        })
+        raw_turns = extract_turn_curve(run_dir)
+        for t in raw_turns:
+            turns_list.append({
+                "run_id": t["run_id"],
+                "turn_index": t["turn_index"],
+                "timestamp": t["timestamp"],
+                "model_slug": t["model_slug"],
+                "input_tokens": t["input_tokens"],
+                "uncached_input_tokens": t["uncached_input_tokens"],
+                "cache_read_tokens": t["cache_read_tokens"],
+                "cache_write_tokens": t["cache_write_tokens"],
+                "output_tokens": t["output_tokens"],
+                "reasoning_tokens": t["reasoning_tokens"],
+                "cost_usd": t["cost_usd"],
+                "cumulative_cache_read_tokens": t["cumulative_cache_read_tokens"],
+            })
 
     return turns_list
 
