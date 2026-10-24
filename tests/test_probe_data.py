@@ -8,7 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from probe_data import load_probe_specs, probe_run, probe_workspace, scan_workspace
+from probe_data import count_records_in_file, load_probe_specs, probe_run, probe_workspace, scan_workspace
 from run_common import PROMPTS_DIR, load_json, run_schema_errors
 
 
@@ -539,6 +539,125 @@ class TestProbeData(unittest.TestCase):
             self.assertTrue(bldg_check["passed"])
             self.assertEqual(bldg_check["observed_records"], 5500)
             self.assertIn("public/data/buildings.bin", bldg_check["matched_files"])
+
+    def test_parquet_record_counting_and_marker_matching(self):
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            data_dir = workspace / "data"
+            data_dir.mkdir(parents=True)
+
+            parquet_path = data_dir / "buildings.parquet"
+            table = pa.Table.from_arrays(
+                [
+                    pa.array(range(1200)),
+                    pa.array([18.5] * 1200),
+                    pa.array(["1850-1914"] * 1200),
+                ],
+                names=["id", "hauteur", "periode"],
+            )
+            pq.write_table(table, parquet_path)
+
+            # Test count_records_in_file (reading metadata.num_rows)
+            records = count_records_in_file(parquet_path)
+            self.assertEqual(records, 1200)
+
+            # Test scan_workspace
+            scan_res = scan_workspace(workspace)
+            self.assertEqual(scan_res["total_data_files"], 1)
+            self.assertEqual(scan_res["total_records"], 1200)
+            df = scan_res["data_files"][0]
+            self.assertEqual(df["rel_path"], "data/buildings.parquet")
+            self.assertEqual(df["records"], 1200)
+            self.assertIn("hauteur", df["snippet"])
+            self.assertIn("periode", df["snippet"])
+            self.assertIn("id", df["snippet"])
+
+            # Test corrupt parquet file gracefully returns 0
+            corrupt_path = data_dir / "corrupt.parquet"
+            corrupt_path.write_bytes(b"not a parquet file")
+            self.assertEqual(count_records_in_file(corrupt_path), 0)
+
+    def test_duckdb_record_counting_and_marker_matching(self):
+        import duckdb
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            data_dir = workspace / "data"
+            data_dir.mkdir(parents=True)
+
+            duckdb_path = data_dir / "accidents.duckdb"
+            con = duckdb.connect(str(duckdb_path))
+            con.execute("CREATE TABLE usagers (Num_Acc BIGINT, grav INTEGER, catv INTEGER, catu INTEGER);")
+            con.execute(
+                "INSERT INTO usagers SELECT 202400000000 + i, 3, 1, 1 FROM range(3000) t(i);"
+            )
+            con.execute("CREATE TABLE caracteristiques (Num_Acc BIGINT, dep VARCHAR, lum INTEGER);")
+            con.execute(
+                "INSERT INTO caracteristiques SELECT 202400000000 + i, '75', 1 FROM range(2200) t(i);"
+            )
+            con.close()
+
+            # Test count_records_in_file: sum across user tables (3000 + 2200 = 5200)
+            records = count_records_in_file(duckdb_path)
+            self.assertEqual(records, 5200)
+
+            # Test scan_workspace
+            scan_res = scan_workspace(workspace)
+            self.assertEqual(scan_res["total_data_files"], 1)
+            self.assertEqual(scan_res["total_records"], 5200)
+            df = scan_res["data_files"][0]
+            self.assertEqual(df["rel_path"], "data/accidents.duckdb")
+            self.assertEqual(df["records"], 5200)
+            self.assertIn("usagers", df["snippet"])
+            self.assertIn("caracteristiques", df["snippet"])
+            self.assertIn("num_acc", df["snippet"].lower())
+            self.assertIn("grav", df["snippet"].lower())
+            self.assertIn("dep", df["snippet"].lower())
+
+            # Test corrupt duckdb file gracefully returns 0
+            corrupt_path = data_dir / "corrupt.duckdb"
+            corrupt_path.write_bytes(b"corrupted duckdb header")
+            self.assertEqual(count_records_in_file(corrupt_path), 0)
+
+    def test_genuine_open_data_with_parquet_and_duckdb_artifacts(self):
+        import duckdb
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            data_dir = workspace / "data"
+            data_dir.mkdir(parents=True)
+
+            # BAAC relational data in DuckDB
+            duckdb_path = data_dir / "baac.duckdb"
+            con = duckdb.connect(str(duckdb_path))
+            con.execute("CREATE TABLE caracteristiques_usagers_baac (Num_Acc BIGINT, grav INTEGER, dep VARCHAR);")
+            con.execute(
+                "INSERT INTO caracteristiques_usagers_baac SELECT 202400000000 + i, 3, '75' FROM range(5200) t(i);"
+            )
+            con.close()
+
+            # Departements in Parquet
+            parquet_path = data_dir / "departements.parquet"
+            table = pa.Table.from_arrays(
+                [
+                    pa.array([f"{i:02d}" for i in range(1, 96)]),
+                    pa.array([f"Dept {i}" for i in range(1, 96)]),
+                ],
+                names=["code_dep", "nom"],
+            )
+            pq.write_table(table, parquet_path)
+
+            scorecard = probe_workspace("france-road-accidents", workspace)
+            self.assertTrue(scorecard["passed"])
+            self.assertEqual(scorecard["authenticity"], "real_open_data")
+            self.assertEqual(scorecard["score"], 1.0)
+            self.assertEqual(scorecard["total_data_files"], 2)
+            self.assertEqual(scorecard["total_records"], 5200 + 95)
 
 
 if __name__ == "__main__":

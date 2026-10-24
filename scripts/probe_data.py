@@ -206,6 +206,37 @@ def count_records_in_file(path: Path) -> int:
             return total
         except Exception:
             return 0
+    elif ext == ".parquet":
+        try:
+            import pyarrow.parquet as pq
+
+            pf = pq.ParquetFile(path)
+            return pf.metadata.num_rows if pf.metadata else 0
+        except Exception:
+            return 0
+    elif ext == ".duckdb":
+        try:
+            import duckdb
+
+            con = duckdb.connect(str(path), read_only=True)
+            try:
+                tables = con.execute("""
+                    SELECT table_schema, table_name
+                    FROM information_schema.tables
+                    WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+                """).fetchall()
+                total = 0
+                for schema, tbl in tables:
+                    escaped_schema = str(schema).replace('"', '""')
+                    escaped_tbl = str(tbl).replace('"', '""')
+                    row = con.execute(f'SELECT COUNT(*) FROM "{escaped_schema}"."{escaped_tbl}"').fetchone()
+                    if row:
+                        total += row[0]
+                return total
+            finally:
+                con.close()
+        except Exception:
+            return 0
     elif ext == ".bin":
         try:
             with path.open("rb") as f:
@@ -259,6 +290,45 @@ def scan_workspace(workspace_dir: Path) -> dict[str, Any]:
             try:
                 if ext in (".json", ".geojson", ".jsonl", ".csv", ".tsv", ".txt"):
                     content_snippet = path.read_text(encoding="utf-8", errors="ignore")[:50000]
+                elif ext == ".parquet":
+                    try:
+                        import pyarrow.parquet as pq
+
+                        pf = pq.ParquetFile(path)
+                        names: list[str] = list(pf.schema.names) if hasattr(pf, "schema") and pf.schema else []
+                        if hasattr(pf, "schema_arrow") and pf.schema_arrow:
+                            for name in pf.schema_arrow.names:
+                                if name not in names:
+                                    names.append(name)
+                        content_snippet = " ".join(names)[:50000]
+                    except Exception:
+                        pass
+                elif ext == ".duckdb":
+                    try:
+                        import duckdb
+
+                        con = duckdb.connect(str(path), read_only=True)
+                        try:
+                            tokens: list[str] = []
+                            tables = con.execute("""
+                                SELECT table_name
+                                FROM information_schema.tables
+                                WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+                            """).fetchall()
+                            for (tbl,) in tables:
+                                tokens.append(str(tbl))
+                            cols = con.execute("""
+                                SELECT column_name
+                                FROM information_schema.columns
+                                WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+                            """).fetchall()
+                            for (col,) in cols:
+                                tokens.append(str(col))
+                            content_snippet = " ".join(tokens)[:50000]
+                        finally:
+                            con.close()
+                    except Exception:
+                        pass
                 if ext in (".json", ".geojson"):
                     with path.open("r", encoding="utf-8", errors="ignore") as f:
                         json_data = json.load(f)

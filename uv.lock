@@ -233,7 +233,7 @@ wheels = [
 
 [[package]]
 name = "llm-frontier-evaluator"
-version = "0.2.0"
+version = "2.15.0"
 source = { editable = "." }
 dependencies = [
     { name = "jsonschema" },
@@ -255,6 +255,12 @@ verify = [
 ]
 
 [package.dev-dependencies]
+analytics = [
+    { name = "duckdb", version = "1.5.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "duckdb", version = "2.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pyarrow", version = "25.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "pyarrow", version = "26.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
 dev = [
     { name = "pytest" },
     { name = "ruff" },
@@ -275,6 +281,10 @@ requires-dist = [
 provides-extras = ["dev", "verify", "analytics"]
 
 [package.metadata.requires-dev]
+analytics = [
+    { name = "duckdb", specifier = ">=1.5.6" },
+    { name = "pyarrow", specifier = ">=25.0.1" },
+]
 dev = [
     { name = "pytest", specifier = ">=8.0" },
     { name = "ruff", specifier = ">=0.4" },
