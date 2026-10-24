@@ -1,0 +1,13 @@
+model_name,total_runs,successful_runs,success_rate_pct,avg_probe_score,total_cost_usd,avg_cost_usd,cost_per_successful_run_usd,cost_per_score_point_usd,cost_with_harness_per_successful_run_usd
+Gemini 4 Argon,2,2,100.0,1.0,4.88,2.44,2.44,2.44,3.42
+Gemini 3.8 Flash,2,1,50.0,1.0,2.86,1.43,2.86,1.43,7.31
+Claude Opus 5.5 High,1,1,100.0,1.0,5.01,5.01,5.01,5.01,6.53
+Claude Opus 5.5,2,2,100.0,1.0,18.36,9.18,9.18,9.18,12.95
+Composer 2.5,1,0,0.0,1.0,0.21,0.21,,0.21,
+Claude Sonnet 5.5,1,0,0.0,1.0,,,,,
+GLM 5.3,1,0,0.0,1.0,1.68,1.68,,1.68,
+Claude Haiku 5.5,1,0,0.0,1.0,0.13,0.13,,0.13,
+Grok 4.7,1,0,0.0,1.0,,,,,
+Muse Wonder,2,1,50.0,0.5,2.07,1.04,2.07,2.07,2.69
+GPT-5.6 Luna,1,0,0.0,0.0,0.04,0.04,,,
+GPT-5.6 Sol,1,0,0.0,0.0,0.53,0.53,,,
