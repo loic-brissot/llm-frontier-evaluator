@@ -3,7 +3,8 @@
 ## Branching and commits
 
 - Do not commit or push directly to `main`.
-- Create a feature branch from `main` for every change (for example, `feat/...`, `fix/...`, `docs/...`, or `run/...`).
+- Create a dedicated feature branch from `main` for every task (for example, `feat/...`, `fix/...`, `docs/...`, or `run/...`).
+- Each task from the backlog should be handled in a dedicated branch and pull request, so that reviews, CI checks, and rollbacks remain isolated and traceable. Some exceptions may apply (for example, tightly coupled multi-task campaign runs, related documentation synchronization, or emergency hotfixes).
 - Open a pull request against `main` for review.
 
 ## Backlog
@@ -56,7 +57,7 @@ Describe the purpose and context of the change.
 ## Subagent PR review, merge, and release workflow
 
 When preparing and merging pull requests:
-1. Work on dedicated feature branches (`feat/...`, `fix/...`, `docs/...`, `run/...`). Never commit directly to `main`.
+1. Work on dedicated feature branches (`feat/...`, `fix/...`, `docs/...`, `run/...`), handling each task in its own dedicated branch and PR (exceptions may apply for tightly coupled task sets). Never commit directly to `main`.
 2. Open a pull request against `main` with the required 3-section description (`## Goal`, `## Main changes`, `## Test procedure`).
 3. Verify CI checks pass using `gh pr checks <num> --watch`.
 4. Review the pull request diff with `gh pr diff <num>`.
