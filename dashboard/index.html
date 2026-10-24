@@ -25068,19 +25068,19 @@
         <div class="chart-card full-width">
           <div class="card-header">
             <div>
-              <h3>Context Re-Read & Cache Efficiency Curve Across Turns</h3>
-              <p class="card-desc">Tracking cumulative cache read tokens and turn-by-turn cache hit rates</p>
+              <h3>Context Re-Read Inflation &amp; Turn/Step Cache Efficiency</h3>
+              <p class="card-desc">Comparing total context tokens re-read (cached vs. uncached) across turns and agentic tool steps — illustrating how 1-turn concise models avoid quadratic context re-read inflation</p>
             </div>
-            <div class="filter-group inline-select">
-              <label for="select-cache-run">Select Run:</label>
-              <select id="select-cache-run"></select>
+            <div class="toggle-group">
+              <button class="pill-btn active" id="btn-cache-mode-bars">By Run (Bars + Turn Badges)</button>
+              <button class="pill-btn" id="btn-cache-mode-scatter">Turns &amp; Steps vs. Re-Read</button>
             </div>
           </div>
           <div id="chart-cache-curve" class="svg-chart-container"></div>
           <div class="chart-legend">
-            <span class="legend-item"><span class="legend-box cache-read"></span> Cumulative Cache Read Tokens</span>
-            <span class="legend-item"><span class="legend-box uncached"></span> Uncached Input Tokens</span>
-            <span class="legend-item"><span class="legend-line hit-rate"></span> Cache Hit Rate (%)</span>
+            <span class="legend-item"><span class="legend-box cache-read"></span> Cached Context Read Tokens (1T vs Multi-Turn)</span>
+            <span class="legend-item"><span class="legend-box uncached"></span> Uncached Input Tokens (Cache Miss / Fresh Context)</span>
+            <span class="legend-item"><span class="legend-line hit-rate"></span> Cache Hit Rate (%) / Re-Read Efficiency</span>
           </div>
         </div>
       </div>
