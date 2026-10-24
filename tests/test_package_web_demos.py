@@ -26,6 +26,7 @@ from package_web_demos import (
     generate_showcase_index,
     is_excluded_path,
     main,
+    make_code_paths_relative,
     make_html_paths_relative,
     package_run_demo,
     record_demo_url,
@@ -88,11 +89,50 @@ class TestRelativePathRewriting:
         sub_html = bundle_dir / "sub" / "page.html"
         sub_html.parent.mkdir()
         sub_html.write_text('<link href="/style.css">', encoding="utf-8")
+        app_js = bundle_dir / "assets" / "app.js"
+        app_js.parent.mkdir(parents=True, exist_ok=True)
+        app_js.write_text('const d = fetch("/data/trees.json");', encoding="utf-8")
+        app_css = bundle_dir / "assets" / "app.css"
+        app_css.write_text('body { background: url(/assets/bg.png); }', encoding="utf-8")
 
         count = sanitize_bundle_html(bundle_dir)
-        assert count == 2
+        assert count == 4
         assert 'src="./assets/index.js"' in index_html.read_text(encoding="utf-8")
         assert 'href="./style.css"' in sub_html.read_text(encoding="utf-8")
+        assert 'fetch("./data/trees.json")' in app_js.read_text(encoding="utf-8")
+        assert 'url(./assets/bg.png)' in app_css.read_text(encoding="utf-8")
+
+    def test_rewrites_root_relative_code_paths(self) -> None:
+        code_js = (
+            'const a = await fetch("/data/trees.json");\n'
+            "const b = await fetch('/data/arrondissements.geojson');\n"
+            "const c = await fetch(`/data/${filename}`);\n"
+            'const w = new Worker("/assets/worker.js");\n'
+            "const v = new Worker('/assets/worker.js');\n"
+            "const u = new Worker(`/assets/${workerName}`);\n"
+            'const ext = "https://example.com/data/trees.json";\n'
+            'const proto = "//data.example.com/data/trees.json";\n'
+        )
+        converted = make_code_paths_relative(code_js)
+        assert 'fetch("./data/trees.json")' in converted
+        assert "fetch('./data/arrondissements.geojson')" in converted
+        assert "fetch(`./data/${filename}`)" in converted
+        assert 'new Worker("./assets/worker.js")' in converted
+        assert "new Worker('./assets/worker.js')" in converted
+        assert "new Worker(`./assets/${workerName}`)" in converted
+        assert 'https://example.com/data/trees.json' in converted
+        assert '//data.example.com/data/trees.json' in converted
+
+    def test_rewrites_root_relative_css_paths(self) -> None:
+        css = (
+            "body { background: url(/assets/bg.png); }\n"
+            'div { background: url("/assets/icon.svg"); }\n'
+            "span { background: url('/data/marker.svg'); }\n"
+        )
+        converted = make_code_paths_relative(css)
+        assert "url(./assets/bg.png)" in converted
+        assert 'url("./assets/icon.svg")' in converted
+        assert "url('./data/marker.svg')" in converted
 
 
 class TestExclusionRules:
@@ -104,6 +144,23 @@ class TestExclusionRules:
         assert is_excluded_path(Path(".cache/turbo/hash"))
         assert is_excluded_path(Path(".vite/deps/react.js"))
         assert is_excluded_path(Path("sub/dir/__pycache__/mod.pyc"))
+        assert is_excluded_path(Path(".venv/lib/python3.12/site-packages"))
+        assert is_excluded_path(Path("venv/bin/activate"))
+        assert is_excluded_path(Path(".env/secrets"))
+        assert is_excluded_path(Path("data_raw/gtfs.txt"))
+        assert is_excluded_path(Path("raw/dump.csv"))
+        assert is_excluded_path(Path("pipeline/clean.py"))
+        assert is_excluded_path(Path("scripts/run.sh"))
+        assert is_excluded_path(Path("server/app.py"))
+
+    def test_excludes_lock_files_and_archives(self) -> None:
+        assert is_excluded_path(Path("package-lock.json"))
+        assert is_excluded_path(Path("yarn.lock"))
+        assert is_excluded_path(Path("pnpm-lock.yaml"))
+        assert is_excluded_path(Path("data.zip"))
+        assert is_excluded_path(Path("backup.tar.gz"))
+        assert is_excluded_path(Path("archive.tar.bz2"))
+        assert is_excluded_path(Path("dataset.tar.xz"))
 
     def test_excludes_temp_and_cache_files(self) -> None:
         assert is_excluded_path(Path(".DS_Store"))
@@ -240,6 +297,50 @@ class TestExportStaticBundle:
         assert res["file_count"] == 2
         assert (dest / "data" / "records.json").is_file()
         assert load_json(dest / "data" / "records.json") == {"count": 42}
+
+    def test_skips_oversized_supplementary_data_when_other_data_present(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        dist = workspace / "dist"
+        dist.mkdir()
+        (dist / "index.html").write_text("<html></html>", encoding="utf-8")
+
+        data_dir = workspace / "data"
+        data_dir.mkdir()
+        (data_dir / "small.json").write_text('{"count": 1}', encoding="utf-8")
+
+        large_file = data_dir / "large.csv"
+        with open(large_file, "wb") as f:
+            f.seek(26 * 1024 * 1024 - 1)
+            f.write(b"\0")
+
+        dest = tmp_path / "output" / "p1" / "r1"
+        res = export_static_bundle(dist, dest, workspace_dir=workspace)
+
+        assert (dest / "data" / "small.json").is_file()
+        assert not (dest / "data" / "large.csv").exists()
+        assert res["file_count"] == 2
+
+    def test_keeps_oversized_supplementary_data_when_no_other_data_present(self, tmp_path: Path) -> None:
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        dist = workspace / "dist"
+        dist.mkdir()
+        (dist / "index.html").write_text("<html></html>", encoding="utf-8")
+
+        data_dir = workspace / "data"
+        data_dir.mkdir()
+
+        large_file = data_dir / "large.csv"
+        with open(large_file, "wb") as f:
+            f.seek(26 * 1024 * 1024 - 1)
+            f.write(b"\0")
+
+        dest = tmp_path / "output" / "p1" / "r1"
+        res = export_static_bundle(dist, dest, workspace_dir=workspace)
+
+        assert (dest / "data" / "large.csv").is_file()
+        assert res["file_count"] == 2
 
 
 class TestComputeDemoRelativeUrl:
@@ -489,3 +590,16 @@ class TestCliParserAndExecution:
     def test_main_handles_nonexistent_run(self) -> None:
         exit_code = main()
         assert exit_code == 1
+
+    def test_main_preserves_existing_demos_when_no_workspaces(self, tmp_path: Path) -> None:
+        output_dir = tmp_path / "dashboard" / "demos"
+        output_dir.mkdir(parents=True)
+        demos_json = output_dir / "demos.json"
+        demos_json.write_text(json.dumps({"demos": [{"prompt_id": "p1"}]}), encoding="utf-8")
+
+        with patch("package_web_demos.discover_run_dirs", return_value=[]), patch(
+            "sys.argv", ["package_web_demos.py", "--output-dir", str(output_dir)]
+        ):
+            exit_code = main()
+            assert exit_code == 0
+            assert json.loads(demos_json.read_text(encoding="utf-8")) == {"demos": [{"prompt_id": "p1"}]}
