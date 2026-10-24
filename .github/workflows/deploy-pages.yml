@@ -40,7 +40,11 @@ jobs:
 
       - name: Package web demos
         run: |
-          if [ -d "runs" ]; then
+          if find runs -maxdepth 3 -type d -name "workspace" 2>/dev/null | grep -q .; then
+            uv run python3 scripts/package_web_demos.py --output-dir dashboard/demos || true
+          elif [ -f "dashboard/demos/demos.json" ]; then
+            echo "Preserving existing pre-packaged demos in dashboard/demos/."
+          elif [ -d "runs" ]; then
             uv run python3 scripts/package_web_demos.py --output-dir dashboard/demos || true
           fi
 
