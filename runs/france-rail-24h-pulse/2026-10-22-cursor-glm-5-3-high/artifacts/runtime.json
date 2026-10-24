@@ -12,5 +12,6 @@
   "failed_requests": [],
   "dom": null,
   "screenshot_path": null,
-  "verified_at": "2026-10-22T15:21:09.567Z"
+  "verified_at": "2026-10-22T15:21:09.567Z",
+  "demo_url": "demos/france-rail-24h-pulse/2026-10-22-cursor-glm-5-3-high/index.html"
 }

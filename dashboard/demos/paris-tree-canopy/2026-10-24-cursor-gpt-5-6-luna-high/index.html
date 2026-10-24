@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arborium — Paris municipal tree canopy</title>
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="preconnect" href="https://{s}.basemaps.cartocdn.com" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <div>
+            <div class="brand-name">ARBORIUM</div>
+            <div class="brand-subtitle">PARIS · URBAN FOREST ATLAS</div>
+          </div>
+        </div>
+        <div class="topbar-context">
+          <div class="season-pill"><span class="season-dot"></span> SPRING / 2024 INVENTORY</div>
+          <div class="divider"></div>
+          <div class="source-note">OPEN DATA PARIS <span class="tiny-arrow">↗</span></div>
+          <button class="share-button" aria-label="Share atlas">↗ <span>Share</span></button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="filter-panel">
+          <div class="panel-kicker">LIVE EXPLORER</div>
+          <h1>Paris tree canopy</h1>
+          <p class="intro">Explore the living network of <em>106,000+</em> municipal trees across the capital.</p>
+
+          <div class="search-box">
+            <span class="search-icon">⌕</span>
+            <input id="tree-search" type="search" placeholder="Search a species or address" />
+            <span class="search-shortcut">⌘ K</span>
+          </div>
+
+          <section class="filter-section district-section">
+            <div class="section-label-row">
+              <label class="section-label">ARRONDISSEMENT</label>
+              <button id="clear-districts" class="text-button">Clear</button>
+            </div>
+            <div class="district-grid" id="district-grid">
+              <button class="district-chip active" data-district="all">All Paris</button>
+              <button class="district-chip" data-district="1">01</button>
+              <button class="district-chip" data-district="2">02</button>
+              <button class="district-chip" data-district="3">03</button>
+              <button class="district-chip" data-district="4">04</button>
+              <button class="district-chip" data-district="5">05</button>
+              <button class="district-chip" data-district="6">06</button>
+              <button class="district-chip" data-district="7">07</button>
+              <button class="district-chip" data-district="8">08</button>
+              <button class="district-chip" data-district="9">09</button>
+              <button class="district-chip" data-district="10">10</button>
+              <button class="district-chip" data-district="11">11</button>
+              <button class="district-chip" data-district="12">12</button>
+              <button class="district-chip" data-district="13">13</button>
+              <button class="district-chip" data-district="14">14</button>
+              <button class="district-chip" data-district="15">15</button>
+              <button class="district-chip" data-district="16">16</button>
+              <button class="district-chip" data-district="17">17</button>
+              <button class="district-chip" data-district="18">18</button>
+              <button class="district-chip" data-district="19">19</button>
+              <button class="district-chip" data-district="20">20</button>
+            </div>
+          </section>
+
+          <section class="filter-section">
+            <label class="section-label" for="genus-select">GENUS / SPECIES</label>
+            <div class="select-wrap">
+              <select id="genus-select">
+                <option value="all">All botanical families</option>
+                <option value="Platanus">Platanus · Plane tree</option>
+                <option value="Aesculus">Aesculus · Horse chestnut</option>
+                <option value="Tilia">Tilia · Linden</option>
+                <option value="Sophora">Sophora · Japanese pagoda</option>
+                <option value="Celtis">Celtis · Hackberry</option>
+                <option value="Quercus">Quercus · Oak</option>
+                <option value="Acer">Acer · Maple</option>
+                <option value="Gleditsia">Gleditsia · Honey locust</option>
+              </select>
+              <span>⌄</span>
+            </div>
+          </section>
+
+          <section class="filter-section range-section">
+            <div class="section-label-row">
+              <label class="section-label">HEIGHT <span class="unit">METRES</span></label>
+              <span class="range-value" id="height-value">2 — 32 m</span>
+            </div>
+            <div class="range-track">
+              <div class="range-fill" id="height-fill"></div>
+              <input type="range" id="height-min" min="2" max="32" value="2" aria-label="Minimum tree height" />
+              <input type="range" id="height-max" min="2" max="32" value="32" aria-label="Maximum tree height" />
+            </div>
+          </section>
+
+          <section class="filter-section range-section">
+            <div class="section-label-row">
+              <label class="section-label">CIRCUMFERENCE <span class="unit">CM</span></label>
+              <span class="range-value" id="circ-value">20 — 480 cm</span>
+            </div>
+            <div class="range-track">
+              <div class="range-fill" id="circ-fill"></div>
+              <input type="range" id="circ-min" min="20" max="480" value="20" aria-label="Minimum circumference" />
+              <input type="range" id="circ-max" min="20" max="480" value="480" aria-label="Maximum circumference" />
+            </div>
+          </section>
+
+          <div class="remarkable-toggle">
+            <div>
+              <div class="toggle-title"><span class="star-glyph">✦</span> Remarkable trees</div>
+              <div class="toggle-copy">Heritage trees &amp; living landmarks</div>
+            </div>
+            <label class="switch">
+              <input id="remarkable-only" type="checkbox" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+
+          <div class="filter-footnote"><span class="status-dot"></span> <span id="result-count">106,842</span> trees in the living inventory</div>
+        </aside>
+
+        <section class="map-stage">
+          <div id="map" aria-label="Interactive map of Paris municipal trees"></div>
+          <div class="map-topline">
+            <div class="map-title"><span class="live-pulse"></span> CANOPY LAYER <span class="slash">/</span> <span id="map-context">ALL PARIS</span></div>
+            <div class="map-actions">
+              <button class="map-action active" id="density-mode">◉ Density</button>
+              <button class="map-action" id="points-mode">· Individual trees</button>
+            </div>
+          </div>
+          <div class="map-legend">
+            <div class="legend-title">CANOPY DENSITY</div>
+            <div class="legend-scale"><span></span><span></span><span></span><span></span><span></span></div>
+            <div class="legend-labels"><span>LOW</span><span>HIGH</span></div>
+          </div>
+          <div class="map-note"><span class="map-note-icon">◎</span> Zoom in to inspect individual trees</div>
+          <div class="selected-tree-card" id="selected-card">
+            <button class="card-close" id="close-card" aria-label="Close tree details">×</button>
+            <div class="selected-card-top"><span class="remarkable-tag" id="selected-tag">✦ REMARKABLE</span><span id="selected-id">TREE · 00042</span></div>
+            <h3 id="selected-name">Le platane du square Henri IV</h3>
+            <div class="latin-name" id="selected-latin">Platanus × acerifolia</div>
+            <div class="selected-card-grid">
+              <div><span>HEIGHT</span><strong id="selected-height">31 m</strong></div>
+              <div><span>GIRTH</span><strong id="selected-circ">412 cm</strong></div>
+              <div><span>STAGE</span><strong id="selected-stage">Mature</strong></div>
+            </div>
+            <div class="selected-address"><span>⌖</span> <span id="selected-address-text">Square Henri IV · 4e arrondissement</span></div>
+            <button class="inspect-button" id="inspect-selected">Inspect tree record <span>↗</span></button>
+          </div>
+          <div class="map-scale">1 km <span class="scale-line"></span></div>
+        </section>
+
+        <aside class="insights-panel">
+          <div class="insights-header">
+            <div>
+              <div class="panel-kicker">FOREST SIGNALS</div>
+              <h2>At a glance</h2>
+            </div>
+            <button class="more-button">•••</button>
+          </div>
+          <div class="metric-grid">
+            <div class="metric-card metric-main">
+              <span class="metric-label">MUNICIPAL TREES</span>
+              <strong id="metric-total">106,842</strong>
+              <span class="metric-trend">↗ 2.4% since 2021</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">GENERA</span>
+              <strong id="metric-genera">137</strong>
+              <span class="metric-helper">across Paris</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">MEAN HEIGHT</span>
+              <strong id="metric-height">14.8<span>m</span></strong>
+              <span class="metric-helper">median 13.2 m</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">MEAN GIRTH</span>
+              <strong id="metric-girth">168<span>cm</span></strong>
+              <span class="metric-helper">median 142 cm</span>
+            </div>
+          </div>
+
+          <section class="insight-section diversity-section">
+            <div class="insight-title-row"><h3>Species composition</h3><button class="quiet-link">View all ↗</button></div>
+            <div class="species-chart">
+              <div class="donut" id="donut"><div class="donut-center"><strong>248</strong><span>species</span></div></div>
+              <div class="species-list" id="species-list">
+                <div class="species-row"><span class="species-key plane"></span><span>Plane trees</span><strong>18.4%</strong></div>
+                <div class="species-row"><span class="species-key lime"></span><span>Lindens</span><strong>11.7%</strong></div>
+                <div class="species-row"><span class="species-key chestnut"></span><span>Horse chestnuts</span><strong>9.3%</strong></div>
+                <div class="species-row"><span class="species-key maple"></span><span>Maples</span><strong>7.8%</strong></div>
+                <div class="species-row"><span class="species-key other"></span><span>Other species</span><strong>52.8%</strong></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="insight-section remarkable-section">
+            <div class="insight-title-row"><h3>Remarkable trees</h3><span class="count-pill">192</span></div>
+            <div class="remarkable-intro">Trees with a story worth keeping.</div>
+            <div class="remarkable-list" id="remarkable-list">
+              <button class="remarkable-item" data-tree="henri-iv">
+                <span class="remarkable-thumb thumb-plane">✦</span>
+                <span class="remarkable-copy"><strong>Plane tree of Henri IV</strong><small>Platanus × acerifolia · 4e</small></span>
+                <span class="item-arrow">↗</span>
+              </button>
+              <button class="remarkable-item" data-tree="bagatelle">
+                <span class="remarkable-thumb thumb-cedar">✦</span>
+                <span class="remarkable-copy"><strong>Oriental plane of Bagatelle</strong><small>Platanus orientalis · 16e</small></span>
+                <span class="item-arrow">↗</span>
+              </button>
+              <button class="remarkable-item" data-tree="rendezvous">
+                <span class="remarkable-thumb thumb-oak">✦</span>
+                <span class="remarkable-copy"><strong>Oak of the rendez-vous</strong><small>Quercus robur · 12e</small></span>
+                <span class="item-arrow">↗</span>
+              </button>
+            </div>
+            <button class="outline-button" id="show-remarkable">Explore all remarkable trees <span>→</span></button>
+          </section>
+
+          <section class="insight-section district-summary">
+            <div class="insight-title-row"><h3>District pulse</h3><button class="quiet-link" id="open-comparison">Compare ↗</button></div>
+            <div class="district-bars" id="district-bars">
+              <div class="district-bar-row"><span>12e</span><div class="mini-bar"><i style="width: 94%"></i></div><strong>9.4k</strong></div>
+              <div class="district-bar-row"><span>16e</span><div class="mini-bar"><i style="width: 86%"></i></div><strong>8.7k</strong></div>
+              <div class="district-bar-row"><span>15e</span><div class="mini-bar"><i style="width: 72%"></i></div><strong>7.2k</strong></div>
+              <div class="district-bar-row"><span>13e</span><div class="mini-bar"><i style="width: 62%"></i></div><strong>6.1k</strong></div>
+              <div class="district-bar-row"><span>20e</span><div class="mini-bar"><i style="width: 57%"></i></div><strong>5.7k</strong></div>
+            </div>
+          </section>
+        </aside>
+      </main>
+
+      <section class="comparison-drawer" id="comparison-drawer">
+        <div class="comparison-head">
+          <div><span class="panel-kicker">COMPARISON VIEW</span><h2>District canopy lens</h2></div>
+          <div class="comparison-controls"><span class="comparison-meta">Trees per district · 2024 inventory</span><button id="close-comparison" class="close-drawer">×</button></div>
+        </div>
+        <div class="comparison-grid">
+          <div class="comparison-card featured"><div class="comparison-card-head"><span>12e</span><span class="district-rank">01</span></div><strong>9,420</strong><span>municipal trees</span><div class="comparison-track"><i style="width:100%"></i></div><div class="comparison-foot"><span>41 species</span><span class="park-share">◉ 62% parks</span></div></div>
+          <div class="comparison-card"><div class="comparison-card-head"><span>16e</span><span class="district-rank">02</span></div><strong>8,710</strong><span>municipal trees</span><div class="comparison-track"><i style="width:92%"></i></div><div class="comparison-foot"><span>58 species</span><span>◉ 48% parks</span></div></div>
+          <div class="comparison-card"><div class="comparison-card-head"><span>15e</span><span class="district-rank">03</span></div><strong>7,205</strong><span>municipal trees</span><div class="comparison-track"><i style="width:76%"></i></div><div class="comparison-foot"><span>46 species</span><span>◉ 32% parks</span></div></div>
+          <div class="comparison-card"><div class="comparison-card-head"><span>13e</span><span class="district-rank">04</span></div><strong>6,180</strong><span>municipal trees</span><div class="comparison-track"><i style="width:66%"></i></div><div class="comparison-foot"><span>53 species</span><span>◉ 44% parks</span></div></div>
+          <div class="comparison-card"><div class="comparison-card-head"><span>20e</span><span class="district-rank">05</span></div><strong>5,740</strong><span>municipal trees</span><div class="comparison-track"><i style="width:61%"></i></div><div class="comparison-foot"><span>49 species</span><span>◉ 36% parks</span></div></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="toast" id="toast"><span>✓</span> View updated</div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -124,7 +124,8 @@
       "failed_requests": [],
       "dom": null,
       "screenshot_path": null,
-      "verified_at": "2026-10-22T16:22:31.484Z"
+      "verified_at": "2026-10-22T16:22:31.484Z",
+      "demo_url": "demos/france-rail-24h-pulse/2026-10-22-cursor-grok-4-7-high/index.html"
     },
     "data_pipeline": {
       "prompt_id": "france-rail-24h-pulse",

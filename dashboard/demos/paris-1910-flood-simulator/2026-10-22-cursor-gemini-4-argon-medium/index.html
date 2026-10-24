@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PARIS SOUS LES EAUX — Atlas 3D Interactif des Crues de la Seine (0 à +10 m)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script type="module" crossorigin src="./assets/index-CI-WtfMy.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-B9MC55zg.css">
+  </head>
+  <body>
+    <div id="app">
+      <!-- 3D WebGL Canvas Container -->
+      <div id="canvas-container" aria-label="Carte 3D interactive de Paris intra-muros"></div>
+
+      <!-- Floating 3D HTML Labels Overlay (Arrondissements & Flooded Stations) -->
+      <div id="labels-overlay"></div>
+
+      <!-- Loading Screen (Museum Exhibit Intro) -->
+      <div id="loading-overlay">
+        <div class="loading-card">
+          <div class="loading-kicker">ATLAS CARTOGRAPHIQUE &amp; HYDRAULIQUE 3D · PARIS INTRA-MUROS</div>
+          <h1 class="loading-title">La Seine en Crue</h1>
+          <p class="loading-subtitle">
+            Simulation centimètre par centimètre de la montée des eaux à l’échelle du Pont d’Austerlitz
+            (de 0,00 m à +10,00 m) sur les 127 426 bâtiments, 9 416 repères de nivellement et 260 gares &amp; stations de Paris.
+          </p>
+          <div class="loading-progress-wrap">
+            <div class="loading-progress-bar" id="loading-bar"></div>
+          </div>
+          <div class="loading-status" id="loading-status">Chargement des données topographiques et bâties Apur / Open Data Paris…</div>
+        </div>
+      </div>
+
+      <!-- TOP HEADER BAR: Title, Camera Bookmarks, Layer Toggles -->
+      <header class="hud-header">
+        <div class="brand-block">
+          <div class="brand-eyebrow">
+            <span class="pulse-dot"></span>
+            OBSERVATOIRE HYDRAULIQUE 3D · PARIS INTRA-MUROS (HORS BOIS)
+          </div>
+          <div class="brand-title-row">
+            <h1 class="brand-title">PARIS — CRUES DE LA SEINE</h1>
+            <span class="brand-badge" id="active-scenario-badge">CRUE CENTENNALE 1910 (+8,62 m)</span>
+          </div>
+        </div>
+
+        <!-- Camera Viewpoint Presets -->
+        <nav class="camera-presets" aria-label="Points de vue 3D">
+          <span class="nav-label">Vues 3D :</span>
+          <button class="preset-btn active" data-cam="overview">Paris Intra-Muros</button>
+          <button class="preset-btn" data-cam="austerlitz">Pont d’Austerlitz &amp; Bercy</button>
+          <button class="preset-btn" data-cam="javel">Javel &amp; Beaugrenelle (15e)</button>
+          <button class="preset-btn" data-cam="invalides">Invalides &amp; Orsay (7e)</button>
+          <button class="preset-btn" data-cam="cite">Île de la Cité &amp; Marais</button>
+          <button class="preset-btn" data-cam="stlazare">Bassin Saint-Lazare (8e/9e)</button>
+        </nav>
+
+        <!-- Layer & Relief Toggles -->
+        <div class="layer-controls">
+          <button class="toggle-btn" id="btn-toggle-ppri" title="Comparer avec le zonage réglementaire PPRI / PHEC (PLU bioclimatique)">
+            <span class="toggle-indicator ppri-ind"></span>
+            <span>Zonage PPRI / PHEC</span>
+          </button>
+          <button class="toggle-btn active" id="btn-toggle-streets" title="Afficher les rues inondées et repères de nivellement">
+            <span class="toggle-indicator streets-ind"></span>
+            <span>Rues &amp; Nivellement</span>
+          </button>
+          <button class="toggle-btn active" id="btn-toggle-stations" title="Afficher les stations de métro, RER et gares">
+            <span class="toggle-indicator stations-ind"></span>
+            <span>Métro &amp; RER</span>
+          </button>
+          <button class="toggle-btn active" id="btn-toggle-labels" title="Afficher les étiquettes des arrondissements et stations">
+            <span>Étiquettes</span>
+          </button>
+          <div class="relief-selector" title="Exagération verticale du relief topographique et du bâti">
+            <span class="relief-label">Relief</span>
+            <button class="relief-btn" data-relief="1">1×</button>
+            <button class="relief-btn active" data-relief="2.2">2,2×</button>
+            <button class="relief-btn" data-relief="3.5">3,5×</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- LEFT PANEL: Live Impact Counters & Arrondissement Breakdown -->
+      <aside class="hud-panel hud-left">
+        <!-- Primary Live Impact Counters -->
+        <div class="impact-grid">
+          <div class="metric-card metric-area">
+            <div class="metric-header">
+              <span class="metric-title">SURFACE URBAINE INONDÉE</span>
+              <span class="metric-unit">hectares</span>
+            </div>
+            <div class="metric-value-row">
+              <span class="metric-value" id="counter-area-ha">0,0</span>
+              <span class="metric-suffix">ha</span>
+            </div>
+            <div class="metric-sub" id="counter-area-pct">0,0 % de Paris intra-muros (8 672 ha)</div>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill area-fill" id="bar-area-pct" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div class="metric-card metric-buildings">
+            <div class="metric-header">
+              <span class="metric-title">BÂTIMENTS TOUCHÉS</span>
+              <span class="metric-unit">sur 127 426</span>
+            </div>
+            <div class="metric-value-row">
+              <span class="metric-value" id="counter-buildings">0</span>
+              <span class="metric-suffix">bât.</span>
+            </div>
+            <div class="metric-sub" id="counter-buildings-sub">0 submergés &gt; 1 m · 0 caves en alerte</div>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill bldg-fill" id="bar-buildings-pct" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div class="metric-card metric-stations">
+            <div class="metric-header">
+              <span class="metric-title">GARES &amp; STATIONS INONDÉES</span>
+              <span class="metric-unit">sur 260</span>
+            </div>
+            <div class="metric-value-row">
+              <span class="metric-value" id="counter-stations">0</span>
+              <span class="metric-suffix">stations</span>
+            </div>
+            <div class="metric-sub" id="counter-stations-sub">0 en vigilance batardeaux (&lt; 80 cm)</div>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill station-fill" id="bar-stations-pct" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div class="metric-card metric-streets">
+            <div class="metric-header">
+              <span class="metric-title">REPÈRES DE VOIRIE SUBMERGÉS</span>
+              <span class="metric-unit">sur 9 416</span>
+            </div>
+            <div class="metric-value-row">
+              <span class="metric-value" id="counter-benchmarks">0</span>
+              <span class="metric-suffix">repères</span>
+            </div>
+            <div class="metric-sub" id="counter-streets-sub">0 tronçons de rues sous les eaux</div>
+          </div>
+        </div>
+
+        <!-- Tabs in Left Panel: Arrondissements vs Stations vs PPRI Comparison -->
+        <div class="panel-tabs">
+          <button class="panel-tab active" data-tab="arrondissements">Par arrondissement (20)</button>
+          <button class="panel-tab" data-tab="stations">Stations &amp; RER</button>
+          <button class="panel-tab" data-tab="streets">Rues touchées</button>
+        </div>
+
+        <!-- Tab 1: Buildings Affected by Arrondissement (1er to 20e) -->
+        <div class="tab-content active" id="tab-arrondissements">
+          <div class="section-header-row">
+            <span>Arrondissement (cliquer pour cibler)</span>
+            <span id="arr-sort-label">Bâtiments inondés</span>
+          </div>
+          <div class="arr-list" id="arr-list"></div>
+        </div>
+
+        <!-- Tab 2: Metro / RER / Train Stations Status List -->
+        <div class="tab-content" id="tab-stations">
+          <div class="section-header-row">
+            <span>Station / Gare (cliquer pour cibler)</span>
+            <span>Seuil Austerlitz</span>
+          </div>
+          <div class="station-list" id="station-list"></div>
+        </div>
+
+        <!-- Tab 3: Flooded Streets & Nivellement Benchmarks -->
+        <div class="tab-content" id="tab-streets">
+          <div class="section-header-row">
+            <span>Voies publiques les plus submergées</span>
+            <span>Hauteur d’eau</span>
+          </div>
+          <div class="street-list" id="street-list"></div>
+        </div>
+      </aside>
+
+      <!-- RIGHT PANEL: Selected Feature Inspector, Legend & PPRI Overlay Comparison -->
+      <aside class="hud-panel hud-right">
+        <!-- Interactive 3D Inspector Card -->
+        <div class="inspector-card" id="inspector-card">
+          <div class="inspector-kicker" id="inspector-kicker">INSPECTEUR 3D · SURVOL OU CLIC SUR LA CARTE</div>
+          <h3 class="inspector-title" id="inspector-title">Échelle du Pont d’Austerlitz</h3>
+          <p class="inspector-desc" id="inspector-desc">
+            Survolez ou cliquez sur n’importe quel bâtiment, station de métro/RER, repère de nivellement ou arrondissement pour inspecter sa cote réelle (IGN69 / NVP) et sa hauteur de submersion.
+          </p>
+          <div class="inspector-stats" id="inspector-stats">
+            <div class="insp-stat">
+              <span class="insp-label">Cote zéro Austerlitz</span>
+              <span class="insp-val">26,25 m IGN69 (25,92 m NVP)</span>
+            </div>
+            <div class="insp-stat">
+              <span class="insp-label">Plan d’eau Austerlitz</span>
+              <span class="insp-val" id="insp-water-ign">34,87 m IGN69</span>
+            </div>
+            <div class="insp-stat">
+              <span class="insp-label">Pente hydraulique Seine</span>
+              <span class="insp-val">−2,67 m d’Est (Bercy) en Ouest (Javel)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- PPRI / PHEC Regulatory Overlay Card (highlighted when PPRI active or always visible for comparison) -->
+        <div class="ppri-card" id="ppri-card">
+          <div class="ppri-header">
+            <div>
+              <div class="ppri-kicker">PLU BIOCLIMATIQUE · SECTEURS DE RISQUE</div>
+              <h4 class="ppri-title">Zonage Réglementaire PPRI / PHEC</h4>
+            </div>
+            <label class="switch-pill">
+              <input type="checkbox" id="chk-ppri-overlay" />
+              <span class="slider-pill"></span>
+            </label>
+          </div>
+          <p class="ppri-text">
+            Le Plan de Prévention du Risque d’Inondation (PPRI) est fondé sur la crue centennale de référence de <strong>janvier 1910 (+8,62 m)</strong> (Cote des Plus Hautes Eaux Connues — PHEC).
+          </p>
+          <div class="ppri-legend">
+            <div class="legend-item">
+              <span class="swatch swatch-r"></span>
+              <div class="legend-txt">
+                <strong>Zone Rouge (R) — 213,1 ha</strong>
+                <span>Écoulement principal, quais bas et berges à fort courant</span>
+              </div>
+            </div>
+            <div class="legend-item">
+              <span class="swatch swatch-bs"></span>
+              <div class="legend-txt">
+                <strong>Zone Bleue Simple (BS) — 303,3 ha</strong>
+                <span>Aléa fort : submersion &gt; 1 m sous la PHEC 1910</span>
+              </div>
+            </div>
+            <div class="legend-item">
+              <span class="swatch swatch-bc"></span>
+              <div class="legend-txt">
+                <strong>Zone Bleue Centre Urbain (BC) — 359,4 ha</strong>
+                <span>Aléa modéré : submersion &lt; 1 m sous la PHEC 1910</span>
+              </div>
+            </div>
+            <div class="legend-item">
+              <span class="swatch swatch-bch"></span>
+              <div class="legend-txt">
+                <strong>Zones Hors d’Eau (BCH / BSH) — 496,2 ha</strong>
+                <span>Îlots/dalles au-dessus de la PHEC (Front de Seine, Bercy) entourés d’eau</span>
+              </div>
+            </div>
+          </div>
+          <div class="ppri-comparison-box" id="ppri-comparison-box">
+            <div class="comp-row">
+              <span>Surface PPRI submergée (R+BS+BC) :</span>
+              <strong>875,8 ha</strong>
+            </div>
+            <div class="comp-row">
+              <span>Enveloppe totale PPRI intra-muros :</span>
+              <strong>1 382,3 ha</strong>
+            </div>
+            <div class="comp-row highlight-row">
+              <span>Écart niveau actuel vs PHEC 1910 :</span>
+              <strong id="comp-diff-1910">0,00 m (Référence PHEC)</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3D Color Key Legend -->
+        <div class="legend-card">
+          <div class="legend-card-title">LÉGENDE DU BÂTI &amp; DES TRANSPORTS EN 3D</div>
+          <div class="legend-grid">
+            <div class="leg-row">
+              <span class="leg-dot bldg-deep"></span>
+              <span>Bâtiment inondé (&gt; 1,0 m d’eau au sol)</span>
+            </div>
+            <div class="leg-row">
+              <span class="leg-dot bldg-shallow"></span>
+              <span>Bâtiment inondé (0,01 à 1,0 m d’eau au sol)</span>
+            </div>
+            <div class="leg-row">
+              <span class="leg-dot bldg-cellar"></span>
+              <span>Sous-sol / cave en infiltration (&lt; 0,8 m sous sol)</span>
+            </div>
+            <div class="leg-row">
+              <span class="leg-dot bldg-dry"></span>
+              <span>Bâtiment hors d’eau (altitude MNT réelle)</span>
+            </div>
+            <div class="leg-row">
+              <span class="leg-dot st-flooded"></span>
+              <span>Station / Gare inondée (accès submergé)</span>
+            </div>
+            <div class="leg-row">
+              <span class="leg-dot st-alert"></span>
+              <span>Station en alerte batardeaux (&lt; 0,8 m)</span>
+            </div>
+            <div class="leg-row">
+              <span class="leg-dot st-safe"></span>
+              <span>Station / Gare en service normal</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- BOTTOM DOCK: Continuous Centimeter Water-Level Slider (0.00 m to +10.00 m) & Historical Flood Markers -->
+      <footer class="hud-bottom">
+        <div class="gauge-dock">
+          <!-- Left: Hydrometric Gauge Readout (Pont d'Austerlitz) -->
+          <div class="gauge-readout-block">
+            <div class="gauge-label-top">ÉCHELLE HYDROMÉTRIQUE · PONT D’AUSTERLITZ</div>
+            <div class="gauge-main-row">
+              <button class="step-btn" id="btn-step-down" title="Abaisser d'un centimètre (-1 cm)">−1 cm</button>
+              <div class="gauge-number" id="gauge-value-display">+8,62 m</div>
+              <button class="step-btn" id="btn-step-up" title="Monter d'un centimètre (+1 cm)">+1 cm</button>
+            </div>
+            <div class="gauge-sub-row">
+              <span id="gauge-cm-display">862 cm</span>
+              <span class="sep">·</span>
+              <span id="gauge-ign-display">34,87 m IGN69</span>
+              <span class="sep">·</span>
+              <span id="gauge-nvp-display">34,54 m NVP</span>
+            </div>
+          </div>
+
+          <!-- Center: Continuous Slider (0.00 m to +10.00 m, step 0.01 m) + Historical Flood Markers -->
+          <div class="slider-center-block">
+            <div class="slider-top-bar">
+              <span class="slider-instruction">
+                Faites glisser le curseur au centimètre près (0,00 m à +10,00 m) ou cliquez sur une crue historique :
+              </span>
+              <div class="playback-controls">
+                <button class="play-btn" id="btn-play-flood" title="Animer la montée centimètre par centimètre">
+                  <span id="play-icon">▶</span>
+                  <span id="play-label">Simuler la crue</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Slider Track + Ruler Ticks + Historical Markers -->
+            <div class="slider-track-container">
+              <div class="slider-fill-bar" id="slider-fill-bar" style="width: 86.2%"></div>
+              <input
+                type="range"
+                id="water-slider"
+                min="0"
+                max="10"
+                step="0.01"
+                value="8.62"
+                aria-label="Niveau de la Seine au Pont d'Austerlitz en mètres"
+              />
+
+              <!-- Meter Ruler Graduations -->
+              <div class="ruler-ticks">
+                <span class="tick" style="left: 0%">0 m</span>
+                <span class="tick" style="left: 10%">+1 m</span>
+                <span class="tick" style="left: 20%">+2 m</span>
+                <span class="tick" style="left: 30%">+3 m</span>
+                <span class="tick" style="left: 40%">+4 m</span>
+                <span class="tick" style="left: 50%">+5 m</span>
+                <span class="tick" style="left: 60%">+6 m</span>
+                <span class="tick" style="left: 70%">+7 m</span>
+                <span class="tick" style="left: 80%">+8 m</span>
+                <span class="tick" style="left: 90%">+9 m</span>
+                <span class="tick" style="left: 100%">+10 m</span>
+              </div>
+
+              <!-- Historical Flood Markers on Track -->
+              <div class="historical-markers">
+                <button
+                  class="hist-marker"
+                  style="left: 0%"
+                  data-level="0.00"
+                  title="Retenue normale de la Seine (0,00 m Austerlitz / 26,25 m IGN69)"
+                >
+                  <span class="marker-pin normal-pin"></span>
+                  <span class="marker-year">Normal</span>
+                  <span class="marker-lvl">0,00 m</span>
+                </button>
+
+                <button
+                  class="hist-marker"
+                  style="left: 58.4%"
+                  data-level="5.84"
+                  title="Crue de janvier 2018 : +5,84 m au Pont d'Austerlitz"
+                >
+                  <span class="marker-pin"></span>
+                  <span class="marker-year">2018</span>
+                  <span class="marker-lvl">+5,84 m</span>
+                </button>
+
+                <button
+                  class="hist-marker"
+                  style="left: 61.0%"
+                  data-level="6.10"
+                  title="Crue de juin 2016 : +6,10 m au Pont d'Austerlitz"
+                >
+                  <span class="marker-pin"></span>
+                  <span class="marker-year">2016</span>
+                  <span class="marker-lvl">+6,10 m</span>
+                </button>
+
+                <button
+                  class="hist-marker"
+                  style="left: 71.2%"
+                  data-level="7.12"
+                  title="Crue de janvier 1955 : +7,12 m au Pont d'Austerlitz"
+                >
+                  <span class="marker-pin"></span>
+                  <span class="marker-year">1955</span>
+                  <span class="marker-lvl">+7,12 m</span>
+                </button>
+
+                <button
+                  class="hist-marker active-hist"
+                  style="left: 86.2%"
+                  data-level="8.62"
+                  title="Crue centennale historique de janvier 1910 (PHEC) : +8,62 m au Pont d'Austerlitz"
+                >
+                  <span class="marker-pin centennial-pin"></span>
+                  <span class="marker-year">1910 · PHEC</span>
+                  <span class="marker-lvl">+8,62 m</span>
+                </button>
+
+                <button
+                  class="hist-marker"
+                  style="left: 100%"
+                  data-level="10.00"
+                  title="Crue extrême (+10,00 m au Pont d'Austerlitz)"
+                >
+                  <span class="marker-pin extreme-pin"></span>
+                  <span class="marker-year">Extrême</span>
+                  <span class="marker-lvl">+10,00 m</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+  </body>
+</html>

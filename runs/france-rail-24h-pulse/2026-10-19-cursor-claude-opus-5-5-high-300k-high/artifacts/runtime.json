@@ -16,5 +16,6 @@
     "text_length": 1008
   },
   "screenshot_path": "artifacts/screenshot.png",
-  "verified_at": "2026-10-21T15:13:28.516Z"
+  "verified_at": "2026-10-21T15:13:28.516Z",
+  "demo_url": "demos/france-rail-24h-pulse/2026-10-19-cursor-claude-opus-5-5-high-300k-high/index.html"
 }

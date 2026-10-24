@@ -18,5 +18,6 @@
     "text_length": 0
   },
   "screenshot_path": "artifacts/screenshot.png",
-  "verified_at": "2026-10-22T13:29:53.583Z"
+  "verified_at": "2026-10-22T13:29:53.583Z",
+  "demo_url": "demos/france-rail-24h-pulse/2026-10-22-cursor-gpt-5-6-sol-medium/index.html"
 }

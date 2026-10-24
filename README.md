@@ -29,7 +29,7 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Gemini 4 Argon 1m medium | Cursor | 73k | 17.7 min<br>14.6 min thinking | 21 ✓<br>7 ✗ | 1.0M | $2.55 | UI ✓<br>Data 4/4 ✓<br>3.5k records |
+| Gemini 4 Argon 1m medium | Cursor | 73k | 17.7 min<br>14.6 min thinking | 21 ✓<br>7 ✗ | 1.0M | $2.55 | UI ✓<br>Data 4/4 ✓<br>3.5k records<br>[Live Demo](demos/france-electricity-carbon-flow/2026-10-19-cursor-gemini-4-argon-1m-medium/index.html) |
 
 ### `france-rail-24h-pulse`
 
@@ -39,12 +39,12 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Claude Opus 5.5 300k high | Cursor | 90k | 20.1 min<br>7.7 min thinking | 40 ✓<br>10 ✗ | 5.5M | $6.53 | UI ✓<br>Data 3/3 ✓<br>820k records |
-| Gemini 3.8 Flash high | Cursor | 118k | 18.1 min<br>5.8 min thinking | 122 ✓<br>8 ✗ | 11.0M | $4.75 | UI ✓<br>Data 3/3 ✓<br>828k records |
-| GLM 5.3 high | Cursor | 59k | 10.4 min<br>3.9 min thinking | 78 ✓<br>5 ✗ | 5.0M | $2.95 | UI ✗<br>Data 3/3 ✓<br>827k records |
-| GPT-5.6 Sol medium | Cursor | 15k | 2.8 min<br>0.2 min thinking | 13 ✓<br>0 ✗ | 0.2M | $0.60 | UI ✗<br>Data 0/3 ⚠<br>118 records |
-| Grok 4.7 high | Cursor | n/a | 60.1 min<br>49.8 min thinking | 138 ✓<br>4 ✗ | n/a | n/a | UI ✗<br>Data 3/3 ✓<br>888k records |
-| Muse Wonder medium | Cursor | 25k | 3.4 min | 18 ✓<br>1 ✗ | 0.6M | $0.93 | UI ✓<br>Data 0/3 ⚠<br>0 records |
+| Claude Opus 5.5 300k high | Cursor | 90k | 20.1 min<br>7.7 min thinking | 40 ✓<br>10 ✗ | 5.5M | $6.53 | UI ✓<br>Data 3/3 ✓<br>820k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-19-cursor-claude-opus-5-5-high-300k-high/index.html) |
+| Gemini 3.8 Flash high | Cursor | 118k | 18.1 min<br>5.8 min thinking | 122 ✓<br>8 ✗ | 11.0M | $4.75 | UI ✓<br>Data 3/3 ✓<br>828k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high/index.html) |
+| GLM 5.3 high | Cursor | 59k | 10.4 min<br>3.9 min thinking | 78 ✓<br>5 ✗ | 5.0M | $2.95 | UI ✗<br>Data 3/3 ✓<br>827k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-glm-5-3-high/index.html) |
+| GPT-5.6 Sol medium | Cursor | 15k | 2.8 min<br>0.2 min thinking | 13 ✓<br>0 ✗ | 0.2M | $0.60 | UI ✗<br>Data 0/3 ⚠<br>118 records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-gpt-5-6-sol-medium/index.html) |
+| Grok 4.7 high | Cursor | n/a | 60.1 min<br>49.8 min thinking | 138 ✓<br>4 ✗ | n/a | n/a | UI ✗<br>Data 3/3 ✓<br>888k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-grok-4-7-high/index.html) |
+| Muse Wonder medium | Cursor | 25k | 3.4 min | 18 ✓<br>1 ✗ | 0.6M | $0.93 | UI ✓<br>Data 0/3 ⚠<br>0 records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-muse-wonder-medium/index.html) |
 
 *Note: Token and cost columns show `n/a` for headless CLI runs until a Cursor billing CSV export is ingested (`finish_run.py --usage-export`).*
 
@@ -56,7 +56,7 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Muse Wonder 300k medium | Cursor | 25k | 4.8 min | 34 ✓<br>7 ✗ | 1.7M | $1.76 | UI ✓<br>Data 2/2 ✓<br>394k records |
+| Muse Wonder 300k medium | Cursor | 25k | 4.8 min | 34 ✓<br>7 ✗ | 1.7M | $1.76 | UI ✓<br>Data 2/2 ✓<br>394k records<br>[Live Demo](demos/france-road-accidents/2026-10-19-cursor-muse-wonder-300k-medium/index.html) |
 
 ### `paris-1910-flood-simulator`
 
@@ -66,9 +66,9 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Claude Opus 5.5 high | Cursor | 228k | 42.2 min<br>19.6 min thinking | 134 ✓<br>11 ✗ | 12.9M | $12.08 | UI ✓<br>Data 6/6 ✓<br>351k records |
-| Claude Opus 5.5 medium | Cursor | 198k | 39.2 min<br>15.4 min thinking | 171 ✓<br>2 ✗ | 16.0M | $13.81 | UI ✓<br>Data 6/6 ✓<br>142k records |
-| Gemini 4 Argon medium | Cursor | 133k | 32.4 min<br>17.4 min thinking | 91 ✓<br>10 ✗ | 6.0M | $4.29 | UI ✓<br>Data 6/6 ✓<br>9.5k records |
+| Claude Opus 5.5 high | Cursor | 228k | 42.2 min<br>19.6 min thinking | 134 ✓<br>11 ✗ | 12.9M | $12.08 | UI ✓<br>Data 6/6 ✓<br>351k records<br>[Live Demo](demos/paris-1910-flood-simulator/2026-10-20-cursor-claude-opus-5-5-high/index.html) |
+| Claude Opus 5.5 medium | Cursor | 198k | 39.2 min<br>15.4 min thinking | 171 ✓<br>2 ✗ | 16.0M | $13.81 | UI ✓<br>Data 6/6 ✓<br>142k records<br>[Live Demo](demos/paris-1910-flood-simulator/2026-10-21-cursor-claude-opus-5-5-medium/index.html) |
+| Gemini 4 Argon medium | Cursor | 133k | 32.4 min<br>17.4 min thinking | 91 ✓<br>10 ✗ | 6.0M | $4.29 | UI ✓<br>Data 6/6 ✓<br>9.5k records<br>[Live Demo](demos/paris-1910-flood-simulator/2026-10-22-cursor-gemini-4-argon-medium/index.html) |
 
 ### `paris-tree-canopy`
 
