@@ -3,9 +3,10 @@ id: TASK-58
 title: >-
   Make build_dashboard.py output deterministic, auto-sync dashboard in
   finish_run.py, and add CI dashboard sync check
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-23 19:43'
+updated_date: '2026-10-24 00:33'
 labels: []
 milestone: m-9
 dependencies: []
@@ -24,7 +25,7 @@ compile_dashboard_payload() in scripts/build_dashboard.py defaults generated_at 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 build_dashboard.py derives generated_at deterministically from repository run records (or preserves existing generated_at when compiled content is unchanged) so repeated builds on unchanged runs produce zero git diff
-- [ ] #2 finish_run.py automatically rebuilds dashboard/data.json and dashboard/index.html (unless --no-update-dashboard is passed) whenever a run finishes or --backfill-usage updates records
-- [ ] #3 .github/workflows/ci.yml runs uv run python3 scripts/build_dashboard.py --check and delegates prompt hash validation to compare_runs.py
+- [x] #1 build_dashboard.py derives generated_at deterministically from repository run records (or preserves existing generated_at when compiled content is unchanged) so repeated builds on unchanged runs produce zero git diff
+- [x] #2 finish_run.py automatically rebuilds dashboard/data.json and dashboard/index.html (unless --no-update-dashboard is passed) whenever a run finishes or --backfill-usage updates records
+- [x] #3 .github/workflows/ci.yml runs uv run python3 scripts/build_dashboard.py --check and delegates prompt hash validation to compare_runs.py
 <!-- AC:END -->

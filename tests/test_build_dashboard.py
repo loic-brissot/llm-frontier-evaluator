@@ -393,3 +393,60 @@ class TestDashboardVisualStability:
 
         assert "g.style.transformBox = 'fill-box';" in js
         assert "g.style.transformOrigin = 'center';" in js
+
+
+class TestDeterministicDashboardBuild:
+    """Test deterministic output and timestamp preservation for repeated builds."""
+
+    def test_build_repeatedly_produces_identical_content(self, tmp_path: Path) -> None:
+        out_dir = tmp_path / "dashboard_det"
+        ret1 = build_dashboard(runs_dir=RUNS_DIR, output_dir=out_dir)
+        assert ret1 == 0
+        data1 = (out_dir / "data.json").read_text(encoding="utf-8")
+        html1 = (out_dir / "index.html").read_text(encoding="utf-8")
+
+        # Second build without changes
+        ret2 = build_dashboard(runs_dir=RUNS_DIR, output_dir=out_dir)
+        assert ret2 == 0
+        data2 = (out_dir / "data.json").read_text(encoding="utf-8")
+        html2 = (out_dir / "index.html").read_text(encoding="utf-8")
+
+        assert data1 == data2
+        assert html1 == html2
+
+    def test_compile_payload_derives_max_ended_at_deterministically(self, tmp_path: Path) -> None:
+        runs_dir = tmp_path / "runs"
+        run_a = runs_dir / "prompt-1" / "run-a"
+        run_b = runs_dir / "prompt-1" / "run-b"
+        run_a.mkdir(parents=True)
+        run_b.mkdir(parents=True)
+
+        (run_a / "run.json").write_text(
+            json.dumps({
+                "rules_version": 2,
+                "run_id": "run-a",
+                "prompt_id": "prompt-1",
+                "series_id": "series-1",
+                "shot": "primary",
+                "model": {"name": "M1"},
+                "harness": {"name": "cursor"},
+                "wall_clock": {"started_at": "2026-10-20T10:00:00Z", "ended_at": "2026-10-20T10:30:00Z"},
+            }),
+            encoding="utf-8",
+        )
+        (run_b / "run.json").write_text(
+            json.dumps({
+                "rules_version": 2,
+                "run_id": "run-b",
+                "prompt_id": "prompt-1",
+                "series_id": "series-1",
+                "shot": "primary",
+                "model": {"name": "M2"},
+                "harness": {"name": "cursor"},
+                "wall_clock": {"started_at": "2026-10-21T10:00:00Z", "ended_at": "2026-10-21T10:45:00Z"},
+            }),
+            encoding="utf-8",
+        )
+
+        payload = compile_dashboard_payload(runs_dir=runs_dir)
+        assert payload["generated_at"] == "2026-10-21T10:45:00Z"

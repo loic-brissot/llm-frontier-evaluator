@@ -845,9 +845,44 @@ class TestFinishRun(unittest.TestCase):
 
     def test_build_parser_backfill_args(self):
         parser = build_parser()
-        args = parser.parse_args(["--backfill-usage", "export.csv", "--no-update-readme"])
+        args = parser.parse_args(["--backfill-usage", "export.csv", "--no-update-readme", "--no-update-dashboard"])
         self.assertEqual(args.backfill_usage, Path("export.csv"))
         self.assertTrue(args.no_update_readme)
+        self.assertTrue(args.no_update_dashboard)
+
+    @patch("build_dashboard.build_dashboard")
+    @patch("finish_run.sync_readme")
+    def test_backfill_usage_calls_build_dashboard(self, mock_sync_readme, mock_build_dashboard):
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            runs_root = Path(tmp_dir_str) / "runs"
+            run_dir = runs_root / "prompt-a" / "2026-10-21-cursor-claude-sonnet-5-5-high"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(
+                '{"rules_version": 2, "run_id": "2026-10-21-cursor-claude-sonnet-5-5-high", "prompt_id": "prompt-a", "series_id": "s1", '
+                '"harness": {"name": "cursor"}, "model": {"name": "claude-sonnet-5-5", "family": "sonnet"}, '
+                '"tokens": {"split_rule": "unavailable", "reasoning_tokens": null, "visible_tokens": null, "raw": {}}, '
+                '"model_time": {"source": "unavailable", "generating_seconds": null, "raw": {}}, '
+                '"context_reread": {"source": "unavailable", "cache_read_tokens": null, "raw": {}}, '
+                '"tool_calls": {"shell": {"calls": 0, "failures": 0}, "files": {"calls": 0, "failures": 0}, '
+                '"visual_checks": {"calls": 0, "failures": 0}, "web": {"calls": 0, "failures": 0}, "other": {"calls": 0, "failures": 0}}, '
+                '"outcome": {"model_stopped": true, "operator_saw_a_page": true, "summary": "test"}, '
+                '"wall_clock": {"started_at": "2026-10-21T10:00:00Z", "ended_at": "2026-10-21T10:10:00Z"}, "observations": ""}',
+                encoding="utf-8",
+            )
+            csv_path = Path(tmp_dir_str) / "batch-export.csv"
+            csv_path.write_text(
+                'Date,User,Kind,Model,Max Mode,Input (w/ Cache Write),Input (w/o Cache Write),Cache Read,Output Tokens,Total Tokens,Cost\n'
+                '"2026-10-21T10:03:00Z","user@ogury.co","Included","claude-sonnet-5-5","No","100","200","300","400","1000","0.50"\n',
+                encoding="utf-8",
+            )
+            # update_dashboard=True by default
+            backfill_usage_export(csv_path, runs_root=runs_root, update_readme=False)
+            mock_build_dashboard.assert_called_once()
+
+            # update_dashboard=False opt-out
+            mock_build_dashboard.reset_mock()
+            backfill_usage_export(csv_path, runs_root=runs_root, update_readme=False, update_dashboard=False)
+            mock_build_dashboard.assert_not_called()
 
 
     def test_suggest_metrics_camel_case_cursor_agent(self):
