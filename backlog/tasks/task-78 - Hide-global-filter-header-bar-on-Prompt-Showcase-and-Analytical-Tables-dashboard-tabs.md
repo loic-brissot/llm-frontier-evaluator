@@ -3,7 +3,7 @@ id: TASK-78
 title: >-
   Hide global filter header bar on Prompt Showcase and Analytical Tables
   dashboard tabs
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-24 11:35'
 labels: []
@@ -22,7 +22,7 @@ The global filter header bar (.controls-bar with Prompt Series, Verification Sta
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Update switchTab() and initial state restoration in dashboard/app.js (and dashboard/index.html if needed) to automatically hide .controls-bar when activeTab is 'showcase' or 'warehouse' and display it when activeTab is 'pareto', 'analytics', or 'gallery'
-- [ ] #2 Verify deep linking (?tab=showcase and ?tab=warehouse) and browser history navigation (popstate) preserve correct filter bar visibility
-- [ ] #3 Add automated test coverage verifying filter header bar visibility toggling across tabs
+- [x] #1 Update switchTab() and initial state restoration in dashboard/app.js (and dashboard/index.html if needed) to automatically hide .controls-bar when activeTab is 'showcase' or 'warehouse' and display it when activeTab is 'pareto', 'analytics', or 'gallery'
+- [x] #2 Verify deep linking (?tab=showcase and ?tab=warehouse) and browser history navigation (popstate) preserve correct filter bar visibility
+- [x] #3 Add automated test coverage verifying filter header bar visibility toggling across tabs
 <!-- AC:END -->
