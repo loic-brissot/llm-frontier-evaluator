@@ -23,6 +23,7 @@
   };
 
   let toolsChartMode = 'count'; // 'count' or 'pct'
+  let cacheChartMode = 'bars'; // 'bars' or 'scatter'
   let selectedCacheRunId = null;
   let currentModalRunId = null;
   let showcasePromptId = null;
@@ -191,6 +192,16 @@
     }
   }
 
+  function updateControlsBarVisibility(tabName) {
+    const controlsBar = document.getElementById('global-controls-bar') || document.querySelector('.controls-bar');
+    if (!controlsBar) return;
+    if (tabName === 'showcase' || tabName === 'warehouse') {
+      controlsBar.style.display = 'none';
+    } else {
+      controlsBar.style.display = '';
+    }
+  }
+
   function switchTab(tabName, updateHistory = true) {
     const tabBtn = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
     const tabContent = document.getElementById(`tab-${tabName}`);
@@ -202,6 +213,9 @@
     tabBtn.classList.add('active');
     tabContent.classList.add('active');
     activeTab = tabName;
+    updateControlsBarVisibility(tabName);
+
+    updateControlsBarVisibility(tabName);
 
     if (updateHistory !== false) {
       updateUrlParams();
@@ -298,6 +312,7 @@
       setupFilterDropdowns();
       setupEventListeners();
       restoreStateFromUrl({ updateHistory: false });
+      updateControlsBarVisibility(activeTab);
       renderAllViews();
     } catch (err) {
       console.error('Failed to initialize dashboard:', err);
@@ -343,18 +358,20 @@
       providerSelect.appendChild(opt);
     });
 
-    // Cache curve run selector
+    // Cache curve run selector (optional / guarded)
     const cacheRunSelect = document.getElementById('select-cache-run');
-    cacheRunSelect.innerHTML = '';
-    const runsWithTurns = benchmarkData.runs.filter((r) => r.turns && r.turns.length > 0);
-    runsWithTurns.forEach((r) => {
-      const opt = document.createElement('option');
-      opt.value = r.run_id;
-      opt.textContent = `${r.model.name} — ${r.prompt_id} (${r.turns.length} turns)`;
-      cacheRunSelect.appendChild(opt);
-    });
-    if (runsWithTurns.length > 0) {
-      selectedCacheRunId = runsWithTurns[0].run_id;
+    if (cacheRunSelect) {
+      cacheRunSelect.innerHTML = '';
+      const runsWithTurns = benchmarkData.runs.filter((r) => r.turns && r.turns.length > 0);
+      runsWithTurns.forEach((r) => {
+        const opt = document.createElement('option');
+        opt.value = r.run_id;
+        opt.textContent = `${r.model.name} — ${r.prompt_id} (${r.turns.length} turns)`;
+        cacheRunSelect.appendChild(opt);
+      });
+      if (runsWithTurns.length > 0) {
+        selectedCacheRunId = runsWithTurns[0].run_id;
+      }
     }
   }
 
@@ -441,11 +458,33 @@
       renderToolsChart();
     });
 
-    // Cache curve run selector
-    document.getElementById('select-cache-run').addEventListener('change', (e) => {
-      selectedCacheRunId = e.target.value;
-      renderCacheCurveChart();
-    });
+    // Cache efficiency chart mode toggles
+    const btnCacheBars = document.getElementById('btn-cache-mode-bars');
+    const btnCacheScatter = document.getElementById('btn-cache-mode-scatter');
+    if (btnCacheBars) {
+      btnCacheBars.addEventListener('click', () => {
+        cacheChartMode = 'bars';
+        btnCacheBars.classList.add('active');
+        if (btnCacheScatter) btnCacheScatter.classList.remove('active');
+        renderCacheCurveChart();
+      });
+    }
+    if (btnCacheScatter) {
+      btnCacheScatter.addEventListener('click', () => {
+        cacheChartMode = 'scatter';
+        btnCacheScatter.classList.add('active');
+        if (btnCacheBars) btnCacheBars.classList.remove('active');
+        renderCacheCurveChart();
+      });
+    }
+
+    const selectCacheRun = document.getElementById('select-cache-run');
+    if (selectCacheRun) {
+      selectCacheRun.addEventListener('change', (e) => {
+        selectedCacheRunId = e.target.value;
+        renderCacheCurveChart();
+      });
+    }
 
     // Modal close events
     document.getElementById('modal-close-btn').addEventListener('click', () => closeModal());
@@ -524,11 +563,13 @@
         case 'pareto':
         default:
           // Pareto-efficient first, then quality score desc, then cost asc
-          const pA = a.pareto.is_pareto_series ? 1 : 0;
-          const pB = b.pareto.is_pareto_series ? 1 : 0;
+          const isParetoA = Boolean(a.verification && a.verification.passed && a.pareto && a.pareto.is_pareto_series);
+          const isParetoB = Boolean(b.verification && b.verification.passed && b.pareto && b.pareto.is_pareto_series);
+          const pA = isParetoA ? 1 : 0;
+          const pB = isParetoB ? 1 : 0;
           if (pA !== pB) return pB - pA;
-          const qA = a.pareto.quality_score ?? 0;
-          const qB = b.pareto.quality_score ?? 0;
+          const qA = a.pareto?.quality_score ?? 0;
+          const qB = b.pareto?.quality_score ?? 0;
           if (qA !== qB) return qB - qA;
           return costA - costB;
       }
@@ -536,6 +577,7 @@
   }
 
   function renderAllViews() {
+    updateControlsBarVisibility(activeTab);
     if (activeTab === 'pareto') {
       renderParetoChart();
     } else if (activeTab === 'analytics') {
@@ -653,10 +695,16 @@
 
     // Compute Pareto points for drawing the frontier line
     const paretoRuns = chartRuns.filter((r) => {
+      if (!r.verification || !r.verification.passed) return false;
+      if (r.verification.runtime && r.verification.runtime.passed === false) return false;
       if (paretoState.mode === 'passing') {
-        return r.pareto.is_pareto_successful_series || r.pareto.is_pareto_successful;
+        return filters.series === 'all'
+          ? Boolean(r.pareto.is_pareto_successful_global ?? r.pareto.is_pareto_global)
+          : Boolean(r.pareto.is_pareto_successful_series ?? r.pareto.is_pareto_series);
       }
-      return r.pareto.is_pareto_series || r.pareto.is_pareto_global;
+      return filters.series === 'all'
+        ? Boolean(r.pareto.is_pareto_global)
+        : Boolean(r.pareto.is_pareto_series);
     });
 
     // Sort Pareto runs by time ascending
@@ -1165,110 +1213,340 @@
   }
 
   // ==========================================================================
-  // CHART 6: CONTEXT RE-READ / CACHE CURVE ACROSS TURNS
+  // CHART 5: CONTEXT RE-READ INFLATION & TURN/STEP CACHE EFFICIENCY
   // ==========================================================================
 
   function renderCacheCurveChart() {
     const container = document.getElementById('chart-cache-curve');
+    if (!container) return;
     container.innerHTML = '';
 
-    const run = benchmarkData.runs.find((r) => r.run_id === selectedCacheRunId);
-    if (!run || !run.turns || run.turns.length === 0) {
-      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#64748b;">No turn-by-turn data available for selected run.</div>';
+    const allRuns = getFilteredRuns();
+    const runs = allRuns.filter((r) => r.tokens && (r.tokens.cache_read != null || r.tokens.uncached_input != null));
+
+    if (runs.length === 0) {
+      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#64748b;padding:3rem;">No context token telemetry available for selected filters.</div>';
       return;
     }
 
-    const turns = run.turns;
     const width = container.clientWidth || 1100;
-    const height = 380;
-    const pad = { top: 30, right: 65, bottom: 50, left: 80 };
-    const innerW = width - pad.left - pad.right;
-    const innerH = height - pad.top - pad.bottom;
+    const height = 400;
 
-    const svg = createSvg(width, height);
+    if (cacheChartMode === 'bars') {
+      // Sort runs by total context re-read tokens ascending (cache_read + uncached_input)
+      const sortedRuns = [...runs].sort((a, b) => {
+        const totA = (a.tokens.cache_read ?? 0) + (a.tokens.uncached_input ?? 0);
+        const totB = (b.tokens.cache_read ?? 0) + (b.tokens.uncached_input ?? 0);
+        return totA - totB;
+      });
 
-    const maxCacheRead = Math.max(...turns.map((t) => t.cumulative_cache_read_tokens || 0), 1000) * 1.15;
-    const numTurns = turns.length;
-    const step = innerW / Math.max(1, numTurns - 1);
+      const pad = { top: 45, right: 65, bottom: 90, left: 80 };
+      const innerW = width - pad.left - pad.right;
+      const innerH = height - pad.top - pad.bottom;
 
-    // Left Y Axis (Cumulative Tokens)
-    const leftTicks = getTicks(0, maxCacheRead, 5);
-    leftTicks.forEach((val) => {
-      const y = pad.top + innerH - (val / maxCacheRead) * innerH;
-      svg.appendChild(createSvgLine(pad.left, y, pad.left + innerW, y, 'grid-line'));
-      svg.appendChild(createSvgText(pad.left - 12, y + 4, formatCompactNumber(val), 'axis-text', 'end'));
-    });
+      const svg = createSvg(width, height);
 
-    // Right Y Axis (Cache Hit Rate %)
-    [0, 25, 50, 75, 100].forEach((pct) => {
-      const y = pad.top + innerH - (pct / 100) * innerH;
-      svg.appendChild(createSvgText(pad.left + innerW + 12, y + 4, `${pct}%`, 'axis-text', 'start'));
-    });
+      const maxTotal = Math.max(
+        ...sortedRuns.map((r) => (r.tokens.cache_read ?? 0) + (r.tokens.uncached_input ?? 0)),
+        1000
+      ) * 1.18;
 
-    // Build Cache Area Path & Hit Rate Line Path
-    let areaPath = '';
-    let linePath = '';
+      // Left Y Axis (Total Context Tokens Re-Read)
+      const leftTicks = getTicks(0, maxTotal, 5);
+      leftTicks.forEach((val) => {
+        const y = pad.top + innerH - (val / maxTotal) * innerH;
+        svg.appendChild(createSvgLine(pad.left, y, pad.left + innerW, y, 'grid-line'));
+        svg.appendChild(createSvgText(pad.left - 10, y + 4, formatCompactNumber(val), 'axis-text', 'end'));
+      });
+      const leftLabel = createSvgText(22, pad.top + innerH / 2, 'Total Context Tokens Re-Read', 'axis-label', 'middle');
+      leftLabel.setAttribute('transform', `rotate(-90 22 ${pad.top + innerH / 2})`);
+      svg.appendChild(leftLabel);
 
-    turns.forEach((t, idx) => {
-      const x = pad.left + idx * step;
-      const yCache = pad.top + innerH - ((t.cumulative_cache_read_tokens || 0) / maxCacheRead) * innerH;
-      const yHit = pad.top + innerH - ((t.cache_hit_rate_pct || 0) / 100) * innerH;
+      // Right Y Axis (Cache Hit Rate %)
+      [0, 25, 50, 75, 100].forEach((pct) => {
+        const y = pad.top + innerH - (pct / 100) * innerH;
+        svg.appendChild(createSvgText(pad.left + innerW + 10, y + 4, `${pct}%`, 'axis-text', 'start'));
+      });
+      const rightLabel = createSvgText(pad.left + innerW + 55, pad.top + innerH / 2, 'Cache Hit Rate (%)', 'axis-label', 'middle');
+      rightLabel.setAttribute('transform', `rotate(90 ${pad.left + innerW + 55} ${pad.top + innerH / 2})`);
+      svg.appendChild(rightLabel);
 
-      if (idx === 0) {
-        areaPath += `M ${x} ${pad.top + innerH} L ${x} ${yCache}`;
-        linePath += `M ${x} ${yHit}`;
-      } else {
-        areaPath += ` L ${x} ${yCache}`;
-        linePath += ` L ${x} ${yHit}`;
+      const step = innerW / sortedRuns.length;
+      const barW = Math.max(16, Math.min(52, Math.floor(step) - 14));
+
+      // Line points for Cache Hit Rate curve
+      const hitPoints = [];
+
+      sortedRuns.forEach((r, idx) => {
+        const cx = pad.left + idx * step + step / 2;
+        const x = cx - barW / 2;
+
+        const cacheRead = r.tokens.cache_read ?? 0;
+        const uncached = r.tokens.uncached_input ?? 0;
+        const totContext = cacheRead + uncached;
+        const totalOutput = Math.max(1, r.tokens.total_output || 1);
+        const numTurns = (r.turns && r.turns.length > 0) ? r.turns.length : 1;
+        const toolCalls = r.tool_calls?.total?.calls ?? 0;
+        const hitRate = totContext > 0 ? (cacheRead / totContext) * 100 : 0;
+        const ampRatio = totContext / totalOutput;
+
+        const hCache = (cacheRead / maxTotal) * innerH;
+        const hUncached = (uncached / maxTotal) * innerH;
+
+        const yCache = pad.top + innerH - hCache;
+        const yUncached = yCache - hUncached;
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.style.cursor = 'pointer';
+
+        // Cached read rect (bottom portion)
+        if (hCache > 0) {
+          const rCache = createSvgRect(x, yCache, barW, hCache, '#38bdf8');
+          g.appendChild(rCache);
+        }
+        // Uncached input rect (stacked on top)
+        if (hUncached > 0) {
+          const rUncached = createSvgRect(x, yUncached, barW, hUncached, '#f59e0b');
+          g.appendChild(rUncached);
+        }
+
+        // Compact SVG badge label above each bar showing turn count and tool calls: e.g. 1T · 28c or 4T · 173c
+        const badgeY = Math.max(pad.top + 6, yUncached - 12);
+        const badgeText = `${numTurns}T · ${toolCalls}c`;
+        const isMultiTurn = numTurns > 1;
+        const badgeWidth = badgeText.length * 6.5 + 10;
+        const badgeHeight = 16;
+        const badgeX = cx - badgeWidth / 2;
+
+        const badgeRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        badgeRect.setAttribute('x', badgeX);
+        badgeRect.setAttribute('y', badgeY - badgeHeight / 2 - 2);
+        badgeRect.setAttribute('width', badgeWidth);
+        badgeRect.setAttribute('height', badgeHeight);
+        badgeRect.setAttribute('rx', '3');
+        badgeRect.setAttribute('ry', '3');
+        badgeRect.setAttribute('fill', isMultiTurn ? 'rgba(239, 68, 68, 0.22)' : 'rgba(16, 185, 129, 0.16)');
+        badgeRect.setAttribute('stroke', isMultiTurn ? '#ef4444' : '#10b981');
+        badgeRect.setAttribute('stroke-width', '1');
+        g.appendChild(badgeRect);
+
+        const badgeTxt = createSvgText(cx, badgeY + 2, badgeText, 'axis-text', 'middle');
+        badgeTxt.setAttribute('font-size', '9px');
+        badgeTxt.setAttribute('font-weight', '600');
+        badgeTxt.setAttribute('fill', isMultiTurn ? '#fca5a5' : '#6ee7b7');
+        g.appendChild(badgeTxt);
+
+        // X Label (rotated model name)
+        const xLabel = createSvgText(cx, pad.top + innerH + 16, truncate(r.model.name, 12), 'axis-text', 'end');
+        xLabel.setAttribute('transform', `rotate(-45 ${cx} ${pad.top + innerH + 16})`);
+        svg.appendChild(xLabel);
+
+        // Tooltip & click handler
+        const tooltipHtml = `
+          <div class="tooltip-title">${escapeHtml(r.model.name)}</div>
+          <div class="tooltip-row"><span>Series:</span> <span class="val">${escapeHtml(r.prompt_id)}</span></div>
+          <div class="tooltip-row"><span>Turns &amp; Tools:</span> <span class="val">${numTurns} Turn${numTurns > 1 ? 's' : ''} · ${toolCalls} calls</span></div>
+          <div class="tooltip-row"><span>Total Context Re-Read:</span> <span class="val">${formatCompactNumber(totContext)}</span></div>
+          <div class="tooltip-row"><span>Cached Context Read:</span> <span class="val">${formatCompactNumber(cacheRead)}</span></div>
+          <div class="tooltip-row"><span>Uncached Input:</span> <span class="val">${formatCompactNumber(uncached)}</span></div>
+          <div class="tooltip-row"><span>Cache Hit Rate:</span> <span class="val">${hitRate.toFixed(1)}%</span></div>
+          <div class="tooltip-row"><span>Re-Read Amplification:</span> <span class="val">${ampRatio.toFixed(1)}x input/output</span></div>
+        `;
+
+        g.addEventListener('mouseenter', (ev) => showTooltip(ev, tooltipHtml));
+        g.addEventListener('mousemove', moveTooltip);
+        g.addEventListener('mouseleave', hideTooltip);
+        g.addEventListener('click', () => openModal(r));
+
+        svg.appendChild(g);
+
+        // Cache Hit Rate point on right Y axis
+        const yHit = pad.top + innerH - (Math.min(100, Math.max(0, hitRate)) / 100) * innerH;
+        hitPoints.push({ cx, yHit, tooltipHtml, run: r });
+      });
+
+      // Draw Cache Hit Rate line
+      if (hitPoints.length > 1) {
+        let lineD = '';
+        hitPoints.forEach((pt, idx) => {
+          lineD += `${idx === 0 ? 'M' : 'L'} ${pt.cx} ${pt.yHit}`;
+        });
+        const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        hitPath.setAttribute('d', lineD);
+        hitPath.setAttribute('fill', 'none');
+        hitPath.setAttribute('stroke', '#10b981');
+        hitPath.setAttribute('stroke-width', '2.5');
+        hitPath.setAttribute('stroke-dasharray', '3,3');
+        svg.appendChild(hitPath);
       }
 
-      // X tick text
-      svg.appendChild(createSvgText(x, pad.top + innerH + 20, `T${t.turn_index}`, 'axis-text', 'middle'));
+      // Draw Cache Hit Rate dots
+      hitPoints.forEach((pt) => {
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', pt.cx);
+        dot.setAttribute('cy', pt.yHit);
+        dot.setAttribute('r', '4.5');
+        dot.setAttribute('fill', '#10b981');
+        dot.setAttribute('stroke', '#0f172a');
+        dot.setAttribute('stroke-width', '1.5');
+        dot.style.cursor = 'pointer';
 
-      // Hit rate point
-      const pt = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      pt.setAttribute('cx', x);
-      pt.setAttribute('cy', yHit);
-      pt.setAttribute('r', '4');
-      pt.setAttribute('fill', '#10b981');
-      pt.style.cursor = 'pointer';
+        dot.addEventListener('mouseenter', (ev) => showTooltip(ev, pt.tooltipHtml));
+        dot.addEventListener('mousemove', moveTooltip);
+        dot.addEventListener('mouseleave', hideTooltip);
+        dot.addEventListener('click', () => openModal(pt.run));
 
-      pt.addEventListener('mouseenter', (ev) => {
-        showTooltip(ev, `
-          <div class="tooltip-title">Turn ${t.turn_index}</div>
-          <div class="tooltip-row"><span>Cache Hit Rate:</span> <span class="val">${t.cache_hit_rate_pct}%</span></div>
-          <div class="tooltip-row"><span>Cum. Cache Read:</span> <span class="val">${formatCompactNumber(t.cumulative_cache_read_tokens)}</span></div>
-          <div class="tooltip-row"><span>Turn Cache Read:</span> <span class="val">${formatCompactNumber(t.cache_read_tokens)}</span></div>
-          <div class="tooltip-row"><span>Uncached Input:</span> <span class="val">${formatCompactNumber(t.uncached_input_tokens)}</span></div>
-        `);
+        svg.appendChild(dot);
       });
-      pt.addEventListener('mousemove', moveTooltip);
-      pt.addEventListener('mouseleave', hideTooltip);
 
-      svg.appendChild(pt);
-    });
+      // Axis lines
+      svg.appendChild(createSvgLine(pad.left, pad.top + innerH, pad.left + innerW, pad.top + innerH, 'axis-line'));
+      svg.appendChild(createSvgLine(pad.left, pad.top, pad.left, pad.top + innerH, 'axis-line'));
+      svg.appendChild(createSvgLine(pad.left + innerW, pad.top, pad.left + innerW, pad.top + innerH, 'axis-line'));
 
-    areaPath += ` L ${pad.left + (numTurns - 1) * step} ${pad.top + innerH} Z`;
+      container.appendChild(svg);
+    } else {
+      // Mode 'scatter': Turns & Agentic Tool Steps vs. Total Context Re-Read Scatter/Bubble
+      const pad = { top: 35, right: 60, bottom: 60, left: 85 };
+      const innerW = width - pad.left - pad.right;
+      const innerH = height - pad.top - pad.bottom;
 
-    // Render area
-    const areaElem = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    areaElem.setAttribute('d', areaPath);
-    areaElem.setAttribute('fill', 'rgba(56, 189, 248, 0.18)');
-    svg.appendChild(areaElem);
+      const svg = createSvg(width, height);
 
-    // Render line
-    const lineElem = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    lineElem.setAttribute('d', linePath);
-    lineElem.setAttribute('fill', 'none');
-    lineElem.setAttribute('stroke', '#10b981');
-    lineElem.setAttribute('stroke-width', '2.5');
-    svg.appendChild(lineElem);
+      const maxCalls = Math.max(...runs.map((r) => r.tool_calls?.total?.calls ?? 0), 10) * 1.15;
+      const maxContext = Math.max(
+        ...runs.map((r) => (r.tokens.cache_read ?? 0) + (r.tokens.uncached_input ?? 0)),
+        1000
+      ) * 1.15;
 
-    svg.appendChild(createSvgLine(pad.left, pad.top + innerH, pad.left + innerW, pad.top + innerH, 'axis-line'));
-    svg.appendChild(createSvgLine(pad.left, pad.top, pad.left, pad.top + innerH, 'axis-line'));
-    svg.appendChild(createSvgLine(pad.left + innerW, pad.top, pad.left + innerW, pad.top + innerH, 'axis-line'));
+      const scaleX = (calls) => pad.left + (calls / maxCalls) * innerW;
+      const scaleY = (ctx) => pad.top + innerH - (ctx / maxContext) * innerH;
 
-    container.appendChild(svg);
+      // X grid & ticks
+      const xTicks = getTicks(0, maxCalls, 6);
+      xTicks.forEach((val) => {
+        const x = scaleX(val);
+        svg.appendChild(createSvgLine(x, pad.top, x, pad.top + innerH, 'grid-line'));
+        svg.appendChild(createSvgText(x, pad.top + innerH + 18, Math.round(val).toString(), 'axis-text', 'middle'));
+      });
+      svg.appendChild(createSvgText(pad.left + innerW / 2, pad.top + innerH + 45, 'Agentic Tool Calls (Steps)', 'axis-label', 'middle'));
+
+      // Y grid & ticks
+      const yTicks = getTicks(0, maxContext, 5);
+      yTicks.forEach((val) => {
+        const y = scaleY(val);
+        svg.appendChild(createSvgLine(pad.left, y, pad.left + innerW, y, 'grid-line'));
+        svg.appendChild(createSvgText(pad.left - 12, y + 4, formatCompactNumber(val), 'axis-text', 'end'));
+      });
+      const yLabel = createSvgText(22, pad.top + innerH / 2, 'Total Context Re-Read Tokens (Cached + Fresh)', 'axis-label', 'middle');
+      yLabel.setAttribute('transform', `rotate(-90 22 ${pad.top + innerH / 2})`);
+      svg.appendChild(yLabel);
+
+      // Shaded efficiency zone in bottom-left for 1-turn low-step low-context runs
+      const zoneW = innerW * 0.35;
+      const zoneH = innerH * 0.35;
+      const zoneRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      zoneRect.setAttribute('x', pad.left);
+      zoneRect.setAttribute('y', pad.top + innerH - zoneH);
+      zoneRect.setAttribute('width', zoneW);
+      zoneRect.setAttribute('height', zoneH);
+      zoneRect.setAttribute('fill', 'rgba(16, 185, 129, 0.06)');
+      zoneRect.setAttribute('stroke', 'rgba(16, 185, 129, 0.25)');
+      zoneRect.setAttribute('stroke-dasharray', '4,4');
+      svg.appendChild(zoneRect);
+
+      const zoneText = createSvgText(pad.left + 10, pad.top + innerH - zoneH + 16, '⚡ High Efficiency Zone (1-Turn / Low Re-Read)', 'axis-text', 'start');
+      zoneText.setAttribute('fill', '#10b981');
+      zoneText.setAttribute('font-size', '10px');
+      zoneText.setAttribute('font-weight', '600');
+      svg.appendChild(zoneText);
+
+      // Linear reference trend line showing context scaling with steps
+      const avgContextPerStep = runs.reduce((acc, r) => {
+        const calls = r.tool_calls?.total?.calls ?? 0;
+        const tot = (r.tokens.cache_read ?? 0) + (r.tokens.uncached_input ?? 0);
+        return acc + (calls > 0 ? tot / calls : 0);
+      }, 0) / Math.max(1, runs.length);
+
+      const trendEndX = maxCalls;
+      const trendEndY = Math.min(maxContext, avgContextPerStep * maxCalls);
+      const trendLine = createSvgLine(scaleX(0), scaleY(0), scaleX(trendEndX), scaleY(trendEndY), 'pareto-line');
+      trendLine.setAttribute('stroke', '#64748b');
+      trendLine.setAttribute('stroke-dasharray', '5,5');
+      svg.appendChild(trendLine);
+
+      // Context Amplification Ratio determines bubble radius
+      const maxAmp = Math.max(...runs.map((r) => {
+        const tot = (r.tokens.cache_read ?? 0) + (r.tokens.uncached_input ?? 0);
+        const out = Math.max(1, r.tokens.total_output || 1);
+        return tot / out;
+      }), 1);
+      const minR = 6;
+      const maxR = 22;
+      const getRadius = (amp) => minR + (Math.min(amp, maxAmp) / maxAmp) * (maxR - minR);
+
+      // Render Scatter Points
+      runs.forEach((r) => {
+        const calls = r.tool_calls?.total?.calls ?? 0;
+        const cacheRead = r.tokens.cache_read ?? 0;
+        const uncached = r.tokens.uncached_input ?? 0;
+        const totContext = cacheRead + uncached;
+        const totalOutput = Math.max(1, r.tokens.total_output || 1);
+        const numTurns = (r.turns && r.turns.length > 0) ? r.turns.length : 1;
+        const isMultiTurn = numTurns > 1;
+        const hitRate = totContext > 0 ? (cacheRead / totContext) * 100 : 0;
+        const ampRatio = totContext / totalOutput;
+
+        const cx = scaleX(calls);
+        const cy = scaleY(totContext);
+        const radius = getRadius(ampRatio);
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.style.cursor = 'pointer';
+
+        // Bubble Circle
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', cx);
+        circle.setAttribute('cy', cy);
+        circle.setAttribute('r', radius);
+        circle.setAttribute('fill', isMultiTurn ? '#f59e0b' : '#10b981');
+        circle.setAttribute('fill-opacity', '0.75');
+        circle.setAttribute('stroke', isMultiTurn ? '#d97706' : '#059669');
+        circle.setAttribute('stroke-width', '2');
+        g.appendChild(circle);
+
+        // Point label: `${truncate(r.model.name, 10)} (${numTurns}T)`
+        const pointLabel = createSvgText(cx + radius + 4, cy + 3, `${truncate(r.model.name, 10)} (${numTurns}T)`, 'axis-text', 'start');
+        pointLabel.setAttribute('font-size', '10px');
+        pointLabel.setAttribute('fill', isMultiTurn ? '#fcd34d' : '#94a3b8');
+        g.appendChild(pointLabel);
+
+        // Tooltip
+        const tooltipHtml = `
+          <div class="tooltip-title">${escapeHtml(r.model.name)}</div>
+          <div class="tooltip-row"><span>Series:</span> <span class="val">${escapeHtml(r.prompt_id)}</span></div>
+          <div class="tooltip-row"><span>Turns &amp; Tools:</span> <span class="val">${numTurns} Turn${numTurns > 1 ? 's' : ''} · ${calls} calls</span></div>
+          <div class="tooltip-row"><span>Total Context Re-Read:</span> <span class="val">${formatCompactNumber(totContext)}</span></div>
+          <div class="tooltip-row"><span>Cached Context Read:</span> <span class="val">${formatCompactNumber(cacheRead)}</span></div>
+          <div class="tooltip-row"><span>Uncached Input:</span> <span class="val">${formatCompactNumber(uncached)}</span></div>
+          <div class="tooltip-row"><span>Cache Hit Rate:</span> <span class="val">${hitRate.toFixed(1)}%</span></div>
+          <div class="tooltip-row"><span>Re-Read Amplification:</span> <span class="val">${ampRatio.toFixed(1)}x input/output</span></div>
+        `;
+
+        g.addEventListener('mouseenter', (ev) => showTooltip(ev, tooltipHtml));
+        g.addEventListener('mousemove', moveTooltip);
+        g.addEventListener('mouseleave', hideTooltip);
+        g.addEventListener('click', () => openModal(r));
+
+        svg.appendChild(g);
+      });
+
+      // Axis lines
+      svg.appendChild(createSvgLine(pad.left, pad.top + innerH, pad.left + innerW, pad.top + innerH, 'axis-line'));
+      svg.appendChild(createSvgLine(pad.left, pad.top, pad.left, pad.top + innerH, 'axis-line'));
+
+      container.appendChild(svg);
+    }
   }
 
   // ==========================================================================
@@ -1289,7 +1567,8 @@
 
     runs.forEach((run) => {
       const card = document.createElement('div');
-      card.className = `run-card ${run.pareto.is_pareto_series ? 'pareto-border' : ''}`;
+      const isPareto = Boolean(run.verification && run.verification.passed && run.pareto && run.pareto.is_pareto_series);
+      card.className = `run-card ${isPareto ? 'pareto-border' : ''}`;
 
       const isPass = run.verification.passed;
       const cost = run.cost.estimated_with_harness_usd ?? run.cost.estimated_usd ?? 0;
@@ -1311,7 +1590,7 @@
             </div>
           </div>
           <div>
-            ${run.pareto.is_pareto_series ? '<span class="badge pareto">⚡ PARETO</span>' : ''}
+            ${isPareto ? '<span class="badge pareto">⚡ PARETO</span>' : ''}
             <span class="badge ${isPass ? 'pass' : 'fail'}">${isPass ? '✓ PASSED' : '✗ FAILED'}</span>
           </div>
         </div>
@@ -1520,27 +1799,28 @@
     }
 
     const tables = wh.tables || [
-      { name: 'fact_runs', type: 'fact', description: 'Core benchmark runs fact table with duration, tokens, cost, and verification status', row_count: benchmarkData?.runs?.length || 0, parquet_path: 'warehouse/parquet/fact_runs.parquet' },
-      { name: 'fact_tool_calls', type: 'fact', description: 'Individual tool calls with bucket classification, latency, and failure flags', row_count: null, parquet_path: 'warehouse/parquet/fact_tool_calls.parquet' },
-      { name: 'fact_turns', type: 'fact', description: 'Turn-level telemetry capturing cache re-reads and prompt growth across conversational turns', row_count: null, parquet_path: 'warehouse/parquet/fact_turns.parquet' },
-      { name: 'fact_thought_blocks', type: 'fact', description: 'Model reasoning and thinking block durations and token counts', row_count: null, parquet_path: 'warehouse/parquet/fact_thought_blocks.parquet' },
-      { name: 'dim_models', type: 'dimension', description: 'Catalog of evaluated frontier LLM models, providers, and pricing rates', row_count: benchmarkData?.models?.length || 0, parquet_path: 'warehouse/parquet/dim_models.parquet' },
-      { name: 'dim_prompts', type: 'dimension', description: 'Frozen prompt definitions, verification probe criteria, and complexity types', row_count: benchmarkData?.prompts?.length || 0, parquet_path: 'warehouse/parquet/dim_prompts.parquet' },
+      { name: 'fact_runs', type: 'fact', description: 'Core benchmark runs fact table with duration, tokens, cost, and verification status', row_count: benchmarkData?.runs?.length || 0, csv_path: 'warehouse/csv/fact_runs.csv', parquet_path: 'warehouse/parquet/fact_runs.parquet' },
+      { name: 'fact_tool_calls', type: 'fact', description: 'Individual tool calls with bucket classification, latency, and failure flags', row_count: null, csv_path: 'warehouse/csv/fact_tool_calls.csv', parquet_path: 'warehouse/parquet/fact_tool_calls.parquet' },
+      { name: 'fact_turns', type: 'fact', description: 'Turn-level telemetry capturing cache re-reads and prompt growth across conversational turns', row_count: null, csv_path: 'warehouse/csv/fact_turns.csv', parquet_path: 'warehouse/parquet/fact_turns.parquet' },
+      { name: 'fact_thought_blocks', type: 'fact', description: 'Model reasoning and thinking block durations and token counts', row_count: null, csv_path: 'warehouse/csv/fact_thought_blocks.csv', parquet_path: 'warehouse/parquet/fact_thought_blocks.parquet' },
+      { name: 'dim_models', type: 'dimension', description: 'Catalog of evaluated frontier LLM models, providers, and pricing rates', row_count: benchmarkData?.models?.length || 0, csv_path: 'warehouse/csv/dim_models.csv', parquet_path: 'warehouse/parquet/dim_models.parquet' },
+      { name: 'dim_prompts', type: 'dimension', description: 'Frozen prompt definitions, verification probe criteria, and complexity types', row_count: benchmarkData?.prompts?.length || 0, csv_path: 'warehouse/csv/dim_prompts.csv', parquet_path: 'warehouse/parquet/dim_prompts.parquet' },
     ];
 
     tables.forEach((t) => {
       const tr = document.createElement('tr');
       const rowCountDisplay = t.row_count != null ? formatNumber(t.row_count) : 'Exported';
       const typeBadge = t.type === 'fact' ? '<span class="badge" style="background:#0284c7;color:#fff;">FACT</span>' : '<span class="badge" style="background:#64748b;color:#fff;">DIM</span>';
-      
+      const csvPath = t.csv_path || ('warehouse/csv/' + t.name + '.csv');
+
       tr.innerHTML = `
         <td><code style="font-weight:700;color:var(--accent-cyan);">${escapeHtml(t.name)}</code></td>
         <td>${typeBadge}</td>
         <td style="color:var(--text-muted);font-size:0.85rem;">${escapeHtml(t.description)}</td>
         <td style="font-family:var(--font-mono);font-weight:600;">${rowCountDisplay}</td>
         <td>
-          <a href="${escapeHtml(t.parquet_path)}" download="${escapeHtml(t.name)}.parquet" class="btn-download-sm">
-            <span>📦</span> Parquet
+          <a href="${escapeHtml(csvPath)}" download="${escapeHtml(t.name)}.csv" class="btn-download-sm">
+            <span>📄</span> CSV
           </a>
         </td>
       `;

@@ -8,6 +8,7 @@ fact_thought_blocks, dim_models, dim_prompts) and analytical SQL views.
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import sys
@@ -178,6 +179,127 @@ else:
     DIM_MODELS_SCHEMA = None
     DIM_PROMPTS_SCHEMA = None
     META_WAREHOUSE_SCHEMA = None
+
+TABLE_COLUMNS: dict[str, list[str]] = {
+    "dim_models": [
+        "model_id",
+        "model_name",
+        "provider",
+        "harnesses",
+        "input_rate_per_1m",
+        "cache_write_rate_per_1m",
+        "cache_read_rate_per_1m",
+        "output_rate_per_1m",
+        "first_party_in_cursor",
+        "as_of",
+    ],
+    "dim_prompts": [
+        "prompt_id",
+        "prompt_type",
+        "description",
+        "expected_checks_count",
+        "sha256",
+        "byte_count",
+    ],
+    "fact_runs": [
+        "run_id",
+        "prompt_id",
+        "series_id",
+        "rules_version",
+        "shot",
+        "parent_run_id",
+        "model_id",
+        "model_name",
+        "provider",
+        "reasoning_effort",
+        "context_window",
+        "harness_name",
+        "harness_version",
+        "wall_clock_started_at",
+        "wall_clock_ended_at",
+        "wall_clock_seconds",
+        "generating_seconds",
+        "model_time_source",
+        "thinking_seconds",
+        "thought_blocks_count",
+        "tokens_reasoning",
+        "tokens_visible",
+        "tokens_total_output",
+        "tokens_split_rule",
+        "tokens_input",
+        "tokens_uncached_input",
+        "tokens_cache_read",
+        "tokens_cache_write",
+        "estimated_cost_usd",
+        "estimated_cost_with_harness_usd",
+        "tool_calls_shell",
+        "tool_calls_files",
+        "tool_calls_visual_checks",
+        "tool_calls_web",
+        "tool_calls_other",
+        "tool_calls_total",
+        "tool_failures_shell",
+        "tool_failures_files",
+        "tool_failures_visual_checks",
+        "tool_failures_web",
+        "tool_failures_other",
+        "tool_failures_total",
+        "runtime_passed",
+        "runtime_http_status",
+        "runtime_load_time_ms",
+        "data_pipeline_passed",
+        "data_pipeline_score",
+        "data_pipeline_authenticity",
+        "data_pipeline_total_records",
+        "is_successful",
+        "observations",
+    ],
+    "fact_tool_calls": [
+        "run_id",
+        "call_index",
+        "tool_use_id",
+        "tool_name",
+        "effective_tool_name",
+        "bucket",
+        "logged_at",
+        "duration_ms",
+        "exit_code",
+        "is_failed",
+        "tool_input_summary",
+    ],
+    "fact_turns": [
+        "run_id",
+        "turn_index",
+        "timestamp",
+        "model_slug",
+        "input_tokens",
+        "uncached_input_tokens",
+        "cache_read_tokens",
+        "cache_write_tokens",
+        "output_tokens",
+        "reasoning_tokens",
+        "cost_usd",
+        "cumulative_cache_read_tokens",
+    ],
+    "fact_thought_blocks": [
+        "run_id",
+        "block_index",
+        "generation_id",
+        "logged_at",
+        "duration_ms",
+        "duration_seconds",
+    ],
+    "meta_warehouse": [
+        "warehouse_version",
+        "exported_at",
+        "runs_count",
+        "tool_calls_count",
+        "turns_count",
+        "thought_blocks_count",
+        "models_count",
+        "prompts_count",
+    ],
+}
 
 
 VIEW_DEFINITIONS = {
@@ -567,7 +689,7 @@ def export_warehouse(
     warehouse_version: str = DEFAULT_WAREHOUSE_VERSION,
     verbose: bool = True,
 ) -> dict[str, Any]:
-    """Export benchmark runs and telemetry to Parquet and DuckDB analytical dataset."""
+    """Export benchmark runs and telemetry to Parquet, DuckDB, and CSV analytical dataset."""
     runs_dir = Path(runs_dir)
     reference_dir = Path(reference_dir)
     prompts_dir = Path(prompts_dir)
@@ -577,6 +699,9 @@ def export_warehouse(
     parquet_dir = output_dir / "parquet"
     if export_format in ("all", "parquet"):
         parquet_dir.mkdir(parents=True, exist_ok=True)
+    csv_dir = output_dir / "csv"
+    if export_format in ("all", "csv"):
+        csv_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Discover run directories
     run_dirs: list[Path] = []
@@ -614,7 +739,20 @@ def export_warehouse(
         "meta_warehouse": (meta_warehouse, META_WAREHOUSE_SCHEMA),
     }
 
-    # 3. Export to Parquet if requested
+    # 3. Export to CSV if requested
+    if export_format in ("all", "csv"):
+        for tbl_name, (recs, schema) in tables_data.items():
+            fieldnames = [field.name for field in schema] if schema is not None else TABLE_COLUMNS.get(tbl_name, [])
+            if not fieldnames and recs:
+                fieldnames = list(recs[0].keys())
+            csv_path = csv_dir / f"{tbl_name}.csv"
+            with csv_path.open("w", encoding="utf-8", newline="") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n", extrasaction="ignore")
+                writer.writeheader()
+                if recs:
+                    writer.writerows(recs)
+
+    # 4. Export to Parquet if requested
     if export_format in ("all", "parquet"):
         if pa is None or pq is None:
             raise ImportError("pyarrow is required to export Parquet tables. Install with `uv pip install pyarrow`.")
@@ -622,7 +760,7 @@ def export_warehouse(
             tbl = _to_pyarrow_table(recs, schema)
             pq.write_table(tbl, parquet_dir / f"{tbl_name}.parquet")
 
-    # 4. Export to DuckDB if requested
+    # 5. Export to DuckDB if requested
     duckdb_path = output_dir / "benchmark.duckdb"
     if export_format in ("all", "duckdb"):
         if duckdb is None:
@@ -648,6 +786,12 @@ def export_warehouse(
                     v_parquet_path = parquet_dir / f"{v_name}.parquet"
                     con.execute(f"COPY (SELECT * FROM {v_name}) TO '{v_parquet_path}' (FORMAT PARQUET);")
 
+            # Also, when DuckDB is used in export_format == "all", export precomputed SQL views to CSV
+            if export_format == "all":
+                for v_name in VIEW_DEFINITIONS:
+                    v_csv_path = csv_dir / f"{v_name}.csv"
+                    con.execute(f"COPY (SELECT * FROM {v_name}) TO '{v_csv_path}' (HEADER, DELIMITER ',');")
+
         finally:
             con.close()
     elif export_format == "parquet" and duckdb is not None and pa is not None:
@@ -668,11 +812,12 @@ def export_warehouse(
         finally:
             con.close()
 
-    # 5. Write metadata summary JSON
+    # 6. Write metadata summary JSON
     active_formats = [
         fmt for fmt in [
             "parquet" if export_format in ("all", "parquet") else None,
             "duckdb" if export_format in ("all", "duckdb") else None,
+            "csv" if export_format in ("all", "csv") else None,
         ] if fmt is not None
     ]
     meta_json_path = output_dir / "metadata.json"
@@ -691,6 +836,7 @@ def export_warehouse(
         "paths": {
             "parquet_dir": str(parquet_dir) if export_format in ("all", "parquet") else None,
             "duckdb_file": str(duckdb_path) if export_format in ("all", "duckdb") else None,
+            "csv_dir": str(csv_dir) if export_format in ("all", "csv") else None,
         },
     }
     meta_json_path.write_text(json.dumps(summary_dict, indent=2), encoding="utf-8")
@@ -733,9 +879,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--format",
-        choices=["all", "parquet", "duckdb"],
+        choices=["all", "csv", "parquet", "duckdb"],
         default="all",
-        help="Export format: parquet, duckdb, or all (default: all)",
+        help="Export format: all, csv, parquet, or duckdb (default: all)",
     )
     parser.add_argument(
         "--warehouse-version",
