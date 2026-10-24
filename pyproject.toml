@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llm-frontier-evaluator"
-version = "0.2.0"
+version = "2.15.0"
 description = "Measurement standard and benchmark harness for LLM frontier evaluation"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,10 +34,28 @@ dev = [
 verify = [
     "playwright>=1.40",
 ]
+analytics = [
+    "duckdb>=1.5.6",
+    "pyarrow>=25.0.1",
+]
 
 [tool.setuptools]
 package-dir = {"" = "scripts"}
-py-modules = ["build_dashboard", "compare_runs", "export_warehouse", "finish_run", "probe_data", "run_common", "setup_run", "tool_events", "verify_run"]
+py-modules = [
+    "build_dashboard",
+    "compare_runs",
+    "export_warehouse",
+    "finish_run",
+    "package_web_demos",
+    "probe_data",
+    "run_benchmark",
+    "run_common",
+    "serve_run",
+    "setup_run",
+    "telemetry_extraction",
+    "tool_events",
+    "verify_run",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
