@@ -191,6 +191,16 @@
     }
   }
 
+  function updateControlsBarVisibility(tabName) {
+    const controlsBar = document.getElementById('global-controls-bar') || document.querySelector('.controls-bar');
+    if (!controlsBar) return;
+    if (tabName === 'showcase' || tabName === 'warehouse') {
+      controlsBar.style.display = 'none';
+    } else {
+      controlsBar.style.display = '';
+    }
+  }
+
   function switchTab(tabName, updateHistory = true) {
     const tabBtn = document.querySelector(`.nav-tab[data-tab="${tabName}"]`);
     const tabContent = document.getElementById(`tab-${tabName}`);
@@ -202,6 +212,7 @@
     tabBtn.classList.add('active');
     tabContent.classList.add('active');
     activeTab = tabName;
+    updateControlsBarVisibility(tabName);
 
     if (updateHistory !== false) {
       updateUrlParams();
@@ -298,6 +309,7 @@
       setupFilterDropdowns();
       setupEventListeners();
       restoreStateFromUrl({ updateHistory: false });
+      updateControlsBarVisibility(activeTab);
       renderAllViews();
     } catch (err) {
       console.error('Failed to initialize dashboard:', err);
