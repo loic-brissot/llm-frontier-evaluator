@@ -3,7 +3,7 @@ id: TASK-82
 title: >-
   Package all 16 existing benchmark runs across all prompt series into
   dashboard/demos/ and sync dashboard and README
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-24 11:35'
 labels: []
@@ -23,7 +23,7 @@ Currently only the 5 runs from paris-tree-canopy are packaged in dashboard/demos
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Run scripts/package_web_demos.py across all 16 existing benchmark runs so every run has a self-contained static bundle under dashboard/demos/<prompt-id>/<run-id>/index.html and multi-run index at dashboard/demos/index.html
-- [ ] #2 Record demo_url in each run's run.json and artifacts/runtime.json and verify all 16 demo entry points exist and are under GitHub file size limits
-- [ ] #3 Rebuild dashboard/data.json, dashboard/index.html, dashboard/warehouse/csv/, and README.md tables and verify all checks pass
+- [x] #1 Run scripts/package_web_demos.py across all 16 existing benchmark runs so every run has a self-contained static bundle under dashboard/demos/<prompt-id>/<run-id>/index.html and multi-run index at dashboard/demos/index.html
+- [x] #2 Record demo_url in each run's run.json and artifacts/runtime.json and verify all 16 demo entry points exist and are under GitHub file size limits
+- [x] #3 Rebuild dashboard/data.json, dashboard/index.html, dashboard/warehouse/csv/, and README.md tables and verify all checks pass
 <!-- AC:END -->

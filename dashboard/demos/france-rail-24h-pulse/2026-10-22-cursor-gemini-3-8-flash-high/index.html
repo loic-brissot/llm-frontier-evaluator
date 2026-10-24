@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-slate-950">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Atlas Ferroviaire Français • Contrôle National & Accessibilité SNCF</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            void: '#06090f',
+            tgv: '#ff006e',
+            ic: '#ff9f1c',
+            ter: '#00f5d4'
+          }
+        }
+      }
+    }
+  </script>
+
+  <script type="module" crossorigin src="./assets/index-CW07vDdA.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-j5OVUIiN.css">
+</head>
+<body class="h-full w-full overflow-hidden text-slate-100 font-sans">
+
+  <!-- LOADING OVERLAY -->
+  <div id="loading-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 transition-opacity duration-500">
+    <div class="relative flex items-center justify-center mb-6">
+      <div class="w-20 h-20 border-2 border-cyan-500/20 border-t-cyan-400 rounded-full animate-spin"></div>
+      <div class="absolute w-12 h-12 border-2 border-pink-500/20 border-b-pink-400 rounded-full animate-spin" style="animation-direction: reverse; animation-duration: 1.5s;"></div>
+      <span class="absolute font-mono font-bold text-xs tracking-widest text-slate-300">SNCF</span>
+    </div>
+    <div class="text-lg font-bold tracking-wider text-slate-100 uppercase mb-2">RÉSEAU FERRÉ NATIONAL • CNOF</div>
+    <div class="text-xs text-slate-400 tracking-wide mb-4">Atlas d'Accessibilité & Trafic Voyageurs 24h</div>
+    <div id="loading-status" class="text-xs font-mono text-cyan-400 max-w-md text-center animate-pulse">
+      Initialisation des données cartographiques et horaires...
+    </div>
+  </div>
+
+  <!-- MAP & CANVAS CONTAINER -->
+  <div id="map-container" class="absolute inset-0 z-0"></div>
+  <canvas id="train-canvas" class="absolute inset-0 z-10 pointer-events-auto"></canvas>
+
+  <!-- TOP APP BAR -->
+  <header class="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 py-2.5 glass-panel border-b border-slate-800/80 m-3 rounded-xl pointer-events-auto">
+    <!-- Brand Title -->
+    <div class="flex items-center gap-3">
+      <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500/20 to-pink-500/20 border border-slate-700">
+        <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="text-xs font-bold tracking-wider uppercase text-slate-100 flex items-center gap-2">
+          <span>ATLAS FERROVIAIRE FRANÇAIS</span>
+          <span class="px-1.5 py-0.2 text-2xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded font-mono font-normal">CNOF 24H</span>
+        </div>
+        <div class="text-2xs text-slate-400">Réseau Ferré National • TGV • Intercités • TER</div>
+      </div>
+    </div>
+
+    <!-- Mode Selector Tabs -->
+    <div class="flex items-center bg-slate-900/80 p-1 rounded-lg border border-slate-800">
+      <button class="mode-tab-btn active-mode-tab flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all text-white border border-transparent" data-mode="circulation">
+        <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        <span>Circulation 24h</span>
+      </button>
+
+      <button class="mode-tab-btn flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-400 hover:text-slate-200 border border-transparent" data-mode="accessibility">
+        <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span>Atlas d'Accessibilité</span>
+      </button>
+
+      <button class="mode-tab-btn flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all text-slate-400 hover:text-slate-200 border border-transparent" data-mode="corridors">
+        <svg class="w-3.5 h-3.5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+        <span>Flux des Corridors</span>
+      </button>
+    </div>
+
+    <!-- Search & Region & Master Clock -->
+    <div class="flex items-center gap-3">
+      <!-- Search Input -->
+      <div class="relative w-56">
+        <input 
+          id="global-search-input"
+          type="text" 
+          placeholder="Rechercher gare, n° train... (/)" 
+          class="w-full bg-slate-900/90 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400 font-sans"
+        />
+        <div id="search-dropdown" class="absolute top-full left-0 right-0 mt-1.5 glass-panel rounded-lg overflow-hidden border border-slate-700 shadow-2xl max-h-72 overflow-y-auto hidden z-50"></div>
+      </div>
+
+      <!-- Regional Bookmark Jump -->
+      <select id="region-select" class="bg-slate-900/90 border border-slate-700/80 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-cyan-400">
+        <option value="france">🇫🇷 France entière</option>
+        <option value="paris">🗼 Île-de-France (Paris)</option>
+        <option value="lyon">🦁 Lyon & Rhône-Alpes</option>
+        <option value="marseille">🌊 Marseille & PACA</option>
+        <option value="bordeaux">🍷 Bordeaux & Aquitaine</option>
+        <option value="strasbourg">🥨 Strasbourg & Grand Est</option>
+        <option value="lille">🏭 Lille & Hauts-de-France</option>
+        <option value="nantes">🏰 Nantes & Pays de Loire</option>
+        <option value="toulouse">🌹 Toulouse & Occitanie</option>
+        <option value="alpes">🏔️ Alpes & Sillon Alpin</option>
+      </select>
+
+      <!-- Digital Master Clock -->
+      <div class="flex items-center gap-2 pl-2 border-l border-slate-800">
+        <div class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></div>
+        <div class="text-right">
+          <div id="master-clock" class="text-sm font-mono font-bold tracking-wider text-slate-100">08:00:00</div>
+          <div class="text-2xs font-mono text-slate-400">JEU 22 OCT 2026</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- LIVE TELEMETRY & CATEGORY TOGGLE PILL BAR (Top Left) -->
+  <div class="absolute top-20 left-4 z-20 flex flex-col gap-2 pointer-events-auto max-w-sm">
+    <!-- Active Train Metrics & Filter Badges -->
+    <div class="glass-panel p-2.5 rounded-xl flex items-center gap-2 border border-slate-800 shadow-xl">
+      <!-- Total Active -->
+      <div class="px-2.5 py-1 bg-slate-900/90 border border-slate-700/80 rounded-lg text-center">
+        <div class="text-2xs text-slate-400 uppercase font-mono">En vol</div>
+        <div id="stat-active-total" class="text-base font-mono font-bold text-white">---</div>
+      </div>
+
+      <!-- TGV Filter Toggle -->
+      <button id="pill-filter-tgv" class="flex-1 flex items-center justify-between px-2.5 py-1.5 bg-slate-900/80 hover:bg-slate-800/80 border border-pink-500/40 rounded-lg text-xs transition-all cursor-pointer">
+        <div class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-pink-500 glow-tgv"></span>
+          <span class="font-bold text-pink-400">TGV</span>
+        </div>
+        <span id="stat-active-tgv" class="font-mono font-bold text-pink-300">--</span>
+      </button>
+
+      <!-- IC Filter Toggle -->
+      <button id="pill-filter-ic" class="flex-1 flex items-center justify-between px-2.5 py-1.5 bg-slate-900/80 hover:bg-slate-800/80 border border-amber-500/40 rounded-lg text-xs transition-all cursor-pointer">
+        <div class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-amber-500 glow-ic"></span>
+          <span class="font-bold text-amber-400">IC</span>
+        </div>
+        <span id="stat-active-ic" class="font-mono font-bold text-amber-300">--</span>
+      </button>
+
+      <!-- TER Filter Toggle -->
+      <button id="pill-filter-ter" class="flex-1 flex items-center justify-between px-2.5 py-1.5 bg-slate-900/80 hover:bg-slate-800/80 border border-cyan-500/40 rounded-lg text-xs transition-all cursor-pointer">
+        <div class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 glow-ter"></span>
+          <span class="font-bold text-cyan-400">TER</span>
+        </div>
+        <span id="stat-active-ter" class="font-mono font-bold text-cyan-300">--</span>
+      </button>
+    </div>
+
+    <!-- Network Global KPIs -->
+    <div class="glass-panel px-3 py-1.5 rounded-lg flex items-center justify-between text-2xs text-slate-400 border border-slate-800/60 font-mono">
+      <span>8 515 trains/jour</span>
+      <span>•</span>
+      <span>2 390 gares</span>
+      <span>•</span>
+      <span>2,8M train-km</span>
+    </div>
+  </div>
+
+  <!-- FLOATING INSPECTOR DRAWERS -->
+
+  <!-- 1. TRAIN DOSSIER DRAWER -->
+  <div id="train-drawer" class="absolute top-20 right-4 z-30 w-88 glass-panel rounded-xl border border-slate-800 p-4 hidden pointer-events-auto max-h-[82vh] overflow-y-auto shadow-2xl">
+    <div class="flex items-start justify-between pb-3 border-b border-slate-800">
+      <div>
+        <div class="flex items-center gap-2">
+          <span id="train-dossier-cat" class="px-2 py-0.5 text-2xs font-bold rounded">TGV</span>
+          <h2 id="train-dossier-num" class="text-base font-bold font-mono text-white">TGV 6615</h2>
+        </div>
+        <div id="train-dossier-route" class="text-xs font-medium text-slate-300 mt-1">Paris Gare de Lyon → Marseille Saint-Charles</div>
+        <div id="train-dossier-orig-dest" class="text-2xs text-slate-400 mt-0.5">08:00 • 11:15 • 747 km</div>
+      </div>
+      <button class="drawer-close-btn text-slate-400 hover:text-white p-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Flight Status Bar -->
+    <div class="py-3 border-b border-slate-800">
+      <div id="train-dossier-status" class="text-xs font-mono mb-1.5 text-cyan-400">En circulation</div>
+      <div class="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden border border-slate-800">
+        <div id="train-dossier-progress" class="bg-gradient-to-r from-cyan-500 to-pink-500 h-full w-0 transition-all duration-300"></div>
+      </div>
+    </div>
+
+    <!-- Stop-by-Stop Timetable -->
+    <div class="pt-3">
+      <div class="text-2xs font-bold uppercase tracking-wider text-slate-400 mb-2">Feuille de Marche & Horaires</div>
+      <div id="train-dossier-timetable" class="space-y-1"></div>
+    </div>
+  </div>
+
+  <!-- 2. STATION DOSSIER DRAWER -->
+  <div id="station-drawer" class="absolute top-20 right-4 z-30 w-88 glass-panel rounded-xl border border-slate-800 p-4 hidden pointer-events-auto max-h-[82vh] overflow-y-auto shadow-2xl">
+    <div class="flex items-start justify-between pb-3 border-b border-slate-800">
+      <div>
+        <h2 id="station-dossier-name" class="text-base font-bold text-white">Lyon Part Dieu</h2>
+        <div id="station-dossier-uic" class="text-2xs font-mono text-slate-400 mt-0.5">UIC: 87723197 • Hub National</div>
+        <div id="station-dossier-region" class="text-xs text-cyan-400 mt-0.5">Auvergne-Rhône-Alpes</div>
+      </div>
+      <button class="drawer-close-btn text-slate-400 hover:text-white p-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Station Departures Metrics -->
+    <div class="grid grid-cols-4 gap-2 py-3 border-b border-slate-800 text-center font-mono">
+      <div class="bg-slate-900/80 p-1.5 rounded border border-slate-800">
+        <div class="text-2xs text-slate-400">Total/j</div>
+        <div id="station-dossier-total-deps" class="text-xs font-bold text-white">--</div>
+      </div>
+      <div class="bg-slate-900/80 p-1.5 rounded border border-pink-500/30">
+        <div class="text-2xs text-pink-400">TGV</div>
+        <div id="station-dossier-tgv-deps" class="text-xs font-bold text-pink-300">--</div>
+      </div>
+      <div class="bg-slate-900/80 p-1.5 rounded border border-amber-500/30">
+        <div class="text-2xs text-amber-400">IC</div>
+        <div id="station-dossier-ic-deps" class="text-xs font-bold text-amber-300">--</div>
+      </div>
+      <div class="bg-slate-900/80 p-1.5 rounded border border-cyan-500/30">
+        <div class="text-2xs text-cyan-400">TER</div>
+        <div id="station-dossier-ter-deps" class="text-xs font-bold text-cyan-300">--</div>
+      </div>
+    </div>
+
+    <!-- Accessibility Action Button -->
+    <div class="py-3 border-b border-slate-800">
+      <button id="btn-run-access-from-station" class="w-full flex items-center justify-center gap-2 py-2 px-3 bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 hover:from-cyan-500/30 hover:to-emerald-500/30 text-cyan-300 border border-cyan-500/40 rounded-lg text-xs font-bold transition-all shadow-lg">
+        <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span>Calculer l'Atlas d'Accessibilité depuis cette gare</span>
+      </button>
+    </div>
+
+    <!-- Live Departures Board -->
+    <div class="pt-3">
+      <div class="text-2xs font-bold uppercase tracking-wider text-slate-400 mb-2">Prochains Départs Planifiés</div>
+      <div id="station-dossier-departures" class="space-y-1"></div>
+    </div>
+  </div>
+
+  <!-- 3. ACCESSIBILITY ATLAS DRAWER -->
+  <div id="accessibility-drawer" class="absolute top-20 right-4 z-30 w-96 glass-panel rounded-xl border border-slate-800 p-4 hidden pointer-events-auto max-h-[82vh] overflow-y-auto shadow-2xl">
+    <div class="flex items-start justify-between pb-3 border-b border-slate-800">
+      <div>
+        <div class="text-2xs font-mono uppercase tracking-wider text-amber-400 font-bold">ATLAS D'ACCESSIBILITÉ FERROVIAIRE</div>
+        <h2 id="access-origin-name" class="text-base font-bold text-white mt-0.5">Paris Gare de Lyon</h2>
+        <div id="access-origin-region" class="text-2xs font-mono text-slate-400">Île-de-France • UIC 87686006</div>
+      </div>
+      <button class="drawer-close-btn text-slate-400 hover:text-white p-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Isochrone Bracket Legend -->
+    <div class="grid grid-cols-5 gap-1.5 py-3 border-b border-slate-800 text-center font-mono">
+      <div class="bg-emerald-500/10 border border-emerald-500/30 p-1.5 rounded">
+        <div class="text-2xs text-emerald-400 font-bold">&lt; 1h</div>
+      </div>
+      <div class="bg-lime-500/10 border border-lime-500/30 p-1.5 rounded">
+        <div class="text-2xs text-lime-400 font-bold">1–2h</div>
+      </div>
+      <div class="bg-amber-500/10 border border-amber-500/30 p-1.5 rounded">
+        <div class="text-2xs text-amber-400 font-bold">2–3h</div>
+      </div>
+      <div class="bg-rose-500/10 border border-rose-500/30 p-1.5 rounded">
+        <div class="text-2xs text-rose-400 font-bold">3–5h</div>
+      </div>
+      <div class="bg-purple-500/10 border border-purple-500/30 p-1.5 rounded">
+        <div class="text-2xs text-purple-400 font-bold">&gt; 5h</div>
+      </div>
+    </div>
+
+    <!-- Reachability Scorecard -->
+    <div class="grid grid-cols-4 gap-2 py-3 border-b border-slate-800 text-center font-mono">
+      <div class="bg-slate-900/80 p-2 rounded border border-slate-800">
+        <div class="text-2xs text-slate-400">&lt; 2h</div>
+        <div id="access-kpi-2h" class="text-xs font-bold text-lime-300">--</div>
+      </div>
+      <div class="bg-slate-900/80 p-2 rounded border border-slate-800">
+        <div class="text-2xs text-slate-400">&lt; 3h</div>
+        <div id="access-kpi-3h" class="text-xs font-bold text-amber-300">--</div>
+      </div>
+      <div class="bg-slate-900/80 p-2 rounded border border-slate-800">
+        <div class="text-2xs text-slate-400">&lt; 5h</div>
+        <div id="access-kpi-5h" class="text-xs font-bold text-rose-300">--</div>
+      </div>
+      <div class="bg-slate-900/80 p-2 rounded border border-slate-800">
+        <div class="text-2xs text-slate-400">Total</div>
+        <div id="access-kpi-total" class="text-xs font-bold text-cyan-300">--</div>
+      </div>
+    </div>
+
+    <!-- Quick Origin Hub Presets -->
+    <div class="py-3 border-b border-slate-800">
+      <div class="text-2xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Gares d'Origine Rapides</div>
+      <div class="flex flex-wrap gap-1.5">
+        <button class="px-2 py-1 text-2xs bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-200" onclick="window.app.flyToStation('87686006')">Paris-Lyon</button>
+        <button class="px-2 py-1 text-2xs bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-200" onclick="window.app.flyToStation('87391003')">Paris-Montp.</button>
+        <button class="px-2 py-1 text-2xs bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-200" onclick="window.app.flyToStation('87723197')">Lyon Part-Dieu</button>
+        <button class="px-2 py-1 text-2xs bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-200" onclick="window.app.flyToStation('87751008')">Marseille St-Ch.</button>
+        <button class="px-2 py-1 text-2xs bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-200" onclick="window.app.flyToStation('87581009')">Bordeaux St-J.</button>
+        <button class="px-2 py-1 text-2xs bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-200" onclick="window.app.flyToStation('87212027')">Strasbourg</button>
+        <button class="px-2 py-1 text-2xs bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-200" onclick="window.app.flyToStation('87286005')">Lille Flandres</button>
+        <button class="px-2 py-1 text-2xs bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-200" onclick="window.app.flyToStation('87611004')">Toulouse Mat.</button>
+        <button class="px-2 py-1 text-2xs bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-slate-200" onclick="window.app.flyToStation('87481002')">Nantes</button>
+      </div>
+    </div>
+
+    <!-- Reachable Destinations List -->
+    <div class="pt-3">
+      <div class="text-2xs font-bold uppercase tracking-wider text-slate-400 mb-2">Destinations Atteignables (Temps de Parcours)</div>
+      <div id="access-destinations-list" class="space-y-1"></div>
+    </div>
+  </div>
+
+  <!-- 4. CORRIDOR FLOW DRAWER -->
+  <div id="corridor-drawer" class="absolute top-20 right-4 z-30 w-92 glass-panel rounded-xl border border-slate-800 p-4 hidden pointer-events-auto max-h-[82vh] overflow-y-auto shadow-2xl">
+    <div class="flex items-start justify-between pb-3 border-b border-slate-800">
+      <div>
+        <div class="text-2xs font-mono uppercase tracking-wider text-pink-400 font-bold">RÉSEAU FERRÉ NATIONAL • TRAFIC 24H</div>
+        <h2 id="corridor-dossier-name" class="text-base font-bold text-white mt-0.5">Corridors RFN</h2>
+        <div id="corridor-dossier-code" class="text-2xs font-mono text-slate-400">Fréquence cumulative sur 24 heures</div>
+      </div>
+      <button class="drawer-close-btn text-slate-400 hover:text-white p-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Corridor Metrics Grid -->
+    <div class="grid grid-cols-5 gap-1.5 py-3 border-b border-slate-800 text-center font-mono">
+      <div class="bg-slate-900/80 p-1.5 rounded border border-slate-800">
+        <div class="text-2xs text-slate-400">Total/j</div>
+        <div id="corridor-dossier-daily" class="text-xs font-bold text-amber-300">--</div>
+      </div>
+      <div class="bg-slate-900/80 p-1.5 rounded border border-slate-800">
+        <div class="text-2xs text-slate-400">Vmax</div>
+        <div id="corridor-dossier-vmax" class="text-xs font-bold text-cyan-300">--</div>
+      </div>
+      <div class="bg-slate-900/80 p-1.5 rounded border border-pink-500/30">
+        <div class="text-2xs text-pink-400">TGV</div>
+        <div id="corridor-dossier-tgv" class="text-xs font-bold text-pink-300">--</div>
+      </div>
+      <div class="bg-slate-900/80 p-1.5 rounded border border-amber-500/30">
+        <div class="text-2xs text-amber-400">IC</div>
+        <div id="corridor-dossier-ic" class="text-xs font-bold text-amber-300">--</div>
+      </div>
+      <div class="bg-slate-900/80 p-1.5 rounded border border-cyan-500/30">
+        <div class="text-2xs text-cyan-400">TER</div>
+        <div id="corridor-dossier-ter" class="text-xs font-bold text-cyan-300">--</div>
+      </div>
+    </div>
+
+    <!-- Corridor Leaderboard -->
+    <div class="pt-3">
+      <div class="text-2xs font-bold uppercase tracking-wider text-slate-400 mb-2">Artères Majeures du Réseau Ferré National</div>
+      <div id="corridor-leaderboard-list" class="space-y-1"></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM TIMELINE SCRUBBER DECK -->
+  <footer class="absolute bottom-4 left-4 right-4 z-20 glass-panel rounded-2xl p-3 border border-slate-800 pointer-events-auto shadow-2xl">
+    <div class="flex flex-col gap-2.5">
+      <!-- Controls Bar: Play/Pause, Current Time, Speed, Rush Moments -->
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <!-- Play / Pause Button -->
+          <button id="btn-play-pause" class="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs rounded-lg transition-all shadow-lg cursor-pointer">
+            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>
+            <span>PAUSE</span>
+          </button>
+
+          <!-- Time Display -->
+          <div class="flex items-center gap-2 px-3 py-1 bg-slate-900/90 border border-slate-700/80 rounded-lg">
+            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+            <span id="scrubber-time-val" class="font-mono font-bold text-sm text-slate-100">08:00</span>
+          </div>
+
+          <!-- Playback Speed Multiplier -->
+          <div class="flex items-center gap-1.5 text-xs text-slate-400">
+            <span>Vitesse:</span>
+            <select id="speed-select" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-cyan-300 font-mono font-bold focus:outline-none">
+              <option value="1">1x (Temps réel)</option>
+              <option value="5">5x</option>
+              <option value="15">15x</option>
+              <option value="30" selected>30x (Fluide)</option>
+              <option value="60">60x (1 min/sec)</option>
+              <option value="120">120x</option>
+              <option value="300">300x (Rapide)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Quick Jump Rush Presets -->
+        <div class="flex items-center gap-1.5">
+          <span class="text-2xs text-slate-400 uppercase font-mono mr-1">Moments-clés:</span>
+          <button class="time-preset-btn px-2.5 py-1 text-2xs font-mono font-medium bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded text-slate-300 hover:text-white" data-time-sec="21600">🌅 06:00 Départs</button>
+          <button class="time-preset-btn px-2.5 py-1 text-2xs font-mono font-medium bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/40 rounded text-cyan-300 hover:text-white" data-time-sec="29700">⚡ 08:15 Pointe Matin</button>
+          <button class="time-preset-btn px-2.5 py-1 text-2xs font-mono font-medium bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded text-slate-300 hover:text-white" data-time-sec="45000">☀️ 12:30 Midi</button>
+          <button class="time-preset-btn px-2.5 py-1 text-2xs font-mono font-medium bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/40 rounded text-pink-300 hover:text-white" data-time-sec="64800">🌆 18:00 Pointe Soir</button>
+          <button class="time-preset-btn px-2.5 py-1 text-2xs font-mono font-medium bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded text-slate-300 hover:text-white" data-time-sec="81900">🌙 22:45 Nuit</button>
+          <button class="time-preset-btn px-2.5 py-1 text-2xs font-mono font-medium bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded text-slate-300 hover:text-white" data-time-sec="10800">🌌 03:00 Creux</button>
+        </div>
+      </div>
+
+      <!-- Scrubber Slider Track & 24h Traffic Curve -->
+      <div class="relative w-full">
+        <!-- Background 24h Traffic Curve Canvas -->
+        <div class="relative w-full h-10 bg-slate-900/80 rounded-lg overflow-hidden border border-slate-800/80">
+          <canvas id="traffic-profile-canvas" width="1200" height="40" class="w-full h-full block"></canvas>
+          <!-- Playhead Vertical Needle -->
+          <div id="traffic-playhead-cursor" class="absolute top-0 bottom-0 w-0.5 bg-cyan-400 shadow-[0_0_8px_#00f5d4] pointer-events-none" style="left: 33.3%;"></div>
+        </div>
+
+        <!-- Range Slider Overlay -->
+        <input 
+          id="timeline-slider" 
+          type="range" 
+          min="0" 
+          max="86399" 
+          value="28800" 
+          step="1"
+          class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        />
+
+        <!-- Hour Ticks Legend below slider -->
+        <div class="flex justify-between px-1 text-2xs font-mono text-slate-500 mt-1">
+          <span>00:00</span>
+          <span>03:00</span>
+          <span>06:00</span>
+          <span>09:00</span>
+          <span>12:00</span>
+          <span>15:00</span>
+          <span>18:00</span>
+          <span>21:00</span>
+          <span>24:00</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- MAP TOOLTIP -->
+  <div id="map-tooltip" class="absolute z-40 glass-panel px-3 py-2 rounded-lg text-xs pointer-events-none border border-slate-700 shadow-2xl hidden"></div>
+
+  <!-- Entry Script -->
+</body>
+</html>

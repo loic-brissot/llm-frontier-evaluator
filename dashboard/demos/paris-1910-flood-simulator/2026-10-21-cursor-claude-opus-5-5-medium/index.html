@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Paris · La Crue — 3D flood simulator of the Seine</title>
+  <meta name="description" content="Raise the Seine centimetre by centimetre and watch Paris flood, from normal level to beyond the 1910 centennial flood." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <script type="module" crossorigin src="./assets/index-CotCmlif.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-Ckugi0Zy.css">
+</head>
+<body>
+  <canvas id="scene"></canvas>
+  <div id="vignette"></div>
+  <div id="labels"></div>
+
+  <header id="title">
+    <div class="kicker">La Seine à Paris · Échelle d'Austerlitz</div>
+    <h1>Paris <span>sous les eaux</span></h1>
+    <p>Raise the river centimetre by centimetre — from its normal level to beyond the great flood of January 1910.</p>
+  </header>
+
+  <aside id="impact" class="panel">
+    <div class="panel-title">Live impact</div>
+    <div class="counters">
+      <div class="counter">
+        <div class="value"><span id="c-area">0</span><small>ha</small></div>
+        <div class="label">flooded land</div>
+      </div>
+      <div class="counter">
+        <div class="value"><span id="c-bld">0</span></div>
+        <div class="label">buildings reached</div>
+      </div>
+      <div class="counter">
+        <div class="value"><span id="c-sta">0</span><small id="c-sta-tot">/ 0</small></div>
+        <div class="label">stations flooded</div>
+      </div>
+    </div>
+    <div class="chart-block">
+      <div class="chart-head"><span>Flooded area vs. gauge level</span><span id="c-pct"></span></div>
+      <svg id="curve" viewBox="0 0 300 110" preserveAspectRatio="none"></svg>
+    </div>
+    <div class="chart-block">
+      <div class="chart-head"><span>Buildings reached, by arrondissement</span><span class="hint">hover · click to fly</span></div>
+      <div id="bars"></div>
+    </div>
+    <div class="chart-block stations-block">
+      <div class="chart-head"><span>Flooded stations</span><span class="hint">ground level reached</span></div>
+      <ul id="station-list"></ul>
+    </div>
+  </aside>
+
+  <section id="gauge" class="panel">
+    <div class="readout">
+      <div class="readout-label">Austerlitz gauge</div>
+      <div class="readout-value"><span id="h-sign">+</span><span id="h-val">0.82</span><small>m</small></div>
+      <div class="readout-ngf"><span id="h-ngf">26.74</span> m NGF-IGN69</div>
+    </div>
+    <div id="ruler" tabindex="0" aria-label="Seine level at the Austerlitz gauge" role="slider" aria-valuemin="0" aria-valuemax="10">
+      <div id="ruler-scale"></div>
+      <div id="ruler-water"></div>
+      <div id="ruler-marks"></div>
+      <div id="ruler-handle"><div class="grip"></div></div>
+    </div>
+    <div class="gauge-controls">
+      <button id="btn-down" title="−1 cm (↓)">−</button>
+      <button id="btn-play" title="Animate the rise (space)">▶</button>
+      <button id="btn-up" title="+1 cm (↑)">+</button>
+    </div>
+    <div class="gauge-hint">drag · scroll · ↑↓ = 1 cm · ⇧ = 10 cm</div>
+  </section>
+
+  <div id="event-card" class="hidden">
+    <div class="ev-year"></div>
+    <div class="ev-text"></div>
+  </div>
+
+  <nav id="toolbar">
+    <div class="group" id="views"></div>
+    <div class="group" id="layers"></div>
+    <div class="group relief">
+      <label>Relief <input id="relief" type="range" min="1" max="4" step="0.5" value="1.5" /><span id="relief-v">×1.5</span></label>
+    </div>
+  </nav>
+
+  <div id="ppri-legend" class="panel hidden">
+    <div class="panel-title">PPRI · regulatory flood zones (2007)</div>
+    <div class="lg"><i class="sw r"></i>Red — river flow &amp; lower quays</div>
+    <div class="lg"><i class="sw v"></i>Green — flood expansion area</div>
+    <div class="lg"><i class="sw bs"></i>Dark blue — more than 1 m of water at PHEC</div>
+    <div class="lg"><i class="sw bc"></i>Light blue — up to 1 m of water at PHEC</div>
+    <div class="lg"><i class="sw hatch"></i>Hatched — presumed above PHEC</div>
+    <div class="lg"><i class="sw phec"></i>Modelled 1910 limit (PHEC)</div>
+  </div>
+
+  <div id="tooltip" class="hidden"></div>
+
+  <footer id="about">
+    <button id="about-btn">About the model &amp; data</button>
+    <div id="about-body" class="hidden">
+      <p><b>How it works.</b> A 4 m terrain model of inner Paris is built from the median ground elevation of 127,000 Apur building footprints and 9,800 street levelling benchmarks (Ville de Paris, IGN69). The water surface is not flat: it follows the slope of the Seine, calibrated bridge by bridge on the 1910, 1955 and 1982 water lines and the lower-quay altitudes published by VNF. Each 4 m cell gets the gauge level at which water first reaches it <i>by a continuous surface path from the river</i>; buildings and stations take the lowest value of their footprint or surroundings.</p>
+      <p><b>Limits.</b> Surface overflow only: flooding through sewers, cellars, the metro and groundwater (a major factor in 1910) is not modelled, and neither are temporary defences or embankment parapets. Stations are flagged when water reaches the street around them, not their underground platforms. This is an educational visualisation, not an official hazard map — refer to the PPRI.</p>
+      <p><b>Data</b> (ODbL / Licence Ouverte): Apur — Emprise bâtie Paris · Ville de Paris Open Data — PPRI zones, repères de nivellement, voies d'eau, arrondissements · Île-de-France Mobilités — gares et stations · VNF — lignes d'eau du bief de Paris · HydroPortail — zéro de l'échelle d'Austerlitz (25.92 m NGF).</p>
+    </div>
+  </footer>
+
+  <div id="loader">
+    <div class="loader-inner">
+      <div class="kicker">Paris · sous les eaux</div>
+      <div class="loader-title">Building the city</div>
+      <div class="loader-bar"><div id="loader-fill"></div></div>
+      <div id="loader-msg">Loading…</div>
+    </div>
+  </div>
+
+</body>
+</html>

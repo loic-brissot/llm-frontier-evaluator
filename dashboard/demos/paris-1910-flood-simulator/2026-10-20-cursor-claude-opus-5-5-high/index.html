@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Paris sous les eaux — The Seine in flood, in 3D</title>
+    <meta name="description" content="Interactive 3D flood simulator of Paris: raise the Seine from its usual level to the 1910 flood and beyond." />
+    <script type="module" crossorigin src="./assets/index-CCmirF8S.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-3Bj7nNbm.css">
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+    <div id="labels"></div>
+    <div class="vignette"></div>
+
+    <header id="title" class="ui">
+      <div class="kicker">La Seine en crue · Paris intra-muros</div>
+      <h1>Paris sous les eaux</h1>
+      <p class="lede">Raise the Seine centimetre by centimetre at the Pont d'Austerlitz gauge and watch the water reach each street, building and station of the capital.</p>
+    </header>
+
+    <section id="gauge" class="ui" aria-label="Water level at the Pont d'Austerlitz gauge"></section>
+
+    <nav id="views" class="ui" aria-label="Viewpoints"></nav>
+
+    <aside id="impact" class="ui panel" aria-live="polite"></aside>
+
+    <section id="profile" class="ui panel" aria-label="Long profile of the Seine"></section>
+
+    <section id="layers" class="ui panel" aria-label="Layers"></section>
+
+    <div id="tooltip" role="tooltip"></div>
+
+    <div id="loader">
+      <div class="loader-inner">
+        <div class="kicker">La Seine en crue</div>
+        <div class="loader-title">Paris sous les eaux</div>
+        <div class="loader-bar"><span></span></div>
+        <div class="loader-text">Loading 126 000 buildings…</div>
+      </div>
+    </div>
+
+    <dialog id="about"></dialog>
+
+  </body>
+</html>

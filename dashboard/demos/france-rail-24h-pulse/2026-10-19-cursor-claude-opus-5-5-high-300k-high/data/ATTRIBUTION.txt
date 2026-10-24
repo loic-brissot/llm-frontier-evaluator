@@ -1,0 +1,13 @@
+Data sources (raw downloads in data/raw/, derived bundle in data/*.json)
+
+- SNCF Voyageurs — "Réseau SNCF TGV, Intercités et TER" GTFS (Export_OpenData_SNCF_GTFS_NewTripId.zip),
+  via transport.data.gouv.fr/datasets/horaires-sncf — Licence Ouverte / Open Licence (Etalab).
+- SNCF Réseau — "Fichier de formes des lignes du Réseau Ferré National" (ressources.data.sncf.com,
+  formes-des-lignes-du-rfn) — Licence Ouverte / ODbL as published by SNCF Open Data.
+- SNCF — "Liste des gares" and "Gares de voyageurs" (ressources.data.sncf.com) — Licence Ouverte / ODbL
+  as published by SNCF Open Data.
+- Natural Earth admin-0 countries 1:10m (public domain) — basemap land outline.
+- france-geojson (Grégoire David, derived from IGN / Etalab data, Licence Ouverte) — departments and regions.
+
+Derived data (rail-routed trip geometry, corridor counts, station statistics) © contributors of the
+sources above; redistributed under the same terms.

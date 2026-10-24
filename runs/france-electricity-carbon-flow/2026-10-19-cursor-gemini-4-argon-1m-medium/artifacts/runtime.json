@@ -16,5 +16,6 @@
     "text_length": 3484
   },
   "screenshot_path": "artifacts/screenshot.png",
-  "verified_at": "2026-10-21T15:13:09.563Z"
+  "verified_at": "2026-10-21T15:13:09.563Z",
+  "demo_url": "demos/france-electricity-carbon-flow/2026-10-19-cursor-gemini-4-argon-1m-medium/index.html"
 }

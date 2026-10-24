@@ -16,5 +16,6 @@
     "text_length": 3831
   },
   "screenshot_path": "artifacts/screenshot.png",
-  "verified_at": "2026-10-22T08:59:59.963Z"
+  "verified_at": "2026-10-22T08:59:59.963Z",
+  "demo_url": "demos/paris-1910-flood-simulator/2026-10-22-cursor-gemini-4-argon-medium/index.html"
 }
