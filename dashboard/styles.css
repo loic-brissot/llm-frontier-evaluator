@@ -482,7 +482,7 @@ svg.chart-svg {
 .legend-box.cost-est { background: var(--accent-indigo); }
 .legend-box.cost-billed { background: var(--accent-emerald); }
 .legend-box.cache-read { background: var(--accent-cyan); }
-.legend-box.uncached { background: #475569; }
+.legend-box.uncached { background: var(--accent-amber); }
 .legend-line.hit-rate {
   width: 18px;
   height: 3px;

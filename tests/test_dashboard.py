@@ -242,3 +242,21 @@ class TestDashboardDownloadsAndWarehouse:
         assert ".download-artifact-card" in css
         assert ".btn-artifact-download" in css
 
+
+class TestCrossRunCacheEfficiencyChart:
+    """Validate cross-run context re-read and cache efficiency chart (TASK-81)."""
+
+    def test_cache_efficiency_chart_markup_in_html(self) -> None:
+        html = HTML_PATH.read_text(encoding="utf-8")
+        assert 'id="btn-cache-mode-bars"' in html
+        assert 'id="btn-cache-mode-scatter"' in html
+        assert 'id="chart-cache-curve"' in html
+
+    def test_cache_efficiency_chart_logic_in_app_js(self) -> None:
+        js = JS_PATH.read_text(encoding="utf-8")
+        assert "cacheChartMode" in js
+        assert "btn-cache-mode-bars" in js
+        assert "btn-cache-mode-scatter" in js
+        assert "renderCacheCurveChart" in js
+
+
