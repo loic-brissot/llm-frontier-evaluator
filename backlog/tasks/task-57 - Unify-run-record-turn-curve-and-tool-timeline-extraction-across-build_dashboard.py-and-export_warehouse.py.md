@@ -3,9 +3,10 @@ id: TASK-57
 title: >-
   Unify run record, turn curve, and tool timeline extraction across
   build_dashboard.py and export_warehouse.py
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-23 19:43'
+updated_date: '2026-10-24 00:21'
 labels: []
 milestone: m-9
 dependencies: []
@@ -25,7 +26,7 @@ scripts/build_dashboard.py (extract_run_record, extract_turns, extract_tool_time
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Shared telemetry extraction helpers provide a single source of truth for normalized run metrics, deduplicated tool call timelines, and turn-by-turn token curves used by both build_dashboard.py and export_warehouse.py
-- [ ] #2 Turn extraction from usage/*.csv uses models_match() and event_in_window() (including the 60s pre-start grace buffer) so dashboard and warehouse turn counts match finish_run.py event selection
-- [ ] #3 Unit tests verify identical turn and tool timeline extraction across both consumers, including runs with pre-grace CSV timestamps and multi-model team exports
+- [x] #1 Shared telemetry extraction helpers provide a single source of truth for normalized run metrics, deduplicated tool call timelines, and turn-by-turn token curves used by both build_dashboard.py and export_warehouse.py
+- [x] #2 Turn extraction from usage/*.csv uses models_match() and event_in_window() (including the 60s pre-start grace buffer) so dashboard and warehouse turn counts match finish_run.py event selection
+- [x] #3 Unit tests verify identical turn and tool timeline extraction across both consumers, including runs with pre-grace CSV timestamps and multi-model team exports
 <!-- AC:END -->
