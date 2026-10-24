@@ -1,0 +1,287 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-24-cursor-claude-sonnet-5-5-high",
+  "series_id": "paris-tree-canopy-cursor",
+  "prompt_id": "paris-tree-canopy",
+  "prompt_sha256": "69f692b4adcfe21e0dbcab273537095a344735479a4309ab4a85b8a76288bfaf",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "anthropic",
+    "name": "Claude Sonnet 5.5",
+    "context": null,
+    "reasoning": "high"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": "2026.10.19-6bbf2c4",
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-24T09:37:25.186Z",
+    "ended_at": "2026-10-24T10:06:50.622Z"
+  },
+  "tokens": {
+    "split_rule": "unavailable",
+    "reasoning_tokens": null,
+    "visible_tokens": null,
+    "raw": {
+      "type": "tool_call",
+      "subtype": "started",
+      "call_id": "toolu_01UmQRfuVKMtJQGJSSx3Wok8",
+      "tool_call": {
+        "shellToolCall": {
+          "args": {
+            "command": "cd /workspace && CLIP=1040,56,520,884 node scripts/shot.mjs f1 1560 940 \"(()=>{document.querySelector('.tabpanels').scrollTop=560;})()\" && CLIP=1040,56,520,884 node scripts/shot.mjs f2 1560 940 \"(()=>{document.querySelector('.tabpanels').scrollTop=1250;})()\" && echo ok",
+            "workingDirectory": "",
+            "timeout": 120000,
+            "toolCallId": "toolu_01UmQRfuVKMtJQGJSSx3Wok8",
+            "simpleCommands": [
+              "cd",
+              "node"
+            ],
+            "hasInputRedirect": false,
+            "hasOutputRedirect": true,
+            "parsingResult": {
+              "parsingFailed": false,
+              "executableCommands": [
+                {
+                  "name": "cd",
+                  "args": [
+                    {
+                      "type": "word",
+                      "value": "/workspace"
+                    }
+                  ],
+                  "fullText": "cd /workspace"
+                },
+                {
+                  "name": "node",
+                  "args": [
+                    {
+                      "type": "word",
+                      "value": "scripts/shot.mjs"
+                    },
+                    {
+                      "type": "word",
+                      "value": "f1"
+                    },
+                    {
+                      "type": "number",
+                      "value": "1560"
+                    },
+                    {
+                      "type": "number",
+                      "value": "940"
+                    }
+                  ],
+                  "fullText": "node scripts/shot.mjs f1 1560 940"
+                }
+              ],
+              "hasRedirects": true,
+              "hasCommandSubstitution": false,
+              "allRedirectsAreDevNull": false,
+              "redirects": [
+                {
+                  "operator": ">",
+                  "destinationFds": [
+                    1
+                  ],
+                  "targetNodeType": "concatenation"
+                },
+                {
+                  "operator": ">",
+                  "destinationFds": [
+                    1
+                  ],
+                  "targetNodeType": "concatenation"
+                }
+              ]
+            },
+            "fileOutputThresholdBytes": "40000",
+            "isBackground": false,
+            "skipApproval": false,
+            "timeoutBehavior": "TIMEOUT_BEHAVIOR_BACKGROUND",
+            "hardTimeout": 86400000,
+            "description": "Screenshot lower overview panel",
+            "closeStdin": true,
+            "conversationId": "eecf0a28-c6f2-4693-b9c3-044c3c59f444",
+            "adminCommandDenylist": [],
+            "requestId": "cb7eeea6-cfb1-49ad-89c2-c75683330d52"
+          },
+          "description": "Screenshot lower overview panel"
+        },
+        "hookAdditionalContexts": [],
+        "toolCallId": "toolu_01UmQRfuVKMtJQGJSSx3Wok8",
+        "startedAtMs": "1792836410521"
+      },
+      "model_call_id": "cb7eeea6-cfb1-49ad-89c2-c75683330d52-59-2fab",
+      "session_id": "eecf0a28-c6f2-4693-b9c3-044c3c59f444",
+      "timestamp_ms": 1792836410588
+    }
+  },
+  "model_time": {
+    "source": "wall_clock_minus_tool_time",
+    "generating_seconds": 1394.3,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 1765.4,
+        "tool_seconds_merged": 371.1,
+        "tool_seconds_summed": 380.1,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": 1394.3,
+        "thinking_seconds": 617.4,
+        "thought_blocks": 49
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 33,
+      "failures": 3,
+      "by_tool": {
+        "Shell": {
+          "calls": 33,
+          "failures": 3
+        }
+      }
+    },
+    "files": {
+      "calls": 42,
+      "failures": 0,
+      "by_tool": {
+        "Write": {
+          "calls": 28,
+          "failures": 0
+        },
+        "Read": {
+          "calls": 14,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    }
+  },
+  "context_reread": {
+    "source": "unavailable",
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "uncached_input_tokens": null,
+    "raw": {}
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": false,
+    "summary": ""
+  },
+  "observations": "No stop event recorded; capped run end time at the last non-idle tool/thought event.",
+  "verification": {
+    "runtime": {
+      "passed": false,
+      "http_status": 200,
+      "url": "http://127.0.0.1:62505",
+      "server_mode": "static",
+      "load_time_ms": 4790.29,
+      "console_errors": [
+        "Error: Worker failed to load. Check that the worker URL is correct.\n    at Worker.<anonymous> (http://127.0.0.1:62505/assets/index-DklOCt-I.js:1:455715)",
+        "Error: Worker failed to load. Check that the worker URL is correct.\n    at Worker.<anonymous> (http://127.0.0.1:62505/assets/index-DklOCt-I.js:1:455715)"
+      ],
+      "console_warnings_count": 4,
+      "page_errors": [],
+      "failed_requests": [
+        {
+          "url": "http://127.0.0.1:62505/assets/maplibre-gl-worker.mjs?v=6.15.0",
+          "reason": "HTTP 404",
+          "status": 404
+        }
+      ],
+      "critical_failures": [
+        "Persistent loading overlay detected (#splash): 'Canop\u00e9e de Paris Drawing the map\u2026'",
+        "Primary canvas is obscured by a loading overlay",
+        "Critical script/worker request failed (HTTP 404): http://127.0.0.1:62505/assets/maplibre-gl-worker.mjs?v=6.15.0",
+        "Fatal initialization console error: Error: Worker failed to load. Check that the worker URL is correct.",
+        "Fatal initialization console error: Error: Worker failed to load. Check that the worker URL is correct."
+      ],
+      "dom": {
+        "title": "Canop\u00e9e de Paris \u2014 an atlas of the municipal urban forest",
+        "canvas_count": 1,
+        "visible_canvas_count": 1,
+        "canvas_obscured": true,
+        "loading_overlay": {
+          "detected": true,
+          "selector": "#splash",
+          "id": "splash",
+          "class": "splash",
+          "text": "Canop\u00e9e de Paris\n\nDrawing the map\u2026",
+          "covers_center": true
+        },
+        "svg_count": 4,
+        "webgl_context": true,
+        "text_length": 205
+      },
+      "screenshot_path": "artifacts/screenshot.png",
+      "verified_at": "2026-10-24T10:07:14.595Z",
+      "demo_url": "demos/paris-tree-canopy/2026-10-24-cursor-claude-sonnet-5-5-high/index.html"
+    },
+    "data_pipeline": {
+      "prompt_id": "paris-tree-canopy",
+      "passed": true,
+      "authenticity": "real_open_data",
+      "score": 1.0,
+      "total_data_files": 8,
+      "total_records": 253911,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "trees_dataset",
+          "description": "Paris municipal trees inventory with botanical species and measurements",
+          "passed": true,
+          "observed_records": 220112,
+          "matched_files": [
+            "scripts/raw/arbres.json"
+          ],
+          "detail": "Matched 1 file(s) with 220112 observed records (min: 1000)"
+        },
+        {
+          "id": "remarkable_trees_dataset",
+          "description": "Paris remarkable heritage trees (arbres remarquables)",
+          "passed": true,
+          "observed_records": 220477,
+          "matched_files": [
+            "scripts/raw/arbres.json",
+            "scripts/raw/remarquables.json",
+            "public/data/remarkable.json"
+          ],
+          "detail": "Matched 3 file(s) with 220477 observed records (min: 20)"
+        },
+        {
+          "id": "arrondissements_dataset",
+          "description": "Paris arrondissements administrative boundaries",
+          "passed": true,
+          "observed_records": 60,
+          "matched_files": [
+            "scripts/raw/arrondissements.geojson",
+            "public/data/arrondissements.geojson",
+            "public/data/meta.json"
+          ],
+          "detail": "Matched 3 file(s) with 60 observed records (min: 20)"
+        }
+      ],
+      "verified_at": "2026-10-24T10:07:20.077Z"
+    }
+  }
+}

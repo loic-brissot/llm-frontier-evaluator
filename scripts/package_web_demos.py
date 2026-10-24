@@ -39,6 +39,7 @@ DEFAULT_OUTPUT_DIR = ROOT / "site" / "demos"
 EXCLUDED_DIR_NAMES = {
     "node_modules",
     ".git",
+    ".cursor",
     ".cache",
     ".vite",
     ".parcel-cache",
@@ -214,6 +215,19 @@ def find_static_source(
     # 4. If root index.html exists even if uncompiled source, check if fallback is possible
     if root_html.is_file():
         return workspace_dir, "raw_static"
+
+    # 5. Check subdirectories for compiled or buildable apps (e.g. workspace/paris-trees, workspace/client)
+    for child in workspace_dir.iterdir():
+        if not child.is_dir() or child.name.startswith((".", "node_modules")):
+            continue
+        child_res, child_mode = find_static_source(
+            child,
+            try_compile=try_compile,
+            base_url=base_url,
+            timeout=timeout,
+        )
+        if child_res is not None:
+            return child_res, f"{child.name}/{child_mode}"
 
     return None, "none"
 

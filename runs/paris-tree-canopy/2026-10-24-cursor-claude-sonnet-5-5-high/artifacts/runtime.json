@@ -1,0 +1,47 @@
+{
+  "passed": false,
+  "http_status": 200,
+  "url": "http://127.0.0.1:62505",
+  "server_mode": "static",
+  "load_time_ms": 4790.29,
+  "console_errors": [
+    "Error: Worker failed to load. Check that the worker URL is correct.\n    at Worker.<anonymous> (http://127.0.0.1:62505/assets/index-DklOCt-I.js:1:455715)",
+    "Error: Worker failed to load. Check that the worker URL is correct.\n    at Worker.<anonymous> (http://127.0.0.1:62505/assets/index-DklOCt-I.js:1:455715)"
+  ],
+  "console_warnings_count": 4,
+  "page_errors": [],
+  "failed_requests": [
+    {
+      "url": "http://127.0.0.1:62505/assets/maplibre-gl-worker.mjs?v=6.15.0",
+      "reason": "HTTP 404",
+      "status": 404
+    }
+  ],
+  "critical_failures": [
+    "Persistent loading overlay detected (#splash): 'Canop\u00e9e de Paris Drawing the map\u2026'",
+    "Primary canvas is obscured by a loading overlay",
+    "Critical script/worker request failed (HTTP 404): http://127.0.0.1:62505/assets/maplibre-gl-worker.mjs?v=6.15.0",
+    "Fatal initialization console error: Error: Worker failed to load. Check that the worker URL is correct.",
+    "Fatal initialization console error: Error: Worker failed to load. Check that the worker URL is correct."
+  ],
+  "dom": {
+    "title": "Canop\u00e9e de Paris \u2014 an atlas of the municipal urban forest",
+    "canvas_count": 1,
+    "visible_canvas_count": 1,
+    "canvas_obscured": true,
+    "loading_overlay": {
+      "detected": true,
+      "selector": "#splash",
+      "id": "splash",
+      "class": "splash",
+      "text": "Canop\u00e9e de Paris\n\nDrawing the map\u2026",
+      "covers_center": true
+    },
+    "svg_count": 4,
+    "webgl_context": true,
+    "text_length": 205
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "verified_at": "2026-10-24T10:07:14.595Z",
+  "demo_url": "demos/paris-tree-canopy/2026-10-24-cursor-claude-sonnet-5-5-high/index.html"
+}

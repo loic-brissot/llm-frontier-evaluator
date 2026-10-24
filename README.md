@@ -70,6 +70,22 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 | Claude Opus 5.5 medium | Cursor | 198k | 39.2 min<br>15.4 min thinking | 171 ✓<br>2 ✗ | 16.0M | $13.81 | UI ✓<br>Data 6/6 ✓<br>142k records |
 | Gemini 4 Argon medium | Cursor | 133k | 32.4 min<br>17.4 min thinking | 91 ✓<br>10 ✗ | 6.0M | $4.29 | UI ✓<br>Data 6/6 ✓<br>9.5k records |
 
+### `paris-tree-canopy`
+
+![paris-tree-canopy — Claude Sonnet 5.5 high (2026-10-24-cursor-claude-sonnet-5-5-high)](runs/paris-tree-canopy/2026-10-24-cursor-claude-sonnet-5-5-high/artifacts/screenshot.png)
+
+**Local series `paris-tree-canopy-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
+
+| Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Claude Haiku 5.5 high | Cursor | 79k | 6.4 min | 94 ✓<br>1 ✗ | 7.5M | $2.06 | UI ✗<br>Data 3/3 ✓<br>177k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-24-cursor-claude-haiku-5-5-high/index.html) |
+| Claude Sonnet 5.5 high | Cursor | n/a | 23.2 min<br>10.3 min thinking | 72 ✓<br>3 ✗ | n/a | n/a | UI ✗<br>Data 3/3 ✓<br>254k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-24-cursor-claude-sonnet-5-5-high/index.html) |
+| Composer 2.5 high | Cursor | 26k | 2.2 min<br>0.4 min thinking | 58 ✓<br>3 ✗ | 0.6M | $0.21 | UI ✗<br>Data 3/3 ✓<br>220k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-24-cursor-composer-2-5-high/index.html) |
+| Gemini 3.8 Flash high | Cursor | 98k | 14.1 min<br>8.0 min thinking | 78 ✓<br>9 ✗ | 5.5M | $2.56 | UI ✗<br>Data 3/3 ✓<br>441k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-24-cursor-gemini-3-8-flash-high/index.html) |
+| GPT-5.6 Luna high | Cursor | 19k | 2.7 min<br>0.3 min thinking | 14 ✓<br>0 ✗ | 0.2M | $0.10 | UI ✓<br>Data 0/3 ⚠<br>0 records<br>[Live Demo](demos/paris-tree-canopy/2026-10-24-cursor-gpt-5-6-luna-high/index.html) |
+
+*Note: Token and cost columns show `n/a` for headless CLI runs until a Cursor billing CSV export is ingested (`finish_run.py --usage-export`).*
+
 ## Protocol
 
 Each benchmark run evaluates one model and agent harness against a single frozen prompt under controlled conditions ([`docs/protocol.md`](docs/protocol.md)):

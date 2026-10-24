@@ -53,7 +53,7 @@ This document is the authoritative architectural reference for `llm-frontier-eva
 | Path | Role |
 | --- | --- |
 | `prompt/<prompt-id>.txt` | Frozen benchmark prompts (one per file; stem is `prompt_id`). Verified by exact byte count, SHA-256 hash, and final-newline flag in `prompt/README.md`. Includes both complex frontier prompts and simpler daily-driver prompts. |
-| `docs/` | Protocol (`protocol.md`), metric definitions (`metrics.md`), tool buckets (`tool-buckets.md`), run isolation design (`design-run-isolation.md`), analytical warehouse schema (`warehouse.md`), and architecture reference (`architecture.md`). |
+| `docs/` | Protocol (`protocol.md`), metric definitions (`metrics.md`), tool buckets (`tool-buckets.md`), run isolation design (`design-run-isolation.md`), analytical warehouse schema (`warehouse.md`), web explorer and demo packaging guide (`web-explorer-and-demos.md`), and architecture reference (`architecture.md`). |
 | `reference/` | Model pricing catalog (`pricing-2026-10-18.json`), reference series transcription (`2026-10-11-lassence.json`), and declarative data-pipeline probe specifications (`prompt-probes.json`). |
 | `schema/` | JSON Schemas validating `run.json` (`schema/run.schema.json`, single source of truth for enums and defaults) and compiled dashboard payloads (`schema/dashboard.schema.json`). |
 | `templates/` | Blank run record template (`templates/run.json`) and standalone Cursor hook template (`templates/cursor/hooks.json`, `templates/cursor/hooks/log-tool-event.py`). |

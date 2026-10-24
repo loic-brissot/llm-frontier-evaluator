@@ -22,6 +22,7 @@ runs/*/*/tool-events/
 # Local analytical warehouse files and DuckDB databases
 warehouse/*
 !warehouse/README.md
+dashboard/demos/
 dashboard/warehouse/
 dashboard/results/
 *.duckdb
