@@ -24,6 +24,7 @@ from run_common import (
     BUCKETS,
     CACHE_SOURCES,
     HOOK_TIME_SOURCE,
+    REASONING_LEVELS,
     ROOT,
     RUNS_DIR,
     SPLIT_RULES,
@@ -756,7 +757,7 @@ def cell(row: dict[str, str | None], header: str | None) -> str:
     return (row.get(header) or "").strip()
 
 
-KNOWN_REASONING_LEVELS = {"low", "medium", "high", "max"}
+KNOWN_REASONING_LEVELS = set(REASONING_LEVELS)
 
 
 def models_match(
@@ -1776,10 +1777,15 @@ def complete_run_json(
     tokens = run["tokens"]
     usage_summary = hints.get("usage_summary")
     if non_interactive:
+        has_exact_split = (
+            hints.get("split_rule") in ("output_includes_reasoning", "harness_pre_split")
+            or tokens.get("split_rule") in ("output_includes_reasoning", "harness_pre_split")
+        )
         if (
             isinstance(usage_summary, dict)
             and usage_summary.get("events_selected", 0) > 0
             and usage_summary.get("output_tokens") is not None
+            and not has_exact_split
             and tokens.get("split_rule") in ("unavailable", "combined_output_as_visible", None)
         ):
             tokens["split_rule"] = "combined_output_as_visible"
@@ -1795,9 +1801,10 @@ def complete_run_json(
             if tokens["reasoning_tokens"] is None and hints.get("reasoning_tokens") is None:
                 out_tok = hints.get("output_tokens") if is_int(hints.get("output_tokens")) else tool_summary.output_tokens
                 if is_int(out_tok):
-                    tokens["split_rule"] = "combined_output_as_visible"
-                    tokens["reasoning_tokens"] = 0
-                    tokens["visible_tokens"] = out_tok
+                    if not has_exact_split:
+                        tokens["split_rule"] = "combined_output_as_visible"
+                        tokens["reasoning_tokens"] = 0
+                        tokens["visible_tokens"] = out_tok
                 else:
                     tokens["split_rule"] = "unavailable"
                     tokens["reasoning_tokens"] = None
@@ -2109,10 +2116,20 @@ def backfill_usage_export(
         apply_logged_time(run_data, tool_summary, hints)
 
         tokens = run_data.setdefault("tokens", {})
-        if usage_summary.get("output_tokens") is not None:
+        has_exact_split = (
+            hints.get("split_rule") in ("output_includes_reasoning", "harness_pre_split")
+            or tokens.get("split_rule") in ("output_includes_reasoning", "harness_pre_split")
+        )
+        if usage_summary.get("output_tokens") is not None and not has_exact_split:
             tokens["split_rule"] = "combined_output_as_visible"
             tokens["reasoning_tokens"] = 0
             tokens["visible_tokens"] = usage_summary["output_tokens"]
+        elif hints.get("split_rule") in ("output_includes_reasoning", "harness_pre_split"):
+            tokens["split_rule"] = hints["split_rule"]
+            if hints.get("reasoning_tokens") is not None:
+                tokens["reasoning_tokens"] = hints["reasoning_tokens"]
+            if hints.get("visible_tokens") is not None:
+                tokens["visible_tokens"] = hints["visible_tokens"]
 
         cache = run_data.setdefault("context_reread", {})
         if usage_summary.get("cache_read_tokens") is not None:

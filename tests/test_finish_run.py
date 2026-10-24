@@ -983,6 +983,63 @@ class TestFinishRun(unittest.TestCase):
             self.assertTrue(updated["outcome"]["model_stopped"])
             self.assertIn("pricing", updated["tokens"]["raw"])
 
+    def test_complete_run_json_preserves_exact_split_when_ingesting_usage_csv(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = Path(tmpdir)
+            usage_dir = run_dir / "usage"
+            usage_dir.mkdir(parents=True)
+            csv_path = usage_dir / "export.csv"
+            csv_path.write_text(
+                "Date,Kind,Model,User,Cost,Output Tokens,Reasoning Tokens,Visible Tokens\n"
+                "2026-10-22T01:05:00Z,Included,gemini-4-argon,user1,$0.10,500,200,300\n"
+            )
+            # Run already has exact split captured
+            run_data = {
+                "rules_version": 2,
+                "prompt_id": "paris-1910-flood-simulator",
+                "run_id": "test-run",
+                "series_id": "s1",
+                "harness": {"name": "cursor"},
+                "model": {"name": "gemini-4-argon", "family": "gemini", "context": "medium"},
+                "tokens": {
+                    "split_rule": "output_includes_reasoning",
+                    "reasoning_tokens": 200,
+                    "visible_tokens": 300,
+                    "raw": {},
+                },
+                "model_time": {"source": "unavailable", "generating_seconds": None, "raw": {}},
+                "context_reread": {"source": "unavailable", "cache_read_tokens": None, "raw": {}},
+                "tool_calls": {
+                    "shell": {"calls": 1, "failures": 0},
+                    "files": {"calls": 0, "failures": 0},
+                    "visual_checks": {"calls": 0, "failures": 0},
+                    "web": {"calls": 0, "failures": 0},
+                    "other": {"calls": 0, "failures": 0},
+                },
+                "outcome": {"model_stopped": None, "operator_saw_a_page": True, "summary": "test"},
+                "wall_clock": {"started_at": "2026-10-22T01:00:00Z", "ended_at": "2026-10-22T01:10:00Z"},
+                "observations": "",
+            }
+            (run_dir / "run.json").write_text(json.dumps(run_data))
+
+            complete_run_json(
+                run_dir,
+                [csv_path],
+                interactive=False,
+                non_interactive=True,
+                skip_verify=True,
+            )
+
+            updated = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual(updated["tokens"]["split_rule"], "output_includes_reasoning")
+            self.assertEqual(updated["tokens"]["reasoning_tokens"], 200)
+            self.assertEqual(updated["tokens"]["visible_tokens"], 300)
+
+    def test_known_reasoning_levels_derived_from_run_common(self):
+        from finish_run import KNOWN_REASONING_LEVELS
+        from run_common import REASONING_LEVELS
+        self.assertEqual(KNOWN_REASONING_LEVELS, set(REASONING_LEVELS))
+
 
 if __name__ == "__main__":
     unittest.main()
