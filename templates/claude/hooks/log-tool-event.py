@@ -4,7 +4,8 @@
 Registered by .claude/settings.json for UserPromptSubmit, PreToolUse, PostToolUse, and Stop.
 PreToolUse calls that reach outside the workspace are denied with exit code 2 (the reason goes to
 stderr, which Claude Code feeds back to the model); every other event exits 0 with empty stdout,
-so the hook never adds context, follow-up prompts, or stop blocks to the run.
+so the hook never adds context, follow-up prompts, or stop blocks to the run. tool_events.py pairs
+PreToolUse and PostToolUse records by tool_use_id to time each tool call.
 
 Records go to .claude/hook-events/<session_id>.jsonl next to this script. finish_run.py moves them to
 runs/<prompt-id>/<run-id>/hook-events/ when it repatriates the staged workspace.
@@ -180,7 +181,8 @@ def main() -> int:
             append_record(event)
             sys.stderr.write(reason + "\n")
             return DENY_EXIT_CODE
-        # Allowed calls are logged by PostToolUse; skipping them here keeps one record per tool call.
+        # Allowed calls are logged too: PreToolUse -> PostToolUse per tool_use_id is the tool interval.
+        append_record(event)
         return 0
 
     append_record(event)

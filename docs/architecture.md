@@ -206,7 +206,7 @@ An architectural audit conducted in October 2026 (following completion of initia
    - `pyproject.toml` omits `run_benchmark` and `serve_run` from `py-modules` and omits `analytics` from `[dependency-groups]`.
 5. **Claude Code (`claude-code`) Headless Runner & Telemetry Gaps (`TASK-66`, `TASK-67`)**:
    - Resolved by `TASK-66`: `claude --model` identifiers and CLI flags are verified against the image, retries `--resume <session_id>` from a persisted per-run `CLAUDE_CONFIG_DIR` with `Continue.`, and staged workspaces get `.claude/settings.json` isolation/logging hooks (see `docs/design-run-isolation.md`).
-   - `_process_transcript_records()` in `tool_events.py` does not compute tool durations, thinking block durations, or fallback wall-clock timestamps when `claude -p --output-format stream-json` omits per-event timestamps.
+   - Resolved by `TASK-67`: `tool_events.py` sums claude-code tokens, API time, and cost over every attempt, and times tools, thinking, and wall clock from the session transcripts and `.claude` hook log (see `docs/metrics.md`, *Headless Claude Code*).
 
 ### Active Milestone Roadmap
 

@@ -102,6 +102,14 @@ class ToolEventSummary:
     notes: list[str] = field(default_factory=list)
     other_tools: list[str] = field(default_factory=list)
     isolation_breaches: list[str] = field(default_factory=list)
+    # Headless claude-code (`claude -p --output-format stream-json`) aggregates, one attempt per init event.
+    claude_attempts: int = 0
+    claude_attempts_without_result: int = 0
+    api_duration_seconds: float | None = None
+    harness_cost_usd: float | None = None
+    active_seconds: float | None = None
+    retry_gap_seconds: float | None = None
+    timing_source: str | None = None
 
 
 CONTENT_KEYS = {
@@ -695,6 +703,259 @@ def summarize_records(
     return _process_transcript_records(records, summary)
 
 
+def _is_claude_stream(records: list[dict]) -> bool:
+    """True for Claude Code stream-json: assistant events carry the Anthropic message id and usage."""
+    for r in records:
+        msg = r.get("message")
+        if r.get("type") == "assistant" and isinstance(msg, dict) and msg.get("id") and isinstance(msg.get("usage"), dict):
+            return True
+    return False
+
+
+def _claude_attempt_segments(records: list[dict]) -> list[list[dict]]:
+    """Split cli-stream records into one segment per `claude -p` process (each starts with system/init)."""
+    segments: list[list[dict]] = []
+    current: list[dict] = []
+    for r in records:
+        if r.get("type") == "system" and r.get("subtype") == "init" and any(
+            x.get("type") in ("assistant", "user", "result") for x in current
+        ):
+            segments.append(current)
+            current = []
+        current.append(r)
+    if current:
+        segments.append(current)
+    return segments
+
+
+CLAUDE_USAGE_FIELDS = {
+    "uncached_input_tokens": "input_tokens",
+    "cache_write_tokens": "cache_creation_input_tokens",
+    "cache_read_tokens": "cache_read_input_tokens",
+    "output_tokens": "output_tokens",
+}
+
+
+def _apply_claude_stream_totals(summary: ToolEventSummary, records: list[dict]) -> None:
+    """Sum tokens, API time, and cost over every attempt of a headless claude-code run.
+
+    A finished attempt is read from its ``result`` event (per-process totals). An attempt that stalled or was
+    killed has no ``result``, so its assistant usage is summed once per Anthropic message id (stream-json
+    repeats a message's usage on every content block). Claude reports no reasoning-token count, so the
+    output total carries no split.
+    """
+    totals = dict.fromkeys(CLAUDE_USAGE_FIELDS, 0)
+    api_ms = 0.0
+    cost = 0.0
+    has_cost = False
+    attempts = 0
+    without_result = 0
+    thought_blocks = 0
+    for segment in _claude_attempt_segments(records):
+        if not any(r.get("type") in ("assistant", "result") for r in segment):
+            continue
+        attempts += 1
+        results = [r for r in segment if r.get("type") == "result"]
+        if results:
+            result = results[-1]
+            usage = result.get("usage") if isinstance(result.get("usage"), dict) else {}
+            for key, field_name in CLAUDE_USAGE_FIELDS.items():
+                totals[key] += _nonneg_int(usage.get(field_name)) or 0
+            d = _duration(result.get("duration_api_ms"))
+            if d is not None:
+                api_ms += d
+            c = result.get("total_cost_usd")
+            if isinstance(c, (int, float)) and not isinstance(c, bool):
+                cost += float(c)
+                has_cost = True
+        else:
+            without_result += 1
+            by_message: dict[str, dict] = {}
+            for r in segment:
+                msg = r.get("message")
+                if r.get("type") == "assistant" and isinstance(msg, dict) and isinstance(msg.get("usage"), dict):
+                    by_message[str(msg.get("id"))] = msg["usage"]
+            for usage in by_message.values():
+                for key, field_name in CLAUDE_USAGE_FIELDS.items():
+                    totals[key] += _nonneg_int(usage.get(field_name)) or 0
+        for r in segment:
+            msg = r.get("message")
+            if r.get("type") == "assistant" and isinstance(msg, dict) and isinstance(msg.get("content"), list):
+                thought_blocks += sum(
+                    1 for block in msg["content"]
+                    if isinstance(block, dict) and block.get("type") in ("thinking", "redacted_thinking")
+                )
+
+    summary.claude_attempts = attempts
+    summary.claude_attempts_without_result = without_result
+    summary.uncached_input_tokens = totals["uncached_input_tokens"]
+    summary.cache_write_tokens = totals["cache_write_tokens"]
+    summary.cache_read_tokens = totals["cache_read_tokens"]
+    summary.output_tokens = totals["output_tokens"]
+    summary.input_tokens = totals["uncached_input_tokens"] + totals["cache_write_tokens"] + totals["cache_read_tokens"]
+    summary.token_turns = attempts
+    summary.split_rule = "unavailable"
+    summary.thought_blocks = thought_blocks
+    if api_ms > 0:
+        summary.api_duration_seconds = round(api_ms / 1000.0, 1)
+    if has_cost:
+        summary.harness_cost_usd = round(cost, 4)
+    if without_result:
+        summary.notes.append(
+            f"{without_result} of {attempts} claude-code attempt(s) ended without a result event; "
+            "their tokens come from per-message usage and their API time is unknown."
+        )
+
+
+def _claude_prompt_entry(entry: dict) -> bool:
+    """A transcript user entry that submits a prompt (not a tool result or harness meta message)."""
+    if entry.get("type") != "user" or entry.get("isMeta") or entry.get("isSidechain"):
+        return False
+    msg = entry.get("message")
+    content = msg.get("content") if isinstance(msg, dict) else None
+    if isinstance(content, str):
+        return True
+    if isinstance(content, list):
+        return not any(isinstance(b, dict) and b.get("type") == "tool_result" for b in content)
+    return False
+
+
+def _load_jsonl_dir(directory: Path) -> list[dict]:
+    rows: list[dict] = []
+    if not directory.is_dir():
+        return rows
+    for path in sorted(directory.glob("*.jsonl")):
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+    return rows
+
+
+def apply_claude_session_timing(summary: ToolEventSummary, run_dir: Path) -> bool:
+    """Derive claude-code wall clock, tool intervals, and thinking time from timestamped logs.
+
+    stream-json carries no timestamps, so this reads the Claude Code session transcripts
+    (``claude-sessions/*.jsonl``, one timestamped entry per content block) and the clean-room hook log
+    (``hook-events/*.jsonl``, ``logged_at`` per UserPromptSubmit / PreToolUse / PostToolUse / Stop):
+
+    * attempts start at each prompt submission and end at their last logged event; wall clock runs from
+      the first prompt to the last event, and the idle gap between attempts (stall + retry cooldown) is
+      kept out of active time;
+    * a tool interval is PreToolUse → PostToolUse for its tool_use_id, else transcript tool_use → tool_result;
+    * a thinking block lasts from the preceding transcript entry to the block's own entry, an upper bound
+      that includes request latency.
+
+    ``model_time_seconds`` becomes active time minus merged tool time (wall_clock_minus_tool_time).
+    """
+    transcript = [
+        e for e in _load_jsonl_dir(run_dir / "claude-sessions")
+        if e.get("type") in ("user", "assistant") and parse_time(e.get("timestamp")) is not None
+    ]
+    hooks = [h for h in _load_jsonl_dir(run_dir / "hook-events") if parse_time(h.get("logged_at")) is not None]
+    if not transcript and not hooks:
+        return False
+    transcript.sort(key=lambda e: parse_time(e["timestamp"]))
+    hooks.sort(key=lambda h: parse_time(h["logged_at"]))
+
+    if transcript:
+        starts = [parse_time(e["timestamp"]) for e in transcript if _claude_prompt_entry(e)]
+    else:
+        starts = [parse_time(h["logged_at"]) for h in hooks if h.get("hook_event_name") == "UserPromptSubmit"]
+    event_times = [parse_time(e["timestamp"]) for e in transcript] + [parse_time(h["logged_at"]) for h in hooks]
+    if not starts:
+        starts = [min(event_times)]
+    starts.sort()
+
+    spans: list[tuple[datetime, datetime]] = []
+    for i, begin in enumerate(starts):
+        limit = starts[i + 1] if i + 1 < len(starts) else None
+        inside = [t for t in event_times if t >= begin and (limit is None or t < limit)]
+        spans.append((begin, max(inside) if inside else begin))
+    wall_start, wall_end = spans[0][0], max(end for _b, end in spans)
+    active = sum((end - begin).total_seconds() for begin, end in spans)
+
+    # Tool intervals, keyed by tool_use_id.
+    pre: dict[str, datetime] = {}
+    post: dict[str, datetime] = {}
+    for h in hooks:
+        tid = h.get("tool_use_id")
+        if not tid:
+            continue
+        if h.get("hook_event_name") == "PreToolUse" and not h.get("failed"):
+            pre.setdefault(str(tid), parse_time(h["logged_at"]))
+        elif h.get("hook_event_name") == "PostToolUse":
+            post[str(tid)] = parse_time(h["logged_at"])
+    used: dict[str, datetime] = {}
+    returned: dict[str, datetime] = {}
+    for e in transcript:
+        msg = e.get("message")
+        content = msg.get("content") if isinstance(msg, dict) else None
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "tool_use" and block.get("id"):
+                used.setdefault(str(block["id"]), parse_time(e["timestamp"]))
+            elif block.get("type") == "tool_result" and block.get("tool_use_id"):
+                returned[str(block["tool_use_id"])] = parse_time(e["timestamp"])
+
+    intervals: list[tuple[datetime, datetime]] = []
+    summed = 0.0
+    missing = 0
+    for tid in set(used) | set(pre):
+        begin, finish = (pre[tid], post[tid]) if tid in pre and tid in post else (used.get(tid), returned.get(tid))
+        if begin is None or finish is None or finish < begin:
+            missing += 1
+            continue
+        summed += (finish - begin).total_seconds()
+        intervals.append((max(begin, wall_start), min(finish, wall_end)))
+    busy = _merged_seconds([iv for iv in intervals if iv[1] > iv[0]])
+
+    thinking = 0.0
+    blocks = 0
+    previous: datetime | None = None
+    for e in transcript:
+        when = parse_time(e["timestamp"])
+        msg = e.get("message")
+        content = msg.get("content") if isinstance(msg, dict) else None
+        if e.get("type") == "assistant" and isinstance(content, list):
+            n = sum(1 for b in content if isinstance(b, dict) and b.get("type") in ("thinking", "redacted_thinking"))
+            if n:
+                blocks += n
+                if previous is not None:
+                    thinking += (when - previous).total_seconds()
+        previous = when
+
+    summary.present = True
+    summary.wall_started_at = format_time(wall_start)
+    summary.wall_ended_at = format_time(wall_end)
+    summary.wall_seconds = round((wall_end - wall_start).total_seconds(), 1)
+    summary.active_seconds = round(active, 1)
+    summary.retry_gap_seconds = round((wall_end - wall_start).total_seconds() - active, 1)
+    summary.tool_busy_seconds = round(busy, 1)
+    summary.tool_duration_ms = round(summed * 1000.0, 3)
+    summary.tools_without_duration = missing
+    summary.timing_source = "claude_sessions" if transcript else "claude_hooks"
+    if missing:
+        summary.model_time_seconds = None
+        summary.notes.append(f"{missing} claude-code tool calls had no start/end pair, so model time was not taken from the log.")
+    else:
+        summary.model_time_seconds = round(active - busy, 1)
+    if transcript:
+        summary.thought_blocks = blocks
+        summary.thinking_seconds = round(thinking, 1) if blocks else None
+    return True
+
+
 def _process_transcript_records(
     records: list[dict],
     summary: ToolEventSummary,
@@ -739,8 +1000,11 @@ def _process_transcript_records(
 
     summary_usage = None
     summary_duration_ms = None
+    claude_stream = _is_claude_stream(records)
+    if claude_stream:
+        _apply_claude_stream_totals(summary, records)
 
-    for r in records:
+    for r in ([] if claude_stream else records):
         if r.get("type") in ("result", "session_summary") or r.get("event_msg") == "session_summary":
             u = r.get("usage")
             if isinstance(u, dict):
@@ -752,7 +1016,9 @@ def _process_transcript_records(
     if summary_duration_ms is not None:
         summary.model_time_seconds = round(summary_duration_ms / 1000.0, 1)
 
-    if summary_usage is not None:
+    if claude_stream:
+        pass
+    elif summary_usage is not None:
         u = summary_usage
         uncached_input = _first_present(
             u,
@@ -1344,7 +1610,9 @@ def summarize_run(run_dir: Path) -> ToolEventSummary:
             recorded = None
         if isinstance(recorded, str) and recorded:
             prompt_id = recorded
-    return summarize_records(records, notes, expected_prompt_path=prompt_path(prompt_id))
+    summary = summarize_records(records, notes, expected_prompt_path=prompt_path(prompt_id))
+    apply_claude_session_timing(summary, run_dir)
+    return summary
 
 
 summarize_tool_event_log = summarize_records

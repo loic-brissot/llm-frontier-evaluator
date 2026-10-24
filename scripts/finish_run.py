@@ -1536,9 +1536,9 @@ def apply_logged_time(run: dict, summary: ToolEventSummary, hints: dict) -> None
 
     A usage export with its own generation duration keeps priority.
     """
-    if summary.wall_seconds is None and summary.model_time_seconds is None:
+    if summary.wall_seconds is None and summary.model_time_seconds is None and summary.api_duration_seconds is None:
         return
-    run["model_time"].setdefault("raw", {})["tool_events"] = {
+    tool_events_raw = {
         "wall_seconds": summary.wall_seconds,
         "tool_seconds_merged": summary.tool_busy_seconds,
         "tool_seconds_summed": round(summary.tool_duration_ms / 1000, 1),
@@ -1547,7 +1547,30 @@ def apply_logged_time(run: dict, summary: ToolEventSummary, hints: dict) -> None
         "thinking_seconds": summary.thinking_seconds,
         "thought_blocks": summary.thought_blocks,
     }
-    if summary.model_time_seconds is None or hints.get("model_time_source"):
+    if summary.claude_attempts:
+        tool_events_raw.update({
+            "timing_source": summary.timing_source,
+            "active_seconds": summary.active_seconds,
+            "retry_gap_seconds": summary.retry_gap_seconds,
+            "duration_api_seconds": summary.api_duration_seconds,
+            "attempts": summary.claude_attempts,
+            "attempts_without_result": summary.claude_attempts_without_result,
+        })
+    run["model_time"].setdefault("raw", {})["tool_events"] = tool_events_raw
+    if hints.get("model_time_source"):
+        return
+    if summary.claude_attempts:
+        # claude-code: summed result.duration_api_ms is harness model time when every attempt reported it;
+        # otherwise fall back to wall clock minus tool time from the session/hook logs.
+        if summary.api_duration_seconds is not None and not summary.claude_attempts_without_result:
+            hints["model_time_source"] = "harness_model_time"
+            hints["generating_seconds"] = summary.api_duration_seconds
+            hints["time_field_note"] = "harness_model_time from summed result.duration_api_ms."
+        elif summary.model_time_seconds is not None and summary.wall_seconds is not None:
+            hints["model_time_source"] = HOOK_TIME_SOURCE
+            hints["generating_seconds"] = summary.model_time_seconds
+        return
+    if summary.model_time_seconds is None:
         return
     if summary.wall_seconds is not None and summary.tool_busy_seconds is not None:
         hints["model_time_source"] = HOOK_TIME_SOURCE
@@ -1555,6 +1578,37 @@ def apply_logged_time(run: dict, summary: ToolEventSummary, hints: dict) -> None
     else:
         hints["model_time_source"] = "sum_of_llm_request_durations"
         hints["generating_seconds"] = summary.model_time_seconds
+
+
+CLAUDE_STREAM_HINT_KEYS = (
+    "split_rule", "reasoning_tokens", "visible_tokens", "output_tokens", "split_field_note",
+    "cache_read_tokens", "cache_source", "cache_read_field", "cache_write_tokens", "cache_write_field",
+    "uncached_input_tokens", "uncached_input_field", "input_tokens",
+)
+
+
+def apply_claude_stream_totals(run: dict, summary: ToolEventSummary, hints: dict, usage_paths: list[Path]) -> None:
+    """For claude-code, replace hints read from cli-result.json (the last attempt only) with whole-run totals.
+
+    A usage export the operator passed explicitly keeps priority. The per-run aggregate and the harness-reported
+    cost go to tokens.raw.claude_code.
+    """
+    if not summary.claude_attempts:
+        return
+    run["tokens"].setdefault("raw", {})["claude_code"] = {
+        "attempts": summary.claude_attempts,
+        "attempts_without_result": summary.claude_attempts_without_result,
+        "uncached_input_tokens": summary.uncached_input_tokens,
+        "cache_write_tokens": summary.cache_write_tokens,
+        "cache_read_tokens": summary.cache_read_tokens,
+        "output_tokens": summary.output_tokens,
+        "duration_api_seconds": summary.api_duration_seconds,
+        "total_cost_usd": summary.harness_cost_usd,
+    }
+    if any(path.name != "cli-result.json" for path in usage_paths) or hints.get("usage_summary"):
+        return
+    for key in CLAUDE_STREAM_HINT_KEYS:
+        hints.pop(key, None)
 
 
 def apply_logged_tokens(run: dict, summary: ToolEventSummary, hints: dict) -> None:
@@ -1786,6 +1840,7 @@ def complete_run_json(
             effective_paths.append(candidate_path)
     hints = prepare_hints(run, effective_paths, interactive=interactive, run_dir=run_dir)
     store_usage_raw(run, hints)
+    apply_claude_stream_totals(run, tool_summary, hints, usage_paths)
     apply_logged_tokens(run, tool_summary, hints)
     apply_logged_time(run, tool_summary, hints)
 
