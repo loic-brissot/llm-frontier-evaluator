@@ -653,10 +653,16 @@
 
     // Compute Pareto points for drawing the frontier line
     const paretoRuns = chartRuns.filter((r) => {
+      if (!r.verification || !r.verification.passed) return false;
+      if (r.verification.runtime && r.verification.runtime.passed === false) return false;
       if (paretoState.mode === 'passing') {
-        return r.pareto.is_pareto_successful_series || r.pareto.is_pareto_successful;
+        return filters.series === 'all'
+          ? Boolean(r.pareto.is_pareto_successful_global ?? r.pareto.is_pareto_global)
+          : Boolean(r.pareto.is_pareto_successful_series ?? r.pareto.is_pareto_series);
       }
-      return r.pareto.is_pareto_series || r.pareto.is_pareto_global;
+      return filters.series === 'all'
+        ? Boolean(r.pareto.is_pareto_global)
+        : Boolean(r.pareto.is_pareto_series);
     });
 
     // Sort Pareto runs by time ascending

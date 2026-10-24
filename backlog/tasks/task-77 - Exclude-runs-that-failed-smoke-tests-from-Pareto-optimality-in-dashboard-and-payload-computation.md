@@ -3,7 +3,7 @@ id: TASK-77
 title: >-
   Exclude runs that failed smoke tests from Pareto optimality in dashboard and
   payload computation
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-24 11:35'
 labels: []
@@ -22,7 +22,7 @@ Runs that fail verification smoke tests (verification.passed is False or verific
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Update compute_pareto_frontiers() in scripts/build_dashboard.py so runs that failed verification smoke checks (verification.passed is not True or verification.runtime.passed is False) always receive is_pareto_global=False, is_pareto_series=False, and is_pareto_successful=False, and cannot dominate passing runs
-- [ ] #2 Update dashboard/app.js Pareto frontier filtering and gallery/table rendering so failed runs are never marked as Pareto optimal or included in the Pareto frontier line/table
-- [ ] #3 Update unit tests in tests/test_build_dashboard.py and rebuild dashboard/data.json and dashboard/index.html
+- [x] #1 Update compute_pareto_frontiers() in scripts/build_dashboard.py so runs that failed verification smoke checks (verification.passed is not True or verification.runtime.passed is False) always receive is_pareto_global=False, is_pareto_series=False, and is_pareto_successful=False, and cannot dominate passing runs
+- [x] #2 Update dashboard/app.js Pareto frontier filtering and gallery/table rendering so failed runs are never marked as Pareto optimal or included in the Pareto frontier line/table
+- [x] #3 Update unit tests in tests/test_build_dashboard.py and rebuild dashboard/data.json and dashboard/index.html
 <!-- AC:END -->

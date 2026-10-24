@@ -97,6 +97,7 @@ class TestParetoFrontier:
         time_s: float | None,
         quality: float,
         passed: bool = True,
+        runtime_passed: bool = True,
     ) -> dict[str, Any]:
         return {
             "run_id": run_id,
@@ -113,6 +114,9 @@ class TestParetoFrontier:
             },
             "verification": {
                 "passed": passed,
+                "runtime": {
+                    "passed": runtime_passed,
+                },
             },
             "pareto": {
                 "is_pareto_series": False,
@@ -149,9 +153,9 @@ class TestParetoFrontier:
         assert by_id["D"]["is_pareto_successful"] is True
 
     def test_multi_objective_quality_tradeoff(self) -> None:
-        # Run A: $1.0, 50s, 0.5 quality (fastest & cheapest, but partial quality)
-        # Run B: $2.0, 100s, 1.0 quality (higher quality, higher cost/time)
-        # Run C: $1.5, 80s, 0.4 quality (dominated by A: worse in cost, time, and quality)
+        # Run A: $1.0, 50s, 0.5 quality, passed=False (failed smoke checks)
+        # Run B: $2.0, 100s, 1.0 quality, passed=True (passing run)
+        # Run C: $1.5, 80s, 0.4 quality, passed=False (failed smoke checks)
         runs = [
             self._make_dummy_run("A", "prompt-1", 1.0, 50.0, 0.5, passed=False),
             self._make_dummy_run("B", "prompt-1", 2.0, 100.0, 1.0, passed=True),
@@ -161,14 +165,62 @@ class TestParetoFrontier:
         compute_pareto_frontiers(runs)
 
         by_id = {r["run_id"]: r["pareto"] for r in runs}
-        assert by_id["A"]["is_pareto_series"] is True  # Pareto trade-off
-        assert by_id["B"]["is_pareto_series"] is True  # Best quality
-        assert by_id["C"]["is_pareto_series"] is False  # Dominated by A
-
-        # In successful-only mode, only B passed
+        # Run A failed smoke checks: never Pareto optimal despite lowest cost/time
+        assert by_id["A"]["is_pareto_series"] is False
+        assert by_id["A"]["is_pareto_global"] is False
         assert by_id["A"]["is_pareto_successful"] is False
+
+        # Run B passed: Pareto optimal and not dominated by failed Run A
+        assert by_id["B"]["is_pareto_series"] is True
+        assert by_id["B"]["is_pareto_global"] is True
         assert by_id["B"]["is_pareto_successful"] is True
+
+        # Run C failed smoke checks: never Pareto optimal
+        assert by_id["C"]["is_pareto_series"] is False
+        assert by_id["C"]["is_pareto_global"] is False
         assert by_id["C"]["is_pareto_successful"] is False
+
+    def test_failed_smoke_test_runs_excluded_from_pareto(self) -> None:
+        # Run A: overall passed=False, cost $0.50, time 10s, quality 1.0
+        # Run B: overall passed=True, but runtime passed=False, cost $0.60, time 15s, quality 1.0
+        # Run C: passed=True, runtime passed=True, cost $2.00, time 60s, quality 0.8
+        # Run D: passed=True, runtime passed=True, cost $3.00, time 90s, quality 0.5 (dominated by C)
+        runs = [
+            self._make_dummy_run("A", "prompt-1", 0.5, 10.0, 1.0, passed=False, runtime_passed=True),
+            self._make_dummy_run("B", "prompt-1", 0.6, 15.0, 1.0, passed=True, runtime_passed=False),
+            self._make_dummy_run("C", "prompt-1", 2.0, 60.0, 0.8, passed=True, runtime_passed=True),
+            self._make_dummy_run("D", "prompt-1", 3.0, 90.0, 0.5, passed=True, runtime_passed=True),
+        ]
+
+        compute_pareto_frontiers(runs)
+
+        by_id = {r["run_id"]: r["pareto"] for r in runs}
+
+        # Failed overall: never Pareto optimal, cannot dominate
+        assert by_id["A"]["is_pareto_series"] is False
+        assert by_id["A"]["is_pareto_global"] is False
+        assert by_id["A"]["is_pareto_successful"] is False
+        assert by_id["A"]["is_pareto_successful_series"] is False
+        assert by_id["A"]["is_pareto_successful_global"] is False
+
+        # Failed runtime: never Pareto optimal, cannot dominate
+        assert by_id["B"]["is_pareto_series"] is False
+        assert by_id["B"]["is_pareto_global"] is False
+        assert by_id["B"]["is_pareto_successful"] is False
+        assert by_id["B"]["is_pareto_successful_series"] is False
+        assert by_id["B"]["is_pareto_successful_global"] is False
+
+        # Passing run C: Pareto optimal because failed runs A and B cannot dominate it
+        assert by_id["C"]["is_pareto_series"] is True
+        assert by_id["C"]["is_pareto_global"] is True
+        assert by_id["C"]["is_pareto_successful"] is True
+        assert by_id["C"]["is_pareto_successful_series"] is True
+        assert by_id["C"]["is_pareto_successful_global"] is True
+
+        # Passing run D: dominated by passing run C
+        assert by_id["D"]["is_pareto_series"] is False
+        assert by_id["D"]["is_pareto_global"] is False
+        assert by_id["D"]["is_pareto_successful"] is False
 
     def test_missing_values_excluded(self) -> None:
         runs = [
@@ -237,6 +289,19 @@ class TestPayloadCompilationAndSchema:
 
         errors = validate_payload_schema(bad_payload)
         assert len(errors) > 0
+
+    def test_warehouse_export_formats_and_paths(self) -> None:
+        payload = compile_dashboard_payload(runs_dir=RUNS_DIR)
+        wh = payload.get("warehouse", {})
+        assert "csv" in wh.get("formats", [])
+        assert "parquet" in wh.get("formats", [])
+        assert "duckdb" in wh.get("formats", [])
+        assert wh.get("formats") == ["csv", "parquet", "duckdb"]
+        for table in wh.get("tables", []):
+            assert "csv_path" in table
+            assert "parquet_path" in table
+            assert table["csv_path"] == f"warehouse/csv/{table['name']}.csv"
+            assert table["parquet_path"] == f"warehouse/parquet/{table['name']}.parquet"
 
 
 class TestCliAndBuild:
