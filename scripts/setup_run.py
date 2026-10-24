@@ -41,6 +41,7 @@ from run_common import (
 
 RUNS_DIR = ROOT / "runs"
 CURSOR_HOOK_DIR_NAME = ".cursor"
+CLAUDE_HOOK_DIR_NAME = ".claude"
 STAGING_PARENT = _COMMON_STAGING_PARENT
 
 
@@ -268,6 +269,8 @@ def create_run_directory(
         install_cursor_hook(staging_dir)
         install_cursor_hook(workspace)
         create_clean_room_launcher(run_id, prompt_id, staging_dir)
+    elif harness == "claude-code":
+        install_claude_hook(staging_dir)
 
     if copy_clipboard:
         copy_prompt_to_clipboard(prompt_id)
@@ -312,6 +315,24 @@ def install_cursor_hook(workspace: Path, *, hook_dir_name: str | None = None) ->
             install_cursor_hook(workspace, hook_dir_name="_cursor_sandbox_test")
 
 
+def install_claude_hook(workspace: Path) -> None:
+    """Install the clean-room .claude/settings.json and its isolation/logging hook into ``workspace``.
+
+    Claude Code loads project settings from the working directory, so the staged workspace's
+    settings.json registers PreToolUse path-isolation guards and UserPromptSubmit / PostToolUse / Stop logging.
+    """
+    source_config = ROOT / "templates" / "claude" / "settings.json"
+    source_script = ROOT / "templates" / "claude" / "hooks" / "log-tool-event.py"
+    if not source_config.is_file() or not source_script.is_file():
+        raise FileNotFoundError("Claude Code hook template files are missing from templates/claude/.")
+    hook_dir = workspace / CLAUDE_HOOK_DIR_NAME / "hooks"
+    hook_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_config, workspace / CLAUDE_HOOK_DIR_NAME / "settings.json")
+    script = hook_dir / "log-tool-event.py"
+    shutil.copy2(source_script, script)
+    script.chmod(script.stat().st_mode | 0o111)
+
+
 def print_next_steps(run_dir: Path, *, harness: str) -> None:
     staging_dir = staging_workspace_for(run_dir.name)
     prompt_id = run_dir.parent.name
@@ -331,6 +352,10 @@ def print_next_steps(run_dir: Path, *, harness: str) -> None:
         print()
         print(f"Cursor loads the hook copied into {staging_dir}/.cursor/.")
         print(f"Tool events are written to {staging_dir}/.cursor/tool-events/.")
+    elif harness == "claude-code":
+        print()
+        print(f"Claude Code loads the isolation hooks in {staging_dir}/.claude/settings.json.")
+        print(f"Hook events are written to {staging_dir}/.claude/hook-events/.")
     print()
     print("After the model stops:")
     print(f"  python3 scripts/finish_run.py --prompt {prompt_id} --run-id {run_dir.name}")

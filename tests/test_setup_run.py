@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,10 +13,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from compare_runs import check_local_run
 from run_common import ROOT, load_json, prompt_path, run_schema_errors
 from setup_run import (
+    CLAUDE_HOOK_DIR_NAME,
     CURSOR_HOOK_DIR_NAME,
     check_environment,
     copy_prompt_to_clipboard,
     create_run_directory,
+    install_claude_hook,
     install_cursor_hook,
     main,
 )
@@ -28,6 +31,164 @@ def _sandbox_blocks_dot_cursor() -> bool:
             return False
         except PermissionError:
             return True
+
+
+def _sandbox_blocks_dot_claude() -> bool:
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        try:
+            (Path(tmp_dir) / ".claude").mkdir()
+            (Path(tmp_dir) / ".claude" / "settings.json").write_text("{}", encoding="utf-8")
+            return False
+        except PermissionError:
+            return True
+
+
+CLAUDE_TEMPLATE_SETTINGS = ROOT / "templates" / "claude" / "settings.json"
+CLAUDE_TEMPLATE_SCRIPT = ROOT / "templates" / "claude" / "hooks" / "log-tool-event.py"
+
+
+def _run_claude_hook(script: Path, event: dict) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(script)],
+        input=json.dumps(event),
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+
+class TestClaudeCodeHooks(unittest.TestCase):
+    def setUp(self):
+        if _sandbox_blocks_dot_claude():
+            self.skipTest("sandbox blocks writing .claude/ directories")
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.workspace = Path(self.tmp.name) / "frontier-workspace-claude-run"
+        self.workspace.mkdir()
+
+    def test_settings_template_registers_isolation_and_logging_hooks(self):
+        settings = json.loads(CLAUDE_TEMPLATE_SETTINGS.read_text(encoding="utf-8"))
+        hooks = settings["hooks"]
+        for event in ("PreToolUse", "PostToolUse", "Stop", "UserPromptSubmit"):
+            self.assertIn(event, hooks)
+            commands = [h["command"] for group in hooks[event] for h in group["hooks"]]
+            self.assertTrue(all(h["type"] == "command" for group in hooks[event] for h in group["hooks"]))
+            self.assertTrue(
+                all('"$CLAUDE_PROJECT_DIR"/.claude/hooks/log-tool-event.py' in c for c in commands),
+                f"{event} must invoke the workspace-relative hook script",
+            )
+        self.assertEqual(hooks["PreToolUse"][0]["matcher"], "*")
+        self.assertEqual(hooks["PostToolUse"][0]["matcher"], "*")
+
+    def test_install_claude_hook_copies_from_templates(self):
+        self.assertEqual(CLAUDE_HOOK_DIR_NAME, ".claude")
+        install_claude_hook(self.workspace)
+
+        dest_settings = self.workspace / ".claude" / "settings.json"
+        dest_script = self.workspace / ".claude" / "hooks" / "log-tool-event.py"
+        self.assertEqual(dest_settings.read_bytes(), CLAUDE_TEMPLATE_SETTINGS.read_bytes())
+        self.assertEqual(dest_script.read_bytes(), CLAUDE_TEMPLATE_SCRIPT.read_bytes())
+        self.assertTrue(os.access(dest_script, os.X_OK), "log-tool-event.py must be executable")
+
+    def test_pre_tool_use_denies_isolation_violations(self):
+        install_claude_hook(self.workspace)
+        script = self.workspace / ".claude" / "hooks" / "log-tool-event.py"
+        cases = [
+            ({"command": "cat ../run.json"}, "Parent directory traversal"),
+            ({"file_path": "/Users/me/llm-frontier-evaluator/reference/prompt-probes.json"}, "llm-frontier-evaluator"),
+            ({"pattern": "**/verify_run.py"}, "verify_run.py"),
+            ({"file_path": "/workspace/../etc/passwd"}, "Parent directory traversal"),
+        ]
+        for tool_input, expected in cases:
+            with self.subTest(tool_input=tool_input):
+                res = _run_claude_hook(script, {
+                    "hook_event_name": "PreToolUse",
+                    "session_id": "sess-1",
+                    "tool_name": "Bash",
+                    "tool_input": tool_input,
+                })
+                self.assertEqual(res.returncode, 2, res.stderr)
+                self.assertIn(expected, res.stderr)
+                self.assertEqual(res.stdout, "")
+
+        log = self.workspace / ".claude" / "hook-events" / "sess-1.jsonl"
+        records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(len(records), len(cases))
+        self.assertTrue(all(r["failure_type"] == "isolation_blocked" and r["failed"] for r in records))
+
+    def test_pre_tool_use_allows_workspace_calls_and_ignores_file_bodies(self):
+        install_claude_hook(self.workspace)
+        script = self.workspace / ".claude" / "hooks" / "log-tool-event.py"
+        for tool_input in (
+            {"command": "ls -la /workspace"},
+            {"file_path": "/workspace/notes.md", "content": "see ../docs and llm-frontier-evaluator style"},
+            {"file_path": "/workspace/a.py", "old_string": "x = '../a'", "new_string": "x = '../b'"},
+        ):
+            with self.subTest(tool_input=tool_input):
+                res = _run_claude_hook(script, {
+                    "hook_event_name": "PreToolUse",
+                    "session_id": "sess-2",
+                    "tool_name": "Write",
+                    "tool_input": tool_input,
+                })
+                if "llm-frontier-evaluator" in json.dumps(tool_input):
+                    # Repository name anywhere in the input is blocked, matching the Cursor hook policy.
+                    self.assertEqual(res.returncode, 2)
+                else:
+                    self.assertEqual(res.returncode, 0, res.stderr)
+                    self.assertEqual(res.stdout, "")
+
+    def test_post_tool_use_stop_and_prompt_events_are_logged(self):
+        install_claude_hook(self.workspace)
+        script = self.workspace / ".claude" / "hooks" / "log-tool-event.py"
+        events = [
+            {"hook_event_name": "UserPromptSubmit", "session_id": "sess-3", "prompt": "Build it."},
+            {
+                "hook_event_name": "PostToolUse",
+                "session_id": "sess-3",
+                "tool_name": "Bash",
+                "tool_use_id": "toolu_1",
+                "tool_input": {"command": "ls"},
+                "tool_response": {"stdout": "index.html", "stderr": ""},
+            },
+            {"hook_event_name": "Stop", "session_id": "sess-3", "stop_hook_active": False},
+        ]
+        for event in events:
+            res = _run_claude_hook(script, event)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertEqual(res.stdout, "", "hooks must not inject context or block stopping")
+
+        log = self.workspace / ".claude" / "hook-events" / "sess-3.jsonl"
+        records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([r["hook_event_name"] for r in records], ["UserPromptSubmit", "PostToolUse", "Stop"])
+        self.assertEqual(records[1]["tool_use_id"], "toolu_1")
+        self.assertEqual(records[1]["tool_response"], {"stdout": "index.html", "stderr": ""})
+        self.assertFalse(records[2]["failed"])
+
+    def test_create_run_directory_claude_code_installs_settings_in_staging(self):
+        staging_parent = Path(self.tmp.name) / "staging"
+        staging_parent.mkdir()
+        tmp_runs = Path(self.tmp.name) / "runs"
+        with patch("run_common.RUNS_DIR", tmp_runs), patch("setup_run.RUNS_DIR", tmp_runs), \
+             patch("setup_run.STAGING_PARENT", staging_parent):
+            run_dir = create_run_directory(
+                harness="claude-code",
+                model="Claude Opus 5.5",
+                reasoning="high",
+                prompt_id="france-road-accidents",
+                series_id="test-series",
+                provider="anthropic",
+                harness_version=None,
+                harness_detail="",
+            )
+        staging_dir = Path((run_dir / ".staging_workspace").read_text(encoding="utf-8"))
+        self.assertEqual(staging_dir.parent, staging_parent)
+        self.assertTrue((staging_dir / ".claude" / "settings.json").is_file())
+        self.assertTrue((staging_dir / ".claude" / "hooks" / "log-tool-event.py").is_file())
+        self.assertFalse((staging_dir / ".cursor").exists(), "claude-code runs must not get Cursor hooks")
+        self.assertFalse((staging_parent / f"frontier-workspace-{run_dir.name}-launch.sh").exists())
+        run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+        self.assertEqual(run["harness"]["name"], "claude-code")
 
 
 class TestSetupRun(unittest.TestCase):

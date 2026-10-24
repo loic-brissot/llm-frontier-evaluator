@@ -205,8 +205,7 @@ An architectural audit conducted in October 2026 (following completion of initia
    - `probe_data.py` lists `.parquet` and `.duckdb` in `DATA_EXTENSIONS` but `count_records_in_file()` returns `0` for both formats.
    - `pyproject.toml` omits `run_benchmark` and `serve_run` from `py-modules` and omits `analytics` from `[dependency-groups]`.
 5. **Claude Code (`claude-code`) Headless Runner & Telemetry Gaps (`TASK-66`, `TASK-67`)**:
-   - `resolve_claude_code_model_and_effort()` returns internal pricing catalog IDs (`claude-opus-5-5`) rather than verified Anthropic API / Claude CLI model aliases.
-   - `build_container_command()` uses `--continue` rather than `--resume <session_id>` for `claude-code` retries, and `setup_run.py` does not install `.claude/settings.json` isolation hooks.
+   - Resolved by `TASK-66`: `claude --model` identifiers and CLI flags are verified against the image, retries `--resume <session_id>` from a persisted per-run `CLAUDE_CONFIG_DIR` with `Continue.`, and staged workspaces get `.claude/settings.json` isolation/logging hooks (see `docs/design-run-isolation.md`).
    - `_process_transcript_records()` in `tool_events.py` does not compute tool durations, thinking block durations, or fallback wall-clock timestamps when `claude -p --output-format stream-json` omits per-event timestamps.
 
 ### Active Milestone Roadmap
