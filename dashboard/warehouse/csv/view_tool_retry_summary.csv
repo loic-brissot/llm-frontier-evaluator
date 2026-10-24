@@ -1,0 +1,17 @@
+run_id,total_calls,total_retry_attempts,same_tool_retries,same_bucket_fallbacks,cross_bucket_fallbacks,successful_retries,retry_success_rate_pct
+2026-10-19-cursor-claude-opus-5-5-high-300k-high,125,4,4,0,0,4,100.0
+2026-10-19-cursor-gemini-4-argon-1m-medium,138,16,16,0,0,8,50.0
+2026-10-19-cursor-muse-wonder-300k-medium,41,4,4,0,0,3,75.0
+2026-10-20-cursor-claude-opus-5-5-high,195,11,7,0,4,9,81.82
+2026-10-21-cursor-claude-opus-5-5-medium,216,2,1,0,1,2,100.0
+2026-10-22-cursor-gemini-3-8-flash-high,232,8,7,0,1,8,100.0
+2026-10-22-cursor-gemini-4-argon-medium,163,10,9,0,1,9,90.0
+2026-10-22-cursor-glm-5-3-high,129,5,5,0,0,3,60.0
+2026-10-22-cursor-gpt-5-6-sol-medium,14,0,0,0,0,0,
+2026-10-22-cursor-grok-4-7-high,191,5,3,1,1,4,80.0
+2026-10-22-cursor-muse-wonder-medium,31,1,0,0,1,1,100.0
+2026-10-24-cursor-claude-haiku-5-5-high,133,1,1,0,0,1,100.0
+2026-10-24-cursor-claude-sonnet-5-5-high,108,3,3,0,0,2,66.67
+2026-10-24-cursor-composer-2-5-high,81,3,1,0,2,3,100.0
+2026-10-24-cursor-gemini-3-8-flash-high,146,9,6,0,3,9,100.0
+2026-10-24-cursor-gpt-5-6-luna-high,17,0,0,0,0,0,
