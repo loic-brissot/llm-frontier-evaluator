@@ -1718,7 +1718,23 @@
     document.getElementById('modal-cost-est').textContent = cost.estimated_usd != null ? `$${cost.estimated_usd.toFixed(2)}` : 'n/a';
     document.getElementById('modal-cost-harness').textContent = cost.estimated_with_harness_usd != null ? `$${cost.estimated_with_harness_usd.toFixed(2)}` : 'n/a';
     document.getElementById('modal-cost-billed').textContent = cost.billed_usd != null ? `$${cost.billed_usd.toFixed(2)}` : 'n/a (no CSV)';
-    document.getElementById('modal-cost-surcharge').textContent = '$0.25 / 1M tokens';
+
+    const harnessName = (run.harness && run.harness.name ? run.harness.name : '').toLowerCase();
+    const isFirstParty = run.model && (run.model.first_party_in_cursor || ['cursor', 'xai'].includes((run.model.provider || '').toLowerCase()));
+    let surchargeRate = '0.00';
+    if (cost.rates && cost.rates.harness_surcharge != null) {
+      surchargeRate = String(cost.rates.harness_surcharge);
+    } else if (cost.rates && cost.rates.harness_token_rate_per_1m != null) {
+      surchargeRate = String(cost.rates.harness_token_rate_per_1m);
+    } else if (harnessName === 'cursor' && !isFirstParty) {
+      surchargeRate = '0.25';
+    }
+    const surchargeNum = parseFloat(surchargeRate);
+    if (!isNaN(surchargeNum) && surchargeNum > 0) {
+      document.getElementById('modal-cost-surcharge').textContent = `$${surchargeNum.toFixed(2)} / 1M tokens`;
+    } else {
+      document.getElementById('modal-cost-surcharge').textContent = '$0.00 (none)';
+    }
 
     const ratesPills = document.getElementById('modal-rates-pills');
     ratesPills.innerHTML = '';

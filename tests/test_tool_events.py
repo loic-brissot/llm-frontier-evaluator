@@ -1145,6 +1145,12 @@ class TestIsolationParity(unittest.TestCase):
             {"tool_input": {"path": "src/app.py", "content": "from ..module import thing"}},
             {"tool_input": {"path": "patch.diff", "patch": "--- ../old\n+++ ../new"}},
             {"tool_input": {"path": "data.py", "contents": "path = '../data/source.csv'"}},
+            {"tool_input": {"file": "doc.md", "new_string": "../relative/import", "old_string": "simple/import"}},
+            {"tool_input": {"file": "stream.txt", "streamContent": "traversal in stream ../test"}},
+            {"tool_input": {"diff": "diff --git a/foo b/foo\n+ ../parent/path"}},
+            {"tool_input": '{"path": "relative/file.txt", "content": "../do-not-flag-traversal-in-content"}'},
+            {"tool_input": '{"file_path": "../escape/attempt.txt", "content": "normal content"}'},
+            {"tool_input": '{"target_directory": "../outside", "command": "find"}'},
         ]
         for event in test_events:
             te_res = check_isolation_violation(event)

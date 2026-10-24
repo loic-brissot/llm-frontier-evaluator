@@ -3,9 +3,10 @@ id: TASK-59
 title: >-
   Enforce automated parity between standalone Cursor hook and tool_events.py and
   fix finish_run.py token split preservation
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-23 19:43'
+updated_date: '2026-10-24 00:44'
 labels: []
 milestone: m-9
 dependencies: []
@@ -25,7 +26,7 @@ Because templates/cursor/hooks/log-tool-event.py executes standalone inside stag
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Automated unit tests verify that templates/cursor/hooks/log-tool-event.py and scripts/tool_events.py produce identical check_isolation_violation and _extract_traversal_target results across path traversal and content-exclusion cases
-- [ ] #2 finish_run.py derives KNOWN_REASONING_LEVELS from run_common.REASONING_LEVELS and preserves existing output_includes_reasoning or harness_pre_split token splits when ingesting or backfilling usage CSVs
-- [ ] #3 dashboard/app.js dynamically displays the run actual harness surcharge rate in the modal instead of hardcoding $0.25 / 1M tokens for first-party or non-Cursor runs
+- [x] #1 Automated unit tests verify that templates/cursor/hooks/log-tool-event.py and scripts/tool_events.py produce identical check_isolation_violation and _extract_traversal_target results across path traversal and content-exclusion cases
+- [x] #2 finish_run.py derives KNOWN_REASONING_LEVELS from run_common.REASONING_LEVELS and preserves existing output_includes_reasoning or harness_pre_split token splits when ingesting or backfilling usage CSVs
+- [x] #3 dashboard/app.js dynamically displays the run actual harness surcharge rate in the modal instead of hardcoding $0.25 / 1M tokens for first-party or non-Cursor runs
 <!-- AC:END -->
