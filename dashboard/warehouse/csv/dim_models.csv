@@ -1,0 +1,31 @@
+model_id,model_name,provider,harnesses,input_rate_per_1m,cache_write_rate_per_1m,cache_read_rate_per_1m,output_rate_per_1m,first_party_in_cursor,as_of
+claude-fable-5-1,Claude Fable 5.1,anthropic,"claude-code,cursor",10.0,12.5,0.25,50.0,False,2026-10-18
+claude-fable-5,Claude Fable 5,anthropic,"claude-code,cursor",10.0,12.5,1.0,50.0,False,2026-10-18
+claude-opus-5-5,Claude Opus 5.5,anthropic,"claude-code,cursor",4.0,5.0,0.2,20.0,False,2026-10-18
+claude-opus-5,Claude Opus 5,anthropic,"claude-code,cursor",5.0,6.25,0.5,25.0,False,2026-10-18
+claude-sonnet-5-5,Claude Sonnet 5.5,anthropic,"claude-code,cursor",2.0,2.5,0.1,10.0,False,2026-10-18
+claude-sonnet-5,Claude Sonnet 5,anthropic,"claude-code,cursor",2.0,2.5,0.2,10.0,False,2026-10-18
+claude-sonnet-4-6,Claude Sonnet 4.6,anthropic,"claude-code,cursor",3.0,3.75,0.3,15.0,False,2026-10-18
+claude-haiku-5-5,Claude Haiku 5.5,anthropic,"claude-code,cursor",0.1,0.125,0.01,0.5,False,2026-10-18
+claude-haiku-4-5,Claude Haiku 4.5,anthropic,"claude-code,cursor",1.0,1.25,0.1,5.0,False,2026-10-18
+gpt-6-astra,GPT-6 Astra,openai,"codex,cursor",10.0,12.5,1.0,50.0,False,2026-10-18
+gpt-6-1-sol,GPT-6.1 Sol,openai,"codex,cursor",2.0,2.5,0.1,10.0,False,2026-10-18
+gpt-6-sol,GPT-6 Sol,openai,"codex,cursor",2.0,2.5,0.2,10.0,False,2026-10-18
+gpt-6-luna,GPT-6 Luna,openai,"codex,cursor",0.1,0.125,0.01,0.5,False,2026-10-18
+gpt-5-6-sol,GPT-5.6 Sol,openai,"codex,cursor",4.0,5.0,0.4,20.0,False,2026-10-18
+gpt-5-6-sol-fast,GPT-5.6 Sol (Fast),openai,"codex,cursor",8.0,10.0,0.8,40.0,False,2026-10-18
+gpt-5-6-terra,GPT-5.6 Terra,openai,"codex,cursor",2.0,2.5,0.2,12.0,False,2026-10-18
+gpt-5-6-luna,GPT-5.6 Luna,openai,"codex,cursor",0.2,0.25,0.02,1.2,False,2026-10-18
+gpt-5-5,GPT-5.5,openai,"codex,cursor",5.0,0.0,0.5,30.0,False,2026-10-18
+gpt-5-4,GPT-5.4,openai,"codex,cursor",2.5,0.0,0.25,15.0,False,2026-10-18
+gpt-5,GPT-5,openai,"codex,cursor",1.25,0.0,0.125,10.0,False,2026-10-18
+gemini-4-argon,Gemini 4 Argon,google,"cursor,other",2.0,0.0,0.1,10.0,False,2026-10-18
+gemini-3-1-pro,Gemini 3.1 Pro,google,"cursor,other",2.0,0.0,0.2,12.0,False,2026-10-18
+gemini-3-8-flash,Gemini 3.8 Flash,google,"cursor,other",0.75,0.0,0.075,3.75,False,2026-10-18
+grok-4-7,Grok 4.7,xai,cursor,2.0,0.0,0.5,6.0,True,2026-10-18
+grok-4-7-fast,Grok 4.7 (Fast),xai,cursor,4.0,0.0,1.0,12.0,True,2026-10-18
+composer-2-5,Composer 2.5,cursor,cursor,0.5,0.0,0.2,2.5,True,2026-10-18
+composer-2-5-fast,Composer 2.5 (Fast),cursor,cursor,3.0,0.0,0.5,15.0,True,2026-10-18
+kimi-k3,Kimi K3,moonshot,"cursor,other",3.0,0.0,0.3,15.0,False,2026-10-18
+glm-5-3,GLM 5.3,zai,"cursor,other",1.4,0.0,0.26,4.4,False,2026-10-18
+muse-wonder,Muse Wonder,meta,"cursor,other",4.0,0.0,0.2,20.0,False,2026-10-18

@@ -1,0 +1,9 @@
+prompt_id,prompt_type,description,expected_checks_count,sha256,byte_count
+adaptive-endurance-coach,domain_model,Adaptive endurance training planner and physiological simulator,5,e063f7eae123635edd93949fd72db2786565f11feb74211cad924bcb1309570c,2439
+france-electricity-carbon-flow,open_data,French electricity system observatory and carbon flow simulator,4,57a1e54a95748b46db8e356d12fbf94d14e8fa6c99942c01acb5e033a728af70,2846
+france-rail-24h-pulse,open_data,24-hour French passenger rail network map and accessibility atlas,3,dc3e0e0cb69b87a3d6ce6c8acfb7953525d9af829bbd3c9a53bcb87f6d6955ca,2035
+france-road-accidents,open_data,Metropolitan France road accidents collision observatory (BAAC),2,982eebe095732d52f4ca2e904d1cc284b76e9522d3f6f634c571f60ee96747a9,2378
+france-socio-electoral-atlas,open_data,Metropolitan France socio-electoral commune-level atlas,3,c4e7a3e9c1b5ac5781adfd5e889577576acfa79c7dbf2b6e07b5387b2c173d63,3043
+paris-1910-flood-simulator,open_data,Paris 1910 3D flood simulator with building ground elevations and river gauges,6,1c2103d2016d41e7263c8012c13ee555b6397ac5d8e4908e1b76a766ff49a9c3,2277
+paris-tree-canopy,open_data,Paris municipal tree canopy and remarkable trees biodiversity explorer,3,69f692b4adcfe21e0dbcab273537095a344735479a4309ab4a85b8a76288bfaf,2085
+velib-realtime-flow,open_data,Paris and Île-de-France Vélib real-time station availability and bike-share flow observatory,2,c38f333f908f94ba80b5c085d818deeaffceb14e9beca9ce3123342a9aa9f440,2190

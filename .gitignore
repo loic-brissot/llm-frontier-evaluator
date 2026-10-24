@@ -23,7 +23,8 @@ runs/*/*/tool-events/
 warehouse/*
 !warehouse/README.md
 dashboard/demos/
-dashboard/warehouse/
+dashboard/warehouse/*.duckdb*
+dashboard/warehouse/parquet/
 dashboard/results/
 *.duckdb
 *.duckdb.wal

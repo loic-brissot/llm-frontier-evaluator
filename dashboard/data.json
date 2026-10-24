@@ -24732,28 +24732,28 @@
         "name": "fact_runs",
         "type": "fact",
         "description": "Core benchmark runs fact table with duration, tokens, cost, and verification status",
-        "row_count": 11,
+        "row_count": 16,
         "parquet_path": "warehouse/parquet/fact_runs.parquet"
       },
       {
         "name": "fact_tool_calls",
         "type": "fact",
         "description": "Individual tool calls with bucket classification, latency, and failure flags",
-        "row_count": 1475,
+        "row_count": 1960,
         "parquet_path": "warehouse/parquet/fact_tool_calls.parquet"
       },
       {
         "name": "fact_turns",
         "type": "fact",
         "description": "Turn-level telemetry capturing cache re-reads and prompt growth across conversational turns",
-        "row_count": 53,
+        "row_count": 22,
         "parquet_path": "warehouse/parquet/fact_turns.parquet"
       },
       {
         "name": "fact_thought_blocks",
         "type": "fact",
         "description": "Model reasoning and thinking block durations and token counts",
-        "row_count": 701,
+        "row_count": 838,
         "parquet_path": "warehouse/parquet/fact_thought_blocks.parquet"
       },
       {
@@ -24777,10 +24777,10 @@
     ],
     "duckdb_path": "warehouse/benchmark.duckdb",
     "counts": {
-      "fact_runs": 11,
-      "fact_tool_calls": 1475,
-      "fact_turns": 53,
-      "fact_thought_blocks": 701,
+      "fact_runs": 16,
+      "fact_tool_calls": 1960,
+      "fact_turns": 22,
+      "fact_thought_blocks": 838,
       "dim_models": 30,
       "dim_prompts": 8
     }

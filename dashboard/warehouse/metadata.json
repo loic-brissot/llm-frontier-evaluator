@@ -1,0 +1,22 @@
+{
+  "warehouse_version": "1.0.0",
+  "exported_at": "2026-10-24T12:02:48.329Z",
+  "counts": {
+    "fact_runs": 16,
+    "fact_tool_calls": 1960,
+    "fact_turns": 22,
+    "fact_thought_blocks": 838,
+    "dim_models": 30,
+    "dim_prompts": 8
+  },
+  "formats": [
+    "parquet",
+    "duckdb",
+    "csv"
+  ],
+  "paths": {
+    "parquet_dir": "warehouse/parquet",
+    "duckdb_file": "warehouse/benchmark.duckdb",
+    "csv_dir": "warehouse/csv"
+  }
+}

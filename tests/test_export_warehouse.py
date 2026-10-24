@@ -1,3 +1,4 @@
+import csv
 import json
 import tempfile
 import unittest
@@ -8,6 +9,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from export_warehouse import (
+    TABLE_COLUMNS,
     export_warehouse,
     extract_dim_models,
     extract_dim_prompts,
@@ -382,6 +384,31 @@ class TestExportWarehouse(unittest.TestCase):
         # Check metadata file
         meta_json = json.loads((out_dir / "metadata.json").read_text(encoding="utf-8"))
         self.assertEqual(meta_json["warehouse_version"], "1.0.0")
+        self.assertIn("csv", summary["formats"])
+        self.assertEqual(summary["paths"]["csv_dir"], str(out_dir / "csv"))
+
+        # Check CSV files
+        csv_dir = out_dir / "csv"
+        self.assertTrue(csv_dir.is_dir())
+        all_tables = [
+            "fact_runs",
+            "fact_tool_calls",
+            "fact_turns",
+            "fact_thought_blocks",
+            "dim_models",
+            "dim_prompts",
+            "meta_warehouse",
+        ]
+        for tbl in all_tables:
+            c_file = csv_dir / f"{tbl}.csv"
+            self.assertTrue(c_file.is_file(), f"Missing CSV table: {c_file}")
+            with c_file.open("r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                rows = list(reader)
+                self.assertEqual(header, TABLE_COLUMNS[tbl], f"Header mismatch for {tbl}")
+                expected_count = 1 if tbl == "meta_warehouse" else summary["counts"][tbl]
+                self.assertEqual(len(rows), expected_count, f"Row count mismatch for {tbl}")
 
         # Check Parquet files
         parquet_dir = out_dir / "parquet"
@@ -394,6 +421,18 @@ class TestExportWarehouse(unittest.TestCase):
 
         # Check DuckDB querying
         if duckdb is not None:
+            # Check precomputed view CSVs in csv_dir
+            for v_name in [
+                "view_cache_read_curve",
+                "view_tool_retry_chains",
+                "view_tool_retry_summary",
+                "view_failure_rate_by_tool_bucket",
+                "view_cost_efficiency",
+                "view_run_cost_efficiency",
+            ]:
+                v_csv = csv_dir / f"{v_name}.csv"
+                self.assertTrue(v_csv.is_file(), f"Missing view CSV: {v_csv}")
+
             db_file = out_dir / "benchmark.duckdb"
             self.assertTrue(db_file.is_file())
             con = duckdb.connect(str(db_file))
@@ -468,6 +507,57 @@ class TestExportWarehouse(unittest.TestCase):
         if duckdb is not None:
             self.assertTrue((out_dir / "benchmark.duckdb").is_file())
 
+    def test_export_format_csv_only(self):
+        self._create_mock_run("mock-prompt-1", "run-001", has_tool_events=True, has_usage_csv=True)
+        self._create_mock_run(
+            "mock-prompt-1",
+            "run-002",
+            model_name="Model Beta",
+            provider="google",
+            runtime_passed=False,
+            cost_usd=1.20,
+            has_tool_events=True,
+            has_usage_csv=False,
+        )
+        out_dir = self.base_dir / "csv_only_warehouse"
+        summary = export_warehouse(
+            runs_dir=self.runs_dir,
+            reference_dir=self.ref_dir,
+            prompts_dir=self.prompts_dir,
+            output_dir=out_dir,
+            export_format="csv",
+            verbose=False,
+        )
+        self.assertEqual(summary["formats"], ["csv"])
+        self.assertIsNotNone(summary["paths"]["csv_dir"])
+        self.assertIsNone(summary["paths"]["parquet_dir"])
+        self.assertIsNone(summary["paths"]["duckdb_file"])
+
+        csv_dir = out_dir / "csv"
+        self.assertTrue(csv_dir.is_dir())
+        self.assertFalse((out_dir / "parquet").exists())
+        self.assertFalse((out_dir / "benchmark.duckdb").exists())
+
+        all_tables = [
+            "fact_runs",
+            "fact_tool_calls",
+            "fact_turns",
+            "fact_thought_blocks",
+            "dim_models",
+            "dim_prompts",
+            "meta_warehouse",
+        ]
+        for tbl in all_tables:
+            c_file = csv_dir / f"{tbl}.csv"
+            self.assertTrue(c_file.is_file(), f"Missing CSV table: {c_file}")
+            with c_file.open("r", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                rows = list(reader)
+                self.assertEqual(header, TABLE_COLUMNS[tbl], f"Header mismatch for {tbl}")
+                expected_count = 1 if tbl == "meta_warehouse" else summary["counts"][tbl]
+                self.assertEqual(len(rows), expected_count, f"Row count mismatch for {tbl}")
+
     def test_edge_case_empty_runs_directory(self):
         empty_runs_dir = self.base_dir / "empty_runs"
         empty_runs_dir.mkdir(parents=True, exist_ok=True)
@@ -486,7 +576,16 @@ class TestExportWarehouse(unittest.TestCase):
         self.assertEqual(summary["counts"]["fact_turns"], 0)
         self.assertEqual(summary["counts"]["fact_thought_blocks"], 0)
 
-        # Tables are still written to parquet and duckdb without errors
+        # Tables are still written to csv, parquet and duckdb without errors
+        csv_dir = out_dir / "csv"
+        self.assertTrue((csv_dir / "fact_runs.csv").is_file())
+        with (csv_dir / "fact_runs.csv").open("r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            header = next(reader)
+            rows = list(reader)
+            self.assertEqual(header, TABLE_COLUMNS["fact_runs"])
+            self.assertEqual(len(rows), 0)
+
         self.assertTrue((out_dir / "parquet" / "fact_runs.parquet").is_file())
         if duckdb is not None:
             con = duckdb.connect(str(out_dir / "benchmark.duckdb"))
@@ -528,16 +627,17 @@ class TestExportWarehouse(unittest.TestCase):
         self.assertIsInstance(summary, dict)
 
     def test_cli_parsing_and_main(self):
-        args = parse_args(["--format", "parquet", "--quiet", "--warehouse-version", "2.1.0"])
-        self.assertEqual(args.format, "parquet")
+        args = parse_args(["--format", "csv", "--quiet", "--warehouse-version", "2.1.0"])
+        self.assertEqual(args.format, "csv")
         self.assertTrue(args.quiet)
         self.assertEqual(args.warehouse_version, "2.1.0")
 
         self._create_mock_run("mock-prompt-1", "run-cli")
         cli_out = self.base_dir / "cli_warehouse"
-        exit_code = main(["--runs-dir", str(self.runs_dir), "--reference-dir", str(self.ref_dir), "--output-dir", str(cli_out), "--quiet"])
+        exit_code = main(["--runs-dir", str(self.runs_dir), "--reference-dir", str(self.ref_dir), "--output-dir", str(cli_out), "--format", "csv", "--quiet"])
         self.assertEqual(exit_code, 0)
         self.assertTrue((cli_out / "metadata.json").is_file())
+        self.assertTrue((cli_out / "csv" / "fact_runs.csv").is_file())
 
 
 if __name__ == "__main__":
