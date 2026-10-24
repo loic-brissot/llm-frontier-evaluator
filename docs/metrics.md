@@ -77,6 +77,23 @@ This is an upper bound on generation. It also holds network and queue latency, t
 
 The hook also logs `afterAgentThought`, whose `duration_ms` is the length of one thinking block. Duplicate thought records (such as dual base and step-suffixed `generation_id` events for the same block) are deduplicated. Their sum is a lower bound, because visible output is not in it. `finish_run.py` stores both figures, and the summed and merged tool time, under `model_time.raw.tool_events`. Thinking time is not a score.
 
+### Headless Claude Code (`claude-code`)
+
+`claude -p --output-format stream-json` lines carry no timestamps. `scripts/tool_events.py` reads three logs a `run_benchmark.py` run leaves behind:
+
+| Log | Gives |
+| --- | --- |
+| `tool-events/cli-stream.jsonl` | Tokens, tool calls, thinking block count, `duration_api_ms`, `total_cost_usd`. One attempt per `system`/`init` event. |
+| `claude-sessions/*.jsonl` (Claude Code session transcripts) | A timestamp per content block: attempt bounds, `tool_use` → `tool_result` intervals, thinking block durations. |
+| `hook-events/*.jsonl` (`.claude/settings.json` hooks) | `logged_at` per `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`: attempt bounds and `PreToolUse` → `PostToolUse` tool intervals. |
+
+1. Each attempt runs from its prompt submission (the frozen prompt, then `Continue.` on a resume) to its last logged event. Wall clock runs from the first prompt to the last event. The idle gap between attempts (stall plus retry cooldown) is stored as `retry_gap_seconds` and kept out of active time.
+2. A tool interval is `PreToolUse` → `PostToolUse` for its `tool_use_id`. Without that pair it is the transcript `tool_use` → `tool_result`. Intervals are merged as above. Wall clock minus tool time is active time minus merged tool time.
+3. `harness_model_time` is the sum of `result.duration_api_ms` over the attempts. It is used only when every attempt ended with a `result` event. An attempt that stalled or was killed reports no API time, so the run then falls back to `wall_clock_minus_tool_time`. Both figures are kept in `model_time.raw.tool_events` (`duration_api_seconds`, `wall_clock_minus_tool_seconds`), with `attempts` and `attempts_without_result`.
+4. A thinking block lasts from the previous transcript entry to the block's own entry. This upper bound includes request latency. Blocks are counted from the transcript, or from the stream when there is no transcript.
+
+Tokens come from each finished attempt's `result.usage`. For an attempt without a `result`, assistant `message.usage` is counted once per message id. Claude reports no reasoning-token count, so `finish_run.py --non-interactive` records the output total as `combined_output_as_visible`. These whole-run totals replace the last attempt's `cli-result.json`. A usage export passed with `--usage-export` still wins. The harness-reported `total_cost_usd` and the aggregate are stored in `tokens.raw.claude_code`.
+
 The chart cell is the number of minutes, to one decimal, with the suffix ` min`. Round half away from zero.
 
 ## 3. Tool calls

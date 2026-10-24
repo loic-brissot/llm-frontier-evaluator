@@ -2649,6 +2649,152 @@ Options:
                 mock_sleep.assert_not_called()
 
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from claude_code_fixture import SESSION as FIXTURE_SESSION, per_attempt  # noqa: E402
+
+LIVE_SMOKE_ENV = "RUN_LIVE_CLAUDE_CODE_SMOKE"
+
+
+def _assert_claude_code_run_complete(test: unittest.TestCase, run_dir: Path) -> dict:
+    from compare_runs import local_row
+    from run_common import run_schema_errors
+
+    run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+    test.assertEqual(run_schema_errors(run), [])
+    cells, notes = local_row(run)
+    test.assertNotIn("n/a", cells, f"cells={cells} notes={notes}")
+    test.assertEqual(run["harness"]["name"], "claude-code")
+    test.assertIsNotNone(run["wall_clock"]["started_at"])
+    test.assertIsNotNone(run["wall_clock"]["ended_at"])
+    test.assertIn(run["model_time"]["source"], ("harness_model_time", "wall_clock_minus_tool_time"))
+    test.assertIn("pricing", run["tokens"]["raw"])
+    return run
+
+
+class TestClaudeCodeHeadlessEndToEnd(unittest.TestCase):
+    def test_headless_claude_code_run_produces_complete_run_json(self):
+        """run_benchmark.py --harness claude-code -> stall, resume, finish_run --non-interactive, no n/a cells.
+
+        Docker is simulated: each `docker run` writes the hook log into the mounted workspace and the session
+        transcript into the mounted CLAUDE_CONFIG_DIR, exactly where the real container writes them.
+        """
+        from finish_run import complete_run_json
+
+        attempts = per_attempt()
+        commands: list[list[str]] = []
+        real_popen = subprocess.Popen
+
+        def mounts(cmd: list[str]) -> dict[str, Path]:
+            out = {}
+            for i, part in enumerate(cmd):
+                if part == "-v":
+                    host, container, _mode = cmd[i + 1].rsplit(":", 2)
+                    out[container] = Path(host)
+            return out
+
+        def fake_popen(cmd, **kwargs):
+            if list(cmd[:2]) != ["docker", "run"]:
+                return real_popen(cmd, **kwargs)  # e.g. setup_run's `git init`
+            commands.append(cmd)
+            attempt = attempts[len(commands) - 1]
+            mounted = mounts(cmd)
+            workspace, state = mounted["/workspace"], mounted[CLAUDE_CONTAINER_CONFIG_DIR]
+            (workspace / "index.html").write_text("<!doctype html><h1>x</h1>\n", encoding="utf-8")
+            for rows, path in (
+                (attempt["hooks"], workspace / ".claude" / "hook-events" / f"{FIXTURE_SESSION}.jsonl"),
+                (attempt["transcript"], state / "projects" / "-workspace" / f"{FIXTURE_SESSION}.jsonl"),
+            ):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                with path.open("a", encoding="utf-8") as fh:
+                    fh.writelines(json.dumps(r) + "\n" for r in rows)
+            failed = len(commands) == 1
+            proc = MagicMock()
+            proc.stdout = iter([json.dumps(r) + "\n" for r in attempt["stream"]])
+            proc.wait.return_value = 1 if failed else 0
+            proc.returncode = 1 if failed else 0
+            return proc
+
+        finished: list[Path] = []
+
+        def fake_finish(prompt_id, run_id):
+            run_dir = runs_tmp / prompt_id / run_id
+            complete_run_json(run_dir, [], non_interactive=True, skip_verify=True)
+            finished.append(run_dir)
+            return MagicMock(returncode=0)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            runs_tmp = tmp_path / "runs"
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.RUNS_DIR", runs_tmp), \
+                 patch("run_common.RUNS_DIR", runs_tmp), \
+                 patch("run_benchmark.find_run_dir", side_effect=lambda run_id, prompt_id: runs_tmp / prompt_id / run_id), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2.1.0 (Claude Code)"), \
+                 patch("run_benchmark.verify_claude_cli_flags"), \
+                 patch("run_benchmark.trigger_finish_run", side_effect=fake_finish), \
+                 patch("time.sleep"), \
+                 patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+                 patch("subprocess.Popen", side_effect=fake_popen):
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    harness="claude-code",
+                    model="Claude Opus 5.5",
+                    reasoning="high",
+                    retry_cooldown_seconds=1.0,
+                    max_retries=2,
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(len(commands), 2)
+            idx = commands[1].index("--resume")
+            self.assertEqual(commands[1][idx + 1], FIXTURE_SESSION)
+            self.assertEqual(commands[1][-1], "Continue.")
+            self.assertEqual(len(finished), 1)
+            run = _assert_claude_code_run_complete(self, finished[0])
+            self.assertEqual(run["model"]["name"], "Claude Opus 5.5")
+            self.assertEqual(run["harness"]["version"], "2.1.0 (Claude Code)")
+            self.assertEqual(run["model_time"]["raw"]["tool_events"]["attempts"], 2)
+            self.assertEqual(run["tokens"]["visible_tokens"], 4410)
+            self.assertTrue((finished[0] / "workspace" / "index.html").is_file())
+            self.assertTrue((finished[0] / "claude-sessions" / f"{FIXTURE_SESSION}.jsonl").is_file())
+            self.assertFalse((tmp_path / f"frontier-claude-state-{finished[0].name}").exists())
+
+
+@unittest.skipUnless(
+    os.environ.get(LIVE_SMOKE_ENV) == "1",
+    f"live claude-code Docker smoke test: set {LIVE_SMOKE_ENV}=1 with ANTHROPIC_API_KEY and the runner image built",
+)
+class TestClaudeCodeLiveDockerSmoke(unittest.TestCase):
+    """Runs a real benchmark through Docker and the Anthropic API (billed). Opt-in only.
+
+    RUN_LIVE_CLAUDE_CODE_SMOKE=1 [CLAUDE_CODE_SMOKE_PROMPT=<prompt-id>] [CLAUDE_CODE_SMOKE_MODEL="Claude Haiku 5.5"] \
+        uv run python3 -m pytest tests/test_run_benchmark.py -k LiveDockerSmoke -s
+    The run is recorded under runs/<prompt-id>/ like any other benchmark run.
+    """
+
+    def test_live_headless_claude_code_run(self):
+        from run_common import run_dir_for
+
+        prompt_id = os.environ.get("CLAUDE_CODE_SMOKE_PROMPT", "france-road-accidents")
+        model = os.environ.get("CLAUDE_CODE_SMOKE_MODEL", "Claude Haiku 5.5")
+        prompt_runs = run_dir_for(prompt_id, "x").parent
+        before = set(prompt_runs.glob("*"))
+        exit_code = run_benchmark_container(
+            prompt_id=prompt_id,
+            harness="claude-code",
+            model=model,
+            reasoning=os.environ.get("CLAUDE_CODE_SMOKE_REASONING", "high"),
+            series_id="claude-code-smoke",
+            auto_finish=True,
+        )
+        self.assertEqual(exit_code, 0)
+        created = sorted(set(prompt_runs.glob("*")) - before)
+        self.assertEqual(len(created), 1, created)
+        _assert_claude_code_run_complete(self, created[0])
+
+
 if __name__ == "__main__":
     unittest.main()
-

@@ -1162,5 +1162,95 @@ class TestIsolationParity(unittest.TestCase):
             )
 
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from claude_code_fixture import SESSION, write_claude_code_run  # noqa: E402
+import json  # noqa: E402
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
+from finish_run import repatriate_staged_workspace  # noqa: E402
+from tool_events import summarize_run  # noqa: E402
+
+
+class TestClaudeCodeTelemetry(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.run_dir = write_claude_code_run(Path(self.tmp.name))
+        self.assertTrue(repatriate_staged_workspace(self.run_dir))
+
+    def test_tokens_cost_and_api_time_sum_over_attempts(self):
+        summary = summarize_run(self.run_dir)
+        self.assertEqual(summary.claude_attempts, 2)
+        self.assertEqual(summary.claude_attempts_without_result, 1)
+        # attempt 0 (no result): msg_a1 counted once despite two content-block events, plus msg_a2
+        # attempt 1: the result event totals
+        self.assertEqual(summary.uncached_input_tokens, 4 + 2 + 6)
+        self.assertEqual(summary.cache_write_tokens, 12000 + 800 + 800)
+        self.assertEqual(summary.cache_read_tokens, 0 + 12000 + 39700)
+        self.assertEqual(summary.output_tokens, 950 + 2400 + 1060)
+        self.assertEqual(summary.input_tokens, 12 + 13600 + 51700)
+        self.assertEqual(summary.split_rule, "unavailable")
+        self.assertEqual(summary.api_duration_seconds, 21.0)
+        self.assertEqual(summary.harness_cost_usd, 0.4123)
+        self.assertTrue(any("ended without a result event" in note for note in summary.notes))
+
+    def test_tool_counts_come_from_the_stream_once(self):
+        summary = summarize_run(self.run_dir)
+        self.assertEqual(summary.buckets["shell"]["calls"], 2)
+        self.assertEqual(summary.buckets["shell"]["failures"], 1)
+        self.assertEqual(summary.buckets["files"]["calls"], 2)
+        self.assertEqual(summary.buckets["files"]["by_tool"], {"Write": {"calls": 1, "failures": 0}, "Read": {"calls": 1, "failures": 0}})
+
+    def test_timing_from_session_transcripts_and_hooks(self):
+        summary = summarize_run(self.run_dir)
+        self.assertEqual(summary.timing_source, "claude_sessions")
+        self.assertEqual(summary.wall_started_at, "2026-10-25T09:00:00Z")
+        self.assertEqual(summary.wall_ended_at, "2026-10-25T09:03:50.500Z")  # attempt 1 Stop hook
+        self.assertEqual(summary.wall_seconds, 230.5)
+        # attempt 0: prompt -> last event at +21s; attempt 1: prompt -> Stop at +30.5s
+        self.assertEqual(summary.active_seconds, 51.5)
+        self.assertEqual(summary.retry_gap_seconds, 179.0)
+        # PreToolUse -> PostToolUse: 1.7 + 0.7 + 9.7 + 0.2
+        self.assertEqual(summary.tool_busy_seconds, 12.3)
+        self.assertAlmostEqual(summary.tool_duration_ms, 12300.0, places=3)
+        self.assertEqual(summary.tools_without_duration, 0)
+        self.assertEqual(summary.model_time_seconds, 39.2)
+        self.assertEqual(summary.thought_blocks, 2)
+        self.assertEqual(summary.thinking_seconds, 11.0)
+
+    def test_timing_falls_back_to_transcript_tool_pairs_without_hooks(self):
+        shutil.rmtree(self.run_dir / "hook-events")
+        summary = summarize_run(self.run_dir)
+        # tool_use -> tool_result: 2 + 1 + 10 + 0.5; attempt spans 21 + 30 (no Stop hook)
+        self.assertEqual(summary.tool_busy_seconds, 13.5)
+        self.assertEqual(summary.active_seconds, 51.0)
+        self.assertEqual(summary.model_time_seconds, 37.5)
+        self.assertEqual(summary.wall_ended_at, "2026-10-25T09:03:50Z")
+
+    def test_timing_from_hooks_only(self):
+        shutil.rmtree(self.run_dir / "claude-sessions")
+        summary = summarize_run(self.run_dir)
+        self.assertEqual(summary.timing_source, "claude_hooks")
+        self.assertEqual(summary.active_seconds, 20.9 + 30.5)
+        self.assertEqual(summary.tool_busy_seconds, 12.3)
+        self.assertEqual(summary.model_time_seconds, 39.1)
+        # Thinking blocks are still counted from the stream; their duration needs transcripts.
+        self.assertEqual(summary.thought_blocks, 2)
+        self.assertIsNone(summary.thinking_seconds)
+
+    def test_unpaired_tool_call_blocks_wall_minus_tool_time(self):
+        hooks = self.run_dir / "hook-events" / f"{SESSION}.jsonl"
+        kept = [line for line in hooks.read_text(encoding="utf-8").splitlines() if "toolu_b2" not in line]
+        hooks.write_text("\n".join(kept) + "\n", encoding="utf-8")
+        transcript = self.run_dir / "claude-sessions" / f"{SESSION}.jsonl"
+        rows = [json.loads(line) for line in transcript.read_text(encoding="utf-8").splitlines()]
+        rows = [r for r in rows if "toolu_b2" not in json.dumps(r) or r["type"] == "assistant"]
+        transcript.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+        summary = summarize_run(self.run_dir)
+        self.assertEqual(summary.tools_without_duration, 1)
+        self.assertIsNone(summary.model_time_seconds)
+
+
 if __name__ == "__main__":
     unittest.main()

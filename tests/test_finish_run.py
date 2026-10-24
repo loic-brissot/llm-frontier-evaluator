@@ -1073,5 +1073,72 @@ class TestFinishRun(unittest.TestCase):
         self.assertEqual(KNOWN_REASONING_LEVELS, set(REASONING_LEVELS))
 
 
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from claude_code_fixture import RESULT, per_attempt, write_claude_code_run  # noqa: E402
+from compare_runs import local_row  # noqa: E402
+from run_common import run_schema_errors  # noqa: E402
+
+
+class TestClaudeCodeNonInteractiveFinish(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.run_dir = write_claude_code_run(Path(self.tmp.name))
+
+    def _finish(self) -> dict:
+        complete_run_json(self.run_dir, [], non_interactive=True, skip_verify=True)
+        return json.loads((self.run_dir / "run.json").read_text(encoding="utf-8"))
+
+    def test_populates_every_metric_from_cli_telemetry_without_csv(self):
+        run = self._finish()
+        self.assertEqual(run_schema_errors(run), [])
+        cells, notes = local_row(run)
+        self.assertNotIn("n/a", cells, f"cells={cells} notes={notes}")
+
+        self.assertEqual(run["wall_clock"], {"started_at": "2026-10-25T09:00:00Z", "ended_at": "2026-10-25T09:03:50.500Z"})
+        self.assertEqual(run["tokens"]["split_rule"], "combined_output_as_visible")
+        self.assertEqual(run["tokens"]["reasoning_tokens"], 0)
+        self.assertEqual(run["tokens"]["visible_tokens"], 4410)
+        self.assertEqual(run["context_reread"]["source"], "provider_cache_read")
+        self.assertEqual(run["context_reread"]["cache_read_tokens"], 51700)
+        self.assertEqual(run["context_reread"]["cache_write_tokens"], 13600)
+        self.assertEqual(run["context_reread"]["uncached_input_tokens"], 12)
+        self.assertEqual(run["tool_calls"]["shell"]["calls"], 2)
+        self.assertEqual(run["tool_calls"]["shell"]["failures"], 1)
+        self.assertEqual(run["tool_calls"]["files"]["calls"], 2)
+
+        # attempt 0 has no result event, so summed duration_api_ms is incomplete: wall clock minus tool time
+        self.assertEqual(run["model_time"]["source"], "wall_clock_minus_tool_time")
+        self.assertEqual(run["model_time"]["generating_seconds"], 39.2)
+        te = run["model_time"]["raw"]["tool_events"]
+        self.assertEqual(te["thought_blocks"], 2)
+        self.assertEqual(te["thinking_seconds"], 11.0)
+        self.assertEqual(te["attempts"], 2)
+        self.assertEqual(te["attempts_without_result"], 1)
+        self.assertEqual(te["duration_api_seconds"], 21.0)
+
+        raw = run["tokens"]["raw"]
+        self.assertEqual(raw["claude_code"]["total_cost_usd"], 0.4123)
+        self.assertEqual(raw["claude_code"]["output_tokens"], 4410)
+        pricing = raw["pricing"]
+        self.assertEqual(pricing["model_id"], "claude-opus-5-5")
+        self.assertEqual(pricing["harness_surcharge_usd"], "0.00")
+        self.assertGreater(Decimal(pricing["estimated_cost_usd"]), Decimal("0"))
+        self.assertTrue((self.run_dir / "hook-events").is_dir())
+        self.assertTrue((self.run_dir / "claude-sessions").is_dir())
+
+    def test_single_attempt_uses_harness_model_time(self):
+        attempt = per_attempt()[1]
+        stream = self.run_dir / "tool-events" / "cli-stream.jsonl"
+        stream.write_text("".join(json.dumps(r) + "\n" for r in attempt["stream"]), encoding="utf-8")
+        run = self._finish()
+        self.assertEqual(run["model_time"]["source"], "harness_model_time")
+        self.assertEqual(run["model_time"]["generating_seconds"], RESULT["duration_api_ms"] / 1000)
+        self.assertEqual(run["tokens"]["visible_tokens"], RESULT["usage"]["output_tokens"])
+        self.assertEqual(run["context_reread"]["cache_read_tokens"], RESULT["usage"]["cache_read_input_tokens"])
+        self.assertNotIn("n/a", local_row(run)[0])
+
+
 if __name__ == "__main__":
     unittest.main()
