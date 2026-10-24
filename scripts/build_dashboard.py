@@ -527,7 +527,22 @@ def compile_dashboard_payload(
         c.pop("_source_dir", None)
         cleaned_runs.append(c)
 
-    iso_timestamp = generated_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if generated_at:
+        iso_timestamp = generated_at
+    else:
+        # Derive deterministically from maximum ended_at or started_at across runs
+        run_timestamps: list[str] = []
+        for r in runs:
+            wc = r.get("wall_clock") or {}
+            if wc.get("ended_at"):
+                run_timestamps.append(wc["ended_at"])
+            elif wc.get("started_at"):
+                run_timestamps.append(wc["started_at"])
+
+        if run_timestamps:
+            iso_timestamp = max(run_timestamps)
+        else:
+            iso_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     payload: dict[str, Any] = {
         "version": "1.0.0",
@@ -787,7 +802,26 @@ def build_dashboard(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Compile fresh payload
-    payload = compile_dashboard_payload(runs_dir=runs_dir)
+    # If existing data.json exists, check if contents are unchanged to preserve existing generated_at
+    data_json_path = output_dir / "data.json"
+    existing_generated_at = None
+    if data_json_path.is_file():
+        try:
+            existing_payload = json.loads(data_json_path.read_text(encoding="utf-8"))
+            existing_generated_at = existing_payload.get("generated_at")
+        except Exception:
+            existing_generated_at = None
+
+    if existing_generated_at:
+        trial_payload = compile_dashboard_payload(runs_dir=runs_dir, generated_at=existing_generated_at)
+        trial_str = json.dumps(trial_payload, indent=2, sort_keys=True)
+        existing_str = json.dumps(existing_payload, indent=2, sort_keys=True)
+        if trial_str == existing_str:
+            payload = trial_payload
+        else:
+            payload = compile_dashboard_payload(runs_dir=runs_dir)
+    else:
+        payload = compile_dashboard_payload(runs_dir=runs_dir)
 
     # 2. Validate schema
     schema_errors = validate_payload_schema(payload)
@@ -797,7 +831,6 @@ def build_dashboard(
             print(f"  - {err}", file=sys.stderr)
 
     # 3. Write data.json
-    data_json_path = output_dir / "data.json"
     data_json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # 4. Copy static assets (from ROOT/dashboard if building elsewhere or keeping in sync)

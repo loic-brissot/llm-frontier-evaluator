@@ -1032,6 +1032,11 @@ def main() -> int:
         help="Check if README.md comparison tables match run records.",
     )
     parser.add_argument(
+        "--check-prompts",
+        action="store_true",
+        help="Check if frozen prompt hashes and metadata match prompt/README.md and probes.",
+    )
+    parser.add_argument(
         "--sync-readme",
         "--update-readme",
         dest="sync_readme",
@@ -1042,6 +1047,15 @@ def main() -> int:
 
     errors = check_prompt()
     errors.extend(check_pricing())
+
+    if args.check_prompts:
+        if errors:
+            print("Prompt verification errors:", file=sys.stderr)
+            for err in errors:
+                print(f"  - {err}", file=sys.stderr)
+            return 1
+        print("All prompt files verified successfully against prompt/README.md.")
+        return 0
     reference = None
     if REFERENCE_PATH.is_file():
         try:

@@ -728,6 +728,16 @@ class TestCompareRuns(unittest.TestCase):
         errors = run_schema_errors(run_data)
         self.assertEqual(errors, [])
 
+    def test_main_check_prompts_flag(self):
+        from compare_runs import main
+        from io import StringIO
+
+        out = StringIO()
+        with patch("sys.argv", ["compare_runs.py", "--check-prompts"]), patch("sys.stdout", out):
+            code = main()
+        self.assertEqual(code, 0)
+        self.assertIn("All prompt files verified successfully", out.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

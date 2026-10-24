@@ -2020,6 +2020,7 @@ def backfill_usage_export(
     runs_root: Path = RUNS_DIR,
     prompt_filter: str | None = None,
     update_readme: bool = True,
+    update_dashboard: bool = True,
 ) -> list[dict[str, Any]]:
     """Scan all runs and backfill usage CSV data for matching runs within wall_clock window."""
     if not usage_export.exists():
@@ -2143,6 +2144,11 @@ def backfill_usage_export(
     if update_readme and updated_runs:
         sync_readme()
 
+    if update_dashboard and updated_runs:
+        from build_dashboard import build_dashboard
+
+        build_dashboard()
+
     return updated_runs
 
 
@@ -2169,6 +2175,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--usage-export", type=Path, help="Harness usage export file or directory.")
     parser.add_argument("--backfill-usage", type=Path, help="Batch backfill usage CSV export across all matching runs.")
     parser.add_argument("--no-update-readme", action="store_true", help="Skip updating README.md after batch backfill.")
+    parser.add_argument("--no-update-dashboard", action="store_true", help="Skip updating dashboard/data.json and index.html after run completion or backfill.")
     parser.add_argument("--skip-usage-copy", action="store_true", help="Only scrub files already in usage/.")
     parser.add_argument("--skip-metrics", action="store_true", help="Skip run.json prompts.")
     parser.add_argument("--compare-only", action="store_true", help="Only run compare_runs.py.")
@@ -2188,6 +2195,7 @@ def main() -> int:
                 runs_root=RUNS_DIR,
                 prompt_filter=args.prompt_id,
                 update_readme=not args.no_update_readme,
+                update_dashboard=not args.no_update_dashboard,
             )
             print(f"Backfilled usage for {len(updated)} run(s).")
             return 0
@@ -2234,6 +2242,11 @@ def main() -> int:
         )
 
     sync_run_to_readme(run_dir)
+
+    if not args.no_update_dashboard:
+        from build_dashboard import build_dashboard
+
+        build_dashboard()
 
     print("\nWhen run.json is ready, commit it and usage/.")
     print("workspace/ stays gitignored.")
