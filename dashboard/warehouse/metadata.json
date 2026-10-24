@@ -1,0 +1,20 @@
+{
+  "warehouse_version": "1.0.0",
+  "exported_at": "2026-10-23T12:07:53.743Z",
+  "counts": {
+    "fact_runs": 11,
+    "fact_tool_calls": 1475,
+    "fact_turns": 53,
+    "fact_thought_blocks": 701,
+    "dim_models": 30,
+    "dim_prompts": 8
+  },
+  "formats": [
+    "parquet",
+    "duckdb"
+  ],
+  "paths": {
+    "parquet_dir": "/Users/lbrissot/repositories/llm-frontier-evaluator/warehouse/parquet",
+    "duckdb_file": "/Users/lbrissot/repositories/llm-frontier-evaluator/warehouse/benchmark.duckdb"
+  }
+}

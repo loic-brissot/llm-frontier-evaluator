@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import html
+import json
 import os
 import re
 import shutil
@@ -48,6 +49,14 @@ EXCLUDED_DIR_NAMES = {
     ".nuxt",
     ".svelte-kit",
     "__pycache__",
+    ".venv",
+    "venv",
+    ".env",
+    "data_raw",
+    "raw",
+    "pipeline",
+    "scripts",
+    "server",
 }
 
 # File name patterns excluded when bundling
@@ -64,8 +73,30 @@ EXCLUDED_FILE_PATTERNS = [
         r"^yarn-debug\.log.*$",
         r"^yarn-error\.log.*$",
         r"^pnpm-debug\.log.*$",
+        r".*\.zip$",
+        r".*\.tar(\.gz|\.bz2|\.xz)?$",
+        r"^package-lock\.json$",
+        r"^yarn\.lock$",
+        r"^pnpm-lock\.yaml$",
     ]
 ]
+
+MAX_SUPPLEMENT_FILE_SIZE = 25 * 1024 * 1024  # 25 MB
+
+DATA_FILE_EXTENSIONS = {
+    ".json",
+    ".geojson",
+    ".jsonl",
+    ".csv",
+    ".tsv",
+    ".parquet",
+    ".arrow",
+    ".bin",
+    ".gz",
+    ".sqlite",
+    ".db",
+    ".duckdb",
+}
 
 
 def is_excluded_path(rel_path: Path) -> bool:
@@ -95,20 +126,51 @@ def make_html_paths_relative(html_content: str) -> str:
     return pattern.sub(r"\1=\2./\3\2", html_content)
 
 
+def make_code_paths_relative(code_content: str) -> str:
+    """Rewrite root-relative /data/ and /assets/ paths in JS and CSS code.
+
+    Converts:
+      "/data/ -> "./data/
+      '/data/ -> './data/
+      `/data/ -> `./data/
+      "/assets/ -> "./assets/
+      '/assets/ -> './assets/
+      `/assets/ -> `./assets/
+      url(/data/ -> url(./data/
+      url(/assets/ -> url(./assets/
+    """
+    pattern = re.compile(r'([\'"`])/(?!\/)(data|assets)/')
+    updated = pattern.sub(r"\1./\2/", code_content)
+    url_pattern = re.compile(r'\burl\(\s*/(?!\/)(data|assets)/', re.IGNORECASE)
+    return url_pattern.sub(r"url(./\1/", updated)
+
+
 def sanitize_bundle_html(bundle_dir: Path) -> int:
-    """Ensure all HTML files in the bundle use relative asset paths."""
+    """Ensure all HTML, JS, and CSS files in the bundle use relative asset and data paths."""
     modified_count = 0
-    for html_file in bundle_dir.rglob("*.html"):
-        if not html_file.is_file():
+    for file_path in bundle_dir.rglob("*"):
+        if not file_path.is_file():
             continue
-        try:
-            content = html_file.read_text(encoding="utf-8", errors="ignore")
-            updated = make_html_paths_relative(content)
-            if updated != content:
-                html_file.write_text(updated, encoding="utf-8")
-                modified_count += 1
-        except Exception:
-            pass
+        ext = file_path.suffix.lower()
+        if ext == ".html":
+            try:
+                content = file_path.read_text(encoding="utf-8", errors="ignore")
+                updated = make_html_paths_relative(content)
+                updated = make_code_paths_relative(updated)
+                if updated != content:
+                    file_path.write_text(updated, encoding="utf-8")
+                    modified_count += 1
+            except Exception:
+                pass
+        elif ext in {".js", ".css", ".mjs"}:
+            try:
+                content = file_path.read_text(encoding="utf-8", errors="ignore")
+                updated = make_code_paths_relative(content)
+                if updated != content:
+                    file_path.write_text(updated, encoding="utf-8")
+                    modified_count += 1
+            except Exception:
+                pass
     return modified_count
 
 
@@ -279,6 +341,8 @@ def export_static_bundle(
             if candidate_data_dir.is_dir() and not (dest_dir / "data").is_dir():
                 target_data = dest_dir / "data"
                 target_data.mkdir(parents=True, exist_ok=True)
+
+                candidate_files: list[tuple[Path, Path]] = []
                 for root, dirs, files in os.walk(candidate_data_dir):
                     root_path = Path(root)
                     rel_root = root_path.relative_to(candidate_data_dir)
@@ -287,15 +351,39 @@ def export_static_bundle(
                         rel_file = rel_root / f
                         if is_excluded_path(rel_file):
                             continue
-                        s_f = root_path / f
-                        d_f = target_data / rel_file
-                        d_f.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(s_f, d_f)
-                        file_count += 1
-                        try:
-                            total_bytes += s_f.stat().st_size
-                        except OSError:
-                            pass
+                        candidate_files.append((root_path / f, rel_file))
+
+                # Check if other data files exist in dest_dir or candidate_data_dir
+                has_dest_data = any(
+                    p.is_file() and any(p.name.lower().endswith(ext) for ext in DATA_FILE_EXTENSIONS)
+                    for p in dest_dir.rglob("*")
+                    if not p.is_relative_to(target_data)
+                )
+                has_smaller_candidate_data = any(
+                    s_f.stat().st_size <= MAX_SUPPLEMENT_FILE_SIZE
+                    for s_f, _ in candidate_files
+                    if s_f.is_file()
+                )
+                has_other_data = has_dest_data or has_smaller_candidate_data
+
+                for s_f, rel_file in candidate_files:
+                    try:
+                        f_size = s_f.stat().st_size
+                    except OSError:
+                        f_size = 0
+
+                    # Skip individual files exceeding 25MB when supplementing if other data files exist
+                    if f_size > MAX_SUPPLEMENT_FILE_SIZE and has_other_data:
+                        continue
+
+                    d_f = target_data / rel_file
+                    d_f.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(s_f, d_f)
+                    file_count += 1
+                    total_bytes += f_size
+
+                if target_data.is_dir() and not any(target_data.iterdir()):
+                    shutil.rmtree(target_data, ignore_errors=True)
                 break
 
     # 3. Sanitize root-relative asset URLs in HTML files
@@ -785,6 +873,28 @@ def main() -> int:
         # Discover all runs that have active workspaces
         all_runs = discover_run_dirs()
         workspace_runs = [r for r in all_runs if (r / "workspace").is_dir()]
+        if (
+            not workspace_runs
+            and args.output_dir.is_dir()
+            and (args.output_dir / "demos.json").is_file()
+            and len((args.output_dir / "demos.json").read_text(encoding="utf-8").strip()) > 0
+            and json.loads((args.output_dir / "demos.json").read_text(encoding="utf-8")).get("demos")
+            and len(json.loads((args.output_dir / "demos.json").read_text(encoding="utf-8"))["demos"]) >= len(all_runs)
+        ):
+            print(
+                f"Pre-packaged demos already exist in {args.output_dir}. Preserving existing bundles."
+            )
+            return 0
+        if (
+            not workspace_runs
+            and not all_runs
+            and args.output_dir.is_dir()
+            and (args.output_dir / "demos.json").is_file()
+        ):
+            print(
+                f"Pre-packaged demos already exist in {args.output_dir}. Preserving existing bundles."
+            )
+            return 0
         if not workspace_runs and not all_runs:
             print("Error: No runs found under runs/.", file=sys.stderr)
             return 1
