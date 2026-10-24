@@ -1,0 +1,31 @@
+{
+  "passed": false,
+  "http_status": 200,
+  "url": "http://127.0.0.1:64541",
+  "server_mode": "command",
+  "load_time_ms": 4499.08,
+  "console_errors": [
+    "Error: Worker failed to load. Check that the worker URL is correct.\n    at Worker.<anonymous> (http://127.0.0.1:64541/assets/index-TOcCkUGo.js:9:528629)",
+    "Error: Worker failed to load. Check that the worker URL is correct.\n    at Worker.<anonymous> (http://127.0.0.1:64541/assets/index-TOcCkUGo.js:9:528629)"
+  ],
+  "console_warnings_count": 4,
+  "page_errors": [],
+  "failed_requests": [],
+  "critical_failures": [
+    "Fatal initialization console error: Error: Worker failed to load. Check that the worker URL is correct.",
+    "Fatal initialization console error: Error: Worker failed to load. Check that the worker URL is correct."
+  ],
+  "dom": {
+    "title": "Atlas de la Canop\u00e9e de Paris \u00b7 Biodiversit\u00e9 & Arbres Remarquables",
+    "canvas_count": 1,
+    "visible_canvas_count": 1,
+    "canvas_obscured": false,
+    "loading_overlay": null,
+    "svg_count": 20,
+    "webgl_context": true,
+    "text_length": 1103
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "verified_at": "2026-10-24T09:34:32.272Z",
+  "demo_url": "demos/paris-tree-canopy/2026-10-24-cursor-gemini-3-8-flash-high/index.html"
+}

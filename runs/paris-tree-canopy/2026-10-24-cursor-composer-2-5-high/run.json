@@ -1,0 +1,224 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-24-cursor-composer-2-5-high",
+  "series_id": "paris-tree-canopy-cursor",
+  "prompt_id": "paris-tree-canopy",
+  "prompt_sha256": "69f692b4adcfe21e0dbcab273537095a344735479a4309ab4a85b8a76288bfaf",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "cursor",
+    "name": "Composer 2.5",
+    "context": null,
+    "reasoning": "high"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": "2026.10.19-6bbf2c4",
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-24T09:18:15.470Z",
+    "ended_at": "2026-10-24T09:21:32.140Z"
+  },
+  "tokens": {
+    "split_rule": "combined_output_as_visible",
+    "reasoning_tokens": 0,
+    "visible_tokens": 26025,
+    "raw": {
+      "type": "result",
+      "subtype": "success",
+      "duration_ms": 200509,
+      "duration_api_ms": 200509,
+      "is_error": false,
+      "result": "Exploring the workspace and Paris Open Data APIs to design an interactive Paris tree canopy explorer.\n\n\nChecking API capabilities and planning the app architecture for ~220k trees.\n\n\nCreating a data pipeline and building the application.\n\n\nBuilding the application UI and core components.\n\n\n**Canop\u00e9e de Paris** is in `/workspace/paris-trees` \u2014 an interactive atlas of the municipal tree canopy.\n\n### What you get\n- **Map** \u2014 MapLibre on a muted Carto basemap; **Supercluster** aggregation when zoomed out; individual markers when zoomed in; color by **genre** or **height**; gold **arbres remarquables** markers; arrondissement outlines.\n- **Filters** \u2014 Arrondissements 1er\u201320e, featured genera (Platanus, Aesculus, Tilia, Sophora, Celtis, \u2026), height/circumference ranges, remarkable-only toggle.\n- **Analytics** \u2014 Totals, diversity, mean/median height & circumference, genus bar chart, density per km\u00b2 by arrondissement (updates with filters).\n- **Remarkable showcase** \u2014 182 heritage trees with photos, criteria, planting age, pan-to-map.\n- **District comparison** \u2014 Stacked voirie vs parcs chart + comparison table with genus variety and density.\n- **Tree detail card** \u2014 French name, taxonomy, dimensions, stade, domaine, coordinates, heritage text/PDF when available.\n\n### Data\n~220k trees from Paris Open Data, preprocessed to `public/data/trees.json.gz` (~7.4 MB download). Sources are credited in the footer.\n\n### Run it\n```bash\ncd /workspace/paris-trees\nnpm install\nnpm run dev\n```\n\nDev server: **http://localhost:5173/**\n\nRefresh data:\n```bash\nnpm run data:fetch\nnpm run data:build\n```\n\nFirst load parses the full inventory (brief loading screen); filtering and clustering then run in the browser on the active selection.",
+      "session_id": "7432144f-0094-449c-b6bf-26ba563aaf6e",
+      "request_id": "6773ebd7-eb38-4371-8af9-11e82b7ac190",
+      "usage": {
+        "inputTokens": 43141,
+        "outputTokens": 26025,
+        "cacheReadTokens": 627823,
+        "cacheWriteTokens": 0
+      },
+      "hook_tokens": {
+        "source": "transcript_or_hook",
+        "model": "composer-2.5",
+        "input_tokens": 670964,
+        "uncached_input_tokens": 43141,
+        "cache_read_tokens": 627823,
+        "cache_write_tokens": 0,
+        "output_tokens": 26025,
+        "split_rule": "unavailable"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "composer-2-5",
+        "context_variant": null,
+        "long_context_applied": false,
+        "harness": "cursor",
+        "harness_token_rate_per_1m": "0",
+        "harness_surcharge_usd": "0.00",
+        "rates_per_1m_usd": {
+          "input": "0.50",
+          "cache_write": "0.00",
+          "cache_read": "0.20",
+          "output": "2.50"
+        },
+        "estimated_cost_usd": "0.21",
+        "estimated_cost_with_harness_usd": "0.21"
+      }
+    }
+  },
+  "model_time": {
+    "source": "wall_clock_minus_tool_time",
+    "generating_seconds": 134.0,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 196.7,
+        "tool_seconds_merged": 62.7,
+        "tool_seconds_summed": 63.1,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": 134.0,
+        "thinking_seconds": 25.0,
+        "thought_blocks": 22
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 24,
+      "failures": 3,
+      "by_tool": {
+        "Shell": {
+          "calls": 24,
+          "failures": 3
+        }
+      }
+    },
+    "files": {
+      "calls": 37,
+      "failures": 0,
+      "by_tool": {
+        "Grep": {
+          "calls": 3,
+          "failures": 0
+        },
+        "Write": {
+          "calls": 27,
+          "failures": 0
+        },
+        "Read": {
+          "calls": 4,
+          "failures": 0
+        },
+        "Glob": {
+          "calls": 3,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    }
+  },
+  "context_reread": {
+    "source": "provider_cache_read",
+    "cache_read_tokens": 627823,
+    "cache_write_tokens": 0,
+    "uncached_input_tokens": 43141,
+    "raw": {
+      "source": "transcript_or_hook",
+      "model": "composer-2.5",
+      "input_tokens": 670964,
+      "uncached_input_tokens": 43141,
+      "cache_read_tokens": 627823,
+      "cache_write_tokens": 0,
+      "output_tokens": 26025,
+      "split_rule": "unavailable"
+    }
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": false,
+    "summary": ""
+  },
+  "observations": "No stop event recorded; capped run end time at the last non-idle tool/thought event.",
+  "verification": {
+    "runtime": {
+      "passed": false,
+      "http_status": null,
+      "url": "",
+      "server_mode": "none",
+      "load_time_ms": null,
+      "console_errors": [],
+      "console_warnings_count": 0,
+      "page_errors": [
+        "No workspace server found or started"
+      ],
+      "failed_requests": [],
+      "critical_failures": [
+        "No workspace server found or started"
+      ],
+      "dom": null,
+      "screenshot_path": null,
+      "verified_at": "2026-10-24T09:21:35.373Z",
+      "demo_url": "demos/paris-tree-canopy/2026-10-24-cursor-composer-2-5-high/index.html"
+    },
+    "data_pipeline": {
+      "prompt_id": "paris-tree-canopy",
+      "passed": true,
+      "authenticity": "real_open_data",
+      "score": 1.0,
+      "total_data_files": 9,
+      "total_records": 220457,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "trees_dataset",
+          "description": "Paris municipal trees inventory with botanical species and measurements",
+          "passed": true,
+          "observed_records": 220112,
+          "matched_files": [
+            "paris-trees/public/data/remarkable.json",
+            "paris-trees/public/data/trees.json"
+          ],
+          "detail": "Matched 2 file(s) with 220112 observed records (min: 1000)"
+        },
+        {
+          "id": "remarkable_trees_dataset",
+          "description": "Paris remarkable heritage trees (arbres remarquables)",
+          "passed": true,
+          "observed_records": 183,
+          "matched_files": [
+            "paris-trees/package.json",
+            "paris-trees/public/data/remarkable.json"
+          ],
+          "detail": "Matched 2 file(s) with 183 observed records (min: 20)"
+        },
+        {
+          "id": "arrondissements_dataset",
+          "description": "Paris arrondissements administrative boundaries",
+          "passed": true,
+          "observed_records": 20,
+          "matched_files": [
+            "paris-trees/public/data/arrondissements.geojson"
+          ],
+          "detail": "Matched 1 file(s) with 20 observed records (min: 20)"
+        }
+      ],
+      "verified_at": "2026-10-24T09:21:35.379Z"
+    }
+  }
+}

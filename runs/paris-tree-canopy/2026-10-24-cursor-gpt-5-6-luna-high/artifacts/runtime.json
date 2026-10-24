@@ -1,0 +1,25 @@
+{
+  "passed": true,
+  "http_status": 200,
+  "url": "http://127.0.0.1:64773",
+  "server_mode": "static",
+  "load_time_ms": 4648.63,
+  "console_errors": [],
+  "console_warnings_count": 0,
+  "page_errors": [],
+  "failed_requests": [],
+  "critical_failures": [],
+  "dom": {
+    "title": "Arborium \u2014 Paris municipal tree canopy",
+    "canvas_count": 1,
+    "visible_canvas_count": 1,
+    "canvas_obscured": false,
+    "loading_overlay": null,
+    "svg_count": 1,
+    "webgl_context": false,
+    "text_length": 1752
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "verified_at": "2026-10-24T10:11:21.145Z",
+  "demo_url": "demos/paris-tree-canopy/2026-10-24-cursor-gpt-5-6-luna-high/index.html"
+}

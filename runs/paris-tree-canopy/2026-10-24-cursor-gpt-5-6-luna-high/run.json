@@ -1,0 +1,219 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-24-cursor-gpt-5-6-luna-high",
+  "series_id": "paris-tree-canopy-cursor",
+  "prompt_id": "paris-tree-canopy",
+  "prompt_sha256": "69f692b4adcfe21e0dbcab273537095a344735479a4309ab4a85b8a76288bfaf",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "openai",
+    "name": "GPT-5.6 Luna",
+    "context": null,
+    "reasoning": "high"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": "2026.10.19-6bbf2c4",
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-24T10:08:32.062Z",
+    "ended_at": "2026-10-24T10:11:19.785Z"
+  },
+  "tokens": {
+    "split_rule": "combined_output_as_visible",
+    "reasoning_tokens": 0,
+    "visible_tokens": 19331,
+    "raw": {
+      "type": "result",
+      "subtype": "success",
+      "duration_ms": 170911,
+      "duration_api_ms": 170911,
+      "is_error": false,
+      "result": "I\u2019m going to build this as a self-contained front-end prototype in the empty workspace, with a polished atlas-style UI, real map interactions, Paris Open Data fetch attempts, and a resilient local dataset fallback so it still renders when external APIs are unavailable.Built the Paris urban tree canopy explorer in `/workspace`:\n\n- `index.html` \u2014 atlas-style layout and UI\n- `styles.css` \u2014 polished responsive visual system\n- `app.js` \u2014 Leaflet map, filters, clustering/density mode, tree details, remarkable tree showcase, district comparison, metrics, and source connectivity check\n\nValidated JavaScript syntax and confirmed the app serves successfully at `http://localhost:4173`.",
+      "session_id": "cdb65b75-dd73-4a1c-8810-a175e655e421",
+      "request_id": "a3601411-64fd-4b35-83ff-09e6731355eb",
+      "usage": {
+        "inputTokens": 27,
+        "outputTokens": 19331,
+        "cacheReadTokens": 186620,
+        "cacheWriteTokens": 33561
+      },
+      "hook_tokens": {
+        "source": "transcript_or_hook",
+        "model": "gpt-5.6-luna",
+        "input_tokens": 220208,
+        "uncached_input_tokens": 27,
+        "cache_read_tokens": 186620,
+        "cache_write_tokens": 33561,
+        "output_tokens": 19331,
+        "split_rule": "unavailable"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "gpt-5-6-luna",
+        "context_variant": null,
+        "long_context_applied": false,
+        "harness": "cursor",
+        "harness_token_rate_per_1m": "0.25",
+        "harness_surcharge_usd": "0.06",
+        "rates_per_1m_usd": {
+          "input": "0.20",
+          "cache_write": "0.25",
+          "cache_read": "0.02",
+          "output": "1.20"
+        },
+        "estimated_cost_usd": "0.04",
+        "estimated_cost_with_harness_usd": "0.10"
+      }
+    }
+  },
+  "model_time": {
+    "source": "wall_clock_minus_tool_time",
+    "generating_seconds": 162.2,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 167.7,
+        "tool_seconds_merged": 5.5,
+        "tool_seconds_summed": 5.6,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": 162.2,
+        "thinking_seconds": 16.1,
+        "thought_blocks": 7
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 4,
+      "failures": 0,
+      "by_tool": {
+        "Shell": {
+          "calls": 4,
+          "failures": 0
+        }
+      }
+    },
+    "files": {
+      "calls": 10,
+      "failures": 0,
+      "by_tool": {
+        "Grep": {
+          "calls": 4,
+          "failures": 0
+        },
+        "Write": {
+          "calls": 4,
+          "failures": 0
+        },
+        "Glob": {
+          "calls": 2,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    }
+  },
+  "context_reread": {
+    "source": "provider_cache_read",
+    "cache_read_tokens": 186620,
+    "cache_write_tokens": 33561,
+    "uncached_input_tokens": 27,
+    "raw": {
+      "source": "transcript_or_hook",
+      "model": "gpt-5.6-luna",
+      "input_tokens": 220208,
+      "uncached_input_tokens": 27,
+      "cache_read_tokens": 186620,
+      "cache_write_tokens": 33561,
+      "output_tokens": 19331,
+      "split_rule": "unavailable"
+    }
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": true,
+    "summary": ""
+  },
+  "observations": "No stop event recorded; capped run end time at the last non-idle tool/thought event.",
+  "verification": {
+    "runtime": {
+      "passed": true,
+      "http_status": 200,
+      "url": "http://127.0.0.1:64773",
+      "server_mode": "static",
+      "load_time_ms": 4648.63,
+      "console_errors": [],
+      "console_warnings_count": 0,
+      "page_errors": [],
+      "failed_requests": [],
+      "critical_failures": [],
+      "dom": {
+        "title": "Arborium \u2014 Paris municipal tree canopy",
+        "canvas_count": 1,
+        "visible_canvas_count": 1,
+        "canvas_obscured": false,
+        "loading_overlay": null,
+        "svg_count": 1,
+        "webgl_context": false,
+        "text_length": 1752
+      },
+      "screenshot_path": "artifacts/screenshot.png",
+      "verified_at": "2026-10-24T10:11:21.145Z",
+      "demo_url": "demos/paris-tree-canopy/2026-10-24-cursor-gpt-5-6-luna-high/index.html"
+    },
+    "data_pipeline": {
+      "prompt_id": "paris-tree-canopy",
+      "passed": false,
+      "authenticity": "synthetic_fallback",
+      "score": 0.0,
+      "total_data_files": 0,
+      "total_records": 0,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "trees_dataset",
+          "description": "Paris municipal trees inventory with botanical species and measurements",
+          "passed": false,
+          "observed_records": null,
+          "matched_files": [],
+          "detail": "No files matched patterns ['*arbre*', '*tree*', '*canopy*'] or required markers ['genre', 'espece', 'hauteur', 'circonference']"
+        },
+        {
+          "id": "remarkable_trees_dataset",
+          "description": "Paris remarkable heritage trees (arbres remarquables)",
+          "passed": false,
+          "observed_records": 1,
+          "matched_files": [
+            "app.js"
+          ],
+          "detail": "Matched 1 file(s) but observed 1 records < min threshold 20"
+        },
+        {
+          "id": "arrondissements_dataset",
+          "description": "Paris arrondissements administrative boundaries",
+          "passed": false,
+          "observed_records": null,
+          "matched_files": [],
+          "detail": "No files matched patterns ['*arrondissement*', '*district*'] or required markers []"
+        }
+      ],
+      "verified_at": "2026-10-24T10:11:26.098Z"
+    }
+  }
+}
