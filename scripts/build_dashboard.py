@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from compare_runs import format_local_cost, model_label
+from export_warehouse import export_warehouse
 from run_common import (
     ROOT,
     RUNS_DIR,
@@ -350,17 +351,34 @@ def _dominates_2d_successful(a: dict[str, Any], b: dict[str, Any]) -> bool:
     return no_worse and strictly_better
 
 
+def _is_pareto_eligible(r: dict[str, Any]) -> bool:
+    """True if run passed verification smoke tests (both overall and runtime)."""
+    verification = r.get("verification") or {}
+    return verification.get("passed") is True and (verification.get("runtime") or {}).get("passed", True) is not False
+
+
 def compute_pareto_frontiers(runs: list[dict[str, Any]]) -> None:
     """Annotate runs with series-scoped, global, and successful Pareto efficiency."""
-    # 1. Global Multi-objective Pareto frontier
     for r in runs:
+        if not _is_pareto_eligible(r):
+            pareto = r.setdefault("pareto", {})
+            pareto["is_pareto_global"] = False
+            pareto["is_pareto_series"] = False
+            pareto["is_pareto_successful"] = False
+            pareto["is_pareto_successful_series"] = False
+            pareto["is_pareto_successful_global"] = False
+
+    eligible_runs = [r for r in runs if _is_pareto_eligible(r)]
+
+    # 1. Global Multi-objective Pareto frontier
+    for r in eligible_runs:
         cost = r.get("cost", {}).get("estimated_with_harness_usd") or r.get("cost", {}).get("estimated_usd")
         gen_time = r.get("model_time", {}).get("generating_seconds") or r.get("wall_clock", {}).get("seconds")
         if cost is None or gen_time is None:
             r["pareto"]["is_pareto_global"] = False
             continue
 
-        is_dominated = any(_dominates(other, r) for other in runs if other != r)
+        is_dominated = any(_dominates(other, r) for other in eligible_runs if other != r)
         r["pareto"]["is_pareto_global"] = not is_dominated
 
     # 2. Series-scoped Multi-objective Pareto frontier
@@ -370,23 +388,34 @@ def compute_pareto_frontiers(runs: list[dict[str, Any]]) -> None:
         series_groups.setdefault(pid, []).append(r)
 
     for pid, group in series_groups.items():
+        eligible_group = [r for r in group if _is_pareto_eligible(r)]
         for r in group:
+            if not _is_pareto_eligible(r):
+                r["pareto"]["is_pareto_series"] = False
+                continue
             cost = r.get("cost", {}).get("estimated_with_harness_usd") or r.get("cost", {}).get("estimated_usd")
             gen_time = r.get("model_time", {}).get("generating_seconds") or r.get("wall_clock", {}).get("seconds")
             if cost is None or gen_time is None:
                 r["pareto"]["is_pareto_series"] = False
                 continue
 
-            is_dominated = any(_dominates(other, r) for other in group if other != r)
+            is_dominated = any(_dominates(other, r) for other in eligible_group if other != r)
             r["pareto"]["is_pareto_series"] = not is_dominated
 
     # 3. Successful runs Pareto frontier (Cost vs Time among passing runs)
     # Both series-scoped and global
-    global_successful = [r for r in runs if r.get("verification", {}).get("passed") is True]
+    global_successful = eligible_runs
     for pid, group in series_groups.items():
-        series_successful = [r for r in group if r.get("verification", {}).get("passed") is True]
+        series_successful = [r for r in group if _is_pareto_eligible(r)]
         for r in group:
-            if not r.get("verification", {}).get("passed"):
+            if not _is_pareto_eligible(r):
+                r["pareto"]["is_pareto_successful"] = False
+                r["pareto"]["is_pareto_successful_series"] = False
+                r["pareto"]["is_pareto_successful_global"] = False
+                continue
+            cost = r.get("cost", {}).get("estimated_with_harness_usd") or r.get("cost", {}).get("estimated_usd")
+            gen_time = r.get("model_time", {}).get("generating_seconds") or r.get("wall_clock", {}).get("seconds")
+            if cost is None or gen_time is None:
                 r["pareto"]["is_pareto_successful"] = False
                 r["pareto"]["is_pareto_successful_series"] = False
                 r["pareto"]["is_pareto_successful_global"] = False
@@ -480,11 +509,11 @@ def compile_dashboard_payload(
     warehouse_info: dict[str, Any] = {
         "available": False,
         "tables": [],
-        "formats": ["parquet", "duckdb"],
+        "formats": ["csv", "parquet", "duckdb"],
         "duckdb_path": "warehouse/benchmark.duckdb",
     }
-    # Check default warehouse locations
-    possible_wh_dirs = [ROOT / "warehouse", ROOT / "dashboard" / "warehouse"]
+    # Check default warehouse locations (prefer tracked dashboard/warehouse first)
+    possible_wh_dirs = [ROOT / "dashboard" / "warehouse", ROOT / "warehouse"]
     wh_meta = None
     for wh_d in possible_wh_dirs:
         if (wh_d / "metadata.json").is_file():
@@ -514,6 +543,7 @@ def compile_dashboard_payload(
             "description": t_def["description"],
             "row_count": cnt,
             "parquet_path": f"warehouse/parquet/{t_name}.parquet",
+            "csv_path": f"warehouse/csv/{t_name}.csv",
         })
 
     warehouse_info["available"] = True
@@ -864,6 +894,23 @@ def build_dashboard(
                 shutil.copytree(wh_item, dest_wh_item)
             elif wh_item.is_file():
                 shutil.copy2(wh_item, dest_wh_item)
+
+    # Ensure CSV analytical tables exist in output_dir / "warehouse" / "csv"
+    if not (output_dir / "warehouse" / "csv").is_dir() or not any((output_dir / "warehouse" / "csv").glob("*.csv")):
+        try:
+            export_warehouse(
+                runs_dir=runs_dir,
+                output_dir=output_dir / "warehouse",
+                export_format="csv",
+                verbose=False,
+            )
+        except Exception:
+            # Fall back to copying from wh_source if available
+            if wh_source and (wh_source / "csv").is_dir():
+                dest_csv = output_dir / "warehouse" / "csv"
+                dest_csv.mkdir(parents=True, exist_ok=True)
+                for csv_file in (wh_source / "csv").glob("*.csv"):
+                    shutil.copy2(csv_file, dest_csv / csv_file.name)
 
     # 7. Copy packaged demos if present in DASHBOARD_DIR / site and output_dir is different
     if output_dir != DASHBOARD_DIR:
