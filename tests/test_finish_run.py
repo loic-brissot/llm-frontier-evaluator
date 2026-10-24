@@ -533,6 +533,38 @@ class TestFinishRun(unittest.TestCase):
             self.assertEqual((workspace / "index.html").read_text(encoding="utf-8"), "<h1>Hello</h1>")
             self.assertTrue((run_dir / "tool-events" / "conv123.jsonl").is_file())
 
+    def test_repatriate_staged_workspace_claude_code_hook_events_and_sessions(self):
+        with tempfile.TemporaryDirectory() as tmp_dir_str:
+            root = Path(tmp_dir_str)
+            run_id = "2026-10-24-claude-code-test-run"
+            run_dir = root / "runs" / "test-prompt" / run_id
+            (run_dir / "workspace").mkdir(parents=True)
+            staging_dir = root / "staging" / f"frontier-workspace-{run_id}"
+            staging_dir.mkdir(parents=True)
+            (staging_dir / "index.html").write_text("<h1>Hi</h1>", encoding="utf-8")
+            try:
+                hook_events = staging_dir / ".claude" / "hook-events"
+                hook_events.mkdir(parents=True)
+                (staging_dir / ".claude" / "settings.json").write_text("{}", encoding="utf-8")
+            except PermissionError:
+                self.skipTest("sandbox blocks writing .claude/ directories")
+            (hook_events / "sess-1.jsonl").write_text('{"hook_event_name": "Stop"}\n', encoding="utf-8")
+            state_dir = staging_dir.parent / f"frontier-claude-state-{run_id}"
+            (state_dir / "projects" / "-workspace").mkdir(parents=True)
+            (state_dir / "projects" / "-workspace" / "sess-1.jsonl").write_text('{"type": "user"}\n', encoding="utf-8")
+            (run_dir / ".staging_workspace").write_text(str(staging_dir), encoding="utf-8")
+
+            self.assertTrue(repatriate_staged_workspace(run_dir))
+
+            self.assertTrue((run_dir / "hook-events" / "sess-1.jsonl").is_file())
+            self.assertFalse((run_dir / "tool-events" / "sess-1.jsonl").exists(),
+                             "Claude hook records must not mix with tool-events parsed as Cursor hooks")
+            self.assertFalse((run_dir / "workspace" / ".claude" / "hook-events").exists())
+            self.assertTrue((run_dir / "workspace" / ".claude" / "settings.json").is_file())
+            self.assertTrue((run_dir / "claude-sessions" / "sess-1.jsonl").is_file())
+            self.assertFalse(state_dir.exists())
+            self.assertFalse(staging_dir.exists())
+
     def test_complete_run_json_claude_code_end_to_end(self):
         with tempfile.TemporaryDirectory() as tmp_dir_str:
             run_dir = Path(tmp_dir_str)

@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 import io
 from run_benchmark import (
+    CLAUDE_CONTAINER_CONFIG_DIR,
     DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_COOLDOWN_SECONDS,
     DEFAULT_STALL_TIMEOUT_SECONDS,
@@ -20,6 +21,8 @@ from run_benchmark import (
     build_container_command,
     build_parser,
     check_preflight,
+    claude_cli_model_id,
+    claude_state_dir_for,
     cleanup_container,
     detect_container_harness_version,
     ensure_docker_ready,
@@ -30,7 +33,9 @@ from run_benchmark import (
     has_completion_result,
     is_forward_progress_event,
     is_rate_limit_error,
+    latest_claude_session_id,
     main,
+    missing_claude_cli_flags,
     normalize_cache_setting,
     parse_run_spec,
     record_container_harness_version,
@@ -39,6 +44,7 @@ from run_benchmark import (
     run_benchmark_container,
     run_parallel_benchmarks,
     trigger_finish_run,
+    verify_claude_cli_flags,
 )
 from run_common import load_env_credentials
 from setup_run import check_environment
@@ -167,6 +173,80 @@ class TestRunBenchmark(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             resolve_claude_code_model_and_effort("Claude Sonnet 5.5", reasoning="invalid_effort_level")
         self.assertIn("Invalid reasoning level 'invalid_effort_level' for claude-code harness", str(ctx.exception))
+
+    def test_resolve_claude_code_model_maps_to_cli_identifiers(self):
+        cases = {
+            "Claude Opus 5.5": "claude-opus-5-5",
+            "claude-opus-5.5": "claude-opus-5-5",
+            "Claude Fable 5.1": "claude-fable-5-1",
+            "Claude Haiku 4.5": "claude-haiku-4-5",
+            # Folded into the claude-opus-5 pricing entry, but the exact requested model must run.
+            "Claude Opus 4.7": "claude-opus-4-7",
+            "claude-haiku-4-5-20251001": "claude-haiku-4-5-20251001",
+            "claude-sonnet-5[1m]": "claude-sonnet-5[1m]",
+            "opus": "opus",
+            "Sonnet": "sonnet",
+        }
+        for name, expected in cases.items():
+            with self.subTest(name=name):
+                model_id, _ = resolve_claude_code_model_and_effort(name)
+                self.assertEqual(model_id, expected)
+                self.assertEqual(claude_cli_model_id(expected), expected)
+
+    def test_resolve_claude_code_model_rejects_non_claude_models(self):
+        with self.assertRaises(ValueError) as ctx:
+            resolve_claude_code_model_and_effort("GPT-5.6 Sol", reasoning="high")
+        self.assertIn("not available on the claude-code harness", str(ctx.exception))
+
+        with self.assertRaises(ValueError) as ctx:
+            resolve_claude_code_model_and_effort("mystery-model")
+        self.assertIn("Cannot map model 'mystery-model' to a Claude CLI model identifier", str(ctx.exception))
+
+        self.assertIsNone(claude_cli_model_id("gpt-5-6-sol"))
+        self.assertIsNone(claude_cli_model_id(""))
+
+    CLAUDE_HELP_SAMPLE = """Usage: claude [options] [command] [prompt]
+
+Options:
+  -d, --debug [filter]                  Enable debug mode
+  --verbose                             Override verbose mode setting from config
+  -p, --print                           Print response and exit (useful for pipes)
+  --output-format <format>              Output format (only works with --print): "text" (default), "json" (single result), or "stream-json" (realtime streaming)
+  --dangerously-skip-permissions        Bypass all permission checks
+  --model <model>                       Model for the current session. Provide an alias for the latest model (e.g. 'sonnet' or 'opus') or a model's full name (e.g. 'claude-sonnet-4-5').
+  --effort <level>                      Reasoning effort level
+  -c, --continue                        Continue the most recent conversation
+  -r, --resume [value]                  Resume a conversation by session ID
+"""
+
+    def test_missing_claude_cli_flags(self):
+        self.assertEqual(missing_claude_cli_flags(self.CLAUDE_HELP_SAMPLE, effort="high"), [])
+
+        no_effort = self.CLAUDE_HELP_SAMPLE.replace("  --effort <level>                      Reasoning effort level\n", "")
+        self.assertEqual(missing_claude_cli_flags(no_effort, effort="high"), ["--effort"])
+        self.assertEqual(missing_claude_cli_flags(no_effort, effort=None), [])
+
+        # Prefix-only matches (e.g. --resume-session) must not count as --resume
+        old_cli = self.CLAUDE_HELP_SAMPLE.replace("-r, --resume [value]", "--resume-session [value]").replace(
+            '"stream-json" (realtime streaming)', ""
+        )
+        self.assertEqual(missing_claude_cli_flags(old_cli), ["--resume", "--output-format stream-json"])
+
+    def test_verify_claude_cli_flags_against_container_help(self):
+        with patch("subprocess.run", return_value=MagicMock(stdout=self.CLAUDE_HELP_SAMPLE)) as mock_run:
+            verify_claude_cli_flags("img:latest", effort="high")
+        self.assertEqual(mock_run.call_args[0][0], ["docker", "run", "--rm", "img:latest", "claude", "--help"])
+
+        stale = self.CLAUDE_HELP_SAMPLE.replace("--effort <level>", "--effortless")
+        with patch("subprocess.run", return_value=MagicMock(stdout=stale)):
+            with self.assertRaises(ValueError) as ctx:
+                verify_claude_cli_flags("img:latest", effort="medium")
+        self.assertIn("does not support required flags: --effort", str(ctx.exception))
+        self.assertIn("CLAUDE_CODE_VERSION", str(ctx.exception))
+
+        # Unreadable help output warns and skips instead of blocking the run
+        with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "docker")):
+            verify_claude_cli_flags("img:latest", effort="high")
 
     def test_read_run_json_and_validate_flag_mismatches(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -2174,7 +2254,7 @@ class TestRunBenchmark(unittest.TestCase):
         self.assertIn("--continue", cmd_cursor_continue)
         self.assertNotIn("--resume", cmd_cursor_continue)
 
-        # 3. Claude harness with is_resume -> --continue
+        # 3. Claude harness with a session ID -> --resume <session_id>, never --continue
         cmd_claude_resume = build_container_command(
             staging_dir=staging_dir,
             docker_image="llm-frontier-evaluator-runner:latest",
@@ -2186,8 +2266,163 @@ class TestRunBenchmark(unittest.TestCase):
             resume_session_id="sess-claude-123",
             is_resume=True,
         )
-        self.assertIn("--continue", cmd_claude_resume)
-        self.assertNotIn("--resume", cmd_claude_resume)
+        self.assertNotIn("--continue", cmd_claude_resume)
+        idx = cmd_claude_resume.index("--resume")
+        self.assertEqual(cmd_claude_resume[idx + 1], "sess-claude-123")
+        self.assertLess(cmd_claude_resume.index("claude"), idx)
+        self.assertEqual(cmd_claude_resume[-1], "Continue.")
+
+        # 4. Claude harness with is_resume but no session ID -> --continue
+        cmd_claude_continue = build_container_command(
+            staging_dir=staging_dir,
+            docker_image="llm-frontier-evaluator-runner:latest",
+            harness="claude-code",
+            resolved_model="claude-opus-5-5",
+            effort="high",
+            prompt_text="Continue.",
+            env=env,
+            is_resume=True,
+        )
+        self.assertIn("--continue", cmd_claude_continue)
+        self.assertNotIn("--resume", cmd_claude_continue)
+
+        # 5. Fresh claude attempt -> no resume flags
+        cmd_claude_fresh = build_container_command(
+            staging_dir=staging_dir,
+            docker_image="llm-frontier-evaluator-runner:latest",
+            harness="claude-code",
+            resolved_model="claude-opus-5-5",
+            effort=None,
+            prompt_text="PROMPT",
+            env=env,
+        )
+        self.assertNotIn("--continue", cmd_claude_fresh)
+        self.assertNotIn("--resume", cmd_claude_fresh)
+        self.assertNotIn("--effort", cmd_claude_fresh)
+
+    def test_build_container_command_mounts_claude_state_dir(self):
+        staging_dir = Path("/tmp/frontier-workspace-state-test")
+        state_dir = claude_state_dir_for(staging_dir)
+        self.assertEqual(state_dir, Path("/tmp/frontier-claude-state-state-test"))
+        cmd = build_container_command(
+            staging_dir=staging_dir,
+            docker_image="llm-frontier-evaluator-runner:latest",
+            harness="claude-code",
+            resolved_model="claude-opus-5-5",
+            effort="high",
+            prompt_text="PROMPT",
+            env={"ANTHROPIC_API_KEY": "k"},
+            claude_state_dir=state_dir,
+        )
+        image_idx = cmd.index("llm-frontier-evaluator-runner:latest")
+        self.assertIn(f"{state_dir.resolve()}:{CLAUDE_CONTAINER_CONFIG_DIR}:rw", cmd[:image_idx])
+        self.assertIn(f"CLAUDE_CONFIG_DIR={CLAUDE_CONTAINER_CONFIG_DIR}", cmd[:image_idx])
+        self.assertFalse(CLAUDE_CONTAINER_CONFIG_DIR.startswith("/workspace"))
+
+        # Cursor commands never mount the Claude config dir
+        cursor_cmd = build_container_command(
+            staging_dir=staging_dir,
+            docker_image="llm-frontier-evaluator-runner:latest",
+            harness="cursor",
+            resolved_model="claude-opus-5-5-high",
+            effort=None,
+            prompt_text="PROMPT",
+            env={"CURSOR_API_KEY": "k"},
+            claude_state_dir=state_dir,
+        )
+        self.assertFalse(any("CLAUDE_CONFIG_DIR" in part for part in cursor_cmd))
+
+    def test_latest_claude_session_id(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            state = Path(tmp_dir)
+            self.assertIsNone(latest_claude_session_id(None))
+            self.assertIsNone(latest_claude_session_id(state / "missing"))
+            self.assertIsNone(latest_claude_session_id(state))
+            project = state / "projects" / "-workspace"
+            project.mkdir(parents=True)
+            older = project / "11111111-aaaa-bbbb-cccc-000000000001.jsonl"
+            newer = project / "22222222-aaaa-bbbb-cccc-000000000002.jsonl"
+            older.write_text("{}\n", encoding="utf-8")
+            newer.write_text("{}\n", encoding="utf-8")
+            os.utime(older, (1000, 1000))
+            os.utime(newer, (2000, 2000))
+            self.assertEqual(latest_claude_session_id(state), newer.stem)
+
+    def _run_claude_retry_scenario(self, first_attempt_stdout, *, seed_transcript=None):
+        """Run a claude-code run whose first attempt fails; return the docker commands executed."""
+        tmp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp_dir.cleanup)
+        tmp_path = Path(tmp_dir.name)
+        staging_dir = tmp_path / "frontier-workspace-claude-retry"
+        staging_dir.mkdir(parents=True)
+        run_dir = tmp_path / "runs" / "france-road-accidents" / "claude-retry"
+        run_dir.mkdir(parents=True)
+        (run_dir / "run.json").write_text(json.dumps({
+            "prompt_id": "france-road-accidents",
+            "harness": {"name": "claude-code"},
+            "model": {"name": "Claude Opus 5.5", "reasoning": "high"},
+        }), encoding="utf-8")
+        if seed_transcript:
+            project = claude_state_dir_for(staging_dir) / "projects" / "-workspace"
+            project.mkdir(parents=True)
+            (project / f"{seed_transcript}.jsonl").write_text("{}\n", encoding="utf-8")
+
+        commands = []
+
+        def mock_popen(cmd, **kwargs):
+            commands.append(cmd)
+            proc = MagicMock()
+            failed = len(commands) == 1
+            proc.stdout = iter(first_attempt_stdout if failed else ['{"type":"result","subtype":"success","is_error":false}\n'])
+            proc.wait.return_value = 1 if failed else 0
+            proc.returncode = 1 if failed else 0
+            return proc
+
+        with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+             patch("run_benchmark.find_run_dir", return_value=run_dir), \
+             patch("run_benchmark.detect_container_harness_version", return_value="2.1.0 (Claude Code)"), \
+             patch("run_benchmark.verify_claude_cli_flags") as mock_verify, \
+             patch("run_benchmark.trigger_finish_run"), \
+             patch("run_benchmark.check_preflight", return_value=[]), \
+             patch("time.sleep"), \
+             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}), \
+             patch("subprocess.Popen", side_effect=mock_popen):
+            exit_code = run_benchmark_container(
+                prompt_id="france-road-accidents",
+                run_id="claude-retry",
+                retry_cooldown_seconds=1.0,
+                max_retries=2,
+            )
+        self.assertEqual(exit_code, 0)
+        mock_verify.assert_called_once_with("llm-frontier-evaluator-runner:latest", effort="high")
+        self.assertEqual(len(commands), 2)
+        for cmd in commands:
+            self.assertIn(f"CLAUDE_CONFIG_DIR={CLAUDE_CONTAINER_CONFIG_DIR}", cmd)
+        return commands
+
+    def test_claude_code_retry_resumes_stream_session_with_continue_prompt(self):
+        init_line = json.dumps({"type": "system", "subtype": "init", "session_id": "sess-claude-777"}) + "\n"
+        first, second = self._run_claude_retry_scenario([init_line, '{"error":"overloaded"}\n'])
+        self.assertNotIn("--resume", first)
+        self.assertNotEqual(first[-1], "Continue.")
+        idx = second.index("--resume")
+        self.assertEqual(second[idx + 1], "sess-claude-777")
+        self.assertNotIn("--continue", second)
+        self.assertEqual(second[-1], "Continue.")
+
+    def test_claude_code_retry_resumes_persisted_transcript_session(self):
+        sid = "33333333-aaaa-bbbb-cccc-000000000003"
+        _, second = self._run_claude_retry_scenario(['{"error":"crash"}\n'], seed_transcript=sid)
+        idx = second.index("--resume")
+        self.assertEqual(second[idx + 1], sid)
+        self.assertEqual(second[-1], "Continue.")
+
+    def test_claude_code_retry_without_session_restarts_with_full_prompt(self):
+        first, second = self._run_claude_retry_scenario(['{"error":"container failed to start"}\n'])
+        self.assertNotIn("--resume", second)
+        self.assertNotIn("--continue", second)
+        self.assertEqual(second[-1], first[-1])
+        self.assertNotEqual(second[-1], "Continue.")
 
     def test_resource_exhausted_stall_terminates_container_early(self):
         with tempfile.TemporaryDirectory() as tmp_dir:

@@ -52,6 +52,25 @@ DEFAULT_STALL_TIMEOUT_SECONDS: float = 300.0
 DEFAULT_RETRY_COOLDOWN_SECONDS: float = 60.0
 DEFAULT_MAX_RETRIES: int = 2
 
+# Aliases accepted verbatim by `claude --model` (resolved by the CLI to the current model of that family).
+CLAUDE_CLI_MODEL_ALIASES: tuple[str, ...] = ("default", "opus", "sonnet", "haiku", "opusplan")
+# Canonical Anthropic API / Claude CLI model IDs, e.g. claude-opus-5-5, claude-haiku-4-5-20251001, claude-sonnet-5[1m].
+CLAUDE_CLI_MODEL_ID_RE = re.compile(r"^claude-(?:opus|sonnet|haiku|fable)-\d+(?:-\d+)?(?:-\d{8})?(?:\[1m\])?$")
+# Flags build_container_command() passes to `claude`; verified against `claude --help` in the container.
+CLAUDE_CLI_REQUIRED_FLAGS: tuple[str, ...] = (
+    "--print",
+    "--model",
+    "--output-format",
+    "--verbose",
+    "--resume",
+    "--continue",
+    "--dangerously-skip-permissions",
+)
+# Claude Code keeps session transcripts under CLAUDE_CONFIG_DIR. Containers run with --rm, so a per-run
+# host directory outside the staged workspace is mounted there to let `--resume <session_id>` work on retry.
+CLAUDE_CONTAINER_CONFIG_DIR = "/home/benchmark/.claude-state"
+RESUME_PROMPT = "Continue."
+
 
 def ensure_docker_ready(
     docker_image: str = DOCKER_IMAGE,
@@ -160,6 +179,25 @@ def ensure_docker_ready(
 def staging_workspace_for(run_id: str, staging_parent: Path | None = None) -> Path:
     parent = staging_parent if staging_parent is not None else STAGING_PARENT
     return _common_staging_workspace_for(run_id, staging_parent=parent)
+
+
+def claude_state_dir_for(staging_dir: Path) -> Path:
+    """Return the per-run host directory mounted as the container's CLAUDE_CONFIG_DIR.
+
+    It sits beside the staged workspace (never inside it) so session transcripts stay invisible to the model.
+    """
+    run_id = staging_dir.name.removeprefix("frontier-workspace-")
+    return staging_dir.parent / f"frontier-claude-state-{run_id}"
+
+
+def latest_claude_session_id(state_dir: Path | None) -> str | None:
+    """Return the most recently written session ID from a Claude Code config dir, if any."""
+    if state_dir is None or not state_dir.is_dir():
+        return None
+    transcripts = [p for p in (state_dir / "projects").glob("*/*.jsonl") if p.is_file()]
+    if not transcripts:
+        return None
+    return max(transcripts, key=lambda p: p.stat().st_mtime).stem
 
 
 def is_staging_inside_root(staging_dir: Path) -> bool:
@@ -342,8 +380,13 @@ def build_container_command(
     cache: bool | str | None = None,
     resume_session_id: str | None = None,
     is_resume: bool = False,
+    claude_state_dir: Path | None = None,
 ) -> list[str]:
-    """Construct docker run command for running harness CLI in container."""
+    """Construct docker run command for running harness CLI in container.
+
+    Resume semantics (both harnesses): ``--resume <resume_session_id>`` when a session ID is known,
+    otherwise ``--continue`` when ``is_resume`` is set. Callers send ``RESUME_PROMPT`` on resumed attempts.
+    """
     norm_harness = canonical_harness(harness)
     norm_cache = normalize_cache_setting(cache)
     cmd = ["docker", "run", "--rm", "-i", "--init", "--shm-size=2g"]
@@ -396,9 +439,18 @@ def build_container_command(
     else:  # claude-code
         if "ANTHROPIC_API_KEY" in env:
             cmd.extend(["-e", "ANTHROPIC_API_KEY"])
+        if claude_state_dir is not None:
+            cmd.extend([
+                "-v",
+                f"{claude_state_dir.resolve()}:{CLAUDE_CONTAINER_CONFIG_DIR}:rw",
+                "-e",
+                f"CLAUDE_CONFIG_DIR={CLAUDE_CONTAINER_CONFIG_DIR}",
+            ])
         effort_flag = ["--effort", effort] if effort else []
         resume_flags = []
-        if is_resume or resume_session_id:
+        if resume_session_id:
+            resume_flags = ["--resume", resume_session_id]
+        elif is_resume:
             resume_flags = ["--continue"]
 
         cmd.extend([
@@ -925,18 +977,8 @@ def fetch_cursor_available_models(docker_image: str = DOCKER_IMAGE, env: dict | 
         return []
 
 
-def resolve_cursor_model_slug(
-    model_name: str,
-    reasoning: str | None = None,
-    available_models: list[str] | None = None,
-) -> str:
-    """Resolve display model name and reasoning level to a cursor-agent model slug."""
-    r_clean = (
-        reasoning.strip().lower()
-        if reasoning and reasoning.strip().lower() not in ("unknown", "null", "")
-        else None
-    )
-
+def _find_pricing_entry(model_name: str) -> dict | None:
+    """Return the pricing catalog entry whose id or names match ``model_name``."""
     pricing_data = load_pricing()
     pricing_entry = None
     target_slug = slugify(model_name)
@@ -958,6 +1000,22 @@ def resolve_cursor_model_slug(
                     break
             if pricing_entry:
                 break
+    return pricing_entry
+
+
+def resolve_cursor_model_slug(
+    model_name: str,
+    reasoning: str | None = None,
+    available_models: list[str] | None = None,
+) -> str:
+    """Resolve display model name and reasoning level to a cursor-agent model slug."""
+    r_clean = (
+        reasoning.strip().lower()
+        if reasoning and reasoning.strip().lower() not in ("unknown", "null", "")
+        else None
+    )
+
+    pricing_entry = _find_pricing_entry(model_name)
 
     candidates: list[str] = []
     model_slug = slugify(model_name)
@@ -1022,37 +1080,51 @@ def resolve_cursor_model_slug(
     return unique_candidates[0]
 
 
+def claude_cli_model_id(name: str) -> str | None:
+    """Return ``name`` as a `claude --model` value (alias or canonical model ID), or None if it is neither."""
+    text = name.strip().lower() if isinstance(name, str) else ""
+    if text in CLAUDE_CLI_MODEL_ALIASES:
+        return text
+    suffix = ""
+    if text.endswith("[1m]"):
+        suffix, text = "[1m]", text[: -len("[1m]")]
+    candidate = f"{slugify(text)}{suffix}"
+    return candidate if CLAUDE_CLI_MODEL_ID_RE.match(candidate) else None
+
+
 def resolve_claude_code_model_and_effort(
     model_name: str,
     reasoning: str | None = None,
 ) -> tuple[str, str | None]:
-    """Resolve display model name to claude model ID and reasoning level to effort flag."""
-    pricing_data = load_pricing()
-    pricing_entry = None
-    target_slug = slugify(model_name)
-    target_lower = model_name.strip().lower()
+    """Resolve a benchmark model name to a `claude --model` identifier and a reasoning level to `--effort`.
 
-    models = pricing_data.get("models", [])
-    if isinstance(models, list):
-        for entry in models:
-            if not isinstance(entry, dict):
-                continue
-            names = [entry.get("id", "")] + list(entry.get("names") or [])
-            for cand in names:
-                if (
-                    isinstance(cand, str)
-                    and cand
-                    and (cand.strip().lower() == target_lower or slugify(cand) == target_slug)
-                ):
-                    pricing_entry = entry
-                    break
-            if pricing_entry:
-                break
+    The requested name wins when it already is a CLI alias or canonical model ID, so a name that the pricing
+    catalog folds into a newer entry (``Claude Opus 4.7`` priced as ``claude-opus-5``) still runs the exact
+    model requested. Otherwise the pricing entry's ID or names supply the canonical ID. Models the catalog
+    does not offer on the claude-code harness, or names with no canonical form, raise ValueError.
+    """
+    model_id = claude_cli_model_id(model_name)
+    pricing_entry = _find_pricing_entry(model_name)
 
-    if pricing_entry and pricing_entry.get("id"):
-        model_id = str(pricing_entry["id"])
-    else:
-        model_id = slugify(model_name)
+    if pricing_entry is not None:
+        harnesses = pricing_entry.get("harnesses")
+        if isinstance(harnesses, list) and harnesses and "claude-code" not in harnesses:
+            raise ValueError(
+                f"Model '{model_name}' (pricing id '{pricing_entry.get('id')}') is not available on the "
+                f"claude-code harness (catalog harnesses: {harnesses})."
+            )
+        if model_id is None:
+            for cand in [pricing_entry.get("id", "")] + list(pricing_entry.get("names") or []):
+                if isinstance(cand, str) and cand:
+                    model_id = claude_cli_model_id(cand)
+                    if model_id:
+                        break
+
+    if model_id is None:
+        raise ValueError(
+            f"Cannot map model '{model_name}' to a Claude CLI model identifier. Use a canonical Anthropic "
+            f"model ID (e.g. claude-opus-5-5) or an alias ({', '.join(CLAUDE_CLI_MODEL_ALIASES)})."
+        )
 
     effort: str | None = None
     if reasoning and reasoning.strip().lower() not in ("unknown", "null", ""):
@@ -1065,6 +1137,46 @@ def resolve_claude_code_model_and_effort(
         effort = r_clean
 
     return model_id, effort
+
+
+def fetch_claude_cli_help(docker_image: str = DOCKER_IMAGE) -> str | None:
+    """Return `claude --help` output from the container, or None when it cannot be read."""
+    cmd = ["docker", "run", "--rm", docker_image, "claude", "--help"]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    except Exception as exc:
+        print(f"Warning: Failed to read claude --help from container: {exc}", file=sys.stderr)
+        return None
+    text = res.stdout if isinstance(res.stdout, str) else None
+    return text if text and text.strip() else None
+
+
+def missing_claude_cli_flags(help_text: str, *, effort: str | None = None) -> list[str]:
+    """Return the CLI flags/values build_container_command() needs that `claude --help` does not list."""
+    required = list(CLAUDE_CLI_REQUIRED_FLAGS)
+    if effort:
+        required.append("--effort")
+    missing = [
+        flag for flag in required
+        if not re.search(rf"(?<![\w-]){re.escape(flag)}(?![\w-])", help_text)
+    ]
+    if "stream-json" not in help_text:
+        missing.append("--output-format stream-json")
+    return missing
+
+
+def verify_claude_cli_flags(docker_image: str = DOCKER_IMAGE, *, effort: str | None = None) -> None:
+    """Fail fast when the container's claude binary lacks a flag the benchmark command relies on."""
+    help_text = fetch_claude_cli_help(docker_image)
+    if help_text is None:
+        print("Warning: Skipping claude CLI flag verification (no --help output).", file=sys.stderr)
+        return
+    missing = missing_claude_cli_flags(help_text, effort=effort)
+    if missing:
+        raise ValueError(
+            f"Installed claude CLI in '{docker_image}' does not support required flags: {', '.join(missing)}. "
+            "Rebuild the image with a newer @anthropic-ai/claude-code (Dockerfile.benchmark CLAUDE_CODE_VERSION)."
+        )
 
 
 def run_benchmark_container(
@@ -1191,6 +1303,8 @@ def run_benchmark_container(
                 resolved_model, effort = resolve_claude_code_model_and_effort(
                     model, reasoning=normalized_reasoning
                 )
+                if check_models:
+                    verify_claude_cli_flags(docker_image, effort=effort)
 
             resolved_series_id = series_id.strip() if series_id else default_series_id(scaffold_harness, prompt_id)
             resolved_provider = provider.strip() if provider else (infer_provider(model) or "unknown")
@@ -1386,6 +1500,8 @@ def run_benchmark_container(
             resolved_model, effort = resolve_claude_code_model_and_effort(
                 final_model, reasoning=final_reasoning
             )
+            if check_models:
+                verify_claude_cli_flags(docker_image, effort=effort)
 
         staging_dir = staging_workspace_for(run_id)
 
@@ -1411,22 +1527,34 @@ def run_benchmark_container(
     last_return_code: int = 0
     total_attempts = max_retries + 1
 
+    is_cursor_run = final_harness == "cursor" or is_cursor_harness(final_harness)
+    claude_state_dir: Path | None = None
+    if not is_cursor_run:
+        claude_state_dir = claude_state_dir_for(staging_dir)
+        claude_state_dir.mkdir(parents=True, exist_ok=True)
+
     for attempt in range(total_attempts):
         if attempt > 0:
             _log(f"Waiting {retry_cooldown_seconds}s cooldown before retry {attempt}/{max_retries}...")
             time.sleep(retry_cooldown_seconds)
             if not current_session_id:
                 current_session_id = extract_session_id(cli_stream_file, staging_dir, run_dir)
+            if not current_session_id:
+                current_session_id = latest_claude_session_id(claude_state_dir)
             if current_session_id:
                 _log(f"Resuming session {current_session_id} for run {run_id} (attempt {attempt + 1}/{total_attempts})...")
+            elif is_cursor_run:
+                _log(f"Retrying run {run_id} with --continue (attempt {attempt + 1}/{total_attempts})...")
             else:
-                _log(f"Retrying run {run_id} (attempt {attempt + 1}/{total_attempts})...")
+                _log(f"No session to resume; restarting run {run_id} with the full prompt (attempt {attempt + 1}/{total_attempts})...")
 
-        is_resume = (attempt > 0)
+        # A resumed attempt always sends RESUME_PROMPT. claude-code only resumes a known session: without one
+        # there is no conversation to continue, so the attempt restarts with the frozen prompt.
+        is_resume = attempt > 0 and (bool(current_session_id) or is_cursor_run)
         container_suffix = f"-retry{attempt}" if attempt > 0 else ""
         container_name = f"frontier-runner-{run_id}{container_suffix}"
 
-        effective_prompt = "Continue." if (is_resume and (current_session_id or is_cursor_harness(final_harness))) else prompt_text
+        effective_prompt = RESUME_PROMPT if is_resume else prompt_text
 
         full_cmd = build_container_command(
             staging_dir=staging_dir,
@@ -1440,6 +1568,7 @@ def run_benchmark_container(
             cache=norm_cache,
             resume_session_id=current_session_id if is_resume else None,
             is_resume=is_resume,
+            claude_state_dir=claude_state_dir,
         )
 
         _log(f"Running benchmark container for run {run_id} ({final_harness}, attempt {attempt + 1}/{total_attempts})...")
@@ -1833,7 +1962,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="check_models",
         action="store_false",
         default=True,
-        help="Skip checking cursor-agent models in container.",
+        help="Skip checking cursor-agent models and claude CLI flags in container.",
     )
     parser.add_argument(
         "--check",

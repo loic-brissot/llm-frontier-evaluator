@@ -69,6 +69,14 @@ def repatriate_staged_workspace(run_dir: Path) -> bool:
             for jsonl_file in tool_events_dir.glob("*.jsonl"):
                 shutil.move(str(jsonl_file), str(dest_tool_events / jsonl_file.name))
 
+    claude_hook_events = staging_dir / ".claude" / "hook-events"
+    if claude_hook_events.is_dir():
+        dest_hook_events = run_dir / "hook-events"
+        dest_hook_events.mkdir(parents=True, exist_ok=True)
+        for jsonl_file in claude_hook_events.glob("*.jsonl"):
+            shutil.move(str(jsonl_file), str(dest_hook_events / jsonl_file.name))
+        shutil.rmtree(claude_hook_events, ignore_errors=True)
+
     git_dir = staging_dir / ".git"
     if git_dir.exists():
         shutil.rmtree(git_dir, ignore_errors=True)
@@ -96,7 +104,14 @@ def repatriate_staged_workspace(run_dir: Path) -> bool:
     if launcher_script.is_file():
         launcher_script.unlink()
 
-    for dir_suffix in ("home", "userdata", "ext"):
+    claude_state = staging_parent / f"frontier-claude-state-{run_id}"
+    if claude_state.is_dir():
+        dest_sessions = run_dir / "claude-sessions"
+        for transcript in (claude_state / "projects").glob("*/*.jsonl"):
+            dest_sessions.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(transcript, dest_sessions / transcript.name)
+
+    for dir_suffix in ("home", "userdata", "ext", "claude-state"):
         clean_dir = staging_parent / f"frontier-{dir_suffix}-{run_id}"
         if clean_dir.exists():
             shutil.rmtree(clean_dir, ignore_errors=True)

@@ -135,14 +135,20 @@ When the operator runs `python3 scripts/setup_run.py --prompt <prompt-id> ...`:
        -v "/tmp/frontier-workspace-${RUN_ID}:/workspace:rw" \
        -w /workspace \
        -e ANTHROPIC_API_KEY \
+       -v "/tmp/frontier-claude-state-${RUN_ID}:/home/benchmark/.claude-state:rw" \
+       -e CLAUDE_CONFIG_DIR=/home/benchmark/.claude-state \
        llm-frontier-evaluator-runner:latest \
-       claude -p \
-         --model "${MODEL_SLUG}" \
+       claude [--resume "${SESSION_ID}"] -p \
+         --model "${CLAUDE_MODEL_ID}" \
          --effort "${REASONING}" \
          --dangerously-skip-permissions \
          --output-format stream-json --verbose \
-         "$(cat prompt/${PROMPT_ID}.txt)"
+         "$(cat prompt/${PROMPT_ID}.txt)"   # "Continue." on a resumed attempt
      ```
+     - `resolve_claude_code_model_and_effort()` maps the benchmark model name to a `claude --model` value: a canonical Anthropic model ID (`claude-opus-5-5`, `claude-haiku-4-5-20251001`, optional `[1m]`) or a CLI alias (`opus`, `sonnet`, `haiku`, `opusplan`, `default`). A name the pricing catalog folds into a newer entry (`Claude Opus 4.7` → `claude-opus-5` pricing) still runs the exact model requested; models the catalog does not offer on `claude-code` are rejected.
+     - Unless `--no-check-models` is passed, `verify_claude_cli_flags()` reads `claude --help` from the image and fails fast when `--print`, `--model`, `--output-format stream-json`, `--verbose`, `--resume`, `--continue`, `--dangerously-skip-permissions`, or (when an effort is set) `--effort` is missing.
+     - The per-run `frontier-claude-state-<run-id>` directory sits beside, never inside, the staged workspace and keeps Claude Code session transcripts across `--rm` containers so a stall/error retry can `--resume <session_id>` (from the `stream-json` init event, else the newest persisted transcript) with the prompt `Continue.`. When no session exists, the retry restarts with the frozen prompt. `finish_run.py` copies the transcripts to `runs/<prompt-id>/<run-id>/claude-sessions/` and removes the state directory.
+     - `setup_run.py` installs `templates/claude/settings.json` and `templates/claude/hooks/log-tool-event.py` into `/workspace/.claude/`. The `PreToolUse` hook denies (exit code 2) the same isolation violations as the Cursor hook (repository name, `prompt-probes.json`, `verify_run.py`, `..` traversal outside file bodies); `UserPromptSubmit`, `PostToolUse`, and `Stop` events are logged to `/workspace/.claude/hook-events/<session_id>.jsonl`, which `finish_run.py` moves to `runs/<prompt-id>/<run-id>/hook-events/` (kept apart from `tool-events/`, which is parsed with Cursor hook semantics).
 3. Streams stdout/stderr telemetry to `runs/<prompt-id>/<run-id>/tool-events/cli-stream.jsonl` while Cursor hooks simultaneously log to `/workspace/.cursor/tool-events/`.
 
 *Context Window Policy*: Headless CLI runs omit the `--context` flag because `cursor-agent` and `claude` CLIs cannot select context windows. If an operator attempts to execute `run_benchmark.py` against a pre-scaffolded run directory configured with a context variant, `run_benchmark.py` rejects the run unless `--allow-cli-context-override` is explicitly supplied to reset `model.context` to `null`.
