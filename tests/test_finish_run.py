@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from decimal import Decimal
@@ -1138,6 +1139,85 @@ class TestClaudeCodeNonInteractiveFinish(unittest.TestCase):
         self.assertEqual(run["tokens"]["visible_tokens"], RESULT["usage"]["output_tokens"])
         self.assertEqual(run["context_reread"]["cache_read_tokens"], RESULT["usage"]["cache_read_input_tokens"])
         self.assertNotIn("n/a", local_row(run)[0])
+
+
+class TestInteractiveClaudeCodeFinish(unittest.TestCase):
+    """Finalizing an interactive `claude` run: no cli-stream.jsonl / cli-result.json, only session + hook logs."""
+
+    PROMPT_ID = "france-road-accidents"
+
+    def _finish(self, **kwargs) -> tuple[Path, dict]:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        from run_common import prompt_path
+
+        kwargs.setdefault("first_prompt", prompt_path(self.PROMPT_ID).read_text(encoding="utf-8"))
+        run_dir = write_claude_code_run(Path(tmp.name), interactive=True, **kwargs)
+        complete_run_json(run_dir, [], non_interactive=True, skip_verify=True)
+        return run_dir, json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+
+    def test_populates_every_metric_from_sessions_and_hooks(self):
+        run_dir, run = self._finish()
+        self.assertFalse((run_dir / "tool-events" / "cli-stream.jsonl").exists())
+        self.assertTrue((run_dir / "claude-sessions").is_dir())
+        self.assertTrue((run_dir / "hook-events").is_dir())
+        self.assertEqual(run_schema_errors(run), [])
+        cells, notes = local_row(run)
+        self.assertNotIn("n/a", cells, f"cells={cells} notes={notes}")
+
+        self.assertEqual(run["tokens"]["split_rule"], "combined_output_as_visible")
+        self.assertEqual(run["tokens"]["reasoning_tokens"], 0)
+        self.assertEqual(run["tokens"]["visible_tokens"], 4410)
+        self.assertEqual(run["context_reread"]["cache_read_tokens"], 51700)
+        self.assertEqual(run["context_reread"]["cache_write_tokens"], 13600)
+        self.assertEqual(run["context_reread"]["uncached_input_tokens"], 12)
+        self.assertEqual(run["tool_calls"]["shell"]["calls"], 2)
+        self.assertEqual(run["tool_calls"]["shell"]["failures"], 1)
+        self.assertEqual(run["tool_calls"]["files"]["calls"], 2)
+
+        self.assertEqual(run["model_time"]["source"], "wall_clock_minus_tool_time")
+        te = run["model_time"]["raw"]["tool_events"]
+        self.assertEqual(te["thought_blocks"], 2)
+        self.assertEqual(te["thinking_seconds"], 11.0)
+        self.assertEqual(te["timing_source"], "claude_sessions")
+        self.assertIsNone(te["duration_api_seconds"])
+
+        raw = run["tokens"]["raw"]
+        self.assertEqual(raw["claude_code"]["source"], "interactive:claude_sessions")
+        self.assertEqual(raw["claude_code"]["output_tokens"], 4410)
+        self.assertIsNone(raw["claude_code"]["total_cost_usd"])
+        self.assertTrue(raw["claude_code"]["prompt_check"]["verified"])
+        pricing = raw["pricing"]
+        self.assertEqual(pricing["model_id"], "claude-opus-5-5")
+        self.assertGreater(Decimal(pricing["estimated_cost_usd"]), Decimal("0"))
+
+    def test_observations_flag_normalized_paste_and_follow_up_turn(self):
+        from run_common import prompt_path
+
+        text = prompt_path(self.PROMPT_ID).read_text(encoding="utf-8").rstrip("\n") + "\n\n"
+        _run_dir, run = self._finish(first_prompt=text)
+        self.assertIn("trailing newline", run["observations"])
+        self.assertIn("1 follow-up prompt(s)", run["observations"])
+        self.assertIn("Interactive claude-code run", run["observations"])
+        self.assertEqual(run["tokens"]["raw"]["claude_code"]["prompt_check"]["follow_up_prompts"], 1)
+
+    def test_observations_flag_a_prompt_that_fails_the_sha_check(self):
+        _run_dir, run = self._finish(first_prompt="Build me something else.", follow_up=False)
+        self.assertIn("prompt_sha256 check failed", run["observations"])
+        self.assertFalse(run["tokens"]["raw"]["claude_code"]["prompt_check"]["verified"])
+
+    def test_hook_only_run_still_finalizes_tool_counts_and_wall_clock(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        run_dir = write_claude_code_run(Path(tmp.name), interactive=True)
+        repatriate_staged_workspace(run_dir)
+        shutil.rmtree(run_dir / "claude-sessions")
+        complete_run_json(run_dir, [], non_interactive=True, skip_verify=True)
+        run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+        self.assertEqual(run["tool_calls"]["shell"]["calls"], 2)
+        self.assertEqual(run["tool_calls"]["files"]["calls"], 2)
+        self.assertEqual(run["wall_clock"]["started_at"], "2026-10-25T09:00:00Z")
+        self.assertIsNone(run["tokens"]["raw"]["claude_code"]["output_tokens"])
 
 
 if __name__ == "__main__":

@@ -1605,6 +1605,11 @@ def apply_claude_stream_totals(run: dict, summary: ToolEventSummary, hints: dict
         "duration_api_seconds": summary.api_duration_seconds,
         "total_cost_usd": summary.harness_cost_usd,
     }
+    if summary.interactive_source:
+        claude_raw = run["tokens"]["raw"]["claude_code"]
+        claude_raw["source"] = "interactive:" + summary.interactive_source
+        if summary.prompt_check is not None:
+            claude_raw["prompt_check"] = summary.prompt_check
     if any(path.name != "cli-result.json" for path in usage_paths) or hints.get("usage_summary"):
         return
     for key in CLAUDE_STREAM_HINT_KEYS:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Append one JSONL record per Claude Code hook event and guard workspace isolation.
 
-Registered by .claude/settings.json for UserPromptSubmit, PreToolUse, PostToolUse, and Stop.
+Registered by .claude/settings.json for UserPromptSubmit, PreToolUse, PostToolUse, PostToolUseFailure, and Stop.
 PreToolUse calls that reach outside the workspace are denied with exit code 2 (the reason goes to
 stderr, which Claude Code feeds back to the model); every other event exits 0 with empty stdout,
 so the hook never adds context, follow-up prompts, or stop blocks to the run. tool_events.py pairs
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -86,6 +87,98 @@ def check_isolation_violation(event: dict) -> str | None:
     return None
 
 
+PATH_KEYS = (
+    "file_path",
+    "path",
+    "notebook_path",
+    "target_file",
+    "target_directory",
+    "directory",
+    "cwd",
+    "dir",
+)
+SIBLING_WORKSPACE = re.compile(r"frontier-workspace-[A-Za-z0-9._-]+")
+STATE_DIRECTORY = re.compile(r"frontier-claude-state-")
+# A bare `..` argument (cd .., ls .., `..` as a whole path) escapes the workspace like `../` does.
+BARE_PARENT = re.compile(r"(?:^|[\s=:;&|(<>\"'`])\.\.(?=$|[\s;&|)<>\"'`])")
+
+
+def workspace_root_for(script_path: Path) -> Path:
+    """Return the workspace root for a hook installed at <workspace>/.claude/hooks/log-tool-event.py."""
+    return script_path.resolve().parents[2]
+
+
+def _is_inside(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _is_repo_checkout(path: Path) -> bool:
+    """True when path, or an ancestor, is a benchmark repository checkout (has scripts/run_common.py and prompt/)."""
+    current = path
+    for _ in range(64):
+        if (current / "scripts" / "run_common.py").is_file() and (current / "prompt").is_dir():
+            return True
+        if current.parent == current:
+            break
+        current = current.parent
+    return False
+
+
+def check_workspace_isolation(event: dict, workspace_root: Path) -> str | None:
+    """Host clean-room guards that need the filesystem: sibling workspaces, cwd escape, and resolved repo paths.
+
+    Layered on check_isolation_violation (the policy shared with the Cursor hook), which stays text-only.
+    """
+    tool_input = event.get("tool_input")
+    root = workspace_root.resolve()
+
+    cwd_value = event.get("cwd")
+    session_cwd = root
+    if isinstance(cwd_value, str) and cwd_value:
+        session_cwd = Path(os.path.realpath(os.path.expanduser(cwd_value)))
+        if not _is_inside(session_cwd, root):
+            return "Working directory outside the workspace is blocked by isolation policy"
+
+    if tool_input is None:
+        return None
+    if isinstance(tool_input, (dict, list)):
+        texts = _collect_non_content_strings(tool_input)
+    else:
+        texts = [str(tool_input)]
+    joined = " ".join(texts)
+
+    if STATE_DIRECTORY.search(joined):
+        return "Access to the harness state directory is blocked by isolation policy"
+    own = root.name
+    for match in SIBLING_WORKSPACE.findall(joined):
+        if match != own:
+            return "Access to a sibling workspace is blocked by isolation policy"
+
+    if isinstance(tool_input, dict):
+        if isinstance(tool_input.get("command"), str) and BARE_PARENT.search(tool_input["command"]):
+            return "Parent directory traversal outside workspace is blocked by isolation policy"
+        candidates = [v for k, v in tool_input.items() if k in PATH_KEYS and isinstance(v, str) and v]
+        for value in candidates:
+            if value.strip() == ".." or value.rstrip("/\\").endswith("/.."):
+                return "Parent directory traversal outside workspace is blocked by isolation policy"
+            expanded = Path(os.path.expanduser(value))
+            target = expanded if expanded.is_absolute() else session_cwd / expanded
+            real = Path(os.path.realpath(target))
+            if _is_inside(real, root):
+                continue
+            if "llm-frontier-evaluator" in real.parts or _is_repo_checkout(real):
+                return "Access to llm-frontier-evaluator is blocked by isolation policy"
+            if _is_inside(session_cwd, root) and SIBLING_WORKSPACE.search(real.as_posix()) and own not in real.parts:
+                return "Access to a sibling workspace is blocked by isolation policy"
+    elif isinstance(tool_input, str) and BARE_PARENT.search(tool_input):
+        return "Parent directory traversal outside workspace is blocked by isolation policy"
+    return None
+
+
 def cap(value: object) -> tuple[object, bool]:
     if value is None:
         return None, False
@@ -123,9 +216,9 @@ def record_from(event: dict) -> dict:
         "tool_name": event.get("tool_name"),
         "tool_use_id": event.get("tool_use_id"),
         "stop_hook_active": event.get("stop_hook_active"),
-        "failed": bool(event.get("failed", False)),
+        "failed": bool(event.get("failed", False)) or event.get("hook_event_name") == "PostToolUseFailure",
         "failure_type": event.get("failure_type"),
-        "error_message": event.get("error_message"),
+        "error_message": event.get("error_message") or event.get("error"),
         "tool_input": tool_input,
         "tool_input_truncated": input_truncated,
         "tool_response": tool_response,
@@ -173,7 +266,9 @@ def main() -> int:
         event = {"hook_event_name": "unparsed", "tool_response": raw}
 
     if event.get("hook_event_name") == "PreToolUse":
-        reason = check_isolation_violation(event)
+        reason = check_isolation_violation(event) or check_workspace_isolation(
+            event, workspace_root_for(Path(__file__))
+        )
         if reason:
             event["failed"] = True
             event["failure_type"] = "isolation_blocked"

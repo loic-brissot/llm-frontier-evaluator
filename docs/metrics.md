@@ -94,6 +94,16 @@ The hook also logs `afterAgentThought`, whose `duration_ms` is the length of one
 
 Tokens come from each finished attempt's `result.usage`. For an attempt without a `result`, assistant `message.usage` is counted once per message id. Claude reports no reasoning-token count, so `finish_run.py --non-interactive` records the output total as `combined_output_as_visible`. These whole-run totals replace the last attempt's `cli-result.json`. A usage export passed with `--usage-export` still wins. The harness-reported `total_cost_usd` and the aggregate are stored in `tokens.raw.claude_code`.
 
+### Interactive Claude Code (`claude` without `-p`)
+
+An interactive session writes no `cli-stream.jsonl` or `cli-result.json`. When both are absent and `claude-sessions/` or `hook-events/` exist, `scripts/tool_events.py` takes everything from those two logs:
+
+- Tokens: assistant entries of `claude-sessions/*.jsonl`, one usage per Anthropic message id (the largest value per field, because one message's usage repeats on each content block). Input, uncached input, cache read, cache write, and output follow the headless rules, and the list-price estimate lands in `tokens.raw.pricing`. There is no harness-reported cost, so `tokens.raw.claude_code.total_cost_usd` is null.
+- Tool calls: `tool_use` / `tool_result` blocks of the transcript; without transcripts, `PreToolUse` (call) and `PostToolUseFailure` or failed `PostToolUse` (failure) from the hook log, in which case tokens stay null.
+- Time and thinking: as for headless runs. Idle time between a follow-up turn and the previous one counts as gap, not active time.
+- Prompt check: the first `UserPromptSubmit` record and the first transcript prompt are compared with `prompt/<prompt-id>.txt` through `prompt_sha256`. A pasted prompt that differs only by trailing newline or line endings is accepted and flagged in `observations`. A changed prompt, a `[Pasted text #n]` placeholder, or a log-capped prompt that is not a prefix of the frozen file is reported as unverified. The result is stored in `tokens.raw.claude_code.prompt_check`.
+- Interventions: every later `UserPromptSubmit` (a follow-up turn) and every `[Request interrupted by user]` entry is written to `observations`, because the run is then not a single user message. Tool calls denied by the `.claude` isolation hook are listed there too.
+
 The chart cell is the number of minutes, to one decimal, with the suffix ` min`. Round half away from zero.
 
 ## 3. Tool calls
