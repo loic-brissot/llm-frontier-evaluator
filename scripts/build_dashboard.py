@@ -538,12 +538,18 @@ def compile_dashboard_payload(
         p_info = probes_data.get(pid, {})
         runs_for_p = [r for r in runs if r["prompt_id"] == pid]
         checks = p_info.get("checks", [])
+        prompt_file = prompts_dir / f"{pid}.txt"
+        try:
+            prompt_text = prompt_file.read_text(encoding="utf-8") if prompt_file.is_file() else ""
+        except OSError:
+            prompt_text = ""
         prompts_list.append({
             "prompt_id": pid,
             "description": str(p_info.get("description") or f"Benchmark evaluation prompt {pid}"),
             "type": str(p_info.get("type", "standard")),
             "runs_count": len(runs_for_p),
             "checks_count": len(checks) if isinstance(checks, list) else 0,
+            "text": prompt_text,
         })
 
     # Models list

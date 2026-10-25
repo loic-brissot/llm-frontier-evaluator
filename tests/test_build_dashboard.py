@@ -25,7 +25,7 @@ from build_dashboard import (
     serialize_safe_embedded_json,
     validate_payload_schema,
 )
-from run_common import RUNS_DIR
+from run_common import ROOT, RUNS_DIR
 
 
 class TestExtractRunRecord:
@@ -307,6 +307,29 @@ class TestPayloadCompilationAndSchema:
         # Validate against JSON schema
         errors = validate_payload_schema(payload)
         assert errors == [], f"Schema validation errors: {errors}"
+
+    def test_prompts_embed_frozen_text(self, tmp_path: Path) -> None:
+        payload = compile_dashboard_payload(runs_dir=RUNS_DIR)
+        prompts_dir = ROOT / "prompt"
+        for p in payload["prompts"]:
+            f = prompts_dir / f"{p['prompt_id']}.txt"
+            assert f.is_file()
+            assert p["text"] == f.read_text(encoding="utf-8")
+            assert p["text"].strip()
+
+        # Missing prompt file yields empty text and still validates
+        empty_dir = tmp_path / "prompt"
+        empty_dir.mkdir()
+        (empty_dir / "demo.txt").write_text("hello\n", encoding="utf-8")
+        custom = compile_dashboard_payload(runs_dir=tmp_path / "runs", prompts_dir=empty_dir)
+        assert [p["text"] for p in custom["prompts"] if p["prompt_id"] == "demo"] == ["hello\n"]
+        assert validate_payload_schema(custom) == []
+
+    def test_showcase_renders_prompt_text(self) -> None:
+        html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
+        js = (ROOT / "dashboard" / "app.js").read_text(encoding="utf-8")
+        assert 'id="showcase-prompt-text"' in html
+        assert "showcase-prompt-text" in js
 
     def test_schema_validator_catches_invalid_payload(self) -> None:
         payload = compile_dashboard_payload(runs_dir=RUNS_DIR)
