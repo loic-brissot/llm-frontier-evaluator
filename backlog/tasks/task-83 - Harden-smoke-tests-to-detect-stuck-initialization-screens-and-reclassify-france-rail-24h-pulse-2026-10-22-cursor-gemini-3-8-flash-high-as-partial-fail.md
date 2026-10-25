@@ -3,9 +3,10 @@ id: TASK-83
 title: >-
   Harden smoke tests to detect stuck initialization screens and reclassify
   france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high as partial fail
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-24 17:31'
+updated_date: '2026-10-25 00:42'
 labels: []
 milestone: m-9
 dependencies: []
@@ -22,7 +23,7 @@ france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high is currently track
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Enhance DOM_INSPECTION_SCRIPT and identify_critical_failures() in scripts/verify_run.py to detect stuck initialization screens (such as 'Initialisation de la cartographie vectorielle...' / #loading-screen / #loading-status), and support re-evaluating existing runtime.json / packaged demo bundles
-- [ ] #2 Update runs/france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high/artifacts/runtime.json and run.json so verification.runtime.passed is false with critical_failures populated, reclassifying the run from OK to PARTIAL (1/2: runtime FAIL, data 3/3)
-- [ ] #3 Add regression unit tests in tests/test_verify_run.py covering the france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high stuck loading screen and worker failure, and re-sync README.md and dashboard/
+- [x] #1 Enhance DOM_INSPECTION_SCRIPT and identify_critical_failures() in scripts/verify_run.py to detect stuck initialization screens (such as 'Initialisation de la cartographie vectorielle...' / #loading-screen / #loading-status), and support re-evaluating existing runtime.json / packaged demo bundles
+- [x] #2 Update runs/france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high/artifacts/runtime.json and run.json so verification.runtime.passed is false with critical_failures populated, reclassifying the run from OK to PARTIAL (1/2: runtime FAIL, data 3/3)
+- [x] #3 Add regression unit tests in tests/test_verify_run.py covering the france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high stuck loading screen and worker failure, and re-sync README.md and dashboard/
 <!-- AC:END -->

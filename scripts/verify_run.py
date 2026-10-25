@@ -331,6 +331,38 @@ DOM_INSPECTION_SCRIPT = """
         let detectedOverlay = null;
         let canvasObscured = false;
 
+        // 0. Explicit stuck-initialization markers (#loading-screen, #loading-status, ...)
+        const initIdSelector = '#loading-screen, #loading-status, #loading, #loader, #splash, #splash-screen, #preloader, #init-screen, [data-loading="true"], [aria-busy="true"]';
+        const initTextRegex = /(?:initialisation de la cartographie|initiali[sz]ing (?:the )?map|chargement de la carte|loading map|loading\\s*(?:\\.\\.\\.|…)|initialisation\\s*(?:\\.\\.\\.|…))/i;
+        let loadingStatusText = '';
+        try {
+            for (const el of Array.from(document.querySelectorAll(initIdSelector))) {
+                const style = window.getComputedStyle(el);
+                if (style.display === 'none' || style.visibility === 'hidden') continue;
+                if (parseFloat(style.opacity || '1') <= 0.05) continue;
+                const rect = el.getBoundingClientRect();
+                if (rect.width <= 0 || rect.height <= 0) continue;
+                const text = (el.innerText || el.textContent || '').trim();
+                const isLoadingId = /^(?:loading|loader|splash|preloader|init)/i.test(el.id || '');
+                const bigEnough = rect.width >= vw * 0.5 && rect.height >= vh * 0.5;
+                const textMatch = initTextRegex.test(text) || loadingTextRegex.test(text);
+                if (!(textMatch || (isLoadingId && bigEnough))) continue;
+                if (!loadingStatusText) loadingStatusText = text.slice(0, 200);
+                if (!detectedOverlay && (bigEnough || textMatch)) {
+                    const centerEl = document.elementFromPoint(vw / 2, vh / 2);
+                    const coversCenter = Boolean(centerEl && (el === centerEl || el.contains(centerEl) || centerEl.contains(el)));
+                    detectedOverlay = {
+                        detected: true,
+                        selector: el.id ? `#${el.id}` : el.tagName.toLowerCase(),
+                        id: el.id || '',
+                        class: (typeof el.className === 'string' ? el.className : '').slice(0, 100),
+                        text: text.slice(0, 200),
+                        covers_center: coversCenter,
+                    };
+                }
+            }
+        } catch (e) {}
+
         // 1. Inspect visible full-viewport or large overlays covering the screen
         const allElements = Array.from(document.body ? document.body.querySelectorAll('*') : []);
         for (const el of allElements) {
@@ -450,6 +482,7 @@ DOM_INSPECTION_SCRIPT = """
             visible_canvas_count: visibleCanvasCount,
             canvas_obscured: canvasObscured,
             loading_overlay: detectedOverlay,
+            loading_status_text: loadingStatusText,
             svg_count: svgs,
             webgl_context: webglContext,
             text_length: textLength,
@@ -461,6 +494,7 @@ DOM_INSPECTION_SCRIPT = """
             visible_canvas_count: 0,
             canvas_obscured: false,
             loading_overlay: null,
+            loading_status_text: '',
             svg_count: 0,
             webgl_context: false,
             text_length: 0,
@@ -505,6 +539,10 @@ def identify_critical_failures(
             snippet = f": '{clean_text[:80]}...'" if len(clean_text) > 80 else (f": '{clean_text}'" if clean_text else "")
             critical.append(f"Persistent loading overlay detected ({sel}){snippet}")
 
+        status_text = " ".join(str(dom.get("loading_status_text") or "").split())
+        if status_text and not any("loading overlay" in c for c in critical):
+            critical.append(f"Stuck initialization status text still visible: '{status_text[:80]}'")
+
         # 2. Canvas visibility and obscuration
         canvas_count = dom.get("canvas_count", 0)
         visible_canvas_count = dom.get("visible_canvas_count", canvas_count)
@@ -538,7 +576,9 @@ def identify_critical_failures(
         err_str = str(err)
         if any(pat.search(err_str) for pat in FATAL_CONSOLE_ERROR_PATTERNS):
             first_line = err_str.strip().split("\n")[0]
-            critical.append(f"Fatal initialization console error: {first_line[:120]}")
+            msg = f"Fatal initialization console error: {first_line[:120]}"
+            if msg not in critical:
+                critical.append(msg)
 
     return critical
 
@@ -718,6 +758,68 @@ def run_playwright_telemetry(
     }
 
 
+DERIVED_FAILURE_PREFIXES = (
+    "Persistent loading overlay",
+    "Stuck initialization",
+    "All canvas elements",
+    "Primary canvas is obscured",
+    "Critical script/worker",
+    "Critical data request",
+    "Fatal initialization console error",
+)
+
+
+def reevaluate_runtime(runtime: dict) -> dict:
+    """Re-apply the current critical-failure rules to an existing runtime.json payload.
+
+    Recomputes ``critical_failures`` from the recorded failed requests, console errors and
+    DOM snapshot, and re-derives ``passed``. Never upgrades a failed run to passed unless
+    every other recorded signal (status, page errors, content) is healthy.
+    """
+    updated = dict(runtime)
+    failed_requests = [r for r in (runtime.get("failed_requests") or []) if isinstance(r, dict)]
+    console_errors = [str(e) for e in (runtime.get("console_errors") or [])]
+    dom = runtime.get("dom") if isinstance(runtime.get("dom"), dict) else None
+    critical = identify_critical_failures(failed_requests, console_errors, dom)
+    # Preserve failures recorded by other stages (e.g. "No workspace server found or started").
+    for prior in runtime.get("critical_failures") or []:
+        if isinstance(prior, str) and prior not in critical and not prior.startswith(DERIVED_FAILURE_PREFIXES):
+            critical.append(prior)
+
+    status = runtime.get("http_status")
+    has_ok_status = isinstance(status, int) and 200 <= status <= 299
+    has_no_page_errors = not (runtime.get("page_errors") or [])
+    has_content = bool(
+        dom and (dom.get("canvas_count", 0) > 0 or dom.get("svg_count", 0) > 0 or dom.get("text_length", 0) > 0)
+    )
+    updated["critical_failures"] = critical
+    updated["passed"] = bool(has_ok_status and has_no_page_errors and has_content and not critical)
+    return updated
+
+
+def reevaluate_run(run_dir: Path, *, update_run_json: bool = True) -> dict:
+    """Re-evaluate artifacts/runtime.json of a recorded run (and sync run.json) without a browser."""
+    runtime_path = run_dir / "artifacts" / "runtime.json"
+    if not runtime_path.is_file():
+        raise FileNotFoundError(f"No runtime.json found at {runtime_path}")
+    runtime = reevaluate_runtime(load_json(runtime_path))
+    write_json(runtime_path, runtime)
+
+    run_json_path = run_dir / "run.json"
+    if update_run_json and run_json_path.is_file():
+        run_data = load_json(run_json_path)
+        verification = run_data.get("verification")
+        if not isinstance(verification, dict):
+            verification = {}
+            run_data["verification"] = verification
+        verification["runtime"] = runtime
+        dp = verification.get("data_pipeline")
+        if isinstance(dp, dict):
+            verification["passed"] = bool(runtime["passed"] and dp.get("passed"))
+        write_json(run_json_path, run_data)
+    return runtime
+
+
 def verify_run(
     run_dir: Path,
     *,
@@ -839,6 +941,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--update-run-json", action="store_true", help="Update run.json with verification results.")
     parser.add_argument("--skip-data-probe", action="store_true", help="Skip running data pipeline probe.")
     parser.add_argument(
+        "--reevaluate",
+        action="store_true",
+        help="Re-apply the critical-failure rules to the run's existing artifacts/runtime.json (no browser) and sync run.json.",
+    )
+    parser.add_argument(
         "--serve",
         action="store_true",
         help="Start the local server for the run's workspace and keep it running until interrupted (Ctrl+C).",
@@ -855,6 +962,17 @@ def main() -> int:
     except (FileNotFoundError, ValueError) as exc:
         print(exc, file=sys.stderr)
         return 1
+
+    if args.reevaluate:
+        try:
+            runtime = reevaluate_run(run_dir)
+        except (FileNotFoundError, ValueError) as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        print(f"Re-evaluated runtime for {run_dir.name}: {'PASSED' if runtime['passed'] else 'FAILED'}")
+        for fail in runtime.get("critical_failures") or []:
+            print(f"    - {fail}")
+        return 0 if runtime["passed"] else 1
 
     if args.serve:
         return serve_run(

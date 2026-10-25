@@ -1,5 +1,5 @@
 {
-  "passed": true,
+  "passed": false,
   "http_status": 200,
   "url": "http://127.0.0.1:54015",
   "server_mode": "static",
@@ -26,5 +26,9 @@
   },
   "screenshot_path": "artifacts/screenshot.png",
   "verified_at": "2026-10-22T14:34:27.932Z",
-  "demo_url": "demos/france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high/index.html"
+  "demo_url": "demos/france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high/index.html",
+  "critical_failures": [
+    "Critical script/worker request failed (HTTP 404): http://127.0.0.1:54015/assets/maplibre-gl-worker.mjs?v=6.15.0",
+    "Fatal initialization console error: Error: Worker failed to load. Check that the worker URL is correct."
+  ]
 }

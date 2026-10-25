@@ -17,6 +17,8 @@ from verify_run import (
     extract_listening_url,
     identify_critical_failures,
     is_uncompiled_source_html,
+    reevaluate_run,
+    reevaluate_runtime,
     run_playwright_telemetry,
     select_static_dir,
     serve_run,
@@ -907,6 +909,87 @@ class TestVerifyRun(unittest.TestCase):
         self.assertIn("visibleCanvasCount", DOM_INSPECTION_SCRIPT)
         self.assertIn("canvasObscured", DOM_INSPECTION_SCRIPT)
         self.assertIn("elementFromPoint", DOM_INSPECTION_SCRIPT)
+
+    def test_dom_inspection_script_detects_explicit_init_markers(self):
+        self.assertIn("#loading-screen", DOM_INSPECTION_SCRIPT)
+        self.assertIn("#loading-status", DOM_INSPECTION_SCRIPT)
+        self.assertIn("initialisation de la cartographie", DOM_INSPECTION_SCRIPT)
+        self.assertIn("loading_status_text", DOM_INSPECTION_SCRIPT)
+
+    def test_identify_critical_failures_loading_status_text_only(self):
+        dom = {
+            "canvas_count": 1,
+            "visible_canvas_count": 1,
+            "loading_overlay": None,
+            "loading_status_text": "Initialisation de la cartographie vectorielle...",
+            "text_length": 50,
+        }
+        critical = identify_critical_failures([], [], dom)
+        self.assertTrue(any("Stuck initialization status text" in c for c in critical))
+
+    def _france_rail_gemini_runtime(self):
+        worker = "http://127.0.0.1:54015/assets/maplibre-gl-worker.mjs?v=6.15.0"
+        err = "Error: Worker failed to load. Check that the worker URL is correct.\n    at Worker.<anonymous> (index.js:1:1)"
+        return {
+            "passed": True,
+            "http_status": 200,
+            "console_errors": [err, err],
+            "page_errors": [],
+            "failed_requests": [{"url": worker, "reason": "HTTP 404", "status": 404}],
+            "dom": {"title": "Atlas", "canvas_count": 3, "svg_count": 10, "webgl_context": True, "text_length": 878},
+        }
+
+    def test_reevaluate_runtime_flags_france_rail_stuck_worker_failure(self):
+        updated = reevaluate_runtime(self._france_rail_gemini_runtime())
+        self.assertFalse(updated["passed"])
+        self.assertTrue(any("maplibre-gl-worker.mjs" in c for c in updated["critical_failures"]))
+        self.assertTrue(any("Worker failed to load" in c for c in updated["critical_failures"]))
+        # duplicate console errors collapse into a single critical entry
+        self.assertEqual(sum("Worker failed to load" in c for c in updated["critical_failures"]), 1)
+
+    def test_reevaluate_runtime_keeps_healthy_run_and_prior_failures(self):
+        healthy = {
+            "passed": True, "http_status": 200, "console_errors": [], "page_errors": [], "failed_requests": [],
+            "dom": {"canvas_count": 1, "visible_canvas_count": 1, "svg_count": 0, "text_length": 10},
+        }
+        self.assertTrue(reevaluate_runtime(healthy)["passed"])
+        no_server = {"passed": False, "http_status": None, "page_errors": ["No workspace server found or started"],
+                     "critical_failures": ["No workspace server found or started"], "dom": None}
+        updated = reevaluate_runtime(no_server)
+        self.assertFalse(updated["passed"])
+        self.assertEqual(updated["critical_failures"], ["No workspace server found or started"])
+
+    def test_reevaluate_run_rewrites_runtime_and_run_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            (run_dir / "artifacts").mkdir()
+            runtime = self._france_rail_gemini_runtime()
+            (run_dir / "artifacts" / "runtime.json").write_text(json.dumps(runtime), encoding="utf-8")
+            (run_dir / "run.json").write_text(json.dumps({
+                "verification": {"runtime": runtime, "data_pipeline": {"passed": True, "checks": [{}, {}, {}]}}
+            }), encoding="utf-8")
+            reevaluate_run(run_dir)
+            rt = json.loads((run_dir / "artifacts" / "runtime.json").read_text(encoding="utf-8"))
+            run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+            self.assertFalse(rt["passed"])
+            self.assertTrue(rt["critical_failures"])
+            self.assertFalse(run["verification"]["runtime"]["passed"])
+            self.assertFalse(run["verification"]["passed"])
+            self.assertTrue(run["verification"]["data_pipeline"]["passed"])
+
+    def test_recorded_france_rail_gemini_run_is_partial(self):
+        run_dir = (Path(__file__).resolve().parent.parent / "runs" / "france-rail-24h-pulse"
+                   / "2026-10-22-cursor-gemini-3-8-flash-high")
+        if not run_dir.is_dir():
+            self.skipTest("run not present")
+        run = load_json(run_dir / "run.json")
+        rt = load_json(run_dir / "artifacts" / "runtime.json")
+        self.assertFalse(rt["passed"])
+        self.assertTrue(rt["critical_failures"])
+        self.assertFalse(run["verification"]["runtime"]["passed"])
+        self.assertFalse(run["verification"]["passed"])
+        self.assertTrue(run["verification"]["data_pipeline"]["passed"])
+        self.assertEqual(reevaluate_runtime(rt)["critical_failures"], rt["critical_failures"])
 
 
 if __name__ == "__main__":
