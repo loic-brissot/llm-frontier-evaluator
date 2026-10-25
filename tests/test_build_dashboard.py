@@ -155,6 +155,31 @@ class TestParetoFrontier:
         assert by_id["C"]["is_pareto_successful"] is True
         assert by_id["D"]["is_pareto_successful"] is True
 
+    def test_pareto_is_per_prompt_not_pooled(self) -> None:
+        # B is dominated globally by A (other prompt) but is optimal within its own prompt.
+        runs = [
+            self._make_dummy_run("A", "prompt-1", 1.0, 50.0, 1.0),
+            self._make_dummy_run("B", "prompt-2", 5.0, 500.0, 1.0),
+            self._make_dummy_run("C", "prompt-2", 6.0, 600.0, 1.0),
+        ]
+
+        compute_pareto_frontiers(runs)
+
+        by_id = {r["run_id"]: r["pareto"] for r in runs}
+        assert by_id["A"]["is_pareto_series"] is True
+        assert by_id["B"]["is_pareto_global"] is False
+        assert by_id["B"]["is_pareto_series"] is True
+        assert by_id["B"]["is_pareto_successful_series"] is True
+        assert by_id["C"]["is_pareto_series"] is False
+        assert by_id["C"]["is_pareto_successful_series"] is False
+
+    def test_dashboard_pareto_summary_uses_series_flags(self) -> None:
+        app_js = (Path(__file__).resolve().parents[1] / "dashboard" / "app.js").read_text(encoding="utf-8")
+        chart_src = app_js[app_js.index("function renderParetoChart"):app_js.index("function updateParetoTable")]
+        assert "is_pareto_global" not in chart_src
+        assert "is_pareto_successful_global" not in chart_src
+        assert "pareto-prompt-group" in app_js
+
     def test_multi_objective_quality_tradeoff(self) -> None:
         # Run A: $1.0, 50s, 0.5 quality, passed=False (failed smoke checks)
         # Run B: $2.0, 100s, 1.0 quality, passed=True (passing run)

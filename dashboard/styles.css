@@ -1747,3 +1747,10 @@ svg.chart-svg {
 .pricing-bar-fill.cache_read, .legend-box.pricing-cache { background: var(--accent-emerald); }
 .pricing-bar-val { text-align: right; font-variant-numeric: tabular-nums; }
 .pricing-empty { font-size: 0.75rem; color: var(--text-sub); padding: 0.5rem; }
+
+.pareto-prompt-group td {
+  background: rgba(56, 189, 248, 0.08);
+  border-top: 2px solid rgba(56, 189, 248, 0.35);
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+}
