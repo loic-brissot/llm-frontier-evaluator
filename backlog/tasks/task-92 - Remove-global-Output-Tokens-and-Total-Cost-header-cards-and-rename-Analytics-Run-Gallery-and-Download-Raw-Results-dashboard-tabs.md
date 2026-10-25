@@ -3,9 +3,10 @@ id: TASK-92
 title: >-
   Remove global Output Tokens and Total Cost header cards and rename Analytics,
   Run Gallery, and Download Raw Results dashboard tabs
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-24 17:31'
+updated_date: '2026-10-25 00:22'
 labels: []
 milestone: m-7
 dependencies: []
@@ -22,7 +23,7 @@ Clean up the benchmark dashboard header and navigation bar: remove the global Ou
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Remove the global Output Tokens and Total Cost stat cards from #summary-badges in dashboard/index.html and update setupHeaderStats() in dashboard/app.js
-- [ ] #2 Rename the navigation tabs in dashboard/index.html: 'Benchmark Analytics' -> 'Analytics', 'Run Gallery & Previews' -> 'Run Gallery', and 'Analytical Tables & Downloads' -> 'Download Raw Results'
-- [ ] #3 Update dashboard tests in tests/test_build_dashboard.py and rebuild dashboard/index.html
+- [x] #1 Remove the global Output Tokens and Total Cost stat cards from #summary-badges in dashboard/index.html and update setupHeaderStats() in dashboard/app.js
+- [x] #2 Rename the navigation tabs in dashboard/index.html: 'Benchmark Analytics' -> 'Analytics', 'Run Gallery & Previews' -> 'Run Gallery', and 'Analytical Tables & Downloads' -> 'Download Raw Results'
+- [x] #3 Update dashboard tests in tests/test_build_dashboard.py and rebuild dashboard/index.html
 <!-- AC:END -->

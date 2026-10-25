@@ -612,3 +612,26 @@ class TestPricingTiers:
         assert payload["pricing"]["models"]
         assert payload["pricing"]["as_of"] == "2026-10-18"
         assert validate_payload_schema(payload) == []
+
+
+class TestDashboardHeaderAndTabs:
+    """Header KPI cards and navigation tab labels (TASK-92)."""
+
+    DASH = Path(__file__).parent.parent / "dashboard"
+
+    def test_global_tokens_and_cost_cards_removed(self) -> None:
+        html = (self.DASH / "index.html").read_text(encoding="utf-8")
+        js = (self.DASH / "app.js").read_text(encoding="utf-8")
+        assert "stat-total-tokens" not in html
+        assert "stat-total-cost" not in html
+        assert "stat-total-tokens" not in js
+        assert "stat-total-cost" not in js
+
+    def test_navigation_tabs_renamed(self) -> None:
+        html = (self.DASH / "index.html").read_text(encoding="utf-8")
+        nav = re.search(r'<nav class="nav-tabs">(.*?)</nav>', html, re.DOTALL)
+        assert nav is not None
+        labels = [re.sub(r"<[^>]+>", "", b).strip() for b in re.findall(r"<button[^>]*>(.*?)</button>", nav.group(1), re.DOTALL)]
+        assert labels[1].endswith("Analytics") and "Benchmark" not in labels[1]
+        assert labels[2].endswith("Run Gallery") and "Previews" not in labels[2]
+        assert labels[4].endswith("Download Raw Results")
