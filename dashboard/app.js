@@ -714,43 +714,41 @@
     const paretoRuns = chartRuns.filter((r) => {
       if (!r.verification || !r.verification.passed) return false;
       if (r.verification.runtime && r.verification.runtime.passed === false) return false;
+      // Pareto efficiency is always evaluated per prompt (series-scoped), never pooled across prompts.
       if (paretoState.mode === 'passing') {
-        return filters.series === 'all'
-          ? Boolean(r.pareto.is_pareto_successful_global ?? r.pareto.is_pareto_global)
-          : Boolean(r.pareto.is_pareto_successful_series ?? r.pareto.is_pareto_series);
+        return Boolean(r.pareto.is_pareto_successful_series ?? r.pareto.is_pareto_series);
       }
-      return filters.series === 'all'
-        ? Boolean(r.pareto.is_pareto_global)
-        : Boolean(r.pareto.is_pareto_series);
+      return Boolean(r.pareto.is_pareto_series);
     });
 
     // Sort Pareto runs by time ascending
     paretoRuns.sort((a, b) => {
+      const pc = String(a.prompt_id).localeCompare(String(b.prompt_id));
+      if (pc !== 0) return pc;
       const ta = a.model_time.generating_seconds ?? a.wall_clock.seconds;
       const tb = b.model_time.generating_seconds ?? b.wall_clock.seconds;
       return ta - tb;
     });
 
-    // Render Pareto Frontier Line (stepped or direct)
-    if (paretoRuns.length >= 2) {
+    // Render one Pareto frontier line per prompt (frontiers are never joined across prompts)
+    const paretoByPrompt = new Map();
+    paretoRuns.forEach((r) => {
+      if (!paretoByPrompt.has(r.prompt_id)) paretoByPrompt.set(r.prompt_id, []);
+      paretoByPrompt.get(r.prompt_id).push(r);
+    });
+    paretoByPrompt.forEach((group) => {
+      if (group.length < 2) return;
       let d = '';
-      paretoRuns.forEach((r, idx) => {
+      group.forEach((r, idx) => {
         const t = r.model_time.generating_seconds ?? r.wall_clock.seconds;
         const c = r.cost.estimated_with_harness_usd ?? r.cost.estimated_usd;
-        const x = scaleX(t);
-        const y = scaleY(c);
-        if (idx === 0) {
-          d += `M ${x} ${y}`;
-        } else {
-          // Direct curve or step
-          d += ` L ${x} ${y}`;
-        }
+        d += `${idx === 0 ? 'M' : ' L'} ${scaleX(t)} ${scaleY(c)}`;
       });
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('d', d);
       path.setAttribute('class', 'pareto-line');
       svg.appendChild(path);
-    }
+    });
 
     // Render Data Points
     chartRuns.forEach((run) => {
@@ -832,7 +830,16 @@
       return;
     }
 
+    let currentPrompt = null;
     paretoRuns.forEach((r) => {
+      if (r.prompt_id !== currentPrompt) {
+        currentPrompt = r.prompt_id;
+        const count = paretoRuns.filter((x) => x.prompt_id === currentPrompt).length;
+        const hdr = document.createElement('tr');
+        hdr.className = 'pareto-prompt-group';
+        hdr.innerHTML = `<td colspan="8"><span class="series-badge">${escapeHtml(currentPrompt)}</span> <span style="font-size:0.75rem;color:#64748b;">${count} Pareto-optimal run${count === 1 ? '' : 's'} for this prompt</span></td>`;
+        tbody.appendChild(hdr);
+      }
       const tr = document.createElement('tr');
       const isPass = r.verification.passed;
       const c = r.cost.estimated_with_harness_usd ?? r.cost.estimated_usd ?? 0;
