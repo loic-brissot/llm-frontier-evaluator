@@ -334,8 +334,6 @@
     document.getElementById('stat-total-runs').textContent = s.total_runs;
     document.getElementById('stat-passed-runs').textContent = `${s.successful_runs} / ${s.total_runs}`;
     document.getElementById('stat-total-series').textContent = s.total_series;
-    document.getElementById('stat-total-tokens').textContent = formatCompactNumber(s.total_tokens_generated);
-    document.getElementById('stat-total-cost').textContent = `$${s.total_estimated_cost_usd.toFixed(2)}`;
   }
 
   function setupFilterDropdowns() {
