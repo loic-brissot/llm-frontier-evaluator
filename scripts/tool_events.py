@@ -1882,6 +1882,45 @@ def _apply_timing(
         summary.thinking_seconds = round(sum(timed) / 1000, 1)
 
 
+def apply_claude_transcript_token_fallback(summary: ToolEventSummary, run_dir: Path) -> bool:
+    """Replace stream-derived token totals with session-transcript totals for attempts that ended without a result.
+
+    A killed or timed-out ``claude -p`` attempt emits no ``result`` event, and the usage on its stream-json
+    assistant events is a snapshot taken as each message starts (``output_tokens`` of 8-20), not the final count.
+    The session transcript in claude-sessions/ stores the final per-message usage and spans every attempt of the
+    run, so its totals replace the stream totals. Returns True when the totals were replaced.
+    """
+    if not summary.claude_attempts_without_result:
+        return False
+    transcript = [
+        e for e in _load_jsonl_dir(run_dir / "claude-sessions") if e.get("type") in ("user", "assistant")
+    ]
+    records = [r for r in _claude_session_records(transcript) if r["type"] == "assistant"]
+    totals = dict.fromkeys(CLAUDE_USAGE_FIELDS, 0)
+    has_usage = False
+    for r in records:
+        usage = r["message"].get("usage")
+        if not isinstance(usage, dict):
+            continue
+        has_usage = True
+        for key, field_name in CLAUDE_USAGE_FIELDS.items():
+            totals[key] += _nonneg_int(usage.get(field_name)) or 0
+    if not has_usage or totals["output_tokens"] < (summary.output_tokens or 0):
+        return False
+    summary.uncached_input_tokens = totals["uncached_input_tokens"]
+    summary.cache_write_tokens = totals["cache_write_tokens"]
+    summary.cache_read_tokens = totals["cache_read_tokens"]
+    summary.output_tokens = totals["output_tokens"]
+    summary.input_tokens = totals["uncached_input_tokens"] + totals["cache_write_tokens"] + totals["cache_read_tokens"]
+    summary.notes = [n for n in summary.notes if "ended without a result event" not in n]
+    summary.notes.append(
+        f"{summary.claude_attempts_without_result} of {summary.claude_attempts} claude-code attempt(s) ended without a "
+        "result event; token totals come from claude-sessions/ because stream usage is a mid-stream snapshot, "
+        "and their API time is unknown."
+    )
+    return True
+
+
 def summarize_run(run_dir: Path) -> ToolEventSummary:
     records, notes = load_records(run_dir)
     # The run lives in runs/<prompt-id>/<run-id>/; run.json records which
@@ -1902,6 +1941,7 @@ def summarize_run(run_dir: Path) -> ToolEventSummary:
     summary = summarize_records(records, notes, expected_prompt_path=prompt_path(prompt_id))
     if not records and not has_claude_cli_output(run_dir):
         apply_claude_interactive_telemetry(summary, run_dir, prompt_path(prompt_id), recorded_sha)
+    apply_claude_transcript_token_fallback(summary, run_dir)
     audit_claude_hook_denials(summary, _load_jsonl_dir(run_dir / "hook-events"))
     apply_claude_session_timing(summary, run_dir)
     return summary
