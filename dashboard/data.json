@@ -3,7 +3,7 @@
   "generated_at": "2026-10-24T10:11:19.785Z",
   "summary": {
     "total_runs": 16,
-    "successful_runs": 7,
+    "successful_runs": 6,
     "total_series": 8,
     "total_models": 12,
     "total_tokens_generated": 998149,
@@ -167,7 +167,8 @@
             "svg_count": 35,
             "webgl_context": false,
             "text_length": 3484
-          }
+          },
+          "critical_failures": []
         },
         "data_pipeline": {
           "passed": true,
@@ -1867,7 +1868,8 @@
             "svg_count": 1,
             "webgl_context": true,
             "text_length": 1008
-          }
+          },
+          "critical_failures": []
         },
         "data_pipeline": {
           "passed": true,
@@ -3315,11 +3317,11 @@
         }
       ],
       "pareto": {
-        "is_pareto_series": false,
+        "is_pareto_series": true,
         "is_pareto_global": false,
-        "is_pareto_successful": false,
+        "is_pareto_successful": true,
         "quality_score": 1.0,
-        "is_pareto_successful_series": false,
+        "is_pareto_successful_series": true,
         "is_pareto_successful_global": false
       }
     },
@@ -3416,7 +3418,8 @@
             "svg_count": 0,
             "webgl_context": false,
             "text_length": 0
-          }
+          },
+          "critical_failures": []
         },
         "data_pipeline": {
           "passed": false,
@@ -3731,7 +3734,8 @@
             "svg_count": 0,
             "webgl_context": false,
             "text_length": 1892
-          }
+          },
+          "critical_failures": []
         },
         "data_pipeline": {
           "passed": false,
@@ -4219,9 +4223,9 @@
         "failure_rate_pct": 6.2
       },
       "verification": {
-        "passed": true,
+        "passed": false,
         "runtime": {
-          "passed": true,
+          "passed": false,
           "http_status": 200,
           "load_time_ms": 3977.3,
           "page_errors": [],
@@ -4236,7 +4240,11 @@
             "svg_count": 10,
             "webgl_context": true,
             "text_length": 878
-          }
+          },
+          "critical_failures": [
+            "Critical script/worker request failed (HTTP 404): http://127.0.0.1:54015/assets/maplibre-gl-worker.mjs?v=6.15.0",
+            "Fatal initialization console error: Error: Worker failed to load. Check that the worker URL is correct."
+          ]
         },
         "data_pipeline": {
           "passed": true,
@@ -6864,11 +6872,11 @@
         }
       ],
       "pareto": {
-        "is_pareto_series": true,
+        "is_pareto_series": false,
         "is_pareto_global": false,
-        "is_pareto_successful": true,
-        "quality_score": 1.0,
-        "is_pareto_successful_series": true,
+        "is_pareto_successful": false,
+        "quality_score": 0.5,
+        "is_pareto_successful_series": false,
         "is_pareto_successful_global": false
       }
     },
@@ -6959,7 +6967,8 @@
           ],
           "console_errors": [],
           "console_warnings_count": 0,
-          "dom": null
+          "dom": null,
+          "critical_failures": []
         },
         "data_pipeline": {
           "passed": true,
@@ -8542,7 +8551,8 @@
           ],
           "console_errors": [],
           "console_warnings_count": 0,
-          "dom": null
+          "dom": null,
+          "critical_failures": []
         },
         "data_pipeline": {
           "passed": true,
@@ -10814,7 +10824,8 @@
             "svg_count": 2,
             "webgl_context": false,
             "text_length": 5986
-          }
+          },
+          "critical_failures": []
         },
         "data_pipeline": {
           "passed": true,
@@ -11425,7 +11436,8 @@
             "svg_count": 3,
             "webgl_context": true,
             "text_length": 1797
-          }
+          },
+          "critical_failures": []
         },
         "data_pipeline": {
           "passed": true,
@@ -13837,7 +13849,8 @@
             "svg_count": 1,
             "webgl_context": true,
             "text_length": 1148
-          }
+          },
+          "critical_failures": []
         },
         "data_pipeline": {
           "passed": true,
@@ -16584,7 +16597,8 @@
             "svg_count": 0,
             "webgl_context": true,
             "text_length": 3831
-          }
+          },
+          "critical_failures": []
         },
         "data_pipeline": {
           "passed": true,
@@ -18583,7 +18597,10 @@
           ],
           "console_errors": [],
           "console_warnings_count": 0,
-          "dom": null
+          "dom": null,
+          "critical_failures": [
+            "No workspace server found or started"
+          ]
         },
         "data_pipeline": {
           "passed": true,
@@ -19649,7 +19666,11 @@
             "svg_count": 20,
             "webgl_context": true,
             "text_length": 1103
-          }
+          },
+          "critical_failures": [
+            "Fatal initialization console error: Error: Worker failed to load. Check that the worker URL is correct.",
+            "Fatal initialization console error: Error: Worker failed to load. Check that the worker URL is correct."
+          ]
         },
         "data_pipeline": {
           "passed": true,
@@ -21434,7 +21455,14 @@
             "svg_count": 4,
             "webgl_context": true,
             "text_length": 205
-          }
+          },
+          "critical_failures": [
+            "Persistent loading overlay detected (#splash): 'Canopée de Paris Drawing the map…'",
+            "Primary canvas is obscured by a loading overlay",
+            "Critical script/worker request failed (HTTP 404): http://127.0.0.1:62505/assets/maplibre-gl-worker.mjs?v=6.15.0",
+            "Fatal initialization console error: Error: Worker failed to load. Check that the worker URL is correct.",
+            "Fatal initialization console error: Error: Worker failed to load. Check that the worker URL is correct."
+          ]
         },
         "data_pipeline": {
           "passed": true,
@@ -22789,7 +22817,10 @@
           ],
           "console_errors": [],
           "console_warnings_count": 0,
-          "dom": null
+          "dom": null,
+          "critical_failures": [
+            "No workspace server found or started"
+          ]
         },
         "data_pipeline": {
           "passed": true,
@@ -24423,7 +24454,8 @@
             "svg_count": 1,
             "webgl_context": false,
             "text_length": 1752
-          }
+          },
+          "critical_failures": []
         },
         "data_pipeline": {
           "passed": false,

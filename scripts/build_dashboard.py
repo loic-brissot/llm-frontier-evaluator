@@ -282,6 +282,7 @@ def extract_run_record(run_dir: Path) -> dict[str, Any] | None:
                 "console_errors": runtime_data.get("console_errors", []),
                 "console_warnings_count": _safe_int(runtime_data.get("console_warnings_count")) or 0,
                 "dom": runtime_data.get("dom", {}),
+                "critical_failures": runtime_data.get("critical_failures", []),
             },
             "data_pipeline": {
                 "passed": pipeline_pass,

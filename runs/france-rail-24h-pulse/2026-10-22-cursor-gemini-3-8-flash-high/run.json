@@ -154,10 +154,10 @@
     "operator_saw_a_page": true,
     "summary": ""
   },
-  "observations": "No stop event recorded; capped run end time at the last non-idle tool/thought event.",
+  "observations": "No stop event recorded; capped run end time at the last non-idle tool/thought event. Reclassified PARTIAL (TASK-83): live demo stays on the 'Initialisation de la cartographie vectorielle...' loading overlay because the MapLibre worker (/assets/maplibre-gl-worker.mjs) returns HTTP 404; runtime FAIL, data pipeline 3/3.",
   "verification": {
     "runtime": {
-      "passed": true,
+      "passed": false,
       "http_status": 200,
       "url": "http://127.0.0.1:54015",
       "server_mode": "static",
@@ -184,7 +184,11 @@
       },
       "screenshot_path": "artifacts/screenshot.png",
       "verified_at": "2026-10-22T14:34:27.932Z",
-      "demo_url": "demos/france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high/index.html"
+      "demo_url": "demos/france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high/index.html",
+      "critical_failures": [
+        "Critical script/worker request failed (HTTP 404): http://127.0.0.1:54015/assets/maplibre-gl-worker.mjs?v=6.15.0",
+        "Fatal initialization console error: Error: Worker failed to load. Check that the worker URL is correct."
+      ]
     },
     "data_pipeline": {
       "prompt_id": "france-rail-24h-pulse",
@@ -235,6 +239,7 @@
         }
       ],
       "verified_at": "2026-10-22T14:34:32.383Z"
-    }
+    },
+    "passed": false
   }
 }
