@@ -20,6 +20,8 @@ from run_benchmark import (
     StreamMonitor,
     build_container_command,
     build_interactive_claude_command,
+    claude_auth_failure_in_stream,
+    claude_uses_oauth_token,
     build_interactive_claude_env,
     build_parser,
     check_preflight,
@@ -443,11 +445,11 @@ Options:
 
             # Harness = claude-code
             errors_claude = check_preflight(harness="claude-code", env={})
-            self.assertTrue(any("Missing required environment variable ANTHROPIC_API_KEY for harness 'claude-code'" in e for e in errors_claude))
+            self.assertTrue(any("Missing Claude Code credentials" in e for e in errors_claude))
 
             # No harness specified
             errors_none = check_preflight(harness=None, env={})
-            self.assertTrue(any("Missing required environment variable CURSOR_API_KEY or ANTHROPIC_API_KEY" in e for e in errors_none))
+            self.assertTrue(any("CURSOR_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, or ANTHROPIC_API_KEY" in e for e in errors_none))
 
     def test_preflight_missing_or_repo_workspace(self):
         def mock_run(cmd, **kwargs):
@@ -2765,6 +2767,97 @@ class TestClaudeCodeHeadlessEndToEnd(unittest.TestCase):
             self.assertTrue((finished[0] / "workspace" / "index.html").is_file())
             self.assertTrue((finished[0] / "claude-sessions" / f"{FIXTURE_SESSION}.jsonl").is_file())
             self.assertFalse((tmp_path / f"frontier-claude-state-{finished[0].name}").exists())
+
+
+class TestHeadlessClaudeOAuth(unittest.TestCase):
+    """Headless claude -p authenticates with CLAUDE_CODE_OAUTH_TOKEN, which beats ANTHROPIC_API_KEY."""
+
+    def _cmd(self, env):
+        return build_container_command(
+            staging_dir=Path("/tmp/frontier-workspace-oauth"),
+            docker_image="img",
+            harness="claude-code",
+            resolved_model="claude-sonnet-5-5",
+            effort="low",
+            prompt_text="hi",
+            env=env,
+        )
+
+    def test_preflight_accepts_oauth_token_without_api_key(self):
+        self.assertEqual(validate_credentials_preflight("claude-code", {"CLAUDE_CODE_OAUTH_TOKEN": "tok"}), [])
+        self.assertTrue(validate_credentials_preflight("claude-code", {"CLAUDE_CODE_OAUTH_TOKEN": "  "}))
+        self.assertTrue(validate_credentials_preflight("claude-code", {}))
+        self.assertEqual(validate_credentials_preflight("claude-code", {"ANTHROPIC_API_KEY": "k"}), [])
+
+    def test_blank_token_is_treated_as_unset(self):
+        self.assertFalse(claude_uses_oauth_token({"CLAUDE_CODE_OAUTH_TOKEN": ""}))
+        self.assertTrue(claude_uses_oauth_token({"CLAUDE_CODE_OAUTH_TOKEN": "tok"}))
+
+    def test_container_forwards_only_oauth_token_when_both_set(self):
+        cmd = self._cmd({"CLAUDE_CODE_OAUTH_TOKEN": "tok", "ANTHROPIC_API_KEY": "sk-secret"})
+        self.assertIn("CLAUDE_CODE_OAUTH_TOKEN", cmd)
+        self.assertNotIn("ANTHROPIC_API_KEY", cmd)
+        self.assertFalse(any("sk-secret" in part or "tok" == part for part in cmd))
+
+    def test_container_forwards_api_key_when_no_token(self):
+        cmd = self._cmd({"ANTHROPIC_API_KEY": "sk-secret", "CLAUDE_CODE_OAUTH_TOKEN": ""})
+        self.assertIn("ANTHROPIC_API_KEY", cmd)
+        self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", cmd)
+
+    def test_auth_failure_detected_in_stream(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stream = Path(tmp) / "cli-stream.jsonl"
+            stream.write_text(json.dumps({"type": "result", "is_error": True, "result": "OAuth token has expired. Please run /login"}) + "\n")
+            self.assertIn("expired", claude_auth_failure_in_stream(stream))
+            stream.write_text(json.dumps({"type": "result", "is_error": True, "result": "Max turns reached"}) + "\n")
+            self.assertIsNone(claude_auth_failure_in_stream(stream))
+            stream.write_text(json.dumps({"type": "result", "is_error": False, "result": "done"}) + "\n")
+            self.assertIsNone(claude_auth_failure_in_stream(stream))
+        self.assertIsNone(claude_auth_failure_in_stream(None))
+
+    def test_rejected_token_fails_run_without_retry_or_api_key_fallback(self):
+        commands: list[list[str]] = []
+        real_popen = subprocess.Popen
+
+        def fake_popen(cmd, **kwargs):
+            if list(cmd[:2]) != ["docker", "run"]:
+                return real_popen(cmd, **kwargs)
+            commands.append(cmd)
+            proc = MagicMock()
+            proc.stdout = iter([json.dumps({"type": "result", "is_error": True, "result": "Invalid API key. Please run /login"}) + "\n"])
+            proc.wait.return_value = 1
+            proc.returncode = 1
+            return proc
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            runs_tmp = tmp_path / "runs"
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.STAGING_PARENT", tmp_path), \
+                 patch("setup_run.RUNS_DIR", runs_tmp), \
+                 patch("run_common.RUNS_DIR", runs_tmp), \
+                 patch("run_benchmark.find_run_dir", side_effect=lambda run_id, prompt_id: runs_tmp / prompt_id / run_id), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch("run_benchmark.detect_container_harness_version", return_value="2.1.0 (Claude Code)"), \
+                 patch("run_benchmark.verify_claude_cli_flags"), \
+                 patch("run_benchmark.trigger_finish_run"), \
+                 patch("time.sleep"), \
+                 patch.dict(os.environ, {"CLAUDE_CODE_OAUTH_TOKEN": "bad", "ANTHROPIC_API_KEY": "sk-secret"}), \
+                 patch("subprocess.Popen", side_effect=fake_popen):
+                exit_code = run_benchmark_container(
+                    prompt_id="france-road-accidents",
+                    harness="claude-code",
+                    model="Claude Sonnet 5.5",
+                    reasoning="low",
+                    retry_cooldown_seconds=1.0,
+                    max_retries=2,
+                )
+            run_json = next(runs_tmp.glob("*/*/run.json")).read_text(encoding="utf-8")
+
+        self.assertNotEqual(exit_code, 0)
+        self.assertEqual(len(commands), 1, "an auth failure must not be retried")
+        self.assertNotIn("ANTHROPIC_API_KEY", commands[0])
+        self.assertIn("subscription OAuth", run_json)
 
 
 class TestInteractiveClaude(unittest.TestCase):

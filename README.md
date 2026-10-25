@@ -122,7 +122,8 @@ Automated, reproducible evaluation runs inside an isolated Linux container with 
 1. **Configure harness API key**:
    ```bash
    export CURSOR_API_KEY="your-key"          # Cursor harness
-   # or: export ANTHROPIC_API_KEY="your-key" # Claude Code harness
+   export CLAUDE_CODE_OAUTH_TOKEN="token"    # Claude Code harness, subscription billing (from `claude setup-token`); preferred
+   # or: export ANTHROPIC_API_KEY="your-key" # Claude Code harness, per-token API billing (ignored when the token is set)
    ```
    *Tip*: Store keys in a local, git-ignored `.env` file (`CURSOR_API_KEY="..."`), a custom key file (`CURSOR_API_KEY_FILE=...`), or pass `--env-file <path>`.
 
