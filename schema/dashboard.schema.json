@@ -48,7 +48,8 @@
           "description": { "type": "string" },
           "type": { "type": "string" },
           "runs_count": { "type": "integer" },
-          "checks_count": { "type": "integer" }
+          "checks_count": { "type": "integer" },
+          "text": { "type": "string" }
         }
       }
     },

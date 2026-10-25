@@ -1708,6 +1708,16 @@
     }
     promptSelect.value = showcasePromptId;
 
+    // Frozen prompt text
+    const promptTextEl = document.getElementById('showcase-prompt-text');
+    if (promptTextEl) {
+      const promptInfo = benchmarkData.prompts.find((p) => p.prompt_id === showcasePromptId);
+      const text = promptInfo && promptInfo.text ? promptInfo.text : '';
+      promptTextEl.textContent = text || 'Prompt text unavailable.';
+      const metaEl = document.getElementById('showcase-prompt-meta');
+      if (metaEl) metaEl.textContent = `prompt/${showcasePromptId}.txt`;
+    }
+
     // Runs for this prompt
     const promptRuns = benchmarkData.runs.filter((r) => r.prompt_id === showcasePromptId);
     const modelTabsContainer = document.getElementById('showcase-model-tabs');
