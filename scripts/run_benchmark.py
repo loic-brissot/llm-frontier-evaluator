@@ -866,7 +866,7 @@ CLAUDE_KEYCHAIN_SERVICE = "Claude Code-credentials"
 
 CLAUDE_AUTH_FAILURE_PATTERN = re.compile(
     r"invalid api key|authentication[_ ]error|oauth token has (?:expired|been revoked)|invalid bearer token|"
-    r"invalid authentication credentials|please run /login|failed to authenticate|\b401\b",
+    r"invalid authentication credentials|please run /login|not logged in|failed to authenticate|\b401\b",
     re.IGNORECASE,
 )
 

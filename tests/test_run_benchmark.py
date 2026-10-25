@@ -2809,6 +2809,9 @@ class TestHeadlessClaudeOAuth(unittest.TestCase):
             stream = Path(tmp) / "cli-stream.jsonl"
             stream.write_text(json.dumps({"type": "result", "is_error": True, "result": "OAuth token has expired. Please run /login"}) + "\n")
             self.assertIn("expired", claude_auth_failure_in_stream(stream))
+            # Real `claude -p` output when the container receives no credentials.
+            stream.write_text(json.dumps({"type": "result", "is_error": True, "subtype": "success", "api_error_status": None, "result": "Not logged in · Please run /login"}) + "\n")
+            self.assertIn("Not logged in", claude_auth_failure_in_stream(stream))
             stream.write_text(json.dumps({"type": "result", "is_error": True, "result": "Max turns reached"}) + "\n")
             self.assertIsNone(claude_auth_failure_in_stream(stream))
             stream.write_text(json.dumps({"type": "result", "is_error": False, "result": "done"}) + "\n")
