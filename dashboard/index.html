@@ -24752,6 +24752,509 @@
       "provider": "meta"
     }
   ],
+  "pricing": {
+    "as_of": "2026-10-18",
+    "currency": "USD",
+    "unit": "per_1m_tokens",
+    "tiers": [
+      {
+        "id": "cheap",
+        "label": "Cheap",
+        "description": "Economy models, output \u003c= $5.00 per 1M tokens",
+        "max_output_per_1m": 5.0
+      },
+      {
+        "id": "workhorse",
+        "label": "Workhorse",
+        "description": "Standard models, output \u003c= $15.00 per 1M tokens",
+        "max_output_per_1m": 15.0
+      },
+      {
+        "id": "frontier",
+        "label": "Frontier",
+        "description": "Premium models, output above $15.00 per 1M tokens",
+        "max_output_per_1m": null
+      }
+    ],
+    "models": [
+      {
+        "id": "claude-fable-5-1",
+        "name": "Claude Fable 5.1",
+        "provider": "anthropic",
+        "harnesses": [
+          "claude-code",
+          "cursor"
+        ],
+        "tier": "frontier",
+        "input": 10.0,
+        "cache_write": 12.5,
+        "cache_read": 0.25,
+        "output": 50.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "claude-fable-5",
+        "name": "Claude Fable 5",
+        "provider": "anthropic",
+        "harnesses": [
+          "claude-code",
+          "cursor"
+        ],
+        "tier": "frontier",
+        "input": 10.0,
+        "cache_write": 12.5,
+        "cache_read": 1.0,
+        "output": 50.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "claude-opus-5-5",
+        "name": "Claude Opus 5.5",
+        "provider": "anthropic",
+        "harnesses": [
+          "claude-code",
+          "cursor"
+        ],
+        "tier": "frontier",
+        "input": 4.0,
+        "cache_write": 5.0,
+        "cache_read": 0.2,
+        "output": 20.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "claude-opus-5",
+        "name": "Claude Opus 5",
+        "provider": "anthropic",
+        "harnesses": [
+          "claude-code",
+          "cursor"
+        ],
+        "tier": "frontier",
+        "input": 5.0,
+        "cache_write": 6.25,
+        "cache_read": 0.5,
+        "output": 25.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "claude-sonnet-5-5",
+        "name": "Claude Sonnet 5.5",
+        "provider": "anthropic",
+        "harnesses": [
+          "claude-code",
+          "cursor"
+        ],
+        "tier": "workhorse",
+        "input": 2.0,
+        "cache_write": 2.5,
+        "cache_read": 0.1,
+        "output": 10.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "claude-sonnet-5",
+        "name": "Claude Sonnet 5",
+        "provider": "anthropic",
+        "harnesses": [
+          "claude-code",
+          "cursor"
+        ],
+        "tier": "workhorse",
+        "input": 2.0,
+        "cache_write": 2.5,
+        "cache_read": 0.2,
+        "output": 10.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "claude-sonnet-4-6",
+        "name": "Claude Sonnet 4.6",
+        "provider": "anthropic",
+        "harnesses": [
+          "claude-code",
+          "cursor"
+        ],
+        "tier": "workhorse",
+        "input": 3.0,
+        "cache_write": 3.75,
+        "cache_read": 0.3,
+        "output": 15.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "claude-haiku-5-5",
+        "name": "Claude Haiku 5.5",
+        "provider": "anthropic",
+        "harnesses": [
+          "claude-code",
+          "cursor"
+        ],
+        "tier": "cheap",
+        "input": 0.1,
+        "cache_write": 0.125,
+        "cache_read": 0.01,
+        "output": 0.5,
+        "first_party_in_cursor": false,
+        "has_long_context": true
+      },
+      {
+        "id": "claude-haiku-4-5",
+        "name": "Claude Haiku 4.5",
+        "provider": "anthropic",
+        "harnesses": [
+          "claude-code",
+          "cursor"
+        ],
+        "tier": "cheap",
+        "input": 1.0,
+        "cache_write": 1.25,
+        "cache_read": 0.1,
+        "output": 5.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "gpt-6-astra",
+        "name": "GPT-6 Astra",
+        "provider": "openai",
+        "harnesses": [
+          "codex",
+          "cursor"
+        ],
+        "tier": "frontier",
+        "input": 10.0,
+        "cache_write": 12.5,
+        "cache_read": 1.0,
+        "output": 50.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "gpt-6-1-sol",
+        "name": "GPT-6.1 Sol",
+        "provider": "openai",
+        "harnesses": [
+          "codex",
+          "cursor"
+        ],
+        "tier": "workhorse",
+        "input": 2.0,
+        "cache_write": 2.5,
+        "cache_read": 0.1,
+        "output": 10.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "gpt-6-sol",
+        "name": "GPT-6 Sol",
+        "provider": "openai",
+        "harnesses": [
+          "codex",
+          "cursor"
+        ],
+        "tier": "workhorse",
+        "input": 2.0,
+        "cache_write": 2.5,
+        "cache_read": 0.2,
+        "output": 10.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "gpt-6-luna",
+        "name": "GPT-6 Luna",
+        "provider": "openai",
+        "harnesses": [
+          "codex",
+          "cursor"
+        ],
+        "tier": "cheap",
+        "input": 0.1,
+        "cache_write": 0.125,
+        "cache_read": 0.01,
+        "output": 0.5,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "gpt-5-6-sol",
+        "name": "GPT-5.6 Sol",
+        "provider": "openai",
+        "harnesses": [
+          "codex",
+          "cursor"
+        ],
+        "tier": "frontier",
+        "input": 4.0,
+        "cache_write": 5.0,
+        "cache_read": 0.4,
+        "output": 20.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "gpt-5-6-sol-fast",
+        "name": "GPT-5.6 Sol (Fast)",
+        "provider": "openai",
+        "harnesses": [
+          "codex",
+          "cursor"
+        ],
+        "tier": "frontier",
+        "input": 8.0,
+        "cache_write": 10.0,
+        "cache_read": 0.8,
+        "output": 40.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "gpt-5-6-terra",
+        "name": "GPT-5.6 Terra",
+        "provider": "openai",
+        "harnesses": [
+          "codex",
+          "cursor"
+        ],
+        "tier": "workhorse",
+        "input": 2.0,
+        "cache_write": 2.5,
+        "cache_read": 0.2,
+        "output": 12.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "gpt-5-6-luna",
+        "name": "GPT-5.6 Luna",
+        "provider": "openai",
+        "harnesses": [
+          "codex",
+          "cursor"
+        ],
+        "tier": "cheap",
+        "input": 0.2,
+        "cache_write": 0.25,
+        "cache_read": 0.02,
+        "output": 1.2,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "gpt-5-5",
+        "name": "GPT-5.5",
+        "provider": "openai",
+        "harnesses": [
+          "codex",
+          "cursor"
+        ],
+        "tier": "frontier",
+        "input": 5.0,
+        "cache_write": 0.0,
+        "cache_read": 0.5,
+        "output": 30.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "gpt-5-4",
+        "name": "GPT-5.4",
+        "provider": "openai",
+        "harnesses": [
+          "codex",
+          "cursor"
+        ],
+        "tier": "workhorse",
+        "input": 2.5,
+        "cache_write": 0.0,
+        "cache_read": 0.25,
+        "output": 15.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "gpt-5",
+        "name": "GPT-5",
+        "provider": "openai",
+        "harnesses": [
+          "codex",
+          "cursor"
+        ],
+        "tier": "workhorse",
+        "input": 1.25,
+        "cache_write": 0.0,
+        "cache_read": 0.125,
+        "output": 10.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "gemini-4-argon",
+        "name": "Gemini 4 Argon",
+        "provider": "google",
+        "harnesses": [
+          "cursor",
+          "other"
+        ],
+        "tier": "workhorse",
+        "input": 2.0,
+        "cache_write": 0.0,
+        "cache_read": 0.1,
+        "output": 10.0,
+        "first_party_in_cursor": false,
+        "has_long_context": true
+      },
+      {
+        "id": "gemini-3-1-pro",
+        "name": "Gemini 3.1 Pro",
+        "provider": "google",
+        "harnesses": [
+          "cursor",
+          "other"
+        ],
+        "tier": "workhorse",
+        "input": 2.0,
+        "cache_write": 0.0,
+        "cache_read": 0.2,
+        "output": 12.0,
+        "first_party_in_cursor": false,
+        "has_long_context": true
+      },
+      {
+        "id": "gemini-3-8-flash",
+        "name": "Gemini 3.8 Flash",
+        "provider": "google",
+        "harnesses": [
+          "cursor",
+          "other"
+        ],
+        "tier": "cheap",
+        "input": 0.75,
+        "cache_write": 0.0,
+        "cache_read": 0.075,
+        "output": 3.75,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "grok-4-7",
+        "name": "Grok 4.7",
+        "provider": "xai",
+        "harnesses": [
+          "cursor"
+        ],
+        "tier": "workhorse",
+        "input": 2.0,
+        "cache_write": 0.0,
+        "cache_read": 0.5,
+        "output": 6.0,
+        "first_party_in_cursor": true,
+        "has_long_context": true
+      },
+      {
+        "id": "grok-4-7-fast",
+        "name": "Grok 4.7 (Fast)",
+        "provider": "xai",
+        "harnesses": [
+          "cursor"
+        ],
+        "tier": "workhorse",
+        "input": 4.0,
+        "cache_write": 0.0,
+        "cache_read": 1.0,
+        "output": 12.0,
+        "first_party_in_cursor": true,
+        "has_long_context": true
+      },
+      {
+        "id": "composer-2-5",
+        "name": "Composer 2.5",
+        "provider": "cursor",
+        "harnesses": [
+          "cursor"
+        ],
+        "tier": "cheap",
+        "input": 0.5,
+        "cache_write": 0.0,
+        "cache_read": 0.2,
+        "output": 2.5,
+        "first_party_in_cursor": true,
+        "has_long_context": false
+      },
+      {
+        "id": "composer-2-5-fast",
+        "name": "Composer 2.5 (Fast)",
+        "provider": "cursor",
+        "harnesses": [
+          "cursor"
+        ],
+        "tier": "workhorse",
+        "input": 3.0,
+        "cache_write": 0.0,
+        "cache_read": 0.5,
+        "output": 15.0,
+        "first_party_in_cursor": true,
+        "has_long_context": false
+      },
+      {
+        "id": "kimi-k3",
+        "name": "Kimi K3",
+        "provider": "moonshot",
+        "harnesses": [
+          "cursor",
+          "other"
+        ],
+        "tier": "workhorse",
+        "input": 3.0,
+        "cache_write": 0.0,
+        "cache_read": 0.3,
+        "output": 15.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "glm-5-3",
+        "name": "GLM 5.3",
+        "provider": "zai",
+        "harnesses": [
+          "cursor",
+          "other"
+        ],
+        "tier": "cheap",
+        "input": 1.4,
+        "cache_write": 0.0,
+        "cache_read": 0.26,
+        "output": 4.4,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      },
+      {
+        "id": "muse-wonder",
+        "name": "Muse Wonder",
+        "provider": "meta",
+        "harnesses": [
+          "cursor",
+          "other"
+        ],
+        "tier": "frontier",
+        "input": 4.0,
+        "cache_write": 0.0,
+        "cache_read": 0.2,
+        "output": 20.0,
+        "first_party_in_cursor": false,
+        "has_long_context": false
+      }
+    ]
+  },
   "warehouse": {
     "available": true,
     "tables": [
@@ -25081,6 +25584,32 @@
             <span class="legend-item"><span class="legend-box cache-read"></span> Cached Context Read Tokens (1T vs Multi-Turn)</span>
             <span class="legend-item"><span class="legend-box uncached"></span> Uncached Input Tokens (Cache Miss / Fresh Context)</span>
             <span class="legend-item"><span class="legend-line hit-rate"></span> Cache Hit Rate (%) / Re-Read Efficiency</span>
+          </div>
+        </div>
+
+        <!-- 6. Model Pricing & Capacity Tiers -->
+        <div class="chart-card full-width" id="card-pricing-tiers">
+          <div class="card-header">
+            <div>
+              <h3>Model Pricing &amp; Capacity Tiers</h3>
+              <p class="card-desc">All models in the pricing catalog grouped into Cheap, Workhorse, and Frontier tiers (by output rate per 1M tokens), comparing input, output, and cache-read list prices across providers</p>
+            </div>
+            <div class="toggle-group">
+              <button class="pill-btn active" data-pricing-sort="output">Sort: Output</button>
+              <button class="pill-btn" data-pricing-sort="input">Input</button>
+              <button class="pill-btn" data-pricing-sort="cache_read">Cache Read</button>
+            </div>
+            <div class="toggle-group">
+              <button class="pill-btn active" data-pricing-scale="linear">Linear</button>
+              <button class="pill-btn" data-pricing-scale="log">Log</button>
+            </div>
+          </div>
+          <div class="pricing-provider-filters" id="pricing-provider-filters"></div>
+          <div id="chart-pricing-tiers" class="pricing-tiers-grid"></div>
+          <div class="chart-legend">
+            <span class="legend-item"><span class="legend-box pricing-input"></span> Input / 1M</span>
+            <span class="legend-item"><span class="legend-box pricing-output"></span> Output / 1M</span>
+            <span class="legend-item"><span class="legend-box pricing-cache"></span> Cache Read / 1M</span>
           </div>
         </div>
       </div>

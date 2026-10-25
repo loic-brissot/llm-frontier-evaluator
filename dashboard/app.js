@@ -458,6 +458,22 @@
       renderToolsChart();
     });
 
+    // Pricing tier chart controls
+    document.querySelectorAll('[data-pricing-sort]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        pricingState.sort = btn.dataset.pricingSort;
+        document.querySelectorAll('[data-pricing-sort]').forEach((b) => b.classList.toggle('active', b === btn));
+        renderPricingTiersChart();
+      });
+    });
+    document.querySelectorAll('[data-pricing-scale]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        pricingState.scale = btn.dataset.pricingScale;
+        document.querySelectorAll('[data-pricing-scale]').forEach((b) => b.classList.toggle('active', b === btn));
+        renderPricingTiersChart();
+      });
+    });
+
     // Cache efficiency chart mode toggles
     const btnCacheBars = document.getElementById('btn-cache-mode-bars');
     const btnCacheScatter = document.getElementById('btn-cache-mode-scatter');
@@ -586,6 +602,7 @@
       renderToolsChart();
       renderCostCompareChart();
       renderCacheCurveChart();
+      renderPricingTiersChart();
     } else if (activeTab === 'gallery') {
       renderGallery();
     } else if (activeTab === 'showcase') {
@@ -1786,6 +1803,69 @@
   // ==========================================================================
   // WAREHOUSE ANALYTICAL TABLES & DOWNLOADS VIEW
   // ==========================================================================
+
+  const pricingState = { sort: 'output', scale: 'linear', providers: new Set() };
+
+  function renderPricingTiersChart() {
+    const grid = document.getElementById('chart-pricing-tiers');
+    if (!grid) return;
+    const pricing = (benchmarkData && benchmarkData.pricing) || { tiers: [], models: [] };
+    const models = pricing.models || [];
+    const filterBox = document.getElementById('pricing-provider-filters');
+    const providers = Array.from(new Set(models.map((m) => m.provider))).sort();
+
+    if (filterBox) {
+      filterBox.innerHTML = '';
+      providers.forEach((p) => {
+        const b = document.createElement('button');
+        b.className = 'pill-btn' + (pricingState.providers.has(p) ? ' active' : '');
+        b.textContent = p;
+        b.addEventListener('click', () => {
+          if (pricingState.providers.has(p)) pricingState.providers.delete(p);
+          else pricingState.providers.add(p);
+          renderPricingTiersChart();
+        });
+        filterBox.appendChild(b);
+      });
+    }
+
+    const visible = models.filter((m) => pricingState.providers.size === 0 || pricingState.providers.has(m.provider));
+    const metrics = [
+      { key: 'input', label: 'Input' },
+      { key: 'output', label: 'Output' },
+      { key: 'cache_read', label: 'Cache' },
+    ];
+    const maxVal = Math.max(1, ...visible.map((m) => Math.max(m.input || 0, m.output || 0, m.cache_read || 0)));
+    const width = (v) => {
+      if (!v || v <= 0) return 0;
+      if (pricingState.scale === 'log') {
+        const lo = Math.log10(0.01);
+        return Math.max(2, ((Math.log10(Math.max(v, 0.01)) - lo) / (Math.log10(maxVal) - lo)) * 100);
+      }
+      return Math.max(2, (v / maxVal) * 100);
+    };
+    const fmt = (v) => (v == null ? 'n/a' : '$' + v.toFixed(2));
+
+    grid.innerHTML = '';
+    (pricing.tiers || []).forEach((tier) => {
+      const inTier = visible
+        .filter((m) => m.tier === tier.id)
+        .sort((a, b) => (a[pricingState.sort] ?? 0) - (b[pricingState.sort] ?? 0) || a.name.localeCompare(b.name));
+      const col = document.createElement('div');
+      col.className = 'pricing-tier-col tier-' + tier.id;
+      let html = `<div class="pricing-tier-head"><h4>${escapeHtml(tier.label)}</h4><span class="pricing-tier-count">${inTier.length} models</span></div>
+        <p class="pricing-tier-desc">${escapeHtml(tier.description)}</p>`;
+      if (inTier.length === 0) html += '<div class="pricing-empty">No models match the provider filter.</div>';
+      inTier.forEach((m) => {
+        html += `<div class="pricing-model" title="${escapeHtml(m.id)}: in ${fmt(m.input)} / out ${fmt(m.output)} / cache read ${fmt(m.cache_read)} per 1M">
+          <div class="pricing-model-head"><span>${escapeHtml(m.name)}</span><span class="pricing-provider-badge">${escapeHtml(m.provider)}</span></div>
+          ${metrics.map((x) => `<div class="pricing-bar-row"><span>${x.label}</span><span class="pricing-bar-track"><span class="pricing-bar-fill ${x.key}" style="display:block;width:${width(m[x.key]).toFixed(1)}%"></span></span><span class="pricing-bar-val">${fmt(m[x.key])}</span></div>`).join('')}
+        </div>`;
+      });
+      col.innerHTML = html;
+      grid.appendChild(col);
+    });
+  }
 
   function renderWarehouse() {
     const tbody = document.getElementById('warehouse-tables-tbody');

@@ -39,6 +39,15 @@ SCHEMA_PATH = ROOT / "schema" / "dashboard.schema.json"
 DASHBOARD_DIR = ROOT / "dashboard"
 PROMPTS_DIR = ROOT / "prompt"
 REFERENCE_DIR = ROOT / "reference"
+PRICING_FILENAME = "pricing-2026-10-18.json"
+
+# Pricing tiers are keyed on the output rate (USD per 1M tokens), the dominant
+# cost driver for agentic code generation. Upper bounds are inclusive.
+PRICING_TIERS: list[dict[str, Any]] = [
+    {"id": "cheap", "label": "Cheap", "description": "Economy models, output <= $5.00 per 1M tokens", "max_output_per_1m": 5.0},
+    {"id": "workhorse", "label": "Workhorse", "description": "Standard models, output <= $15.00 per 1M tokens", "max_output_per_1m": 15.0},
+    {"id": "frontier", "label": "Frontier", "description": "Premium models, output above $15.00 per 1M tokens", "max_output_per_1m": None},
+]
 
 
 def _safe_float(val: Any) -> float | None:
@@ -427,6 +436,59 @@ def compute_pareto_frontiers(runs: list[dict[str, Any]]) -> None:
             r["pareto"]["is_pareto_successful_global"] = not is_dom_global
 
 
+def classify_pricing_tier(output_per_1m: Any) -> str:
+    """Classify a model into cheap / workhorse / frontier by output price per 1M tokens."""
+    rate = _safe_float(output_per_1m)
+    if rate is None:
+        return "workhorse"
+    for tier in PRICING_TIERS:
+        cap = tier["max_output_per_1m"]
+        if cap is None or rate <= cap:
+            return str(tier["id"])
+    return "frontier"
+
+
+def build_pricing_catalog(reference_dir: Path = REFERENCE_DIR) -> dict[str, Any]:
+    """Expose the full pricing catalog with per-model tier classification."""
+    path = reference_dir / PRICING_FILENAME
+    catalog: dict[str, Any] = {
+        "as_of": None,
+        "currency": "USD",
+        "unit": "per_1m_tokens",
+        "tiers": [dict(t) for t in PRICING_TIERS],
+        "models": [],
+    }
+    if not path.is_file():
+        return catalog
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return catalog
+    catalog["as_of"] = raw.get("as_of")
+    catalog["currency"] = raw.get("currency", "USD")
+    catalog["unit"] = raw.get("unit", "per_1m_tokens")
+    models: list[dict[str, Any]] = []
+    for m in raw.get("models", []):
+        names = m.get("names") or [m.get("id")]
+        declared = m.get("tier")
+        computed = classify_pricing_tier(m.get("output"))
+        models.append({
+            "id": m.get("id"),
+            "name": names[0],
+            "provider": m.get("provider"),
+            "harnesses": m.get("harnesses", []),
+            "tier": declared if declared in {t["id"] for t in PRICING_TIERS} else computed,
+            "input": _safe_float(m.get("input")),
+            "cache_write": _safe_float(m.get("cache_write")),
+            "cache_read": _safe_float(m.get("cache_read")),
+            "output": _safe_float(m.get("output")),
+            "first_party_in_cursor": bool(m.get("first_party_in_cursor", False)),
+            "has_long_context": bool(m.get("long_context") or m.get("context_variants")),
+        })
+    catalog["models"] = models
+    return catalog
+
+
 def compile_dashboard_payload(
     runs_dir: Path = RUNS_DIR,
     prompts_dir: Path = PROMPTS_DIR,
@@ -588,6 +650,7 @@ def compile_dashboard_payload(
         "prompts": prompts_list,
         "runs": cleaned_runs,
         "models": models_list,
+        "pricing": build_pricing_catalog(reference_dir),
         "warehouse": warehouse_info,
     }
 
