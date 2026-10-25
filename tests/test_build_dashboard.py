@@ -299,7 +299,7 @@ class TestPayloadCompilationAndSchema:
         assert payload["version"] == "1.0.0"
         assert "generated_at" in payload
         assert payload["summary"]["total_runs"] >= 11
-        assert payload["summary"]["successful_runs"] >= 7
+        assert payload["summary"]["successful_runs"] >= 6  # TASK-83: stuck-init gemini-3-8-flash run is PARTIAL
         assert payload["summary"]["total_series"] >= 4
         assert len(payload["runs"]) == payload["summary"]["total_runs"]
         assert len(payload["prompts"]) >= 4
