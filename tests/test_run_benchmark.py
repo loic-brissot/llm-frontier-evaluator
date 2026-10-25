@@ -2091,17 +2091,17 @@ Options:
     def test_default_timeout_and_runtime_guardrail(self):
         parser = build_parser()
         # Verify defaults from backlog requirements
-        self.assertEqual(parser.get_default("timeout"), 1800.0)
+        self.assertEqual(parser.get_default("timeout"), 3600.0)
         self.assertEqual(parser.get_default("stall_timeout"), 300.0)
         self.assertEqual(parser.get_default("retry_cooldown"), 60.0)
         self.assertEqual(parser.get_default("max_retries"), 2)
 
-        self.assertEqual(DEFAULT_TIMEOUT_SECONDS, 1800.0)
+        self.assertEqual(DEFAULT_TIMEOUT_SECONDS, 3600.0)
         self.assertEqual(DEFAULT_STALL_TIMEOUT_SECONDS, 300.0)
         self.assertEqual(DEFAULT_RETRY_COOLDOWN_SECONDS, 60.0)
         self.assertEqual(DEFAULT_MAX_RETRIES, 2)
 
-        # Verify run_benchmark_container uses default timeout 1800s when timeout_seconds is omitted
+        # Verify run_benchmark_container uses default timeout 3600s when timeout_seconds is omitted
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
             staging_dir = tmp_path / "frontier-workspace-default-timeout-test"
@@ -2129,9 +2129,9 @@ Options:
                     auto_finish=False,
                 )
                 self.assertEqual(rc, 0)
-                # Verify that subprocess.run was invoked with default timeout 1800.0
+                # Verify that subprocess.run was invoked with default timeout 3600.0
                 call_kwargs = mock_run.call_args[1]
-                self.assertEqual(call_kwargs.get("timeout"), 1800.0)
+                self.assertEqual(call_kwargs.get("timeout"), 3600.0)
 
     def test_stream_monitor_rate_limit_and_stall_detection(self):
         # 1. is_rate_limit_error

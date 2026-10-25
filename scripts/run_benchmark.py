@@ -53,7 +53,7 @@ DEFAULT_DOCKERFILE = ROOT / "Dockerfile.benchmark"
 DEFAULT_ENV_FILE = ROOT / ".env"
 STAGING_PARENT = _COMMON_STAGING_PARENT
 
-DEFAULT_TIMEOUT_SECONDS: float = 1800.0
+DEFAULT_TIMEOUT_SECONDS: float = 3600.0
 DEFAULT_STALL_TIMEOUT_SECONDS: float = 300.0
 DEFAULT_RETRY_COOLDOWN_SECONDS: float = 60.0
 DEFAULT_MAX_RETRIES: int = 2
@@ -2303,7 +2303,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--timeout",
         type=float,
         default=DEFAULT_TIMEOUT_SECONDS,
-        help=f"Execution timeout in seconds for container run (default: {int(DEFAULT_TIMEOUT_SECONDS)}s / 30m).",
+        help=f"Execution timeout in seconds for container run (default: {int(DEFAULT_TIMEOUT_SECONDS)}s / {int(DEFAULT_TIMEOUT_SECONDS // 60)}m).",
     )
     parser.add_argument(
         "--stall-timeout",

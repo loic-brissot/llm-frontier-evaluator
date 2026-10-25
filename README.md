@@ -129,8 +129,11 @@ Automated, reproducible evaluation runs inside an isolated Linux container with 
 
 2. **Execute one-shot benchmark**:
    ```bash
-   python3 scripts/run_benchmark.py --prompt paris-1910-flood-simulator --harness cursor --model "Claude Opus 5.5" --reasoning high
+   python3 scripts/run_benchmark.py --prompt paris-1910-flood-simulator --harness cursor --model "Claude Opus 5.5" --reasoning high --timeout 3600
+   # Claude Code harness (subscription token or API key from step 1):
+   python3 scripts/run_benchmark.py --prompt paris-1910-flood-simulator --harness claude-code --model "Claude Sonnet 5.5" --reasoning high --timeout 3600
    ```
+   `--timeout` is the per-run container limit in seconds (default and recommended `3600`, i.e. 60 minutes); a run that hits it is stopped and recorded as incomplete.
    The runner automatically:
    - Verifies preflight requirements (Docker daemon, image tag, credentials).
    - Builds runner image `llm-frontier-evaluator-runner:latest` from `Dockerfile.benchmark` if missing.
