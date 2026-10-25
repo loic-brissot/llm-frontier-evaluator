@@ -3,9 +3,10 @@ id: TASK-93
 title: >-
   Add interactive and subscription-authenticated Claude Code (claude) launcher
   to setup_run.py and run_benchmark.py (no ANTHROPIC_API_KEY required)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-24 23:53'
+updated_date: '2026-10-25 00:30'
 labels: []
 milestone: m-6
 dependencies: []
@@ -25,7 +26,7 @@ Operators without an ANTHROPIC_API_KEY (or who avoid setting ANTHROPIC_API_KEY b
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Update scripts/setup_run.py to generate a clean-room launcher script (/tmp/frontier-workspace-<run-id>-launch.sh) for claude-code runs that copies prompt/<prompt-id>.txt to the clipboard (pbcopy), configures an isolated CLAUDE_CONFIG_DIR (/tmp/frontier-claude-state-<run-id>) seeded only with OAuth subscription auth state (no host ~/.claude skills, plugins, CLAUDE.md, or MCPs, and with ANTHROPIC_API_KEY unset so subscription billing is used), and launches claude --model <claude-model-id> --effort <level> --dangerously-skip-permissions (supporting both Docker -it and host clean-room modes)
-- [ ] #2 Add --interactive (and subscription OAuth support without requiring ANTHROPIC_API_KEY in validate_credentials_preflight()) to scripts/run_benchmark.py so operators can run a single scripted command (python3 scripts/run_benchmark.py --harness claude-code --interactive ...) that scaffolds the run, launches interactive or subscription-backed claude with persistent Docker/host OAuth state, and automatically triggers finish_run.py --verify upon session completion
-- [ ] #3 Add unit tests in tests/test_setup_run.py and tests/test_run_benchmark.py covering the claude-code clean-room launcher, credential preflight without ANTHROPIC_API_KEY, and --interactive container/host command construction, and document the workflow in docs/protocol.md and docs/design-run-isolation.md
+- [x] #1 Update scripts/setup_run.py to generate a clean-room launcher script (/tmp/frontier-workspace-<run-id>-launch.sh) for claude-code runs that copies prompt/<prompt-id>.txt to the clipboard (pbcopy), configures an isolated CLAUDE_CONFIG_DIR (/tmp/frontier-claude-state-<run-id>) seeded only with OAuth subscription auth state (no host ~/.claude skills, plugins, CLAUDE.md, or MCPs, and with ANTHROPIC_API_KEY unset so subscription billing is used), and launches claude --model <claude-model-id> --effort <level> --dangerously-skip-permissions (supporting both Docker -it and host clean-room modes)
+- [x] #2 Add --interactive (and subscription OAuth support without requiring ANTHROPIC_API_KEY in validate_credentials_preflight()) to scripts/run_benchmark.py so operators can run a single scripted command (python3 scripts/run_benchmark.py --harness claude-code --interactive ...) that scaffolds the run, launches interactive or subscription-backed claude with persistent Docker/host OAuth state, and automatically triggers finish_run.py --verify upon session completion
+- [x] #3 Add unit tests in tests/test_setup_run.py and tests/test_run_benchmark.py covering the claude-code clean-room launcher, credential preflight without ANTHROPIC_API_KEY, and --interactive container/host command construction, and document the workflow in docs/protocol.md and docs/design-run-isolation.md
 <!-- AC:END -->
