@@ -1405,6 +1405,69 @@ class TestInteractiveClaudeCodeTelemetry(unittest.TestCase):
         self.assertTrue(any("Isolation hook denied 1 tool call" in n for n in summary.notes))
 
 
+class TestTimedOutClaudeAttemptTokens(unittest.TestCase):
+    """A `claude -p` attempt killed before its result event: stream usage is a mid-stream snapshot."""
+
+    def _run_dir(self, tmp: str, *, with_result: bool) -> Path:
+        import json
+
+        run_dir = Path(tmp) / "runs" / "some-prompt" / "2026-10-25-claude-code-claude-sonnet-5-5-high"
+        (run_dir / "tool-events").mkdir(parents=True)
+        (run_dir / "claude-sessions").mkdir()
+        stream = [{"type": "system", "subtype": "init", "session_id": "s1"}]
+        transcript = []
+        for i, final_out in enumerate((1200, 3400), start=1):
+            usage_start = {"input_tokens": 5, "cache_creation_input_tokens": 100, "cache_read_input_tokens": 1000, "output_tokens": 8}
+            usage_final = {**usage_start, "output_tokens": final_out}
+            block = {"type": "text", "text": "x"}
+            msg = {"id": f"msg_{i}", "model": "claude-sonnet-5-5", "content": [block]}
+            stream.append({"type": "assistant", "message": {**msg, "usage": usage_start}, "session_id": "s1"})
+            transcript.append({"type": "assistant", "sessionId": "s1", "timestamp": f"2026-10-25T20:0{i}:00Z", "message": {**msg, "usage": usage_final}})
+        if with_result:
+            stream.append({"type": "result", "subtype": "success", "usage": {"input_tokens": 10, "cache_creation_input_tokens": 200, "cache_read_input_tokens": 2000, "output_tokens": 4600}, "total_cost_usd": 0.5})
+        (run_dir / "tool-events" / "cli-stream.jsonl").write_text("".join(json.dumps(r) + "\n" for r in stream), encoding="utf-8")
+        (run_dir / "claude-sessions" / "s1.jsonl").write_text("".join(json.dumps(r) + "\n" for r in transcript), encoding="utf-8")
+        return run_dir
+
+    def test_transcript_totals_replace_stream_snapshot(self) -> None:
+        import tempfile
+
+        from tool_events import summarize_run
+
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = summarize_run(self._run_dir(tmp, with_result=False))
+        self.assertEqual(summary.output_tokens, 1200 + 3400)
+        self.assertEqual(summary.cache_read_tokens, 2000)
+        self.assertEqual(summary.cache_write_tokens, 200)
+        self.assertEqual(summary.uncached_input_tokens, 10)
+        self.assertEqual(summary.input_tokens, 2210)
+        self.assertEqual(summary.claude_attempts_without_result, 1)
+        self.assertTrue(any("claude-sessions" in n and "without a result event" in n for n in summary.notes))
+
+    def test_stream_without_transcript_keeps_stream_totals(self) -> None:
+        import shutil
+        import tempfile
+
+        from tool_events import summarize_run
+
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = self._run_dir(tmp, with_result=False)
+            shutil.rmtree(run_dir / "claude-sessions")
+            summary = summarize_run(run_dir)
+        self.assertEqual(summary.output_tokens, 16)
+
+    def test_attempt_with_result_event_is_untouched(self) -> None:
+        import tempfile
+
+        from tool_events import summarize_run
+
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = summarize_run(self._run_dir(tmp, with_result=True))
+        self.assertEqual(summary.output_tokens, 4600)
+        self.assertEqual(summary.claude_attempts_without_result, 0)
+        self.assertFalse(any("claude-sessions" in n for n in summary.notes))
+
+
 class TestClaudeHookWorkspaceIsolation(unittest.TestCase):
     """PreToolUse guards in templates/claude/hooks/log-tool-event.py for host clean-room runs."""
 
