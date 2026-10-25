@@ -13,14 +13,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from compare_runs import check_local_run
 from run_common import ROOT, load_json, prompt_path, run_schema_errors
 from setup_run import (
+    CLAUDE_CONTAINER_CONFIG_DIR,
     CLAUDE_HOOK_DIR_NAME,
     CURSOR_HOOK_DIR_NAME,
+    build_claude_launcher_script,
     check_environment,
     copy_prompt_to_clipboard,
     create_run_directory,
+    filter_claude_global_state,
     install_claude_hook,
     install_cursor_hook,
     main,
+    persist_claude_auth_state,
+    seed_claude_auth_state,
 )
 
 
@@ -186,7 +191,9 @@ class TestClaudeCodeHooks(unittest.TestCase):
         self.assertTrue((staging_dir / ".claude" / "settings.json").is_file())
         self.assertTrue((staging_dir / ".claude" / "hooks" / "log-tool-event.py").is_file())
         self.assertFalse((staging_dir / ".cursor").exists(), "claude-code runs must not get Cursor hooks")
-        self.assertFalse((staging_parent / f"frontier-workspace-{run_dir.name}-launch.sh").exists())
+        launcher = staging_parent / f"frontier-workspace-{run_dir.name}-launch.sh"
+        self.assertTrue(launcher.is_file(), "claude-code runs get a clean-room launcher")
+        self.assertTrue(os.access(launcher, os.X_OK))
         run = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
         self.assertEqual(run["harness"]["name"], "claude-code")
 
@@ -610,6 +617,112 @@ class TestSetupRun(unittest.TestCase):
         with patch("sys.argv", ["setup_run.py", "--check"]):
             exit_code = main()
             self.assertEqual(exit_code, 0)
+
+
+class TestClaudeCleanRoomLauncher(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+
+    def _script(self, mode="host", effort="high"):
+        return build_claude_launcher_script(
+            run_id="2026-10-25-claude-code-claude-opus-5-5-high",
+            prompt_id="france-road-accidents",
+            staging_dir=self.root / "frontier-workspace-r",
+            model_id="claude-opus-5-5",
+            effort=effort,
+            mode=mode,
+            staging_parent=self.root,
+        )
+
+    def test_script_copies_prompt_isolates_config_and_unsets_api_key(self):
+        text = self._script()
+        run_id = "2026-10-25-claude-code-claude-opus-5-5-high"
+        self.assertTrue(text.startswith("#!/usr/bin/env bash"))
+        self.assertIn(f'cat "{prompt_path("france-road-accidents").resolve()}" | pbcopy', text)
+        self.assertIn(f'STATE="{self.root}/frontier-claude-state-{run_id}"', text)
+        self.assertIn("unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN", text)
+        self.assertIn("claude --model claude-opus-5-5 --effort high --dangerously-skip-permissions", text)
+        self.assertIn('CLAUDE_CONFIG_DIR="$STATE" claude', text)
+        # Only the two OAuth files are copied out of the host config: no recursive copy of ~/.claude.
+        self.assertNotIn("cp -r", text)
+        self.assertNotIn("rsync", text)
+        self.assertEqual(text.count('cp "$dir/.credentials.json"'), 1)
+        self.assertNotIn("ANTHROPIC_API_KEY=", text)
+
+    def test_script_default_mode_and_docker_it_command(self):
+        host = self._script(mode="host")
+        docker = self._script(mode="docker")
+        self.assertIn('MODE="${FRONTIER_CLAUDE_MODE:-host}"', host)
+        self.assertIn('MODE="${FRONTIER_CLAUDE_MODE:-docker}"', docker)
+        for text in (host, docker):
+            self.assertIn("docker run --rm -it --init", text)
+            self.assertIn(f"-e CLAUDE_CONFIG_DIR={CLAUDE_CONTAINER_CONFIG_DIR}", text)
+            self.assertIn("llm-frontier-evaluator-runner:latest", text)
+
+    def test_script_omits_effort_when_unset_and_rejects_bad_mode(self):
+        self.assertNotIn("--effort", self._script(effort=None))
+        with self.assertRaises(ValueError):
+            self._script(mode="vm")
+
+    def test_generated_script_is_valid_bash(self):
+        path = self.root / "launch.sh"
+        for mode in ("host", "docker"):
+            path.write_text(self._script(mode=mode), encoding="utf-8")
+            res = subprocess.run(["bash", "-n", str(path)], capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, res.stderr)
+
+    def test_filter_claude_global_state_keeps_only_auth_keys(self):
+        raw = {"oauthAccount": {"emailAddress": "a@b"}, "userID": "u", "mcpServers": {"x": {}}, "projects": {"/p": {}}}
+        self.assertEqual(filter_claude_global_state(raw), {"oauthAccount": {"emailAddress": "a@b"}, "userID": "u"})
+
+    def test_seed_copies_oauth_only_from_host(self):
+        home = self.root / "home"
+        (home / ".claude" / "skills").mkdir(parents=True)
+        (home / ".claude" / "skills" / "s.md").write_text("skill", encoding="utf-8")
+        (home / ".claude" / "CLAUDE.md").write_text("rules", encoding="utf-8")
+        (home / ".claude" / ".credentials.json").write_text('{"claudeAiOauth": {"accessToken": "t"}}', encoding="utf-8")
+        (home / ".claude.json").write_text(
+            json.dumps({"oauthAccount": {"emailAddress": "a@b"}, "mcpServers": {"x": {}}}), encoding="utf-8"
+        )
+        state = self.root / "state"
+        seeded = seed_claude_auth_state(state, auth_cache_dir=self.root / "cache", host_home=home)
+        self.assertEqual(sorted(seeded), [".claude.json", ".credentials.json"])
+        self.assertEqual(sorted(p.name for p in state.iterdir()), [".claude.json", ".credentials.json"])
+        self.assertEqual(json.loads((state / ".claude.json").read_text(encoding="utf-8")), {"oauthAccount": {"emailAddress": "a@b"}})
+        self.assertEqual((state / ".credentials.json").stat().st_mode & 0o777, 0o600)
+
+    def test_seed_with_no_host_state_and_persist_roundtrip(self):
+        home = self.root / "home"
+        home.mkdir()
+        state = self.root / "state"
+        cache = self.root / "cache"
+        self.assertEqual(seed_claude_auth_state(state, auth_cache_dir=cache, host_home=home), [])
+        (state / ".credentials.json").write_text("{}", encoding="utf-8")
+        self.assertEqual(persist_claude_auth_state(state, auth_cache_dir=cache), [".credentials.json"])
+        state2 = self.root / "state2"
+        self.assertEqual(seed_claude_auth_state(state2, auth_cache_dir=cache, host_home=home), [".credentials.json"])
+
+    def test_create_run_directory_writes_docker_mode_launcher(self):
+        staging_parent = self.root / "staging"
+        staging_parent.mkdir()
+        with patch("run_common.RUNS_DIR", self.root / "runs"), patch("setup_run.RUNS_DIR", self.root / "runs"), \
+             patch("setup_run.STAGING_PARENT", staging_parent):
+            run_dir = create_run_directory(
+                harness="claude-code",
+                model="Claude Opus 5.5",
+                reasoning="high",
+                prompt_id="france-road-accidents",
+                series_id="s",
+                provider="anthropic",
+                harness_version=None,
+                harness_detail="",
+                claude_launch_mode="docker",
+            )
+        text = (staging_parent / f"frontier-workspace-{run_dir.name}-launch.sh").read_text(encoding="utf-8")
+        self.assertIn('FRONTIER_CLAUDE_MODE:-docker', text)
+        self.assertIn("--effort high", text)
 
 
 if __name__ == "__main__":

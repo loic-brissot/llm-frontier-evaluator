@@ -36,11 +36,17 @@ from run_common import (
     staging_workspace_for as _common_staging_workspace_for,
 )
 from setup_run import (
+    CLAUDE_API_BILLING_ENV_VARS,
+    CLAUDE_LAUNCH_MODES,
+    copy_prompt_to_clipboard,
     create_run_directory,
+    persist_claude_auth_state,
+    seed_claude_auth_state,
     normalize_context,
     normalize_harness,
     normalize_reasoning,
 )
+from setup_run import CLAUDE_CREDENTIALS_FILE, default_claude_auth_cache_dir
 
 DOCKER_IMAGE = "llm-frontier-evaluator-runner:latest"
 DEFAULT_DOCKERFILE = ROOT / "Dockerfile.benchmark"
@@ -851,6 +857,71 @@ def format_stream_progress_line(
     return None
 
 
+CLAUDE_KEYCHAIN_SERVICE = "Claude Code-credentials"
+
+
+def claude_oauth_credentials_available(env: dict, home: Path | None = None) -> bool:
+    """Return True when Claude Code subscription OAuth state can be found for an interactive run.
+
+    Checks, in order: ``CLAUDE_CODE_OAUTH_TOKEN`` (from ``claude setup-token``), the persistent auth cache
+    (``~/.frontier-claude-auth``), ``$CLAUDE_CONFIG_DIR`` or ``~/.claude`` credentials file, and on macOS the
+    login Keychain item written by ``claude /login``.
+    """
+    if env.get("CLAUDE_CODE_OAUTH_TOKEN"):
+        return True
+    base = home if home is not None else Path.home()
+    candidates = [default_claude_auth_cache_dir(base) / CLAUDE_CREDENTIALS_FILE]
+    host_dir = env.get("CLAUDE_CONFIG_DIR")
+    candidates.append((Path(host_dir).expanduser() if host_dir else base / ".claude") / CLAUDE_CREDENTIALS_FILE)
+    if any(c.is_file() for c in candidates):
+        return True
+    if sys.platform == "darwin":
+        try:
+            res = subprocess.run(
+                ["security", "find-generic-password", "-s", CLAUDE_KEYCHAIN_SERVICE],
+                capture_output=True,
+                text=True,
+            )
+            return res.returncode == 0
+        except Exception:
+            return False
+    return False
+
+
+def validate_credentials_preflight(
+    harness: str | None,
+    env: dict,
+    *,
+    subscription: bool = False,
+    home: Path | None = None,
+) -> list[str]:
+    """Return credential errors for a harness.
+
+    With ``subscription=True`` a claude-code run authenticates with Pro/Max/Team OAuth and ANTHROPIC_API_KEY
+    is not required (it is stripped from the session so billing stays on the subscription).
+    """
+    errors: list[str] = []
+    if harness:
+        norm_harness = canonical_harness(harness)
+        if norm_harness == "cursor" or is_cursor_harness(norm_harness):
+            if not env.get("CURSOR_API_KEY"):
+                errors.append(f"Missing required environment variable CURSOR_API_KEY for harness '{norm_harness}' (export CURSOR_API_KEY=...).")
+        elif norm_harness == "claude-code":
+            if subscription:
+                if not claude_oauth_credentials_available(env, home=home):
+                    errors.append(
+                        "No Claude Code subscription OAuth credentials found for an interactive run "
+                        "(run: claude setup-token and export CLAUDE_CODE_OAUTH_TOKEN=..., or sign in once with `claude /login`). "
+                        "ANTHROPIC_API_KEY is not required and is ignored."
+                    )
+            elif not env.get("ANTHROPIC_API_KEY"):
+                errors.append("Missing required environment variable ANTHROPIC_API_KEY for harness 'claude-code' (export ANTHROPIC_API_KEY=...).")
+    else:
+        if not env.get("CURSOR_API_KEY") and not env.get("ANTHROPIC_API_KEY"):
+            errors.append("Missing required environment variable CURSOR_API_KEY or ANTHROPIC_API_KEY (export CURSOR_API_KEY=... or export ANTHROPIC_API_KEY=...).")
+    return errors
+
+
 def check_preflight(
     *,
     docker_image: str = DOCKER_IMAGE,
@@ -862,15 +933,22 @@ def check_preflight(
     auto_setup: bool = False,
     force_build: bool = False,
     wait_timeout: float = 60.0,
+    interactive: bool = False,
+    interactive_mode: str = "docker",
 ) -> list[str]:
-    """Run preflight checks for Docker daemon, image, harness API keys, and staged workspace.
+    """Run preflight checks for Docker daemon, image, harness credentials, and staged workspace.
+
+    ``interactive`` (claude-code subscription OAuth session) does not require ANTHROPIC_API_KEY, and skips the
+    Docker checks when ``interactive_mode`` is ``host``.
 
     Returns a list of actionable error messages. An empty list means all checks passed.
     """
     env = load_env_credentials(env=env, env_file=env_file)
     errors: list[str] = []
 
-    if auto_setup or force_build:
+    if interactive and interactive_mode == "host":
+        pass
+    elif auto_setup or force_build:
         docker_errors = ensure_docker_ready(
             docker_image=docker_image,
             auto_setup=auto_setup,
@@ -905,17 +983,7 @@ def check_preflight(
         except Exception:
             pass
 
-    if harness:
-        norm_harness = canonical_harness(harness)
-        if norm_harness == "cursor" or is_cursor_harness(norm_harness):
-            if not env.get("CURSOR_API_KEY"):
-                errors.append(f"Missing required environment variable CURSOR_API_KEY for harness '{norm_harness}' (export CURSOR_API_KEY=...).")
-        elif norm_harness == "claude-code":
-            if not env.get("ANTHROPIC_API_KEY"):
-                errors.append("Missing required environment variable ANTHROPIC_API_KEY for harness 'claude-code' (export ANTHROPIC_API_KEY=...).")
-    else:
-        if not env.get("CURSOR_API_KEY") and not env.get("ANTHROPIC_API_KEY"):
-            errors.append("Missing required environment variable CURSOR_API_KEY or ANTHROPIC_API_KEY (export CURSOR_API_KEY=... or export ANTHROPIC_API_KEY=...).")
+    errors.extend(validate_credentials_preflight(harness, env, subscription=interactive))
 
     # Check 4: Staged workspace exists
     if run_id:
@@ -1810,6 +1878,222 @@ def run_benchmark_container(
     return last_return_code
 
 
+def build_interactive_claude_env(env: dict, *, mode: str, state_dir: Path) -> dict:
+    """Environment for an interactive claude session: API-billing variables removed, OAuth kept.
+
+    Host mode points CLAUDE_CONFIG_DIR at the isolated state directory. Docker mode sets it inside the container
+    through ``-e`` in build_interactive_claude_command(), leaving the docker client's environment untouched.
+    """
+    session_env = {k: v for k, v in env.items() if k not in CLAUDE_API_BILLING_ENV_VARS}
+    if mode == "host":
+        session_env["CLAUDE_CONFIG_DIR"] = str(state_dir.resolve())
+    else:
+        session_env.pop("CLAUDE_CONFIG_DIR", None)
+    return session_env
+
+
+def build_interactive_claude_command(
+    *,
+    mode: str,
+    resolved_model: str,
+    effort: str | None,
+    staging_dir: Path | None = None,
+    claude_state_dir: Path | None = None,
+    docker_image: str = DOCKER_IMAGE,
+    container_name: str | None = None,
+    env: dict | None = None,
+) -> list[str]:
+    """Construct the interactive ``claude`` command: ``docker run -it`` (mode docker) or host ``claude``.
+
+    Never forwards ANTHROPIC_API_KEY. Docker mode forwards ``CLAUDE_CODE_OAUTH_TOKEN`` when it is set.
+    """
+    if mode not in CLAUDE_LAUNCH_MODES:
+        raise ValueError(f"Interactive mode must be one of: {', '.join(CLAUDE_LAUNCH_MODES)}")
+    effort_flag = ["--effort", effort] if effort else []
+    claude_args = ["claude", "--model", resolved_model, *effort_flag, "--dangerously-skip-permissions"]
+    if mode == "host":
+        return claude_args
+
+    if staging_dir is None or claude_state_dir is None:
+        raise ValueError("Docker interactive mode requires staging_dir and claude_state_dir")
+    cmd = ["docker", "run", "--rm", "-it", "--init", "--shm-size=2g"]
+    if container_name:
+        cmd.extend(["--name", container_name])
+    cmd.extend([
+        "-v", f"{staging_dir.resolve()}:/workspace:rw",
+        "-v", f"{claude_state_dir.resolve()}:{CLAUDE_CONTAINER_CONFIG_DIR}:rw",
+        "-e", f"CLAUDE_CONFIG_DIR={CLAUDE_CONTAINER_CONFIG_DIR}",
+    ])
+    if env and env.get("CLAUDE_CODE_OAUTH_TOKEN"):
+        cmd.extend(["-e", "CLAUDE_CODE_OAUTH_TOKEN"])
+    cmd.extend(["-w", "/workspace", docker_image, *claude_args])
+    return cmd
+
+
+def run_interactive_claude(
+    *,
+    prompt_id: str = DEFAULT_PROMPT_ID,
+    run_id: str | None = None,
+    model: str | None = None,
+    reasoning: str | None = None,
+    context: str | None = None,
+    series_id: str | None = None,
+    provider: str | None = None,
+    harness_detail: str = "",
+    docker_image: str = DOCKER_IMAGE,
+    mode: str = "docker",
+    check_models: bool = True,
+    auto_finish: bool = True,
+    env: dict | None = None,
+    env_file: Path | str | None = None,
+    auto_docker_setup: bool = True,
+    force_build: bool = False,
+    docker_wait_timeout: float = 60.0,
+) -> int:
+    """Scaffold (or reuse) a claude-code run and open an interactive subscription-authenticated session.
+
+    The operator pastes the frozen prompt (copied to the clipboard) as the only user message; after the session
+    ends, ``finish_run.py --verify`` runs automatically unless ``auto_finish`` is False.
+    """
+    if mode not in CLAUDE_LAUNCH_MODES:
+        raise ValueError(f"Interactive mode must be one of: {', '.join(CLAUDE_LAUNCH_MODES)}")
+    env = load_env_credentials(env=env, env_file=env_file)
+    prompt_id = require_prompt_id(prompt_id)
+
+    if run_id is None:
+        if not model:
+            raise ValueError("Model must be specified when run_id is omitted for automatic run scaffolding")
+        if not prompt_path(prompt_id).is_file():
+            raise FileNotFoundError(f"Prompt file not found: {prompt_path(prompt_id)}")
+        normalize_context(context, "claude-code")  # claude-code has no context window selector
+        normalized_reasoning = normalize_reasoning(reasoning, "claude-code")
+        errors = check_preflight(
+            docker_image=docker_image,
+            harness="claude-code",
+            prompt_id=prompt_id,
+            env=env,
+            env_file=env_file,
+            auto_setup=auto_docker_setup,
+            force_build=force_build,
+            wait_timeout=docker_wait_timeout,
+            interactive=True,
+            interactive_mode=mode,
+        )
+        if errors:
+            for err in errors:
+                print(f"Preflight error: {err}", file=sys.stderr)
+            raise RuntimeError("\n".join(errors))
+        resolved_model, effort = resolve_claude_code_model_and_effort(model, reasoning=normalized_reasoning)
+        if check_models and mode == "docker":
+            verify_claude_cli_flags(docker_image, effort=effort)
+        detail = "; ".join(p for p in (harness_detail, f"interactive {mode}; subscription OAuth") if p)
+        run_dir = create_run_directory(
+            harness="claude-code",
+            model=model,
+            reasoning=normalized_reasoning,
+            context=None,
+            prompt_id=prompt_id,
+            series_id=series_id.strip() if series_id else default_series_id("claude-code", prompt_id),
+            provider=provider.strip() if provider else (infer_provider(model) or "unknown"),
+            harness_version=None,
+            harness_detail=detail,
+            claude_launch_mode=mode,
+            claude_docker_image=docker_image,
+        )
+        run_id = run_dir.name
+    else:
+        run_dir = find_run_dir(run_id, prompt_id=prompt_id)
+        recorded = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+        prompt_id = require_prompt_id(recorded.get("prompt_id") or prompt_id)
+        rec_harness = (recorded.get("harness") or {}).get("name")
+        if not rec_harness or canonical_harness(rec_harness) != "claude-code":
+            raise ValueError(f"--interactive requires a claude-code run; {run_id} uses harness '{rec_harness}'")
+        rec_model = (recorded.get("model") or {}).get("name")
+        model = model or rec_model
+        if not model:
+            raise ValueError("Model not specified in CLI flags or run.json")
+        reasoning = reasoning if reasoning is not None else (recorded.get("model") or {}).get("reasoning")
+        errors = check_preflight(
+            docker_image=docker_image,
+            harness="claude-code",
+            run_id=run_id,
+            prompt_id=prompt_id,
+            env=env,
+            env_file=env_file,
+            auto_setup=auto_docker_setup,
+            force_build=force_build,
+            wait_timeout=docker_wait_timeout,
+            interactive=True,
+            interactive_mode=mode,
+        )
+        if errors:
+            for err in errors:
+                print(f"Preflight error: {err}", file=sys.stderr)
+            raise RuntimeError("\n".join(errors))
+        resolved_model, effort = resolve_claude_code_model_and_effort(model, reasoning=reasoning)
+        if check_models and mode == "docker":
+            verify_claude_cli_flags(docker_image, effort=effort)
+
+    staging_dir = staging_workspace_for(run_id)
+    if not staging_dir.is_dir() or is_staging_inside_root(staging_dir):
+        raise FileNotFoundError(f"Staged workspace not found at {staging_dir}")
+
+    state_dir = claude_state_dir_for(staging_dir)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    seeded = seed_claude_auth_state(state_dir)
+    print(f"Isolated CLAUDE_CONFIG_DIR: {state_dir} (seeded OAuth files: {', '.join(seeded) or 'none'})")
+
+    version: str | None = None
+    if mode == "docker":
+        version = detect_container_harness_version(docker_image, "claude-code")
+    else:
+        try:
+            res = subprocess.run(["claude", "--version"], capture_output=True, text=True, check=True)
+            version = res.stdout.strip() or None
+        except Exception as exc:
+            print(f"Warning: Failed to detect host claude version: {exc}", file=sys.stderr)
+    if version:
+        record_container_harness_version(run_dir, version)
+
+    container_name = f"frontier-runner-{run_id}"
+    cmd = build_interactive_claude_command(
+        mode=mode,
+        resolved_model=resolved_model,
+        effort=effort,
+        staging_dir=staging_dir,
+        claude_state_dir=state_dir,
+        docker_image=docker_image,
+        container_name=container_name,
+        env=env,
+    )
+    session_env = build_interactive_claude_env(env, mode=mode, state_dir=state_dir)
+
+    if copy_prompt_to_clipboard(prompt_id):
+        print(f"Copied {prompt_path(prompt_id)} to the clipboard: paste it as the single user message.")
+    else:
+        print(f"Clipboard unavailable: paste the exact bytes of {prompt_path(prompt_id)} as the single user message.")
+    print(f"Launching interactive claude ({mode}) for run {run_id}. Exit the session when the model stops.")
+
+    session_rc = 0
+    try:
+        session_rc = subprocess.run(
+            cmd,
+            env=session_env,
+            cwd=str(staging_dir) if mode == "host" else None,
+        ).returncode
+    except KeyboardInterrupt:
+        session_rc = 130
+    finally:
+        if mode == "docker":
+            cleanup_container(container_name)
+        persist_claude_auth_state(state_dir)
+
+    if not auto_finish:
+        return session_rc
+    finish_rc = trigger_finish_run(prompt_id, run_id).returncode
+    return finish_rc if finish_rc != 0 else session_rc
+
+
 def run_parallel_benchmarks(
     specs: list[dict | str],
     *,
@@ -2039,6 +2323,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to custom .env file to load credentials from (default: .env in repository root).",
     )
     parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="claude-code only: scaffold the run, open an interactive subscription-authenticated claude session "
+        "(OAuth, no ANTHROPIC_API_KEY required; the frozen prompt is copied to the clipboard), then run "
+        "finish_run.py --verify when the session ends.",
+    )
+    parser.add_argument(
+        "--interactive-mode",
+        choices=CLAUDE_LAUNCH_MODES,
+        default="docker",
+        help="Where --interactive runs claude: docker (docker run -it, default) or host (isolated CLAUDE_CONFIG_DIR).",
+    )
+    parser.add_argument(
         "--build-image",
         action="store_true",
         help="Force rebuilding Docker image from Dockerfile.benchmark before running.",
@@ -2058,6 +2355,8 @@ def main() -> int:
     args = parser.parse_args()
 
     harness_arg = args.harness if (getattr(args, "_harness_explicit", False) or not args.run_id) else None
+    if args.interactive and not getattr(args, "_harness_explicit", False):
+        harness_arg = "claude-code"
 
     if args.check:
         errors = check_preflight(
@@ -2068,6 +2367,8 @@ def main() -> int:
             env_file=args.env_file,
             auto_setup=False,
             force_build=False,
+            interactive=args.interactive,
+            interactive_mode=args.interactive_mode,
         )
         if errors:
             for err in errors:
@@ -2075,6 +2376,35 @@ def main() -> int:
             return 1
         print("Preflight check OK: Docker daemon, image, credentials, and staged workspace are ready.")
         return 0
+
+    if args.interactive:
+        if args.run_spec or (args.model and "," in args.model):
+            parser.error("--interactive runs a single session and cannot be combined with --run-spec or multiple models")
+        if not args.run_id and not args.model:
+            parser.error("--interactive requires --model or --run-id")
+        if harness_arg is not None and canonical_harness(harness_arg) != "claude-code":
+            parser.error("--interactive is only supported for --harness claude-code")
+        try:
+            return run_interactive_claude(
+                prompt_id=args.prompt_id,
+                run_id=args.run_id,
+                model=args.model,
+                reasoning=args.reasoning,
+                context=args.context,
+                series_id=args.series_id,
+                provider=args.provider,
+                harness_detail=args.harness_detail,
+                docker_image=args.docker_image,
+                mode=args.interactive_mode,
+                check_models=args.check_models,
+                auto_finish=args.auto_finish,
+                env_file=args.env_file,
+                auto_docker_setup=args.auto_docker_setup,
+                force_build=args.build_image,
+            )
+        except Exception as exc:
+            print(f"Error executing interactive run: {exc}", file=sys.stderr)
+            return 1
 
     specs: list[str | dict] = []
     if args.run_spec:

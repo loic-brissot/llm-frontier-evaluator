@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -90,6 +91,256 @@ mkdir -p "{userdata_dir}" "{ext_dir}"
 HOME="{home_dir}" cursor --new-window --user-data-dir "{userdata_dir}" --extensions-dir "{ext_dir}" "{staging_dir.resolve()}"
 """
     launcher_path.write_text(content, encoding="utf-8")
+    launcher_path.chmod(0o755)
+    return launcher_path
+
+
+CLAUDE_DOCKER_IMAGE = "llm-frontier-evaluator-runner:latest"
+CLAUDE_CONTAINER_CONFIG_DIR = "/home/benchmark/.claude-state"
+CLAUDE_LAUNCH_MODES = ("host", "docker")
+# Only these top-level keys of ~/.claude.json are copied into the isolated config dir: the OAuth account
+# identity and onboarding flags. MCP servers, project history, and other customizations are dropped.
+CLAUDE_AUTH_STATE_KEYS = ("oauthAccount", "userID", "hasCompletedOnboarding", "lastOnboardingVersion")
+CLAUDE_CREDENTIALS_FILE = ".credentials.json"
+CLAUDE_GLOBAL_STATE_FILE = ".claude.json"
+CLAUDE_AUTH_CACHE_DIR_NAME = ".frontier-claude-auth"
+# Variables that would switch Claude Code from subscription OAuth to per-token API billing.
+CLAUDE_API_BILLING_ENV_VARS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+
+
+def claude_state_dir_for_run(run_id: str, staging_parent: Path | None = None) -> Path:
+    parent = staging_parent if staging_parent is not None else STAGING_PARENT
+    return parent / f"frontier-claude-state-{run_id}"
+
+
+def default_claude_auth_cache_dir(home: Path | None = None) -> Path:
+    return (home if home is not None else Path.home()) / CLAUDE_AUTH_CACHE_DIR_NAME
+
+
+def filter_claude_global_state(raw: dict) -> dict:
+    """Return only the OAuth/onboarding keys of a ~/.claude.json payload."""
+    return {key: raw[key] for key in CLAUDE_AUTH_STATE_KEYS if key in raw}
+
+
+def _write_private(path: Path, data: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    path.chmod(0o600)
+
+
+def _seed_global_state(src: Path, dst: Path) -> bool:
+    if not src.is_file():
+        return False
+    try:
+        raw = json.loads(src.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if not isinstance(raw, dict):
+        return False
+    filtered = filter_claude_global_state(raw)
+    if not filtered:
+        return False
+    _write_private(dst, (json.dumps(filtered, indent=2) + "\n").encode("utf-8"))
+    return True
+
+
+def seed_claude_auth_state(
+    state_dir: Path,
+    *,
+    auth_cache_dir: Path | None = None,
+    host_config_dir: Path | None = None,
+    host_home: Path | None = None,
+) -> list[str]:
+    """Seed an isolated CLAUDE_CONFIG_DIR with subscription OAuth state only.
+
+    Sources, first match wins per file: the persistent auth cache (``~/.frontier-claude-auth``), then the host
+    ``~/.claude/.credentials.json`` and ``~/.claude.json``. Skills, plugins, CLAUDE.md, settings, and MCP
+    configuration of the host are never copied. Returns the names of the files seeded. On macOS the OAuth token
+    normally lives in the Keychain rather than a file, in which case nothing is copied and the operator signs in
+    once (the state is then cached for later runs by ``persist_claude_auth_state``).
+    """
+    home = host_home if host_home is not None else Path.home()
+    cache_dir = auth_cache_dir if auth_cache_dir is not None else default_claude_auth_cache_dir(home)
+    host_dir = host_config_dir if host_config_dir is not None else home / ".claude"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    seeded: list[str] = []
+
+    for src in (cache_dir / CLAUDE_CREDENTIALS_FILE, host_dir / CLAUDE_CREDENTIALS_FILE):
+        if src.is_file():
+            _write_private(state_dir / CLAUDE_CREDENTIALS_FILE, src.read_bytes())
+            seeded.append(CLAUDE_CREDENTIALS_FILE)
+            break
+    for src in (cache_dir / CLAUDE_GLOBAL_STATE_FILE, home / CLAUDE_GLOBAL_STATE_FILE):
+        if _seed_global_state(src, state_dir / CLAUDE_GLOBAL_STATE_FILE):
+            seeded.append(CLAUDE_GLOBAL_STATE_FILE)
+            break
+    return seeded
+
+
+def persist_claude_auth_state(state_dir: Path, *, auth_cache_dir: Path | None = None) -> list[str]:
+    """Copy OAuth state created by an in-session login back to the persistent auth cache."""
+    cache_dir = auth_cache_dir if auth_cache_dir is not None else default_claude_auth_cache_dir()
+    persisted: list[str] = []
+    creds = state_dir / CLAUDE_CREDENTIALS_FILE
+    if creds.is_file():
+        _write_private(cache_dir / CLAUDE_CREDENTIALS_FILE, creds.read_bytes())
+        persisted.append(CLAUDE_CREDENTIALS_FILE)
+    if _seed_global_state(state_dir / CLAUDE_GLOBAL_STATE_FILE, cache_dir / CLAUDE_GLOBAL_STATE_FILE):
+        persisted.append(CLAUDE_GLOBAL_STATE_FILE)
+    return persisted
+
+
+_CLAUDE_LAUNCHER_TEMPLATE = r"""#!/usr/bin/env bash
+# Clean-room Claude Code launcher for run __RUN_ID__ (subscription OAuth, no ANTHROPIC_API_KEY).
+# Usage: FRONTIER_CLAUDE_MODE=host|docker __LAUNCHER_NAME__   (default mode: __MODE__)
+set -e
+
+MODE="${FRONTIER_CLAUDE_MODE:-__MODE__}"
+STAGING="__STAGING__"
+STATE="__STATE__"
+AUTH_CACHE="${FRONTIER_CLAUDE_AUTH_DIR:-$HOME/__AUTH_CACHE_NAME__}"
+HOST_CLAUDE_DIR="${FRONTIER_CLAUDE_HOST_DIR:-$HOME/.claude}"
+
+# API-key variables switch Claude Code to per-token billing: always drop them.
+unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+
+# Copy the exact frozen prompt bytes to the clipboard (paste as the single user message).
+if command -v pbcopy >/dev/null 2>&1; then
+  cat "__PROMPT__" | pbcopy
+fi
+
+# Isolated CLAUDE_CONFIG_DIR seeded with OAuth state only (no skills, plugins, CLAUDE.md, settings, or MCPs).
+mkdir -p "$STATE"
+chmod 700 "$STATE"
+seed_global_state() {
+  python3 - "$1" "$2" <<'PY'
+import json, sys
+KEEP = (__KEEP_KEYS__)
+try:
+    raw = json.load(open(sys.argv[1], encoding="utf-8"))
+except (OSError, ValueError):
+    sys.exit(0)
+out = {k: raw[k] for k in KEEP if isinstance(raw, dict) and k in raw}
+if out:
+    with open(sys.argv[2], "w", encoding="utf-8") as fh:
+        json.dump(out, fh, indent=2)
+PY
+}
+for dir in "$AUTH_CACHE" "$HOST_CLAUDE_DIR"; do
+  if [ -f "$dir/.credentials.json" ]; then
+    cp "$dir/.credentials.json" "$STATE/.credentials.json"
+    chmod 600 "$STATE/.credentials.json"
+    break
+  fi
+done
+for src in "$AUTH_CACHE/.claude.json" "$HOME/.claude.json"; do
+  if [ -f "$src" ]; then
+    seed_global_state "$src" "$STATE/.claude.json"
+    [ -f "$STATE/.claude.json" ] && chmod 600 "$STATE/.claude.json"
+    break
+  fi
+done
+
+persist_auth() {
+  mkdir -p "$AUTH_CACHE"
+  if [ -f "$STATE/.credentials.json" ]; then
+    cp "$STATE/.credentials.json" "$AUTH_CACHE/.credentials.json"
+    chmod 600 "$AUTH_CACHE/.credentials.json"
+  fi
+  if [ -f "$STATE/.claude.json" ]; then
+    seed_global_state "$STATE/.claude.json" "$AUTH_CACHE/.claude.json"
+  fi
+}
+
+if [ "$MODE" = "docker" ]; then
+  OAUTH_ARGS=()
+  if [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+    OAUTH_ARGS=(-e CLAUDE_CODE_OAUTH_TOKEN)
+  fi
+  set +e
+  docker run --rm -it --init --shm-size=2g --name "frontier-runner-__RUN_ID__" \
+    -v "$STAGING:/workspace:rw" \
+    -v "$STATE:__CONTAINER_STATE__:rw" \
+    -e CLAUDE_CONFIG_DIR=__CONTAINER_STATE__ \
+    "${OAUTH_ARGS[@]}" \
+    -w /workspace \
+    __IMAGE__ \
+    claude --model __MODEL__ __EFFORT_ARGS__--dangerously-skip-permissions
+  STATUS=$?
+  set -e
+else
+  cd "$STAGING"
+  set +e
+  CLAUDE_CONFIG_DIR="$STATE" claude --model __MODEL__ __EFFORT_ARGS__--dangerously-skip-permissions
+  STATUS=$?
+  set -e
+fi
+
+persist_auth
+exit $STATUS
+"""
+
+
+def build_claude_launcher_script(
+    *,
+    run_id: str,
+    prompt_id: str,
+    staging_dir: Path,
+    model_id: str,
+    effort: str | None,
+    mode: str = "host",
+    docker_image: str = CLAUDE_DOCKER_IMAGE,
+    staging_parent: Path | None = None,
+) -> str:
+    """Return the bash text of the claude-code clean-room launcher (host or Docker ``-it`` mode)."""
+    if mode not in CLAUDE_LAUNCH_MODES:
+        raise ValueError(f"Claude launch mode must be one of: {', '.join(CLAUDE_LAUNCH_MODES)}")
+    parent = staging_parent if staging_parent is not None else STAGING_PARENT
+    launcher_name = f"frontier-workspace-{run_id}-launch.sh"
+    replacements = {
+        "__RUN_ID__": run_id,
+        "__LAUNCHER_NAME__": str(parent / launcher_name),
+        "__MODE__": mode,
+        "__STAGING__": str(staging_dir.resolve()),
+        "__STATE__": str(claude_state_dir_for_run(run_id, parent)),
+        "__AUTH_CACHE_NAME__": CLAUDE_AUTH_CACHE_DIR_NAME,
+        "__PROMPT__": str(prompt_path(prompt_id).resolve()),
+        "__KEEP_KEYS__": "".join(f"{key!r}, " for key in CLAUDE_AUTH_STATE_KEYS),
+        "__CONTAINER_STATE__": CLAUDE_CONTAINER_CONFIG_DIR,
+        "__IMAGE__": docker_image,
+        "__MODEL__": shlex.quote(model_id),
+        "__EFFORT_ARGS__": f"--effort {shlex.quote(effort)} " if effort else "",
+    }
+    text = _CLAUDE_LAUNCHER_TEMPLATE
+    for key, value in replacements.items():
+        text = text.replace(key, value)
+    return text
+
+
+def create_claude_clean_room_launcher(
+    run_id: str,
+    prompt_id: str,
+    staging_dir: Path,
+    *,
+    model_id: str,
+    effort: str | None,
+    mode: str = "host",
+    docker_image: str = CLAUDE_DOCKER_IMAGE,
+) -> Path:
+    """Write ``/tmp/frontier-workspace-<run-id>-launch.sh`` for a claude-code run."""
+    launcher_path = STAGING_PARENT / f"frontier-workspace-{run_id}-launch.sh"
+    launcher_path.write_text(
+        build_claude_launcher_script(
+            run_id=run_id,
+            prompt_id=prompt_id,
+            staging_dir=staging_dir,
+            model_id=model_id,
+            effort=effort,
+            mode=mode,
+            docker_image=docker_image,
+        ),
+        encoding="utf-8",
+    )
     launcher_path.chmod(0o755)
     return launcher_path
 
@@ -228,6 +479,8 @@ def create_run_directory(
     shot: str = "primary",
     parent_run_id: str | None = None,
     copy_clipboard: bool = False,
+    claude_launch_mode: str = "host",
+    claude_docker_image: str = CLAUDE_DOCKER_IMAGE,
 ) -> Path:
     if shot not in {"primary", "follow-up"}:
         raise ValueError(f"Invalid shot {shot!r}: must be 'primary' or 'follow-up'")
@@ -271,6 +524,10 @@ def create_run_directory(
         create_clean_room_launcher(run_id, prompt_id, staging_dir)
     elif harness == "claude-code":
         install_claude_hook(staging_dir)
+        _install_claude_launcher(
+            run_id, prompt_id, staging_dir, model, reasoning,
+            mode=claude_launch_mode, docker_image=claude_docker_image,
+        )
 
     if copy_clipboard:
         copy_prompt_to_clipboard(prompt_id)
@@ -295,6 +552,29 @@ def create_run_directory(
     run["wall_clock"]["started_at"] = utc_now_iso()
     write_json(run_dir / "run.json", run)
     return run_dir
+
+
+def _install_claude_launcher(
+    run_id: str,
+    prompt_id: str,
+    staging_dir: Path,
+    model: str,
+    reasoning: str | None,
+    *,
+    mode: str,
+    docker_image: str,
+) -> Path | None:
+    """Generate the claude-code clean-room launcher; skip with a warning when the model has no CLI mapping."""
+    from run_benchmark import resolve_claude_code_model_and_effort  # lazy: run_benchmark imports this module
+
+    try:
+        model_id, effort = resolve_claude_code_model_and_effort(model, reasoning=reasoning)
+    except ValueError as exc:
+        print(f"Warning: no claude clean-room launcher generated: {exc}", file=sys.stderr)
+        return None
+    return create_claude_clean_room_launcher(
+        run_id, prompt_id, staging_dir, model_id=model_id, effort=effort, mode=mode, docker_image=docker_image
+    )
 
 
 def install_cursor_hook(workspace: Path, *, hook_dir_name: str | None = None) -> None:
@@ -356,6 +636,10 @@ def print_next_steps(run_dir: Path, *, harness: str) -> None:
         print()
         print(f"Claude Code loads the isolation hooks in {staging_dir}/.claude/settings.json.")
         print(f"Hook events are written to {staging_dir}/.claude/hook-events/.")
+        launcher = STAGING_PARENT / f"frontier-workspace-{run_dir.name}-launch.sh"
+        if launcher.is_file():
+            print(f"Clean-room launcher (OAuth subscription, no ANTHROPIC_API_KEY): {launcher}")
+            print("  Paste the clipboard prompt into the interactive session as the only user message.")
     print()
     print("After the model stops:")
     print(f"  python3 scripts/finish_run.py --prompt {prompt_id} --run-id {run_dir.name}")
@@ -402,6 +686,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--env-file",
         help="Path to custom .env file to load credentials from (default: .env in repository root).",
+    )
+    parser.add_argument(
+        "--claude-launch-mode",
+        choices=CLAUDE_LAUNCH_MODES,
+        default="host",
+        help="Default mode baked into the claude-code clean-room launcher script: host (isolated "
+        "CLAUDE_CONFIG_DIR) or docker (docker run -it). Override at launch with FRONTIER_CLAUDE_MODE.",
     )
     parser.add_argument("--non-interactive", action="store_true", help="Fail when a required value is missing.")
     parser.add_argument(
@@ -579,6 +870,7 @@ def main() -> int:
             shot="follow-up" if is_follow_up else "primary",
             parent_run_id=parent_run_id if is_follow_up else None,
             copy_clipboard=not args.non_interactive,
+            claude_launch_mode=args.claude_launch_mode,
         )
     except ValueError as exc:
         print(exc, file=sys.stderr)

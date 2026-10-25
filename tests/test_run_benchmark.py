@@ -19,6 +19,8 @@ from run_benchmark import (
     DEFAULT_TIMEOUT_SECONDS,
     StreamMonitor,
     build_container_command,
+    build_interactive_claude_command,
+    build_interactive_claude_env,
     build_parser,
     check_preflight,
     claude_cli_model_id,
@@ -42,8 +44,10 @@ from run_benchmark import (
     resolve_claude_code_model_and_effort,
     resolve_cursor_model_slug,
     run_benchmark_container,
+    run_interactive_claude,
     run_parallel_benchmarks,
     trigger_finish_run,
+    validate_credentials_preflight,
     verify_claude_cli_flags,
 )
 from run_common import load_env_credentials
@@ -2761,6 +2765,196 @@ class TestClaudeCodeHeadlessEndToEnd(unittest.TestCase):
             self.assertTrue((finished[0] / "workspace" / "index.html").is_file())
             self.assertTrue((finished[0] / "claude-sessions" / f"{FIXTURE_SESSION}.jsonl").is_file())
             self.assertFalse((tmp_path / f"frontier-claude-state-{finished[0].name}").exists())
+
+
+class TestInteractiveClaude(unittest.TestCase):
+    def test_validate_credentials_without_api_key_uses_oauth(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            with patch("run_benchmark.sys.platform", "linux"):
+                errors = validate_credentials_preflight("claude-code", {}, subscription=True, home=home)
+                self.assertEqual(len(errors), 1)
+                self.assertIn("subscription OAuth", errors[0])
+                self.assertIn("ANTHROPIC_API_KEY is not required", errors[0])
+                self.assertEqual(
+                    validate_credentials_preflight(
+                        "claude-code", {"CLAUDE_CODE_OAUTH_TOKEN": "tok"}, subscription=True, home=home
+                    ),
+                    [],
+                )
+                (home / ".claude").mkdir()
+                (home / ".claude" / ".credentials.json").write_text("{}", encoding="utf-8")
+                self.assertEqual(validate_credentials_preflight("claude-code", {}, subscription=True, home=home), [])
+
+    def test_validate_credentials_macos_keychain(self):
+        with tempfile.TemporaryDirectory() as tmp, patch("run_benchmark.sys.platform", "darwin"):
+            with patch("run_benchmark.subprocess.run", return_value=MagicMock(returncode=0)) as run:
+                self.assertEqual(validate_credentials_preflight("claude-code", {}, subscription=True, home=Path(tmp)), [])
+                self.assertEqual(run.call_args[0][0][:2], ["security", "find-generic-password"])
+            with patch("run_benchmark.subprocess.run", return_value=MagicMock(returncode=44)):
+                self.assertTrue(validate_credentials_preflight("claude-code", {}, subscription=True, home=Path(tmp)))
+
+    def test_non_subscription_claude_still_requires_api_key(self):
+        errors = validate_credentials_preflight("claude-code", {}, subscription=False)
+        self.assertTrue(any("ANTHROPIC_API_KEY" in e and "Missing" in e for e in errors))
+
+    def test_check_preflight_interactive_host_skips_docker_and_api_key(self):
+        with patch("run_benchmark.subprocess.run") as run, \
+             patch("run_benchmark.validate_credentials_preflight", return_value=[]) as val:
+            errors = check_preflight(harness="claude-code", env={}, interactive=True, interactive_mode="host")
+        self.assertEqual(errors, [])
+        run.assert_not_called()
+        self.assertTrue(val.call_args.kwargs["subscription"])
+
+    def test_docker_command_is_interactive_and_never_forwards_api_key(self):
+        staging = Path("/tmp/frontier-workspace-r")
+        cmd = build_interactive_claude_command(
+            mode="docker",
+            resolved_model="claude-opus-5-5",
+            effort="high",
+            staging_dir=staging,
+            claude_state_dir=Path("/tmp/frontier-claude-state-r"),
+            container_name="frontier-runner-r",
+            env={"ANTHROPIC_API_KEY": "sk-secret", "CLAUDE_CODE_OAUTH_TOKEN": "tok"},
+        )
+        self.assertEqual(cmd[:5], ["docker", "run", "--rm", "-it", "--init"])
+        self.assertNotIn("-p", cmd)
+        self.assertNotIn("ANTHROPIC_API_KEY", " ".join(cmd))
+        self.assertNotIn("sk-secret", cmd)
+        self.assertIn(f"{staging.resolve()}:/workspace:rw", cmd)
+        self.assertIn(f"CLAUDE_CONFIG_DIR={CLAUDE_CONTAINER_CONFIG_DIR}", cmd)
+        self.assertIn("CLAUDE_CODE_OAUTH_TOKEN", cmd)
+        self.assertEqual(
+            cmd[cmd.index("llm-frontier-evaluator-runner:latest") + 1:],
+            ["claude", "--model", "claude-opus-5-5", "--effort", "high", "--dangerously-skip-permissions"],
+        )
+
+    def test_docker_command_omits_oauth_token_and_effort_when_absent(self):
+        cmd = build_interactive_claude_command(
+            mode="docker",
+            resolved_model="opus",
+            effort=None,
+            staging_dir=Path("/tmp/w"),
+            claude_state_dir=Path("/tmp/s"),
+            env={},
+        )
+        self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", cmd)
+        self.assertNotIn("--effort", cmd)
+
+    def test_host_command_and_env(self):
+        cmd = build_interactive_claude_command(mode="host", resolved_model="claude-opus-5-5", effort="max")
+        self.assertEqual(cmd, ["claude", "--model", "claude-opus-5-5", "--effort", "max", "--dangerously-skip-permissions"])
+        state = Path("/tmp/frontier-claude-state-r")
+        env = build_interactive_claude_env(
+            {"ANTHROPIC_API_KEY": "k", "ANTHROPIC_AUTH_TOKEN": "t", "PATH": "/bin", "CLAUDE_CODE_OAUTH_TOKEN": "o"},
+            mode="host",
+            state_dir=state,
+        )
+        self.assertNotIn("ANTHROPIC_API_KEY", env)
+        self.assertNotIn("ANTHROPIC_AUTH_TOKEN", env)
+        self.assertEqual(env["CLAUDE_CONFIG_DIR"], str(state.resolve()))
+        self.assertEqual(env["CLAUDE_CODE_OAUTH_TOKEN"], "o")
+        docker_env = build_interactive_claude_env({"CLAUDE_CONFIG_DIR": "/host"}, mode="docker", state_dir=Path("/tmp/s"))
+        self.assertNotIn("CLAUDE_CONFIG_DIR", docker_env)
+
+    def test_bad_mode_rejected(self):
+        with self.assertRaises(ValueError):
+            build_interactive_claude_command(mode="vm", resolved_model="opus", effort=None)
+
+    def test_parser_interactive_flags(self):
+        args = build_parser().parse_args(["--harness", "claude-code", "--interactive", "--model", "m"])
+        self.assertTrue(args.interactive)
+        self.assertEqual(args.interactive_mode, "docker")
+        args = build_parser().parse_args(["--interactive", "--interactive-mode", "host", "--model", "m"])
+        self.assertEqual(args.interactive_mode, "host")
+        self.assertFalse(build_parser().parse_args(["--model", "m"]).interactive)
+
+    def test_run_interactive_scaffolds_launches_and_finishes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            staging = tmp_path / "frontier-workspace-r1"
+            staging.mkdir()
+            run_dir = tmp_path / "runs" / "france-road-accidents" / "r1"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text(json.dumps({"harness": {"name": "claude-code"}}), encoding="utf-8")
+            launched = []
+
+            def fake_run(cmd, **kwargs):
+                launched.append((cmd, kwargs))
+                return MagicMock(returncode=0, stdout="2.0.0\n")
+
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.check_preflight", return_value=[]) as pre, \
+                 patch("run_benchmark.create_run_directory", return_value=run_dir) as create, \
+                 patch("run_benchmark.seed_claude_auth_state", return_value=[]), \
+                 patch("run_benchmark.persist_claude_auth_state") as persist, \
+                 patch("run_benchmark.copy_prompt_to_clipboard", return_value=True), \
+                 patch("run_benchmark.subprocess.run", side_effect=fake_run), \
+                 patch("run_benchmark.trigger_finish_run", return_value=MagicMock(returncode=0)) as finish:
+                rc = run_interactive_claude(
+                    prompt_id="france-road-accidents",
+                    model="Claude Opus 5.5",
+                    reasoning="high",
+                    mode="host",
+                    check_models=False,
+                    env={"ANTHROPIC_API_KEY": "sk-secret", "CLAUDE_CODE_OAUTH_TOKEN": "tok"},
+                )
+            self.assertEqual(rc, 0)
+            self.assertTrue(pre.call_args.kwargs["interactive"])
+            self.assertEqual(create.call_args.kwargs["claude_launch_mode"], "host")
+            self.assertIn("interactive host; subscription OAuth", create.call_args.kwargs["harness_detail"])
+            session_cmd, session_kwargs = launched[-1]
+            self.assertEqual(session_cmd[:3], ["claude", "--model", "claude-opus-5-5"])
+            self.assertNotIn("ANTHROPIC_API_KEY", session_kwargs["env"])
+            self.assertEqual(session_kwargs["cwd"], str(staging))
+            persist.assert_called_once()
+            finish.assert_called_once_with("france-road-accidents", "r1")
+
+    def test_run_interactive_no_finish_and_session_failure_code(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / "frontier-workspace-r1").mkdir()
+            run_dir = tmp_path / "runs" / "p" / "r1"
+            run_dir.mkdir(parents=True)
+            (run_dir / "run.json").write_text("{}", encoding="utf-8")
+            with patch("run_benchmark.STAGING_PARENT", tmp_path), \
+                 patch("run_benchmark.check_preflight", return_value=[]), \
+                 patch("run_benchmark.create_run_directory", return_value=run_dir), \
+                 patch("run_benchmark.seed_claude_auth_state", return_value=[]), \
+                 patch("run_benchmark.persist_claude_auth_state"), \
+                 patch("run_benchmark.copy_prompt_to_clipboard", return_value=False), \
+                 patch("run_benchmark.detect_container_harness_version", return_value=None), \
+                 patch("run_benchmark.cleanup_container") as cleanup, \
+                 patch("run_benchmark.subprocess.run", return_value=MagicMock(returncode=3)), \
+                 patch("run_benchmark.trigger_finish_run") as finish:
+                rc = run_interactive_claude(
+                    prompt_id="france-road-accidents", model="Claude Opus 5.5", mode="docker",
+                    check_models=False, auto_finish=False, env={},
+                )
+            self.assertEqual(rc, 3)
+            finish.assert_not_called()
+            cleanup.assert_called_once_with("frontier-runner-r1")
+
+    def test_run_interactive_preflight_failure_raises(self):
+        with patch("run_benchmark.check_preflight", return_value=["No Claude Code subscription OAuth credentials"]), \
+             patch("run_benchmark.create_run_directory") as create:
+            with self.assertRaises(RuntimeError):
+                run_interactive_claude(prompt_id="france-road-accidents", model="Claude Opus 5.5", env={})
+        create.assert_not_called()
+
+    def test_main_interactive_validation_and_dispatch(self):
+        with patch("sys.argv", ["run_benchmark.py", "--interactive", "--harness", "cursor", "--model", "m"]):
+            with self.assertRaises(SystemExit):
+                main()
+        with patch("sys.argv", ["run_benchmark.py", "--interactive"]):
+            with self.assertRaises(SystemExit):
+                main()
+        with patch("run_benchmark.run_interactive_claude", return_value=0) as run, \
+             patch("sys.argv", ["run_benchmark.py", "--interactive", "--interactive-mode", "host",
+                                "--model", "Claude Opus 5.5", "--reasoning", "high"]):
+            self.assertEqual(main(), 0)
+        self.assertEqual(run.call_args.kwargs["mode"], "host")
+        self.assertEqual(run.call_args.kwargs["model"], "Claude Opus 5.5")
 
 
 @unittest.skipUnless(
