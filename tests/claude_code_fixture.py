@@ -154,8 +154,20 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
     path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
 
 
-def write_claude_code_run(tmp: Path, *, prompt_id: str = "france-road-accidents") -> Path:
-    """Scaffold a claude-code run with setup_run, then lay down post-run artefacts as run_benchmark leaves them."""
+def write_claude_code_run(
+    tmp: Path,
+    *,
+    prompt_id: str = "france-road-accidents",
+    interactive: bool = False,
+    first_prompt: str | None = None,
+    follow_up: bool = True,
+) -> Path:
+    """Scaffold a claude-code run with setup_run, then lay down post-run artefacts as run_benchmark leaves them.
+
+    ``interactive`` leaves out cli-stream.jsonl / cli-result.json (an interactive ``claude`` session writes
+    neither). ``first_prompt`` replaces the placeholder first prompt in the hook log and session transcript;
+    ``follow_up=False`` drops the second human turn (``Continue.``) so the session has a single user message.
+    """
     from setup_run import create_run_directory
 
     runs_dir = tmp / "runs"
@@ -175,11 +187,21 @@ def write_claude_code_run(tmp: Path, *, prompt_id: str = "france-road-accidents"
         )
     staging_dir = Path((run_dir / ".staging_workspace").read_text(encoding="utf-8"))
     (staging_dir / "index.html").write_text("<!doctype html><h1>x</h1>\n", encoding="utf-8")
-    _write_jsonl(staging_dir / ".claude" / "hook-events" / f"{SESSION}.jsonl", hook_lines())
+    hooks = hook_lines()
+    transcript = transcript_lines()
+    if first_prompt is not None:
+        hooks[0]["prompt"] = first_prompt
+        transcript[0]["message"]["content"] = first_prompt
+    if not follow_up:
+        cutoff = ts(RETRY_AT, 0)
+        hooks = [h for h in hooks if h["logged_at"] < cutoff]
+        transcript = [e for e in transcript if e["timestamp"] < cutoff]
+    _write_jsonl(staging_dir / ".claude" / "hook-events" / f"{SESSION}.jsonl", hooks)
     state_dir = staging_parent / f"frontier-claude-state-{run_dir.name}"
-    _write_jsonl(state_dir / "projects" / "-workspace" / f"{SESSION}.jsonl", transcript_lines())
-    _write_jsonl(run_dir / "tool-events" / "cli-stream.jsonl", stream_lines())
-    (run_dir / "tool-events" / "cli-result.json").write_text(json.dumps(RESULT, indent=2) + "\n", encoding="utf-8")
+    _write_jsonl(state_dir / "projects" / "-workspace" / f"{SESSION}.jsonl", transcript)
+    if not interactive:
+        _write_jsonl(run_dir / "tool-events" / "cli-stream.jsonl", stream_lines())
+        (run_dir / "tool-events" / "cli-result.json").write_text(json.dumps(RESULT, indent=2) + "\n", encoding="utf-8")
     return run_dir
 
 

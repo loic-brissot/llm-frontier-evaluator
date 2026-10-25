@@ -1166,6 +1166,7 @@ class TestIsolationParity(unittest.TestCase):
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from claude_code_fixture import SESSION, write_claude_code_run  # noqa: E402
 import json  # noqa: E402
+import os  # noqa: E402
 import shutil  # noqa: E402
 import tempfile  # noqa: E402
 from finish_run import repatriate_staged_workspace  # noqa: E402
@@ -1250,6 +1251,279 @@ class TestClaudeCodeTelemetry(unittest.TestCase):
         summary = summarize_run(self.run_dir)
         self.assertEqual(summary.tools_without_duration, 1)
         self.assertIsNone(summary.model_time_seconds)
+
+
+from run_common import prompt_path  # noqa: E402
+
+CLAUDE_HOOK_TEMPLATE = Path(__file__).resolve().parent.parent / "templates" / "claude" / "hooks" / "log-tool-event.py"
+
+
+class TestInteractiveClaudeCodeTelemetry(unittest.TestCase):
+    """Interactive `claude` runs have no cli-stream.jsonl / cli-result.json: logs alone must carry the metrics."""
+
+    PROMPT_ID = "france-road-accidents"
+
+    def _run(self, **kwargs) -> Path:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        kwargs.setdefault("first_prompt", prompt_path(self.PROMPT_ID).read_text(encoding="utf-8"))
+        run_dir = write_claude_code_run(Path(tmp.name), interactive=True, **kwargs)
+        self.assertTrue(repatriate_staged_workspace(run_dir))
+        self.assertFalse((run_dir / "tool-events" / "cli-stream.jsonl").exists())
+        self.assertFalse((run_dir / "tool-events" / "cli-result.json").exists())
+        return run_dir
+
+    def test_tokens_buckets_and_thinking_come_from_sessions(self):
+        summary = summarize_run(self._run())
+        self.assertEqual(summary.interactive_source, "claude_sessions")
+        # one usage per Anthropic message id (largest value per field), summed
+        self.assertEqual(summary.uncached_input_tokens, 12)
+        self.assertEqual(summary.cache_write_tokens, 13600)
+        self.assertEqual(summary.cache_read_tokens, 51700)
+        self.assertEqual(summary.output_tokens, 4410)
+        self.assertEqual(summary.input_tokens, 12 + 13600 + 51700)
+        self.assertEqual(summary.split_rule, "unavailable")
+        self.assertEqual(summary.claude_attempts, 1)
+        self.assertEqual(summary.claude_attempts_without_result, 0)
+        self.assertFalse(any("without a result event" in n for n in summary.notes))
+        self.assertEqual(summary.model_slug, "claude-opus-5-5")
+        self.assertEqual(summary.buckets["shell"]["calls"], 2)
+        self.assertEqual(summary.buckets["shell"]["failures"], 1)
+        self.assertEqual(summary.buckets["files"]["by_tool"], {"Write": {"calls": 1, "failures": 0}, "Read": {"calls": 1, "failures": 0}})
+        self.assertEqual(summary.thought_blocks, 2)
+        self.assertEqual(summary.thinking_seconds, 11.0)
+        self.assertEqual(summary.timing_source, "claude_sessions")
+        self.assertEqual(summary.tool_busy_seconds, 12.3)
+        self.assertEqual(summary.tools_without_duration, 0)
+        self.assertIsNotNone(summary.model_time_seconds)
+        self.assertIsNone(summary.harness_cost_usd)
+
+    def test_duplicate_transcript_entries_are_counted_once(self):
+        run_dir = self._run()
+        path = run_dir / "claude-sessions" / f"{SESSION}.jsonl"
+        text = path.read_text(encoding="utf-8")
+        path.write_text(text + text, encoding="utf-8")
+        summary = summarize_run(run_dir)
+        self.assertEqual(summary.output_tokens, 4410)
+        self.assertEqual(summary.buckets["shell"]["calls"], 2)
+
+    def test_tool_calls_fall_back_to_hook_events_without_sessions(self):
+        run_dir = self._run()
+        shutil.rmtree(run_dir / "claude-sessions")
+        summary = summarize_run(run_dir)
+        self.assertEqual(summary.interactive_source, "claude_hooks")
+        self.assertEqual(summary.buckets["shell"]["calls"], 2)
+        self.assertEqual(summary.buckets["files"]["calls"], 2)
+        self.assertIsNone(summary.output_tokens)
+        self.assertEqual(summary.timing_source, "claude_hooks")
+        self.assertTrue(any("no usage entries" in n or "hook-events/" in n for n in summary.notes))
+
+    def test_hook_failures_count_without_sessions(self):
+        run_dir = self._run()
+        shutil.rmtree(run_dir / "claude-sessions")
+        hooks = run_dir / "hook-events" / f"{SESSION}.jsonl"
+        with hooks.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({
+                "logged_at": "2026-10-25T09:04:00Z", "hook_event_name": "PostToolUseFailure",
+                "session_id": SESSION, "tool_name": "Bash", "tool_use_id": "toolu_b1", "failed": True,
+            }) + "\n")
+        summary = summarize_run(run_dir)
+        self.assertEqual(summary.buckets["shell"]["failures"], 1)
+
+    def test_exact_prompt_is_verified_in_hook_and_session(self):
+        summary = summarize_run(self._run(follow_up=False))
+        self.assertEqual(summary.prompt_check["sources"], {"hook": "exact", "session": "exact"})
+        self.assertTrue(summary.prompt_check["verified"])
+        self.assertEqual(summary.prompt_check["follow_up_prompts"], 0)
+        self.assertEqual(summary.prompt_check["prompt_sha256"], __import__("run_common").prompt_sha256(self.PROMPT_ID))
+        self.assertFalse(any("follow-up" in n or "trailing newline" in n for n in summary.notes))
+
+    def test_trailing_newline_paste_difference_is_normalized_and_flagged(self):
+        text = prompt_path(self.PROMPT_ID).read_text(encoding="utf-8").rstrip("\n") + "\n\n"
+        summary = summarize_run(self._run(first_prompt=text, follow_up=False))
+        self.assertEqual(summary.prompt_check["sources"], {"hook": "normalized", "session": "normalized"})
+        self.assertTrue(summary.prompt_check["verified"])
+        self.assertTrue(any("trailing newline" in n for n in summary.notes))
+
+    def test_crlf_paste_is_normalized(self):
+        text = prompt_path(self.PROMPT_ID).read_text(encoding="utf-8").rstrip("\n").replace("\n", "\r\n") + "\r\n"
+        summary = summarize_run(self._run(first_prompt=text, follow_up=False))
+        self.assertEqual(summary.prompt_check["sources"]["hook"], "normalized")
+
+    def test_altered_prompt_fails_verification(self):
+        text = prompt_path(self.PROMPT_ID).read_text(encoding="utf-8") + "Also add a dark mode.\n"
+        summary = summarize_run(self._run(first_prompt=text, follow_up=False))
+        self.assertEqual(summary.prompt_check["sources"], {"hook": "mismatch", "session": "mismatch"})
+        self.assertFalse(summary.prompt_check["verified"])
+        self.assertTrue(any("prompt_sha256 check failed" in n for n in summary.notes))
+
+    def test_paste_placeholder_is_not_verified(self):
+        summary = summarize_run(self._run(first_prompt="[Pasted text #1 +40 lines]", follow_up=False))
+        self.assertEqual(summary.prompt_check["sources"]["hook"], "paste_placeholder")
+        self.assertFalse(summary.prompt_check["verified"])
+
+    def test_follow_up_turns_are_recorded_as_interventions(self):
+        summary = summarize_run(self._run())
+        self.assertEqual(summary.prompt_check["follow_up_prompts"], 1)
+        note = next(n for n in summary.notes if "follow-up" in n)
+        self.assertIn("Interactive intervention: 1 follow-up prompt(s)", note)
+        self.assertIn("'Continue.'", note)
+        self.assertIn("multi-turn", note)
+
+    def test_interruption_is_recorded(self):
+        run_dir = self._run(follow_up=False)
+        path = run_dir / "claude-sessions" / f"{SESSION}.jsonl"
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({
+                "type": "user", "sessionId": SESSION, "timestamp": "2026-10-25T09:00:40Z", "uuid": "u-int",
+                "message": {"role": "user", "content": [{"type": "text", "text": "[Request interrupted by user]"}]},
+            }) + "\n")
+        summary = summarize_run(run_dir)
+        self.assertEqual(summary.prompt_check["interruptions"], 1)
+        self.assertTrue(any("interrupted the model 1 time" in n for n in summary.notes))
+
+    def test_headless_runs_skip_prompt_validation(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        run_dir = write_claude_code_run(Path(tmp.name))
+        repatriate_staged_workspace(run_dir)
+        summary = summarize_run(run_dir)
+        self.assertIsNone(summary.prompt_check)
+        self.assertIsNone(summary.interactive_source)
+
+    def test_isolation_hook_denials_are_reported(self):
+        run_dir = self._run(follow_up=False)
+        hooks = run_dir / "hook-events" / f"{SESSION}.jsonl"
+        with hooks.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({
+                "logged_at": "2026-10-25T09:00:30Z", "hook_event_name": "PreToolUse", "session_id": SESSION,
+                "tool_name": "Bash", "tool_use_id": "toolu_x", "tool_input": {"command": "cat ../run.json"},
+                "failed": True, "failure_type": "isolation_blocked", "error_message": "Parent directory traversal blocked",
+            }) + "\n")
+        summary = summarize_run(run_dir)
+        self.assertEqual(summary.isolation_breaches, ["Bash denied: Parent directory traversal blocked"])
+        self.assertTrue(any("Isolation hook denied 1 tool call" in n for n in summary.notes))
+
+
+class TestClaudeHookWorkspaceIsolation(unittest.TestCase):
+    """PreToolUse guards in templates/claude/hooks/log-tool-event.py for host clean-room runs."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("claude_log_tool_event", CLAUDE_HOOK_TEMPLATE)
+        cls.hook = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.hook)
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        base = Path(self.tmp.name).resolve()
+        self.workspace = base / "frontier-workspace-run-a"
+        (self.workspace / ".claude" / "hooks").mkdir(parents=True)
+        self.sibling = base / "frontier-workspace-run-b"
+        self.sibling.mkdir()
+        self.repo = base / "checkout"
+        (self.repo / "scripts").mkdir(parents=True)
+        (self.repo / "scripts" / "run_common.py").write_text("", encoding="utf-8")
+        (self.repo / "prompt").mkdir()
+        self.base = base
+
+    def check(self, tool_input, cwd=None):
+        event = {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": tool_input}
+        if cwd is not None:
+            event["cwd"] = str(cwd)
+        return self.hook.check_workspace_isolation(event, self.workspace)
+
+    def test_workspace_root_is_two_levels_above_the_hook(self):
+        script = self.workspace / ".claude" / "hooks" / "log-tool-event.py"
+        script.write_text("", encoding="utf-8")
+        self.assertEqual(self.hook.workspace_root_for(script), self.workspace)
+
+    def test_blocks_bare_parent_directory_arguments(self):
+        for command in ("cd ..", "ls ..", "cd .. && ls", "cat x; cd ..", "(cd ..)", "ls -la ../", "ls '..'"):
+            with self.subTest(command=command):
+                if "../" in command:
+                    # covered by the shared text policy, not by the bare-token rule
+                    self.assertIsNotNone(self.hook.check_isolation_violation({"tool_input": {"command": command}}))
+                else:
+                    self.assertIn("Parent directory", self.check({"command": command}) or "")
+
+    def test_blocks_parent_path_arguments(self):
+        for key in ("path", "file_path", "directory"):
+            with self.subTest(key=key):
+                self.assertIn("Parent directory", self.check({key: ".."}) or "")
+
+    def test_ignores_ranges_ellipses_and_file_bodies(self):
+        for tool_input in (
+            {"command": "seq 1 3; echo a..b; echo ..."},
+            {"command": "git log main..HEAD --oneline"},
+            {"file_path": str(self.workspace / "a.js"), "content": "const x = [...rest]; cd .."},
+            {"pattern": "foo...bar"},
+        ):
+            with self.subTest(tool_input=tool_input):
+                self.assertIsNone(self.check(tool_input))
+
+    def test_blocks_sibling_workspace_and_state_directory(self):
+        for tool_input in (
+            {"command": f"cat {self.sibling}/index.html"},
+            {"file_path": str(self.sibling / "run.json")},
+            {"command": "ls /tmp/frontier-workspace-other-launch.sh"},
+            {"command": "cat /tmp/frontier-claude-state-run-a/.credentials.json"},
+        ):
+            with self.subTest(tool_input=tool_input):
+                self.assertIn("blocked by isolation policy", self.check(tool_input) or "")
+
+    def test_allows_the_own_workspace_path(self):
+        self.assertIsNone(self.check({"command": f"ls {self.workspace}/src"}))
+        self.assertIsNone(self.check({"file_path": str(self.workspace / "index.html")}))
+
+    def test_docker_workspace_rejects_any_staging_workspace_reference(self):
+        docker_root = self.base / "workspace"
+        (docker_root / ".claude" / "hooks").mkdir(parents=True)
+        event = {"tool_input": {"command": "ls /tmp/frontier-workspace-run-a"}}
+        self.assertIn("sibling workspace", self.hook.check_workspace_isolation(event, docker_root) or "")
+
+    def test_blocks_symlink_into_repository_checkout(self):
+        link = self.workspace / "docs"
+        os.symlink(self.repo, link)
+        reason = self.check({"file_path": str(link / "prompt" / "x.txt")})
+        self.assertIn("llm-frontier-evaluator", reason or "")
+        # a relative path resolves against the session cwd
+        reason = self.check({"path": "docs/prompt"}, cwd=self.workspace)
+        self.assertIn("llm-frontier-evaluator", reason or "")
+
+    def test_blocks_absolute_path_inside_repository_checkout(self):
+        reason = self.check({"file_path": str(self.repo / "scripts" / "run_common.py")})
+        self.assertIn("llm-frontier-evaluator", reason or "")
+
+    def test_allows_unrelated_absolute_paths(self):
+        self.assertIsNone(self.check({"file_path": "/workspace/notes.md"}))
+        self.assertIsNone(self.check({"file_path": str(self.base / "elsewhere" / "a.txt")}))
+
+    def test_blocks_session_cwd_outside_the_workspace(self):
+        self.assertIn("Working directory", self.check({"command": "ls"}, cwd=self.base) or "")
+        self.assertIsNone(self.check({"command": "ls"}, cwd=self.workspace))
+        (self.workspace / "src").mkdir()
+        self.assertIsNone(self.check({"command": "ls"}, cwd=self.workspace / "src"))
+
+    def test_main_denies_with_exit_code_two_and_logs(self):
+        import subprocess
+
+        script = self.workspace / ".claude" / "hooks" / "log-tool-event.py"
+        script.write_bytes(CLAUDE_HOOK_TEMPLATE.read_bytes())
+        payload = {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "Bash", "tool_input": {"command": "cd .."}}
+        res = subprocess.run([sys.executable, str(script)], input=json.dumps(payload), capture_output=True, text=True, timeout=30)
+        self.assertEqual(res.returncode, 2, res.stderr)
+        records = [json.loads(line) for line in (self.workspace / ".claude" / "hook-events" / "s1.jsonl").read_text().splitlines()]
+        self.assertEqual(records[0]["failure_type"], "isolation_blocked")
+
+    def test_post_tool_use_failure_is_logged_as_failed(self):
+        record = self.hook.record_from({
+            "hook_event_name": "PostToolUseFailure", "session_id": "s", "tool_name": "Bash",
+            "tool_use_id": "t1", "error": "exit 1",
+        })
+        self.assertTrue(record["failed"])
+        self.assertEqual(record["error_message"], "exit 1")
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ of tool intervals (docs/metrics.md, source wall_clock_minus_tool_time).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass, field
@@ -110,6 +111,9 @@ class ToolEventSummary:
     active_seconds: float | None = None
     retry_gap_seconds: float | None = None
     timing_source: str | None = None
+    # Interactive claude-code (no cli-stream.jsonl / cli-result.json): telemetry from claude-sessions/ and hook-events/.
+    interactive_source: str | None = None
+    prompt_check: dict | None = None
 
 
 CONTENT_KEYS = {
@@ -956,6 +960,287 @@ def apply_claude_session_timing(summary: ToolEventSummary, run_dir: Path) -> boo
     return True
 
 
+CLAUDE_CLI_OUTPUTS = (
+    ("tool-events", "cli-stream.jsonl"),
+    ("tool-events", "cli-result.json"),
+    ("usage", "cli-result.json"),
+)
+PASTE_PLACEHOLDER = re.compile(r"^\s*\[Pasted text #\d+")
+
+
+def has_claude_cli_output(run_dir: Path) -> bool:
+    return any((run_dir / folder / name).is_file() for folder, name in CLAUDE_CLI_OUTPUTS)
+
+
+def _merge_usage(target: dict, usage: dict) -> None:
+    """Keep the largest value per usage field: session entries repeat one message's usage per content block."""
+    for field_name in CLAUDE_USAGE_FIELDS.values():
+        value = _nonneg_int(usage.get(field_name))
+        if value is not None and value > (target.get(field_name) or 0):
+            target[field_name] = value
+        elif value is not None:
+            target.setdefault(field_name, value)
+
+
+def _claude_session_records(transcript: list[dict]) -> list[dict]:
+    """Rebuild stream-json-like assistant/user records from session transcript entries.
+
+    One assistant record per Anthropic message id (content blocks merged, usage taken as the per-field maximum)
+    and one user record per tool result, so a resumed or duplicated transcript counts each message and tool once.
+    """
+    messages: dict[str, dict] = {}
+    order: list[str] = []
+    results: dict[str, dict] = {}
+    for entry in transcript:
+        msg = entry.get("message")
+        if not isinstance(msg, dict):
+            continue
+        content = msg.get("content")
+        if entry.get("type") == "assistant":
+            key = str(msg.get("id") or entry.get("uuid") or len(order))
+            slot = messages.get(key)
+            if slot is None:
+                slot = {"id": key, "model": msg.get("model"), "content": [], "usage": {}, "_seen": set()}
+                messages[key] = slot
+                order.append(key)
+            if isinstance(msg.get("usage"), dict):
+                _merge_usage(slot["usage"], msg["usage"])
+            if isinstance(content, list):
+                for block in content:
+                    if not isinstance(block, dict):
+                        continue
+                    if block.get("type") == "tool_use":
+                        marker = str(block.get("id"))
+                        if marker in slot["_seen"]:
+                            continue
+                        slot["_seen"].add(marker)
+                    slot["content"].append(block)
+        elif entry.get("type") == "user" and isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "tool_result" and block.get("tool_use_id"):
+                    results[str(block["tool_use_id"])] = block
+    records: list[dict] = []
+    seen_tools: set[str] = set()
+    for key in order:
+        slot = messages[key]
+        blocks = []
+        for block in slot["content"]:
+            if block.get("type") == "tool_use":
+                if str(block.get("id")) in seen_tools:
+                    continue
+                seen_tools.add(str(block.get("id")))
+            blocks.append(block)
+        message = {"id": slot["id"], "content": blocks}
+        if slot["usage"]:
+            message["usage"] = slot["usage"]
+        model = slot.get("model")
+        if isinstance(model, str) and model and not model.startswith("<"):
+            message["model"] = model
+        records.append({"type": "assistant", "message": message})
+    for block in results.values():
+        records.append({"type": "user", "message": {"content": [block]}})
+    return records
+
+
+def _claude_hook_records(hooks: list[dict]) -> list[dict]:
+    """Rebuild tool_use/tool_result records from PreToolUse / PostToolUse / PostToolUseFailure hook logs."""
+    records: list[dict] = []
+    seen: set[str] = set()
+    failed: set[str] = set()
+    for hook in hooks:
+        name = hook.get("hook_event_name")
+        tid = hook.get("tool_use_id")
+        if not tid or not hook.get("tool_name"):
+            continue
+        tid = str(tid)
+        if name == "PreToolUse" and tid not in seen:
+            seen.add(tid)
+            records.append({"type": "assistant", "message": {"id": f"hook-{tid}", "content": [
+                {"type": "tool_use", "id": tid, "name": hook["tool_name"], "input": hook.get("tool_input")}]}})
+        if name == "PostToolUseFailure" or hook.get("failed") or (
+            name == "PostToolUse" and isinstance(hook.get("tool_response"), dict) and hook["tool_response"].get("is_error") is True
+        ):
+            failed.add(tid)
+    for tid in failed:
+        records.append({"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": tid, "is_error": True}]}})
+    return records
+
+
+def _session_prompt_text(entry: dict) -> str | None:
+    msg = entry.get("message")
+    content = msg.get("content") if isinstance(msg, dict) else None
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text")
+    return None
+
+
+def _normalize_prompt(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n").rstrip()
+
+
+def classify_submitted_prompt(text: str, expected_text: str, expected_sha256: str, *, truncated: bool = False) -> str:
+    """exact | normalized (trailing newline / line-ending difference only) | truncated | paste_placeholder | mismatch."""
+    if hashlib.sha256(text.encode("utf-8")).hexdigest() == expected_sha256:
+        return "exact"
+    if PASTE_PLACEHOLDER.match(text):
+        return "paste_placeholder"
+    if _normalize_prompt(text) == _normalize_prompt(expected_text):
+        return "normalized"
+    if truncated and expected_text.startswith(text):
+        return "truncated"
+    return "mismatch"
+
+
+def _short(text: str, limit: int = 60) -> str:
+    one_line = " ".join(text.split())
+    return one_line if len(one_line) <= limit else one_line[: limit - 3] + "..."
+
+
+def validate_claude_prompts(
+    summary: ToolEventSummary,
+    transcript: list[dict],
+    hooks: list[dict],
+    expected_path: Path,
+    expected_sha256: str | None,
+) -> None:
+    """Check the first submitted prompt against prompt/<id>.txt and record follow-up turns as interventions."""
+    if not expected_path.is_file():
+        return
+    expected_bytes = expected_path.read_bytes()
+    expected_text = expected_bytes.decode("utf-8", errors="replace")
+    file_sha = hashlib.sha256(expected_bytes).hexdigest()
+    sha = expected_sha256 or file_sha
+    check: dict = {"prompt_sha256": sha}
+    if expected_sha256 and expected_sha256 != file_sha:
+        summary.notes.append(f"run.json prompt_sha256 does not match {expected_path.name}; the frozen prompt file changed.")
+        check["prompt_file_sha256"] = file_sha
+
+    hook_prompts = sorted(
+        (h for h in hooks if h.get("hook_event_name") == "UserPromptSubmit" and isinstance(h.get("prompt"), str)),
+        key=lambda h: parse_time(h.get("logged_at")) or datetime.min.replace(tzinfo=timezone.utc),
+    )
+    session_prompts = [
+        (e, _session_prompt_text(e)) for e in transcript if _claude_prompt_entry(e)
+    ]
+    session_prompts = [(e, t) for e, t in session_prompts if t is not None]
+    interrupts = sum(1 for _e, t in session_prompts if t.startswith("[Request interrupted"))
+    session_prompts = [(e, t) for e, t in session_prompts if not t.startswith("[Request interrupted")]
+
+    sources = {}
+    if hook_prompts:
+        first = hook_prompts[0]
+        sources["hook"] = classify_submitted_prompt(
+            first["prompt"], expected_text, sha, truncated=bool(first.get("prompt_truncated"))
+        )
+    if session_prompts:
+        sources["session"] = classify_submitted_prompt(session_prompts[0][1], expected_text, sha)
+    check["sources"] = sources
+    if not sources:
+        summary.notes.append("No submitted prompt was found in hook-events/ or claude-sessions/, so the prompt bytes are unverified.")
+    verdicts = set(sources.values())
+    for source, verdict in sources.items():
+        where = "UserPromptSubmit hook" if source == "hook" else "session transcript"
+        if verdict == "normalized":
+            summary.notes.append(
+                f"The prompt in the {where} matches {expected_path.name} except for trailing newline or line-ending "
+                "differences from the TUI paste (content verified after normalization)."
+            )
+        elif verdict == "truncated":
+            summary.notes.append(f"The prompt in the {where} was truncated by the log cap; the logged prefix matches {expected_path.name}.")
+        elif verdict == "paste_placeholder":
+            summary.notes.append(f"The prompt in the {where} is a paste placeholder, so the prompt bytes could not be verified.")
+        elif verdict == "mismatch":
+            summary.notes.append(f"The prompt in the {where} does not match {expected_path.name} (prompt_sha256 check failed).")
+    if len(verdicts) > 1 and "exact" in verdicts and verdicts != {"exact", "truncated"}:
+        check["sources_disagree"] = True
+    check["verified"] = bool(sources) and verdicts <= {"exact", "normalized", "truncated"}
+
+    follow_ups = [h["prompt"] for h in hook_prompts[1:]] if hook_prompts else [t for _e, t in session_prompts[1:]]
+    check["follow_up_prompts"] = len(follow_ups)
+    check["interruptions"] = interrupts
+    if follow_ups:
+        listed = "; ".join(f"'{_short(t)}'" for t in follow_ups[:5])
+        more = f" (+{len(follow_ups) - 5} more)" if len(follow_ups) > 5 else ""
+        summary.notes.append(
+            f"Interactive intervention: {len(follow_ups)} follow-up prompt(s) after the frozen prompt ({listed}{more}); "
+            "the run was multi-turn, not a single user message."
+        )
+    if interrupts:
+        summary.notes.append(f"Interactive intervention: the operator interrupted the model {interrupts} time(s).")
+    summary.prompt_check = check
+
+
+def audit_claude_hook_denials(summary: ToolEventSummary, hooks: list[dict]) -> None:
+    """Report tool calls the .claude isolation hook denied (PreToolUse, failure_type isolation_blocked)."""
+    for hook in hooks:
+        if hook.get("hook_event_name") == "PreToolUse" and hook.get("failure_type") == "isolation_blocked":
+            tool_name = hook.get("tool_name") or "tool"
+            reason = hook.get("error_message") or "blocked by isolation policy"
+            summary.isolation_breaches.append(f"{tool_name} denied: {reason}")
+    denied = [b for b in summary.isolation_breaches if " denied: " in b]
+    if denied:
+        summary.notes.append(f"Isolation hook denied {len(denied)} tool call(s): " + "; ".join(denied[:5]) + ".")
+
+
+def apply_claude_interactive_telemetry(
+    summary: ToolEventSummary,
+    run_dir: Path,
+    expected_path: Path | None,
+    expected_sha256: str | None,
+) -> bool:
+    """Fill tokens, tool buckets, and thinking blocks of an interactive claude-code run from its own logs.
+
+    Interactive ``claude`` writes neither cli-stream.jsonl nor cli-result.json, so usage comes from the session
+    transcripts (claude-sessions/*.jsonl) and tool calls from the transcripts, else from the hook log
+    (hook-events/*.jsonl). Timing is derived afterwards by apply_claude_session_timing.
+    """
+    transcript = [
+        e for e in _load_jsonl_dir(run_dir / "claude-sessions") if e.get("type") in ("user", "assistant")
+    ]
+    transcript.sort(key=lambda e: parse_time(e.get("timestamp")) or datetime.min.replace(tzinfo=timezone.utc))
+    hooks = _load_jsonl_dir(run_dir / "hook-events")
+    if not transcript and not hooks:
+        return False
+
+    records = _claude_session_records(transcript)
+    uses_transcript_tools = any(
+        isinstance(r["message"].get("content"), list)
+        and any(isinstance(b, dict) and b.get("type") == "tool_use" for b in r["message"]["content"])
+        for r in records if r["type"] == "assistant"
+    )
+    if hooks and not uses_transcript_tools:
+        records.extend(_claude_hook_records(hooks))
+    if records:
+        _process_transcript_records(records, summary)
+        sessions = {str(e.get("sessionId")) for e in transcript if e.get("sessionId")}
+        has_usage = any(isinstance(r.get("message"), dict) and r["message"].get("usage") for r in records)
+        if has_usage:
+            summary.claude_attempts = max(1, len(sessions))
+            summary.claude_attempts_without_result = 0
+            summary.token_turns = summary.claude_attempts
+            summary.notes = [n for n in summary.notes if "ended without a result event" not in n]
+        else:
+            summary.notes.append(
+                "claude-sessions/ has no usage entries, so token counts are unavailable; tool calls come from hook-events/."
+            )
+            summary.claude_attempts = max(1, len(sessions))
+            summary.claude_attempts_without_result = 0
+        summary.interactive_source = "claude_sessions" if transcript else "claude_hooks"
+    if not summary.buckets:
+        summary.buckets = _empty_buckets()
+    summary.notes.append(
+        "Interactive claude-code run: no cli-stream.jsonl or cli-result.json, so "
+        + ("tokens and thinking come from claude-sessions/ and " if transcript else "")
+        + "tool calls and timing come from "
+        + ("hook-events/." if not transcript or not uses_transcript_tools else "claude-sessions/ and hook-events/.")
+    )
+    if expected_path is not None:
+        validate_claude_prompts(summary, transcript, hooks, expected_path, expected_sha256)
+    return True
+
+
 def _process_transcript_records(
     records: list[dict],
     summary: ToolEventSummary,
@@ -1602,15 +1887,22 @@ def summarize_run(run_dir: Path) -> ToolEventSummary:
     # The run lives in runs/<prompt-id>/<run-id>/; run.json records which
     # prompt file its bytes must match. Fall back to the directory name.
     prompt_id = run_dir.parent.name
+    recorded_sha: str | None = None
     run_json = run_dir / "run.json"
     if run_json.is_file():
         try:
-            recorded = json.loads(run_json.read_text(encoding="utf-8")).get("prompt_id")
+            run_data = json.loads(run_json.read_text(encoding="utf-8"))
+            recorded = run_data.get("prompt_id")
+            sha_value = run_data.get("prompt_sha256")
+            recorded_sha = sha_value if isinstance(sha_value, str) and sha_value else None
         except (OSError, json.JSONDecodeError):
             recorded = None
         if isinstance(recorded, str) and recorded:
             prompt_id = recorded
     summary = summarize_records(records, notes, expected_prompt_path=prompt_path(prompt_id))
+    if not records and not has_claude_cli_output(run_dir):
+        apply_claude_interactive_telemetry(summary, run_dir, prompt_path(prompt_id), recorded_sha)
+    audit_claude_hook_denials(summary, _load_jsonl_dir(run_dir / "hook-events"))
     apply_claude_session_timing(summary, run_dir)
     return summary
 
