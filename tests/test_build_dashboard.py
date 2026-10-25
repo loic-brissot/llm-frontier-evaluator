@@ -12,7 +12,10 @@ import re
 from typing import Any
 
 from build_dashboard import (
+    PRICING_TIERS,
     build_dashboard,
+    build_pricing_catalog,
+    classify_pricing_tier,
     check_dashboard_sync,
     compile_dashboard_payload,
     compute_pareto_frontiers,
@@ -515,3 +518,49 @@ class TestDeterministicDashboardBuild:
 
         payload = compile_dashboard_payload(runs_dir=runs_dir)
         assert payload["generated_at"] == "2026-10-21T10:45:00Z"
+
+
+class TestPricingTiers:
+    """Pricing tier classification and payload exposure (TASK-89)."""
+
+    def test_classify_boundaries(self) -> None:
+        assert classify_pricing_tier("0.50") == "cheap"
+        assert classify_pricing_tier(5.0) == "cheap"
+        assert classify_pricing_tier("5.01") == "workhorse"
+        assert classify_pricing_tier("15.00") == "workhorse"
+        assert classify_pricing_tier("15.01") == "frontier"
+        assert classify_pricing_tier("50.00") == "frontier"
+
+    def test_classify_missing_defaults_to_workhorse(self) -> None:
+        assert classify_pricing_tier(None) == "workhorse"
+        assert classify_pricing_tier("n/a") == "workhorse"
+
+    def test_catalog_covers_every_model_with_valid_tier(self) -> None:
+        raw = json.loads((Path(__file__).parent.parent / "reference" / "pricing-2026-10-18.json").read_text(encoding="utf-8"))
+        catalog = build_pricing_catalog()
+        assert [m["id"] for m in catalog["models"]] == [m["id"] for m in raw["models"]]
+        tier_ids = {t["id"] for t in PRICING_TIERS}
+        assert tier_ids == {"cheap", "workhorse", "frontier"}
+        for m in catalog["models"]:
+            assert m["tier"] in tier_ids
+            assert m["input"] is not None and m["output"] is not None
+
+    def test_declared_tiers_match_classifier(self) -> None:
+        raw = json.loads((Path(__file__).parent.parent / "reference" / "pricing-2026-10-18.json").read_text(encoding="utf-8"))
+        for m in raw["models"]:
+            assert m.get("tier") == classify_pricing_tier(m["output"]), m["id"]
+
+    def test_all_three_tiers_populated(self) -> None:
+        tiers = {m["tier"] for m in build_pricing_catalog()["models"]}
+        assert tiers == {"cheap", "workhorse", "frontier"}
+
+    def test_missing_reference_returns_empty_catalog(self, tmp_path: Path) -> None:
+        catalog = build_pricing_catalog(tmp_path)
+        assert catalog["models"] == []
+        assert len(catalog["tiers"]) == 3
+
+    def test_payload_exposes_pricing_and_validates(self) -> None:
+        payload = compile_dashboard_payload()
+        assert payload["pricing"]["models"]
+        assert payload["pricing"]["as_of"] == "2026-10-18"
+        assert validate_payload_schema(payload) == []

@@ -182,6 +182,24 @@
         }
       }
     },
+    "pricing": {
+      "type": "object",
+      "required": ["tiers", "models"],
+      "properties": {
+        "as_of": { "type": ["string", "null"] },
+        "tiers": { "type": "array" },
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "provider", "tier"],
+            "properties": {
+              "tier": { "enum": ["cheap", "workhorse", "frontier"] }
+            }
+          }
+        }
+      }
+    },
     "warehouse": {
       "type": "object"
     }
