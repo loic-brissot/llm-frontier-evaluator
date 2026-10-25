@@ -36,8 +36,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Install Claude Code and Playwright globally via npm, and Python Playwright via uv
+# (--break-system-packages: Debian marks the /usr Python as externally managed, PEP 668; safe in this throwaway image)
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} playwright \
-    && uv pip install --system playwright
+    && uv pip install --system --break-system-packages playwright
 
 # Reconfigure UID 1000 user as 'benchmark' with home /home/benchmark
 RUN if id -u node >/dev/null 2>&1; then \
