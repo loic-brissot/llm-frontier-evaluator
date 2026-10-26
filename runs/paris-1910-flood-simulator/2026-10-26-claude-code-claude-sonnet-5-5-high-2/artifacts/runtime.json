@@ -1,0 +1,35 @@
+{
+  "passed": true,
+  "http_status": 200,
+  "url": "http://127.0.0.1:63445",
+  "server_mode": "static",
+  "load_time_ms": 3818.28,
+  "console_errors": [],
+  "console_warnings_count": 2,
+  "page_errors": [],
+  "failed_requests": [],
+  "critical_failures": [],
+  "dom": {
+    "title": "Paris under water \u2014 interactive flood simulator",
+    "canvas_count": 1,
+    "visible_canvas_count": 1,
+    "canvas_obscured": false,
+    "loading_overlay": null,
+    "loading_status_text": "",
+    "intro_gate": {
+      "detected": true,
+      "selector": "#loader",
+      "text": "INTERACTIVE ATLAS \u00b7 SEINE \u00b7 PARIS INTRA-MUROS\nParis under water\n125,000 building footprints \u00b7 5 m ground model\nEnter the simulation\nDrag to orbit \u00b7 scroll to zoom \u00b7 right-drag to pan",
+      "control_selector": "#enterBtn",
+      "control_text": "Enter the simulation",
+      "clicked": true,
+      "dismissed": true
+    },
+    "svg_count": 4,
+    "webgl_context": true,
+    "text_length": 1722
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "loading_settle_ms": 24000,
+  "verified_at": "2026-10-26T09:30:14.298Z"
+}

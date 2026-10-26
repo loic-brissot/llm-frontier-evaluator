@@ -19,6 +19,11 @@ tmp/*
 .cursor/tool-events/
 runs/*/*/tool-events/
 
+# Claude Code session transcripts and hook logs stay local (tens of MB, contain command output and file contents).
+# Metrics derived from them are copied into run.json.
+runs/*/*/claude-sessions/
+runs/*/*/hook-events/
+
 # Local analytical warehouse files and DuckDB databases
 warehouse/*
 !warehouse/README.md

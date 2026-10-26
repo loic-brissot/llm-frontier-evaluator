@@ -1,0 +1,448 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-26-claude-code-claude-sonnet-5-5-high-2",
+  "series_id": "paris-1910-flood-simulator-claude-code",
+  "prompt_id": "paris-1910-flood-simulator",
+  "prompt_sha256": "1c2103d2016d41e7263c8012c13ee555b6397ac5d8e4908e1b76a766ff49a9c3",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "anthropic",
+    "name": "Claude Sonnet 5.5",
+    "context": null,
+    "reasoning": "high"
+  },
+  "harness": {
+    "name": "claude-code",
+    "version": "2.1.310 (Claude Code)",
+    "detail": "headless; subscription OAuth"
+  },
+  "wall_clock": {
+    "started_at": "2026-10-26T06:57:56.106Z",
+    "ended_at": "2026-10-26T07:59:00.244Z"
+  },
+  "tokens": {
+    "split_rule": "combined_output_as_visible",
+    "reasoning_tokens": 0,
+    "visible_tokens": 357673,
+    "raw": {
+      "duration_api_ms": 2588784,
+      "stop_reason": "end_turn",
+      "session_id": "d1c574f3-7c58-40e8-ae09-18d13eeb2984",
+      "total_cost_usd": 8.8626589,
+      "usage": {
+        "input_tokens": 218,
+        "cache_creation_input_tokens": 503234,
+        "cache_read_input_tokens": 32241350,
+        "output_tokens": 357673,
+        "output_tokens_details": {
+          "thinking_tokens": 179613
+        },
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 503234,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "global",
+        "iterations": [
+          {
+            "input_tokens": 2,
+            "output_tokens": 1208,
+            "cache_read_input_tokens": 513042,
+            "cache_creation_input_tokens": 1995,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 1995
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "fallback_credit": null
+      },
+      "modelUsage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 218,
+          "outputTokens": 357673,
+          "cacheReadInputTokens": 32241350,
+          "cacheCreationInputTokens": 503234,
+          "webSearchRequests": 0,
+          "costUSD": 8.814236999999999,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 179613,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-haiku-5-5": {
+          "inputTokens": 61444,
+          "outputTokens": 4555,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 4,
+          "costUSD": 0.048421900000000004,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 1318,
+          "canonicalModel": "claude-haiku-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "permission_denials": [
+        {
+          "tool_name": "Bash",
+          "tool_use_id": "toolu_01MNqJvACdPg8tQ7AhYatBt5",
+          "tool_input": {
+            "command": "cat > scripts/build/run_all.sh <<'EOF'\n#!/bin/sh\n# Rebuilds public/data from the open datasets. Requires a venv with numpy scipy shapely pyproj pillow numba.\n# usage: scripts/build/run_all.sh [python-with-deps]\nset -e\nPY=${1:-python3}\ncd \"$(dirname \"$0\")/../..\"\npython3 -I scripts/fetch_data.py data-raw\nfor step in 01_geometry 02_dtm; do $PY -I -W ignore scripts/build/$step.py $( [ $step = 01_geometry ] && echo data-raw ) data-work; done\n$PY -I -W ignore scripts/build/03_flood.py data-work\n$PY -I -W ignore scripts/build/04_export.py data-work public/data\nEOF\nsed -i 's|for step in 01_geometry 02_dtm; do.*|$PY -I -W ignore scripts/build/01_geometry.py data-raw data-work\\n$PY -I -W ignore scripts/build/02_dtm.py data-work|' scripts/build/run_all.sh\nchmod +x scripts/build/run_all.sh; cat scripts/build/run_all.sh\nnpm init -y >/dev/null && npm pkg set name=paris-flood-simulator version=1.0.0 type=module description=\"Interactive 3D flood simulator of Paris (Seine, Pont d'Austerlitz gauge)\" >/dev/null\nnpm i three earcut >/dev/null 2>&1; npm i -D vite >/dev/null 2>&1; npm ls --depth=0\nmkdir -p /tmp/pw && cat > /tmp/pw/gltest.mjs <<'EOF'\nimport { createRequire } from 'module';\nconst require = createRequire('/usr/local/lib/node_modules/');\nconst { chromium } = require('playwright');\nconst b = await chromium.launch({ args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--enable-webgl'] });\nconst p = await b.newPage();\nawait p.setContent('<canvas id=c></canvas>');\nconsole.log(await p.evaluate(() => { const gl = document.getElementById('c').getContext('webgl2'); if(!gl) return 'no webgl2'; const d=gl.getExtension('WEBGL_debug_renderer_info'); return [gl.getParameter(gl.VERSION), d&&gl.getParameter(d.UNMASKED_RENDERER_WEBGL), gl.getParameter(gl.MAX_TEXTURE_SIZE), !!gl.getExtension('EXT_color_buffer_float'), !!gl.getExtension('OES_texture_float_linear')].join(' | ')}));\nawait b.close();\nEOF\nnode /tmp/pw/gltest.mjs"
+          }
+        },
+        {
+          "tool_name": "Bash",
+          "tool_use_id": "toolu_01Q5V6GvMj15gDq5bSDmF6bC",
+          "tool_input": {
+            "command": "python3 - <<'EOF'\np='src/ui.js'\ns=open(p).read()\ns=s.replace(\"import { t, nf, setLang, getLang } from './i18n.js';\",\"import { t, nf, setLang, getLang } from './i18n.js';\\nimport { loadPPRI } from './data.js';\")\ns=s.replace(\"      const { loadPPRI } = await import('./data.js');\\n\",\"\")\nopen(p,'w').write(s)\nEOF\nmkdir -p tests && cat > tests/verify_data.mjs <<'EOF'\n// Integrity and sanity checks on the generated data in public/data.\n// usage: npm test\nimport fs from 'node:fs';\nimport zlib from 'node:zlib';\nimport path from 'node:path';\nimport { fileURLToPath } from 'node:url';\n\nconst dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'data');\nlet failed = 0, passed = 0;\nconst ok = (cond, msg) => { if (cond) passed++; else { failed++; console.error('  FAIL', msg); } };\nconst gz = (name) => { const b = zlib.gunzipSync(fs.readFileSync(path.join(dir, name))); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };\n\nconst meta = JSON.parse(fs.readFileSync(path.join(dir, 'meta.json'), 'utf8'));\nconst stations = JSON.parse(fs.readFileSync(path.join(dir, 'stations.json'), 'utf8'));\nconst { w, h, sW, sH } = meta.grid, NL = meta.nl;\nconsole.log(`grid ${w}x${h} @ ${meta.grid.cell} m, ${meta.counts.buildings} buildings, ${stations.length} stations`);\n\n// ---- raster sizes\nconst T = new Int16Array(gz('flood_T.bin.gz')), G = new Uint16Array(gz('ground.bin.gz'));\nconst masks = new Uint8Array(gz('masks.bin.gz')), pa = new Uint8Array(gz('ppri_a.bin.gz')), pb = new Uint8Array(gz('ppri_b.bin.gz'));\nok(T.length === w * h, 'flood_T size'); ok(G.length === w * h, 'ground size'); ok(masks.length === w * h * 4, 'masks size');\nok(pa.length === w * h * 4, 'ppri_a size'); ok(pb.length === w * h * 2, 'ppri_b size');\nok(new Float32Array(gz('river_s.bin.gz')).length === sW * sH, 'river_s size');\n\n// ---- ground model range (NGF)\nlet gmin = 1e9, gmax = -1e9;\nfor (let i = 0; i < G.length; i++) { const v = G[i] / 100 + meta.grid.groundBase; if (masks[i * 4 + 3] > 128) { gmin = Math.min(gmin, v); gmax = Math.max(gmax, v); } }\nconsole.log(`ground inside Paris: ${gmin.toFixed(1)} .. ${gmax.toFixed(1)} m NGF`);\nok(gmin > 20 && gmin < 30, 'lowest ground near the Seine'); ok(gmax > 120 && gmax < 135, 'highest ground ~ Butte Montmartre/Belleville (128 m)');\n\n// ---- buildings\nconst geom = gz('buildings_geom.bin.gz'), hd = new Int32Array(geom, 0, 8);\nconst n = hd[1], nRings = hd[2], nVerts = hd[3], nChunks = hd[4];\nok(hd[0] === 0x42444c47, 'geometry magic'); ok(n === meta.counts.buildings, 'building count matches meta');\nconst cb = new Int32Array(geom.slice(32, 32 + 4 * (nChunks + 1)));\nok(cb[0] === 0 && cb[nChunks] === n, 'chunk bounds cover all buildings');\nlet mono = true; for (let i = 1; i < cb.length; i++) if (cb[i] < cb[i - 1]) mono = false; ok(mono, 'chunk bounds monotonic');\nlet off = 32 + 4 * (nChunks + 1);\nconst ringCount = new Uint8Array(geom.slice(off, off + n)); off += n;\nconst ringLen = new Uint16Array(geom.slice(off, off + 2 * nRings)); off += 2 * nRings;\nok(ringCount.reduce((a, b) => a + b, 0) === nRings, 'ring counts sum'); ok(ringLen.reduce((a, b) => a + b, 0) === nVerts, 'vertex counts sum');\nok(ringLen.every((l) => l >= 3), 'every ring has >= 3 vertices');\noff += 8 * n + 4 * nVerts; ok(off === geom.byteLength, 'geometry blob fully consumed');\nconst at = gz('buildings_attr.bin.gz'); ok(at.byteLength === n * (4 + 4 + 2 + 2 + 4 + 1 + 1 + 2), 'attribute blob size');\nconst z = new Float32Array(at, 0, n), hh = new Float32Array(at, 4 * n, n);\nlet zmin = 1e9, zmax = -1e9, hmax = 0, hmin = 1e9;\nfor (let i = 0; i < n; i++) { zmin = Math.min(zmin, z[i]); zmax = Math.max(zmax, z[i]); hmax = Math.max(hmax, hh[i]); hmin = Math.min(hmin, hh[i]); }\nconsole.log(`building ground ${zmin.toFixed(1)}..${zmax.toFixed(1)} m, height ${hmin.toFixed(1)}..${hmax.toFixed(0)} m`);\nok(zmin > 20 && zmax < 135 && hmin >= 2.5 && hmax < 250, 'building ground / height ranges');\nconst arr = new Uint8Array(at, 16 * n + 4 * n - 4 * n + 0, 0); // placeholder to keep offsets explicit below\nconst arrOff = 4 * n * 3 + 2 * n * 2; // z,h,s (3x f32) + tc,tl (2x i16)\nconst arrB = new Uint8Array(at, arrOff, n); const counts = new Array(21).fill(0); for (const a of arrB) counts[a]++;\nok(counts[0] === 0 && counts.slice(1).every((c) => c > 1000), 'every arrondissement has buildings');\n\n// ---- statistics\nconst st = gz('stats.bin.gz');\nconst bld = new Uint32Array(st, 0, 2 * 21 * NL), area = new Float32Array(st, 2 * 21 * NL * 4, 2 * 3 * NL);\nconst areaArr = new Float32Array(st, (2 * 21 * NL + 2 * 3 * NL) * 4, 2 * 21 * NL);\nconst dmax = new Float32Array(st, (2 * 21 * NL + 2 * 3 * NL + 2 * 21 * NL) * 4, 2 * 101);\nfor (let m = 0; m < 2; m++) {\n  let allMono = true, sumOK = true, areaMono = true;\n  for (let a = 0; a < 21; a++) for (let c = 1; c < NL; c++) if (bld[(m * 21 + a) * NL + c] < bld[(m * 21 + a) * NL + c - 1]) allMono = false;\n  for (let c = 0; c < NL; c += 7) { let s = 0; for (let a = 1; a <= 20; a++) s += bld[(m * 21 + a) * NL + c]; if (s !== bld[(m * 21) * NL + c]) sumOK = false; }\n  for (let k = 0; k < 3; k++) for (let c = 1; c < NL; c++) if (area[(m * 3 + k) * NL + c] < area[(m * 3 + k) * NL + c - 1] - 1e-4) areaMono = false;\n  ok(allMono, `mode ${m}: building counts non-decreasing`); ok(sumOK, `mode ${m}: arrondissements sum to the total`); ok(areaMono, `mode ${m}: flooded area non-decreasing`);\n  let dm = true; for (let k = 1; k < 101; k++) if (dmax[m * 101 + k] < dmax[m * 101 + k - 1] - 1e-4) dm = false; ok(dm, `mode ${m}: max depth non-decreasing`);\n  const at_ = (L) => area[(m * 3) * NL + Math.round(L * 100)];\n  const b_ = (L) => bld[(m * 21) * NL + Math.round(L * 100)];\n  console.log(`mode ${m}: area ha @2018 ${at_(5.84).toFixed(0)}  @2016 ${at_(6.10).toFixed(0)}  @1955 ${at_(7.12).toFixed(0)}  @1910 ${at_(8.62).toFixed(0)}  @10m ${at_(10).toFixed(0)} | buildings @1910 ${b_(8.62)}`);\n  ok(at_(5.84) < at_(6.10) && at_(6.10) < at_(7.12) && at_(7.12) < at_(8.62), `mode ${m}: historic floods ordered by area`);\n  ok(at_(8.62) > 800 && at_(8.62) < 1500, `mode ${m}: 1910 flooded area plausible (PPRI zones cover ${meta.counts.pprIHa} ha)`);\n  ok(at_(0) === 0 && b_(0) === 0, `mode ${m}: nothing flooded at the normal level`);\n  ok(b_(10) < n * 0.4, `mode ${m}: building share at +10 m plausible`);\n}\n\n// ---- agreement with the regulatory zones at the 1910 level (connected mode)\nlet inter = 0, uni = 0, ppriN = 0;\nfor (let i = 0; i < w * h; i++) {\n  if (masks[i * 4 + 3] < 128 || T[i] < 0) continue;            // outside Paris / river channel\n  const fl = T[i] <= 862, pp = pa[i * 4] > 127 || pa[i * 4 + 1] > 127 || pa[i * 4 + 2] > 127 || pa[i * 4 + 3] > 127 || pb[i * 2] > 127 || pb[i * 2 + 1] > 127;\n  if (fl && pp) inter++; if (fl || pp) uni++; if (pp) ppriN++;\n}\nconsole.log(`1910 flood vs PPRI zones: IoU ${(inter / uni).toFixed(3)}, share of PPRI area reached ${(inter / ppriN).toFixed(3)}`);\nok(inter / uni > 0.40, 'IoU with PPRI >= 0.40'); ok(inter / ppriN > 0.45, 'at least 45% of the PPRI area is flooded in the model at +8.62 m');\n\n// ---- stations\nok(stations.length === meta.counts.stations, 'station count'); ok(stations.every((s) => s.name && Number.isFinite(s.ngf) && s.ngf > 20 && s.ngf < 135), 'stations have names and a plausible altitude');\nconst names = new Set(stations.map((s) => s.name)); ok(names.has(\"Gare d'Austerlitz\") || [...names].some((x) => /Austerlitz/.test(x)), 'Austerlitz station present');\nconst fl1910 = stations.filter((s) => s.tc <= 862).length; console.log(`stations flooded at +8.62 m: ${fl1910} / ${stations.length}`);\nok(fl1910 > 10 && fl1910 < 120, 'flooded stations plausible');\nok(stations.filter((s) => s.tc <= 0).length === 0, 'no station below the gauge zero');\nconsole.log(failed ? `\\n${failed} FAILED, ${passed} passed` : `\\nall ${passed} checks passed`);\nprocess.exit(failed ? 1 : 0);\nEOF\nnpm test 2>&1 | tail -30"
+          }
+        },
+        {
+          "tool_name": "Bash",
+          "tool_use_id": "toolu_01EZH59mbMLGNYWBGqyGuRiw",
+          "tool_input": {
+            "command": "python3 - <<'EOF'\n# ---------------- shaders: far boost\np='src/gl/shaders.js'\ns=open(p).read()\ns=s.replace(\"uniform float uExposure;\\nuniform sampler2D tShadow;\",\"uniform float uExposure;\\nuniform float uFar;          // 0 (close) .. 1 (overview): flooded areas are emphasised from a distance\\nuniform sampler2D tShadow;\")\ns=s.replace(\"    float tint = roof ? 0.82 : 0.08;\",\"    float tint = roof ? 0.82 : mix(0.08, 0.42, uFar);\")\ns=s.replace(\"    c += sev * (roof ? 0.18 : 0.0) * (1.0 - under);\",\"    c += sev * (roof ? 0.18 : 0.10 * uFar) * (1.0 - under);\")\ns=s.replace(\"  c += uShallow * uGlow * (0.26 * open + 0.04) * (1.0 - isRiver) * (1.0 - 0.55 * dd);\",\"  c += uShallow * uGlow * (0.26 * open + 0.04) * (1.0 + 1.2 * uFar) * (1.0 - isRiver) * (1.0 - 0.55 * dd);\")\ns=s.replace(\"  float alpha = mix(mix(0.62, 0.93, dd), 0.97, isRiver) * mask;\",\"  float alpha = mix(mix(0.62, 0.93, dd), 0.97, isRiver) * mask;\\n  alpha = mix(alpha, max(alpha, 0.92 * mask), uFar * (1.0 - isRiver));\")\nopen(p,'w').write(s)\np='src/city.js'\ns=open(p).read()\ns=s.replace(\"      uExposure: { value: 1.15 },\\n      tShadow:\",\"      uExposure: { value: 1.15 }, uFar: { value: 0 },\\n      tShadow:\")\ns=s.replace(\"    this.stU.uPoleH.value = 70;\\n    this.updateShadow();\",\"    this.stU.uPoleH.value = 70;\\n    { const k = Math.min(1, Math.max(0, (dist - 3500) / 11500)); this.shared.uFar.value = k * k * (3 - 2 * k); }\\n    this.updateShadow();\")\nopen(p,'w').write(s)\n\n# ---------------- html\np='index.html'\ns=open(p).read()\ns=s.replace('<title>Paris under water','<link rel=\"icon\" href=\"data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 64 64\\'%3E%3Crect width=\\'64\\' height=\\'64\\' rx=\\'14\\' fill=\\'%230b1424\\'/%3E%3Cpath d=\\'M8 30c8-8 14 8 24 0s16-8 24 0v24H8z\\' fill=\\'%233dd6ff\\'/%3E%3Cpath d=\\'M14 28V14h8v10M26 28V8h10v16M40 28V16h10v12\\' fill=\\'%23ffb347\\'/%3E%3C/svg%3E\" />\\n<title>Paris under water',1)\ns=s.replace('''      <label class=\"switch\"><input type=\"checkbox\" id=\"lyStations\" checked /><span></span><b data-i=\"stationsLayer\"></b></label>''','''      <label class=\"switch\"><input type=\"checkbox\" id=\"lyStations\" checked /><span></span><b data-i=\"stationsLayer\"></b></label>\n      <div class=\"st-legend\"><span><i class=\"ok\"></i><em data-i=\"stateOk\"></em></span><span><i class=\"alert\"></i><em data-i=\"stateAlert\"></em></span><span><i class=\"flooded\"></i><em data-i=\"stateFlooded\"></em></span></div>''')\ns=s.replace('''        <label class=\"range\"><span data-i=\"ppriOpacity\"></span>''','''        <div class=\"ppri-cmp\" id=\"ppriCmp\"></div>\n        <label class=\"range\"><span data-i=\"ppriOpacity\"></span>''')\nopen(p,'w').write(s)\n\n# ---------------- css\np='src/styles.css'\ns=open(p).read()\ns=s.replace(\".ppri-legend[hidden] { display: none; }\",\"\"\".ppri-cmp { margin: 8px 0 4px; padding: 8px 10px; border-radius: 10px; background: var(--bar-bg); font-size: 11.5px; line-height: 1.5; color: var(--muted); }\n.ppri-cmp b { color: var(--ink); font-variant-numeric: tabular-nums; }\n.ppri-cmp .bar { height: 5px; border-radius: 3px; background: var(--panel-solid); margin: 6px 0 4px; overflow: hidden; }\n.ppri-cmp .bar i { display: block; height: 100%; background: linear-gradient(90deg, #1b8fd6, #3dd6ff); width: 0; }\n.st-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 4px 42px; font-size: 11px; color: var(--muted); }\n.st-legend span { display: inline-flex; align-items: center; gap: 5px; } .st-legend em { font-style: normal; }\n.st-legend i { width: 9px; height: 9px; border-radius: 50%; background: #e8f2ff; border: 1.5px solid #0b1424; box-shadow: 0 0 0 1px var(--line); }\n.st-legend i.alert { background: #ffb82b; } .st-legend i.flooded { background: #ff3d52; }\"\"\")\nopen(p,'w').write(s)\n\n# ---------------- i18n\np='src/i18n.js'\ns=open(p).read()\ns=s.replace(\"    ppriOpacity: 'Overlay opacity',\",\"\"\"    ppriOpacity: 'Overlay fill opacity',\n    ppriIn: (ha, p) => `Flooded inside the zones: <b>${ha} ha</b> \u2014 <b>${p}%</b> of the zoned land`,\n    ppriOut: (ha) => `Flooded outside the zones: <b>${ha} ha</b> (includes streets, which the PPRI polygons mostly leave out)`,\"\"\")\ns=s.replace(\"    ppriOpacity: 'Opacit\u00e9 de la couche',\",\"\"\"    ppriOpacity: 'Opacit\u00e9 du remplissage',\n    ppriIn: (ha, p) => `Inond\u00e9 dans les zones : <b>${ha} ha</b> \u2014 <b>${p} %</b> de la surface zon\u00e9e`,\n    ppriOut: (ha) => `Inond\u00e9 hors zones : <b>${ha} ha</b> (inclut les rues, que les polygones du PPRI laissent le plus souvent de c\u00f4t\u00e9)`,\"\"\")\nopen(p,'w').write(s)\n\n# ---------------- ui\np='src/ui.js'\ns=open(p).read()\ns=s.replace(\"    updateArrChart(idx);\\n    if (state.stationsOpen)\",\"\"\"    if (!$('#ppriLegend').hidden) {\n      const inside = stats.ppri[(m * 2) * NL + idx], outside = stats.ppri[(m * 2 + 1) * NL + idx];\n      $('#ppriCmp').innerHTML = `<div>${t('ppriIn')(nf(inside, inside >= 100 ? 0 : 1), nf((inside / meta.counts.ppriLandHa) * 100, 0))}</div><div class=\"bar\"><i style=\"width:${Math.min(100, (inside / meta.counts.ppriLandHa) * 100)}%\"></i></div><div>${t('ppriOut')(nf(outside, outside >= 100 ? 0 : 1))}</div>`;\n    }\n    updateArrChart(idx);\n    if (state.stationsOpen)\"\"\")\ns=s.replace(\"    const on = e.target.checked; $('#ppriLegend').hidden = !on;\",\"    const on = e.target.checked; $('#ppriLegend').hidden = !on; update();\")\nopen(p,'w').write(s)\nEOF\ncd /tmp/pw && node ppri.mjs night \"{x:150,z:600,dist:9000,az:0.2,polar:1.0}\" ppri4 \"8.62\" && echo ok"
+          }
+        }
+      ],
+      "terminal_reason": "completed",
+      "fast_mode_state": "off",
+      "fast_mode_disabled_reason": "sdk_opt_in_required",
+      "subagent_stats": {
+        "spawned": 0,
+        "requested": {
+          "background": 0,
+          "foreground": 0,
+          "unset": 0
+        },
+        "started_in_background": 0,
+        "max_depth": 0,
+        "spawned_by_subagents": 0,
+        "completed": 0,
+        "failed": 0,
+        "killed": {
+          "parent": 0,
+          "user": 0,
+          "system": 0
+        },
+        "refused": {
+          "depth_limit": 0,
+          "concurrency_limit": 0,
+          "budget": 0
+        },
+        "by_type": {}
+      },
+      "safety_stops": 0,
+      "is_error": false,
+      "num_turns": 183,
+      "subtype": "success",
+      "api_error_status": null,
+      "result": "The Paris flood simulator is built and works end to end in `/workspace`. I verified it in headless Chromium on a software renderer, so I have not measured speed on a real GPU. `npm run dev` serves it, `npm run build` makes a static site in `dist/`, and `npm test` runs 50 checks on the generated data (all pass). Nothing is committed.\n\n## What it does\n\n- **Buildings:** 125,502 buildings in inner Paris rise from their real ground altitude to their real height, with the two Bois cut out. About 2,200 footprints under 5 m\u00b2 are dropped.\n- **Slider:** 0\u201310 m on the Pont d'Austerlitz gauge in 1 cm steps, with keyboard control, \u00b11/\u00b110 cm buttons and a Rise button.\n  - Markers for 2018 (+5.84), 2016 (+6.10), 1955 (+7.12) and 1910 (+8.62) are clickable, and Rise pauses on each one.\n  - A flooded-area curve runs behind the slider track.\n- **Water and highlighting:** the 3D water, flooded streets and building colours (by water depth) update in the same frame, with shadows. Buildings tint by depth at their footprint.\n- **Stations:** 295 metro, RER, rail and tram stop areas are plotted. Each is open, within 50 cm of water, or flooded, based on street level at the station.\n- **Counters:** flooded hectares, affected buildings (total and per arrondissement as a chart or table), flooded stations by mode with a searchable list, and maximum water depth.\n- **PPRI overlay:** regulatory zones draped over the 3D water. A live readout shows how much of the zoned land the model floods and how much it floods outside.\n- **Extras:** night and day themes, EN/FR, viewpoints, hover tooltips, a shareable URL for the level, and a phone layout.\n\n## Accuracy\n\nAt +8.62 m the model floods about 1,080 ha and 12,687 buildings. It reaches 61% of the PPRI-zoned area, with an overlap score (IoU) of 0.50 against the PPRI zones. PPRI polygons cover whole blocks rather than streets, so a perfect model would not score 1.\n\nSome constants are my estimates:\n- **Gauge zero:** 25.99 m NGF, from a 1910 flood mark of 34.610 m beside the bridge.\n- **River slope:** the Seine falls 0.20 m/km downstream. One 1910 mark implies about 0.22; the PPRI agreement is flat from 0.10 to 0.20.\n- **Lower quays:** their flooding between +1.2 and +2.7 m is indicative, since no open dataset exists for them.\n\nIt is a still-water end-state model, so it shows where water ends up, not how fast it gets there. The README lists all limits.\n\n## Things you didn't ask for\n\n- **Connected vs any low point:** the default floods only ground connected to the river. An \"any low point\" toggle also floods isolated low ground, as sewers and the metro did in 1910.\n- **Two extra data sources:** I used the City of Paris green-spaces layer for the Bois outlines and parks, and OpenStreetMap (via Overpass) for bridge outlines. Both are display-only, and the OSM credit is in the footer.\n- **Bridges are schematic:** deck heights are interpolated between the quays with a small arch. They are not part of any flood figure.\n- **Missing data:** the Luxembourg garden is not in the City layer, so it shows as bare ground.\n\nThe project notes are in `README.md`, including how to regenerate the data with `npm run data -- /path/to/python`.",
+      "ttft_ms": 1395,
+      "type": "result",
+      "duration_ms": 3664371,
+      "uuid": "c75884bb-6bce-49a5-8b26-ce68529f0afb",
+      "ttft_stream_ms": 1209,
+      "time_to_request_ms": 308,
+      "first_content_frame_ms": 1210,
+      "queued_turn_count": 0,
+      "result_index": 0,
+      "model_usage_since_last_result": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 218,
+          "outputTokens": 357673,
+          "cacheReadInputTokens": 32241350,
+          "cacheCreationInputTokens": 503234,
+          "webSearchRequests": 0,
+          "costUSD": 8.814236999999999,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 179613,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-haiku-5-5": {
+          "inputTokens": 61444,
+          "outputTokens": 4555,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 4,
+          "costUSD": 0.048421900000000004,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 1318,
+          "canonicalModel": "claude-haiku-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "claude_code": {
+        "attempts": 1,
+        "attempts_without_result": 0,
+        "uncached_input_tokens": 218,
+        "cache_write_tokens": 503234,
+        "cache_read_tokens": 32241350,
+        "output_tokens": 357673,
+        "duration_api_seconds": 2588.8,
+        "total_cost_usd": 8.8627
+      },
+      "hook_tokens": {
+        "source": "transcript_or_hook",
+        "model": "claude-sonnet-5-5",
+        "input_tokens": 32744802,
+        "uncached_input_tokens": 218,
+        "cache_read_tokens": 32241350,
+        "cache_write_tokens": 503234,
+        "output_tokens": 357673,
+        "split_rule": "unavailable"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "claude-sonnet-5-5",
+        "context_variant": null,
+        "long_context_applied": false,
+        "harness": "claude-code",
+        "harness_token_rate_per_1m": "0",
+        "harness_surcharge_usd": "0.00",
+        "rates_per_1m_usd": {
+          "input": "2.00",
+          "cache_write": "2.50",
+          "cache_read": "0.10",
+          "output": "10.00"
+        },
+        "estimated_cost_usd": "8.06",
+        "estimated_cost_with_harness_usd": "8.06"
+      }
+    }
+  },
+  "model_time": {
+    "source": "harness_model_time",
+    "generating_seconds": 2588.8,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 3664.1,
+        "tool_seconds_merged": 1111.7,
+        "tool_seconds_summed": 1200.3,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": 2552.4,
+        "thinking_seconds": 1746.5,
+        "thought_blocks": 158,
+        "timing_source": "claude_sessions",
+        "active_seconds": 3664.1,
+        "retry_gap_seconds": 0.0,
+        "duration_api_seconds": 2588.8,
+        "attempts": 1,
+        "attempts_without_result": 0
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 94,
+      "failures": 7,
+      "by_tool": {
+        "Bash": {
+          "calls": 94,
+          "failures": 7
+        }
+      }
+    },
+    "files": {
+      "calls": 81,
+      "failures": 4,
+      "by_tool": {
+        "Read": {
+          "calls": 59,
+          "failures": 4
+        },
+        "Write": {
+          "calls": 22,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 4,
+      "failures": 0,
+      "by_tool": {
+        "WebSearch": {
+          "calls": 4,
+          "failures": 0
+        }
+      }
+    },
+    "other": {
+      "calls": 2,
+      "failures": 0,
+      "by_tool": {
+        "ToolSearch": {
+          "calls": 1,
+          "failures": 0
+        },
+        "Skill": {
+          "calls": 1,
+          "failures": 0
+        }
+      }
+    }
+  },
+  "context_reread": {
+    "source": "provider_cache_read",
+    "cache_read_tokens": 32241350,
+    "cache_write_tokens": 503234,
+    "uncached_input_tokens": 218,
+    "raw": {
+      "source": "transcript_or_hook",
+      "model": "claude-sonnet-5-5",
+      "input_tokens": 32744802,
+      "uncached_input_tokens": 218,
+      "cache_read_tokens": 32241350,
+      "cache_write_tokens": 503234,
+      "output_tokens": 357673,
+      "split_rule": "unavailable"
+    }
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": false,
+    "summary": ""
+  },
+  "observations": "Isolation hook denied 3 tool call(s): Bash denied: Parent directory traversal outside workspace is blocked by isolation policy; Bash denied: Parent directory traversal outside workspace is blocked by isolation policy; Bash denied: Parent directory traversal outside workspace is blocked by isolation policy. other tools: Skill, ToolSearch.",
+  "verification": {
+    "runtime": {
+      "passed": true,
+      "http_status": 200,
+      "url": "http://127.0.0.1:63445",
+      "server_mode": "static",
+      "load_time_ms": 3818.28,
+      "console_errors": [],
+      "console_warnings_count": 2,
+      "page_errors": [],
+      "failed_requests": [],
+      "critical_failures": [],
+      "dom": {
+        "title": "Paris under water \u2014 interactive flood simulator",
+        "canvas_count": 1,
+        "visible_canvas_count": 1,
+        "canvas_obscured": false,
+        "loading_overlay": null,
+        "loading_status_text": "",
+        "intro_gate": {
+          "detected": true,
+          "selector": "#loader",
+          "text": "INTERACTIVE ATLAS \u00b7 SEINE \u00b7 PARIS INTRA-MUROS\nParis under water\n125,000 building footprints \u00b7 5 m ground model\nEnter the simulation\nDrag to orbit \u00b7 scroll to zoom \u00b7 right-drag to pan",
+          "control_selector": "#enterBtn",
+          "control_text": "Enter the simulation",
+          "clicked": true,
+          "dismissed": true
+        },
+        "svg_count": 4,
+        "webgl_context": true,
+        "text_length": 1722
+      },
+      "screenshot_path": "artifacts/screenshot.png",
+      "loading_settle_ms": 24000,
+      "verified_at": "2026-10-26T09:30:14.298Z"
+    },
+    "data_pipeline": {
+      "prompt_id": "paris-1910-flood-simulator",
+      "passed": true,
+      "authenticity": "real_open_data",
+      "score": 1.0,
+      "total_data_files": 14,
+      "total_records": 146047,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "buildings_elevation_dataset",
+          "description": "Paris buildings footprint dataset with height and median ground elevation",
+          "passed": true,
+          "observed_records": 128206,
+          "matched_files": [
+            "data-raw/idfm/emplacement-des-gares-idf.geojson",
+            "data-raw/apur/emprise_batie.json",
+            "data-raw/plan-de-voirie-repere-de-nivellement/plan-de-voirie-repere-de-nivellement.geojson"
+          ],
+          "detail": "Matched 3 file(s) with 128206 observed records (min: 1000)"
+        },
+        {
+          "id": "ppri_flood_risk_zones",
+          "description": "PPRI flood risk zones (plub_pprizone)",
+          "passed": true,
+          "observed_records": 1653,
+          "matched_files": [
+            "data-raw/plub_pprizone/plub_pprizone.geojson"
+          ],
+          "detail": "Matched 1 file(s) with 1653 observed records (min: 1)"
+        },
+        {
+          "id": "street_elevation_benchmarks",
+          "description": "Street elevation leveling benchmarks (repere-de-nivellement)",
+          "passed": true,
+          "observed_records": 9811,
+          "matched_files": [
+            "data-raw/plan-de-voirie-repere-de-nivellement/plan-de-voirie-repere-de-nivellement.geojson"
+          ],
+          "detail": "Matched 1 file(s) with 9811 observed records (min: 50)"
+        },
+        {
+          "id": "stations_dataset",
+          "description": "\u00cele-de-France metro and rail stations (emplacement-des-gares-idf)",
+          "passed": true,
+          "observed_records": 1582,
+          "matched_files": [
+            "data-raw/idfm/emplacement-des-gares-idf.geojson",
+            "public/data/stations.json"
+          ],
+          "detail": "Matched 2 file(s) with 1582 observed records (min: 20)"
+        },
+        {
+          "id": "arrondissements_dataset",
+          "description": "Paris 20 arrondissements district boundaries",
+          "passed": true,
+          "observed_records": 40,
+          "matched_files": [
+            "data-raw/arrondissements/arrondissements.geojson",
+            "public/data/meta.json"
+          ],
+          "detail": "Matched 2 file(s) with 40 observed records (min: 20)"
+        },
+        {
+          "id": "historical_flood_markers",
+          "description": "Historical flood markers (1910 at +8.62m, 2018 at +5.84m, 2016 at +6.10m, 1955 at +7.12m)",
+          "passed": true,
+          "observed_records": 143572,
+          "matched_files": [
+            "data-raw/idfm/emplacement-des-gares-idf.geojson",
+            "data-raw/espaces_verts/espaces_verts.geojson",
+            "data-raw/arrondissements/arrondissements.geojson",
+            "data-raw/apur/emprise_batie.json",
+            "data-raw/plan-de-voirie-repere-de-nivellement/plan-de-voirie-repere-de-nivellement.geojson",
+            "data-raw/plub_pprizone/plub_pprizone.geojson",
+            "data-raw/plan-de-voirie-voies-deau/plan-de-voirie-voies-deau.geojson"
+          ],
+          "detail": "Matched 7 file(s) with 143572 observed records (min: 1)"
+        }
+      ],
+      "verified_at": "2026-10-26T09:31:34.503Z"
+    }
+  }
+}

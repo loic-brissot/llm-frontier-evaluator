@@ -1,0 +1,82 @@
+{
+  "prompt_id": "paris-1910-flood-simulator",
+  "passed": true,
+  "authenticity": "real_open_data",
+  "score": 1.0,
+  "total_data_files": 14,
+  "total_records": 146047,
+  "synthetic_signals": [],
+  "checks": [
+    {
+      "id": "buildings_elevation_dataset",
+      "description": "Paris buildings footprint dataset with height and median ground elevation",
+      "passed": true,
+      "observed_records": 128206,
+      "matched_files": [
+        "data-raw/idfm/emplacement-des-gares-idf.geojson",
+        "data-raw/apur/emprise_batie.json",
+        "data-raw/plan-de-voirie-repere-de-nivellement/plan-de-voirie-repere-de-nivellement.geojson"
+      ],
+      "detail": "Matched 3 file(s) with 128206 observed records (min: 1000)"
+    },
+    {
+      "id": "ppri_flood_risk_zones",
+      "description": "PPRI flood risk zones (plub_pprizone)",
+      "passed": true,
+      "observed_records": 1653,
+      "matched_files": [
+        "data-raw/plub_pprizone/plub_pprizone.geojson"
+      ],
+      "detail": "Matched 1 file(s) with 1653 observed records (min: 1)"
+    },
+    {
+      "id": "street_elevation_benchmarks",
+      "description": "Street elevation leveling benchmarks (repere-de-nivellement)",
+      "passed": true,
+      "observed_records": 9811,
+      "matched_files": [
+        "data-raw/plan-de-voirie-repere-de-nivellement/plan-de-voirie-repere-de-nivellement.geojson"
+      ],
+      "detail": "Matched 1 file(s) with 9811 observed records (min: 50)"
+    },
+    {
+      "id": "stations_dataset",
+      "description": "\u00cele-de-France metro and rail stations (emplacement-des-gares-idf)",
+      "passed": true,
+      "observed_records": 1582,
+      "matched_files": [
+        "data-raw/idfm/emplacement-des-gares-idf.geojson",
+        "public/data/stations.json"
+      ],
+      "detail": "Matched 2 file(s) with 1582 observed records (min: 20)"
+    },
+    {
+      "id": "arrondissements_dataset",
+      "description": "Paris 20 arrondissements district boundaries",
+      "passed": true,
+      "observed_records": 40,
+      "matched_files": [
+        "data-raw/arrondissements/arrondissements.geojson",
+        "public/data/meta.json"
+      ],
+      "detail": "Matched 2 file(s) with 40 observed records (min: 20)"
+    },
+    {
+      "id": "historical_flood_markers",
+      "description": "Historical flood markers (1910 at +8.62m, 2018 at +5.84m, 2016 at +6.10m, 1955 at +7.12m)",
+      "passed": true,
+      "observed_records": 143572,
+      "matched_files": [
+        "data-raw/idfm/emplacement-des-gares-idf.geojson",
+        "data-raw/espaces_verts/espaces_verts.geojson",
+        "data-raw/arrondissements/arrondissements.geojson",
+        "data-raw/apur/emprise_batie.json",
+        "data-raw/plan-de-voirie-repere-de-nivellement/plan-de-voirie-repere-de-nivellement.geojson",
+        "data-raw/plub_pprizone/plub_pprizone.geojson",
+        "data-raw/plan-de-voirie-voies-deau/plan-de-voirie-voies-deau.geojson"
+      ],
+      "detail": "Matched 7 file(s) with 143572 observed records (min: 1)"
+    }
+  ],
+  "verified_at": "2026-10-26T09:31:34.503Z"
+}

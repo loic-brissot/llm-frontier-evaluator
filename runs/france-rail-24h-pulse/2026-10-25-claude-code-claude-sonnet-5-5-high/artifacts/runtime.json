@@ -1,0 +1,27 @@
+{
+  "passed": true,
+  "http_status": 200,
+  "url": "http://127.0.0.1:8080",
+  "server_mode": "command",
+  "load_time_ms": 5032.39,
+  "console_errors": [],
+  "console_warnings_count": 0,
+  "page_errors": [],
+  "failed_requests": [],
+  "critical_failures": [],
+  "dom": {
+    "title": "Atlas ferroviaire \u00b7 French passenger rail, 24 hours",
+    "canvas_count": 3,
+    "visible_canvas_count": 3,
+    "canvas_obscured": false,
+    "loading_overlay": null,
+    "loading_status_text": "",
+    "intro_gate": null,
+    "svg_count": 4,
+    "webgl_context": false,
+    "text_length": 791
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "loading_settle_ms": 0,
+  "verified_at": "2026-10-26T09:29:41.323Z"
+}

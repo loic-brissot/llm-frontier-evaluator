@@ -53,7 +53,7 @@ DEFAULT_DOCKERFILE = ROOT / "Dockerfile.benchmark"
 DEFAULT_ENV_FILE = ROOT / ".env"
 STAGING_PARENT = _COMMON_STAGING_PARENT
 
-DEFAULT_TIMEOUT_SECONDS: float = 1800.0
+DEFAULT_TIMEOUT_SECONDS: float = 3600.0
 DEFAULT_STALL_TIMEOUT_SECONDS: float = 300.0
 DEFAULT_RETRY_COOLDOWN_SECONDS: float = 60.0
 DEFAULT_MAX_RETRIES: int = 2
@@ -443,7 +443,11 @@ def build_container_command(
             prompt_text,
         ])
     else:  # claude-code
-        if "ANTHROPIC_API_KEY" in env:
+        # CLAUDE_CODE_OAUTH_TOKEN wins: the API key is then never forwarded, so a bad token fails the run
+        # instead of silently falling back to per-token API billing.
+        if claude_uses_oauth_token(env):
+            cmd.extend(["-e", "CLAUDE_CODE_OAUTH_TOKEN"])
+        elif "ANTHROPIC_API_KEY" in env:
             cmd.extend(["-e", "ANTHROPIC_API_KEY"])
         if claude_state_dir is not None:
             cmd.extend([
@@ -860,6 +864,31 @@ def format_stream_progress_line(
 CLAUDE_KEYCHAIN_SERVICE = "Claude Code-credentials"
 
 
+CLAUDE_AUTH_FAILURE_PATTERN = re.compile(
+    r"invalid api key|authentication[_ ]error|oauth token has (?:expired|been revoked)|invalid bearer token|"
+    r"invalid authentication credentials|please run /login|not logged in|failed to authenticate|\b401\b",
+    re.IGNORECASE,
+)
+
+
+def claude_uses_oauth_token(env: dict | None) -> bool:
+    """True when CLAUDE_CODE_OAUTH_TOKEN is set (non-empty); it then takes precedence over ANTHROPIC_API_KEY."""
+    return bool(env and str(env.get("CLAUDE_CODE_OAUTH_TOKEN") or "").strip())
+
+
+def claude_auth_failure_in_stream(stream_file: Path | None) -> str | None:
+    """Return the auth error text when the stream's final result is an authentication failure, else None."""
+    if stream_file is None or not stream_file.is_file():
+        return None
+    result = extract_cli_result(stream_file)
+    if not isinstance(result, dict) or not (result.get("is_error") or str(result.get("subtype") or "").startswith("error")):
+        return None
+    text = " ".join(str(result.get(k) or "") for k in ("result", "error", "message"))
+    if result.get("api_error_status") in (401, 403) or CLAUDE_AUTH_FAILURE_PATTERN.search(text):
+        return text.strip() or "authentication failed"
+    return None
+
+
 def claude_oauth_credentials_available(env: dict, home: Path | None = None) -> bool:
     """Return True when Claude Code subscription OAuth state can be found for an interactive run.
 
@@ -914,11 +943,14 @@ def validate_credentials_preflight(
                         "(run: claude setup-token and export CLAUDE_CODE_OAUTH_TOKEN=..., or sign in once with `claude /login`). "
                         "ANTHROPIC_API_KEY is not required and is ignored."
                     )
-            elif not env.get("ANTHROPIC_API_KEY"):
-                errors.append("Missing required environment variable ANTHROPIC_API_KEY for harness 'claude-code' (export ANTHROPIC_API_KEY=...).")
+            elif not claude_uses_oauth_token(env) and not env.get("ANTHROPIC_API_KEY"):
+                errors.append(
+                    "Missing Claude Code credentials: set CLAUDE_CODE_OAUTH_TOKEN (subscription billing, from `claude setup-token`) "
+                    "or ANTHROPIC_API_KEY (per-token API billing)."
+                )
     else:
-        if not env.get("CURSOR_API_KEY") and not env.get("ANTHROPIC_API_KEY"):
-            errors.append("Missing required environment variable CURSOR_API_KEY or ANTHROPIC_API_KEY (export CURSOR_API_KEY=... or export ANTHROPIC_API_KEY=...).")
+        if not env.get("CURSOR_API_KEY") and not env.get("ANTHROPIC_API_KEY") and not claude_uses_oauth_token(env):
+            errors.append("Missing required environment variable CURSOR_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, or ANTHROPIC_API_KEY.")
     return errors
 
 
@@ -1377,6 +1409,9 @@ def run_benchmark_container(
             resolved_series_id = series_id.strip() if series_id else default_series_id(scaffold_harness, prompt_id)
             resolved_provider = provider.strip() if provider else (infer_provider(model) or "unknown")
             resolved_harness_detail = harness_detail or ""
+            if not (scaffold_harness == "cursor" or is_cursor_harness(scaffold_harness)) and claude_uses_oauth_token(env):
+                oauth_note = "headless; subscription OAuth"
+                resolved_harness_detail = f"{resolved_harness_detail}; {oauth_note}" if resolved_harness_detail else oauth_note
             if cache_note:
                 if resolved_harness_detail:
                     if cache_note not in resolved_harness_detail:
@@ -1854,6 +1889,17 @@ def run_benchmark_container(
 
         last_return_code = return_code
 
+        if not is_cursor_run and claude_uses_oauth_token(env):
+            auth_error = claude_auth_failure_in_stream(cli_stream_file)
+            if auth_error:
+                _log(
+                    f"Run {run_id} failed: CLAUDE_CODE_OAUTH_TOKEN was rejected ({auth_error[:200]}). "
+                    "Not retrying and not falling back to ANTHROPIC_API_KEY; refresh the token with `claude setup-token`.",
+                    is_err=True,
+                )
+                last_return_code = return_code or 1
+                break
+
         if return_code == 0:
             break
 
@@ -2257,7 +2303,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--timeout",
         type=float,
         default=DEFAULT_TIMEOUT_SECONDS,
-        help=f"Execution timeout in seconds for container run (default: {int(DEFAULT_TIMEOUT_SECONDS)}s / 30m).",
+        help=f"Execution timeout in seconds for container run (default: {int(DEFAULT_TIMEOUT_SECONDS)}s / {int(DEFAULT_TIMEOUT_SECONDS // 60)}m).",
     )
     parser.add_argument(
         "--stall-timeout",
