@@ -1,7 +1,11 @@
 import io
 import json
+import shutil
+import socket
 import tempfile
+import time
 import unittest
+import urllib.request
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 import sys
@@ -13,10 +17,13 @@ from run_common import load_json, run_schema_errors
 from verify_run import (
     DOM_INSPECTION_SCRIPT,
     EphemeralStaticServer,
+    collect_script_text,
     discover_and_start_server,
     extract_listening_url,
+    extract_ports_from_script_text,
     identify_critical_failures,
     is_uncompiled_source_html,
+    poll_for_reachable_url,
     reevaluate_run,
     reevaluate_runtime,
     run_playwright_telemetry,
@@ -990,6 +997,378 @@ class TestVerifyRun(unittest.TestCase):
         self.assertFalse(run["verification"]["passed"])
         self.assertTrue(run["verification"]["data_pipeline"]["passed"])
         self.assertEqual(reevaluate_runtime(rt)["critical_failures"], rt["critical_failures"])
+
+
+SPLASH_APP_HTML = """<!doctype html>
+<html><head><meta charset="utf-8"><title>Splash App</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  #loader { position: fixed; inset: 0; z-index: 50; background: #012; color: #fff; display: grid; place-items: center;
+            transition: opacity 0.1s; }
+  #loader.done { opacity: 0; visibility: hidden; pointer-events: none; }
+  canvas { width: 100%; height: 100%; display: block; }
+</style></head>
+<body>
+<div id="loader" role="status">
+  <div><h1>Paris under water</h1><div class="loader-bar"><i id="bar" style="width:100%"></i></div>
+  <p>Raising the buildings</p>
+  <button id="enterBtn" __BTN_ATTRS__>Enter the simulation</button></div>
+</div>
+<main><h2>Flood simulator</h2><p>Simulation controls and statistics live here.</p><canvas id="gl" width="300" height="150"></canvas></main>
+<script>
+  const btn = document.getElementById('enterBtn');
+  __BTN_HANDLER__
+</script>
+</body></html>
+"""
+
+STUCK_APP_HTML = """<!doctype html>
+<html><head><meta charset="utf-8"><title>Stuck App</title>
+<style>#loading-screen { position: fixed; inset: 0; background: #012; color: #fff; display: grid; place-items: center; }</style>
+</head><body>
+<div id="loading-screen"><p id="loading-status">Initialisation de la cartographie vectorielle...</p></div>
+<main><h2>Atlas</h2><canvas width="300" height="150"></canvas></main>
+</body></html>
+"""
+
+PROGRESS_THEN_GATE_HTML = """<!doctype html>
+<html><head><meta charset="utf-8"><title>Progress App</title>
+<style>
+  #loader { position: fixed; inset: 0; z-index: 50; background: #012; color: #fff; display: grid; place-items: center; }
+  #loader.done { display: none; }
+</style></head><body>
+<div id="loader" role="status"><div>
+  <h1>Loading</h1><div class="loader-bar"><i id="bar" style="width:0%"></i></div>
+  <button id="enterBtn" hidden>Enter</button>
+</div></div>
+<main><h2>App</h2><p>Real content once entered.</p><canvas width="300" height="150"></canvas></main>
+<script>
+  let p = 0;
+  const timer = setInterval(() => {
+    p += 10;
+    document.getElementById('bar').style.width = p + '%';
+    if (p >= 100) {
+      clearInterval(timer);
+      const b = document.getElementById('enterBtn');
+      b.hidden = false;
+      b.onclick = () => document.getElementById('loader').classList.add('done');
+    }
+  }, 150);
+</script>
+</body></html>
+"""
+
+
+def _free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def _port_open(port: int) -> bool:
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.3):
+            return True
+    except OSError:
+        return False
+
+
+class TestScriptPortDiscovery(unittest.TestCase):
+    def test_extract_ports_from_script_text_spellings(self):
+        cases = {
+            "python3 -m http.server 8080 --directory app": [8080],
+            "python -m http.server --bind 127.0.0.1 9001": [9001],
+            "python3 -m http.server --directory 2024 --bind 0.0.0.0": [8000],  # documented default
+            "node server.js --port 4321": [4321],
+            "node server.js --port=4322": [4322],
+            "serve -s dist -l 5055": [5055],
+            "serve -s dist -l tcp://0.0.0.0:5056": [5056],
+            "http-server -p 8081 .": [8081],
+            "http-server -p8082 .": [8082],
+            "live-server --listen=127.0.0.1:8083": [8083],
+            "vite --host 127.0.0.1 --port 5174": [5174],
+            "PORT=3456 node server.js": [3456],
+            "PORT=${PORT:-3457} node server.js": [3457],
+        }
+        for script, expected in cases.items():
+            with self.subTest(script=script):
+                self.assertEqual(extract_ports_from_script_text(script), expected)
+
+    def test_extract_ports_from_script_text_ignores_non_ports(self):
+        for script in (
+            "node server.js",
+            "vite build && vite preview",
+            "PORT=$PORT node server.js",
+            "node server.js --port $PORT",
+            "node app.js --workers 4 --delay 500",
+            "node server.js --port 80",  # privileged, never what a generated app should rely on
+            "node server.js --port 99999",
+        ):
+            with self.subTest(script=script):
+                self.assertEqual(extract_ports_from_script_text(script), [])
+
+    def test_extract_ports_dedupes_and_follows_script_references(self):
+        scripts = {
+            "start": "npm run serve",
+            "serve": "python3 -m http.server 8080 --directory app && echo --port 8080",
+            "other": "node other.js --port 7777",
+        }
+        text = collect_script_text(scripts, "start")
+        self.assertEqual(extract_ports_from_script_text(text), [8080])
+        self.assertNotIn("7777", text)
+
+    def test_poll_only_accepts_script_ports_while_process_alive(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            (Path(tmpdir) / "index.html").write_text("<html></html>", encoding="utf-8")
+            server = EphemeralStaticServer(Path(tmpdir), port=0)
+            server.start()
+            try:
+                url = f"http://127.0.0.1:{server.port}"
+                self.assertEqual(
+                    poll_for_reachable_url([], timeout=2.0, script_port_urls=[url], is_alive=lambda: True), url
+                )
+                self.assertIsNone(
+                    poll_for_reachable_url([], timeout=1.0, script_port_urls=[url], is_alive=lambda: False)
+                )
+            finally:
+                server.stop()
+
+    def test_discover_server_finds_hardcoded_port_script_and_cleans_up(self):
+        if shutil.which("npm") is None:
+            self.skipTest("npm is not available")
+        port = _free_port()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            (workspace / "app").mkdir(parents=True)
+            (workspace / "node_modules").mkdir()
+            (workspace / "app" / "index.html").write_text("<html><body>rail app</body></html>", encoding="utf-8")
+            # Mirrors the france-rail Claude Code run: hardcoded port, PORT ignored, entry point in app/.
+            (workspace / "package.json").write_text(
+                json.dumps({"scripts": {"start": f"python3 -m http.server {port} --directory app"}}),
+                encoding="utf-8",
+            )
+            url, mode, cleanup = discover_and_start_server(workspace, timeout=20.0)
+            try:
+                self.assertEqual(mode, "command")
+                self.assertEqual(url, f"http://127.0.0.1:{port}")
+                with urllib.request.urlopen(url, timeout=5) as resp:
+                    self.assertIn("rail app", resp.read().decode("utf-8"))
+            finally:
+                cleanup()
+            deadline = time.time() + 10
+            while time.time() < deadline and _port_open(port):
+                time.sleep(0.2)
+            self.assertFalse(_port_open(port), "server started for the package script was not cleaned up")
+
+    def _mock_start(self, workspace: Path, *, poll_result, listening: bool):
+        with (
+            patch("verify_run.subprocess.Popen") as mock_popen,
+            patch("verify_run.poll_for_reachable_url", return_value=poll_result) as mock_poll,
+            patch("verify_run._port_is_listening", return_value=listening),
+            patch("verify_run.os.getpgid", return_value=99999),
+            patch("verify_run.os.killpg") as mock_killpg,
+        ):
+            proc_mock = MagicMock()
+            proc_mock.pid = 99999
+            proc_mock.poll.return_value = None
+            mock_popen.return_value = proc_mock
+            url, mode, cleanup = discover_and_start_server(workspace, port=4173)
+            cleanup()
+        return url, mode, mock_popen, mock_poll, mock_killpg
+
+    def _hardcoded_workspace(self, tmpdir: str) -> Path:
+        workspace = Path(tmpdir) / "workspace"
+        workspace.mkdir()
+        (workspace / "node_modules").mkdir()
+        (workspace / "package.json").write_text(
+            json.dumps({"scripts": {"start": "python3 -m http.server 8123 --directory app"}}), encoding="utf-8"
+        )
+        return workspace
+
+    def test_discover_server_launches_package_script_unbuffered_with_script_port_candidates(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = self._hardcoded_workspace(tmpdir)
+            url, mode, mock_popen, mock_poll, _ = self._mock_start(
+                workspace, poll_result="http://127.0.0.1:8123", listening=False
+            )
+        self.assertEqual((url, mode), ("http://127.0.0.1:8123", "command"))
+        self.assertEqual(mock_popen.call_args.kwargs["env"]["PYTHONUNBUFFERED"], "1")
+        self.assertEqual(mock_poll.call_args.kwargs["script_port_urls"], ["http://127.0.0.1:8123"])
+        self.assertTrue(mock_poll.call_args.kwargs["is_alive"]())
+
+    def test_discover_server_skips_script_port_already_in_use_and_cleans_up(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = self._hardcoded_workspace(tmpdir)
+            url, mode, _, mock_poll, mock_killpg = self._mock_start(workspace, poll_result=None, listening=True)
+        self.assertIsNone(url)
+        self.assertEqual(mode, "none")
+        self.assertEqual(mock_poll.call_args.kwargs["script_port_urls"], [])
+        mock_killpg.assert_called()  # the process started for the script is still cleaned up
+
+
+class TestIntroGate(unittest.TestCase):
+    def _dom(self, **overrides):
+        dom = {
+            "title": "App",
+            "canvas_count": 1,
+            "visible_canvas_count": 1,
+            "canvas_obscured": False,
+            "loading_overlay": None,
+            "loading_status_text": "",
+            "svg_count": 0,
+            "text_length": 100,
+        }
+        dom.update(overrides)
+        return dom
+
+    def test_dismissed_intro_gate_is_not_a_failure(self):
+        gate = {"detected": True, "selector": "#loader", "control_text": "Enter", "clicked": True, "dismissed": True}
+        self.assertEqual(identify_critical_failures([], [], self._dom(intro_gate=gate)), [])
+
+    def test_undismissed_intro_gate_is_flagged(self):
+        gate = {"detected": True, "selector": "#loader", "control_text": "Enter", "clicked": True, "dismissed": False}
+        critical = identify_critical_failures([], [], self._dom(intro_gate=gate))
+        self.assertEqual(len(critical), 1)
+        self.assertIn("Persistent loading overlay detected (#loader)", critical[0])
+
+    def test_gate_record_without_dismissal_verdict_is_not_flagged(self):
+        gate = {"detected": True, "selector": "#loader", "control_selector": "#enterBtn"}
+        self.assertEqual(identify_critical_failures([], [], self._dom(intro_gate=gate)), [])
+
+    def test_stuck_overlay_without_control_still_flagged(self):
+        dom = self._dom(
+            loading_overlay={
+                "detected": True,
+                "selector": "#loading-screen",
+                "text": "Initialisation de la cartographie vectorielle...",
+            },
+            canvas_obscured=True,
+            intro_gate=None,
+        )
+        critical = identify_critical_failures([], [], dom)
+        self.assertTrue(any("Persistent loading overlay detected (#loading-screen)" in c for c in critical))
+        self.assertTrue(any("Primary canvas is obscured" in c for c in critical))
+
+    def test_reevaluate_runtime_handles_runtime_with_and_without_intro_gate(self):
+        base = {
+            "http_status": 200,
+            "console_errors": [],
+            "page_errors": [],
+            "failed_requests": [],
+            "dom": self._dom(),
+        }
+        old = reevaluate_runtime({**base, "passed": False})  # no intro_gate field at all
+        self.assertTrue(old["passed"])
+        gate_ok = {"detected": True, "selector": "#loader", "clicked": True, "dismissed": True}
+        new = reevaluate_runtime({**base, "passed": False, "dom": self._dom(intro_gate=gate_ok)})
+        self.assertTrue(new["passed"])
+        self.assertEqual(new["dom"]["intro_gate"], gate_ok)
+        stuck = reevaluate_runtime(
+            {**base, "passed": True, "dom": self._dom(intro_gate={**gate_ok, "dismissed": False})}
+        )
+        self.assertFalse(stuck["passed"])
+
+    def test_dom_script_defines_intro_gate_detection(self):
+        self.assertIn("intro_gate", DOM_INSPECTION_SCRIPT)
+        self.assertIn("findGateControl", DOM_INSPECTION_SCRIPT)
+        self.assertIn("a[href]", DOM_INSPECTION_SCRIPT)
+        self.assertIn('input[type="submit"]', DOM_INSPECTION_SCRIPT)
+
+
+def _chromium_available() -> bool:
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        try:
+            from run_common import _add_venv_site_packages
+
+            _add_venv_site_packages()
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            return False
+    try:
+        with sync_playwright() as p:
+            p.chromium.launch(headless=True).close()
+        return True
+    except Exception:
+        return False
+
+
+class TestIntroGateBrowser(unittest.TestCase):
+    """End-to-end checks against synthetic pages (skipped when Playwright Chromium is unavailable)."""
+
+    @classmethod
+    def setUpClass(cls):
+        if not _chromium_available():
+            raise unittest.SkipTest("Playwright Chromium is not available")
+
+    def _run(self, html: str, **kwargs):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            site = Path(tmpdir) / "site"
+            site.mkdir()
+            (site / "index.html").write_text(html, encoding="utf-8")
+            server = EphemeralStaticServer(site, port=0)
+            server.start()
+            try:
+                opts = {"wait_ms": 200, "settle_ms": 3000, "settle_step_ms": 100, "stall_ms": 600, "timeout": 20.0}
+                opts.update(kwargs)
+                telemetry = run_playwright_telemetry(
+                    f"http://127.0.0.1:{server.port}", "static", Path(tmpdir) / "artifacts", **opts
+                )
+                telemetry["_screenshot_exists"] = (Path(tmpdir) / "artifacts" / "screenshot.png").is_file()
+                return telemetry
+            finally:
+                server.stop()
+
+    def _splash(self, attrs: str = "", handler: str | None = None) -> str:
+        if handler is None:
+            handler = "btn.onclick = () => document.getElementById('loader').classList.add('done');"
+        return SPLASH_APP_HTML.replace("__BTN_ATTRS__", attrs).replace("__BTN_HANDLER__", handler)
+
+    def test_splash_with_enter_button_passes_and_records_intro_gate(self):
+        telemetry = self._run(self._splash())
+        self.assertEqual(telemetry["critical_failures"], [])
+        self.assertTrue(telemetry["passed"])
+        gate = telemetry["dom"]["intro_gate"]
+        self.assertEqual(gate["selector"], "#loader")
+        self.assertEqual(gate["control_selector"], "#enterBtn")
+        self.assertEqual(gate["control_text"], "Enter the simulation")
+        self.assertTrue(gate["clicked"])
+        self.assertTrue(gate["dismissed"])
+        self.assertIsNone(telemetry["dom"]["loading_overlay"])
+        self.assertFalse(telemetry["dom"]["canvas_obscured"])
+        self.assertTrue(telemetry["_screenshot_exists"])
+
+    def test_gate_button_that_does_nothing_is_flagged(self):
+        telemetry = self._run(self._splash(handler="/* button does nothing */"))
+        self.assertFalse(telemetry["passed"])
+        self.assertTrue(
+            any("Persistent loading overlay detected (#loader)" in c for c in telemetry["critical_failures"])
+        )
+        self.assertTrue(telemetry["dom"]["intro_gate"]["clicked"])
+        self.assertFalse(telemetry["dom"]["intro_gate"]["dismissed"])
+
+    def test_disabled_button_does_not_make_an_intro_gate(self):
+        telemetry = self._run(self._splash(attrs="disabled"))
+        self.assertFalse(telemetry["passed"])
+        self.assertIsNone(telemetry["dom"]["intro_gate"])
+        self.assertTrue(any("Persistent loading overlay detected" in c for c in telemetry["critical_failures"]))
+
+    def test_button_less_permanent_overlay_is_still_flagged(self):
+        telemetry = self._run(STUCK_APP_HTML)
+        self.assertFalse(telemetry["passed"])
+        self.assertIsNone(telemetry["dom"]["intro_gate"])
+        self.assertTrue(
+            any("Persistent loading overlay detected (#loading-screen)" in c for c in telemetry["critical_failures"])
+        )
+        self.assertTrue(any("Primary canvas is obscured" in c for c in telemetry["critical_failures"]))
+
+    def test_progressing_loader_is_awaited_until_gate_appears(self):
+        telemetry = self._run(PROGRESS_THEN_GATE_HTML, settle_ms=6000, stall_ms=1000)
+        self.assertEqual(telemetry["critical_failures"], [])
+        self.assertTrue(telemetry["passed"])
+        self.assertTrue(telemetry["dom"]["intro_gate"]["dismissed"])
+        self.assertGreater(telemetry["loading_settle_ms"], 0)
 
 
 if __name__ == "__main__":

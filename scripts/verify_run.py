@@ -138,13 +138,95 @@ def wait_for_server(url: str, timeout: float = 10.0) -> bool:
     return False
 
 
+_PORT_MIN, _PORT_MAX = 1024, 65535
+_SCRIPT_PORT_PATTERNS = (
+    # --port 8080, --port=8080, -p 8080, -p8080, --listen 8080, --listen=127.0.0.1:8080, -l tcp://0.0.0.0:3000
+    re.compile(r"(?<![\w-])(?:--port|--listen|-p|-l)(?:=|\s+)?(?:\S*:)?(\d{2,5})(?!\d)"),
+    # PORT=8080 node server.js, ${PORT:-8080}
+    re.compile(r"(?<![\w$])PORT=(\d{2,5})(?!\d)"),
+    re.compile(r"\$\{PORT:-(\d{2,5})\}"),
+)
+_HTTP_SERVER_RE = re.compile(r"(?:http\.server|SimpleHTTPServer)\b([^;&|]*)")
+_PYTHON_HTTP_SERVER_DEFAULT_PORT = 8000
+_PYTHON_HTTP_SERVER_VALUE_OPTIONS = {"--directory", "-d", "--cgi", "--protocol", "--bind", "-b"}
+_SCRIPT_REFERENCE_RE = re.compile(r"\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?([\w:.-]+)")
+
+
+def extract_ports_from_script_text(script_text: str) -> list[int]:
+    """Return candidate TCP ports spelled out in a package.json script command.
+
+    Only ports literally present in the script text are returned (plus Python's documented
+    ``http.server`` default of 8000 when it is launched without a port), never a generic list of
+    common ports, so the verifier cannot latch onto an unrelated server on the operator's machine.
+    """
+    ports: list[int] = []
+
+    def _add(raw: str | int) -> None:
+        try:
+            port = int(raw)
+        except (TypeError, ValueError):
+            return
+        if _PORT_MIN <= port <= _PORT_MAX and port not in ports:
+            ports.append(port)
+
+    for pattern in _SCRIPT_PORT_PATTERNS:
+        for match in pattern.finditer(script_text):
+            _add(match.group(1))
+
+    for match in _HTTP_SERVER_RE.finditer(script_text):
+        tokens = match.group(1).split()
+        found = False
+        for index, token in enumerate(tokens):
+            previous = tokens[index - 1] if index else ""
+            if re.fullmatch(r"\d{2,5}", token) and previous not in _PYTHON_HTTP_SERVER_VALUE_OPTIONS:
+                _add(token)
+                found = True
+                break
+        if not found:
+            _add(_PYTHON_HTTP_SERVER_DEFAULT_PORT)
+    return ports
+
+
+def collect_script_text(scripts: dict, name: str, *, _depth: int = 0, _seen: set[str] | None = None) -> str:
+    """Return the text of ``scripts[name]`` plus the scripts it delegates to (``npm run other``)."""
+    seen = _seen if _seen is not None else set()
+    body = scripts.get(name)
+    if not isinstance(body, str) or name in seen:
+        return ""
+    seen.add(name)
+    parts = [body]
+    if _depth < 3:
+        for ref in _SCRIPT_REFERENCE_RE.findall(body):
+            if ref in scripts and ref not in seen:
+                parts.append(collect_script_text(scripts, ref, _depth=_depth + 1, _seen=seen))
+    return "\n".join(p for p in parts if p)
+
+
+def _port_is_listening(port: int) -> bool:
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.3):
+            return True
+    except OSError:
+        return False
+
+
 def poll_for_reachable_url(
     target_urls: list[str],
     get_output: Callable[[], str] | None = None,
     timeout: float = 10.0,
+    *,
+    script_port_urls: list[str] | None = None,
+    is_alive: Callable[[], bool] | None = None,
 ) -> str | None:
+    """Poll candidate URLs until one answers.
+
+    ``script_port_urls`` are ports guessed from the package script text. They are only accepted
+    while ``is_alive()`` reports that the process we started is still running, so a stray
+    server on the same port is not mistaken for ours after our process died.
+    """
     start_time = time.time()
     candidates = list(target_urls)
+    script_candidates = [u for u in (script_port_urls or []) if u not in candidates]
 
     while time.time() - start_time < timeout:
         if get_output:
@@ -156,6 +238,11 @@ def poll_for_reachable_url(
         for u in list(candidates):
             if wait_for_server(u, timeout=0.2):
                 return u
+
+        if script_candidates and (is_alive is None or is_alive()):
+            for u in script_candidates:
+                if wait_for_server(u, timeout=0.2) and (is_alive is None or is_alive()):
+                    return u
         time.sleep(0.2)
     return None
 
@@ -179,6 +266,7 @@ def discover_and_start_server(
             start_new_session=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
         )
         get_output, _ = _start_output_collector(proc)
 
@@ -235,6 +323,15 @@ def discover_and_start_server(
                 else:
                     run_cmd = f"PORT={cmd_port} npm start"
 
+                # Scripts that hardcode a port (and ignore PORT) are discovered from their text.
+                # Ports that already answer belong to some other process, so they are not candidates.
+                script_ports = [
+                    p
+                    for p in extract_ports_from_script_text(collect_script_text(scripts, chosen_script))
+                    if p != cmd_port and not _port_is_listening(p)
+                ]
+
+                # Unbuffered output so banners such as Python's "Serving HTTP on ..." reach the pipe.
                 proc = subprocess.Popen(
                     run_cmd,
                     shell=True,
@@ -242,6 +339,7 @@ def discover_and_start_server(
                     start_new_session=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
+                    env={**os.environ, "PYTHONUNBUFFERED": "1"},
                 )
                 get_output, _ = _start_output_collector(proc)
 
@@ -265,7 +363,13 @@ def discover_and_start_server(
                                 pass
 
                 target_url = f"http://127.0.0.1:{cmd_port}"
-                reachable_url = poll_for_reachable_url([target_url], get_output=get_output, timeout=min(timeout, 8.0))
+                reachable_url = poll_for_reachable_url(
+                    [target_url],
+                    get_output=get_output,
+                    timeout=min(timeout, 8.0),
+                    script_port_urls=[f"http://127.0.0.1:{p}" for p in script_ports],
+                    is_alive=lambda: proc.poll() is None,
+                )
                 if reachable_url:
                     return reachable_url, "command", cleanup_pkg
 
@@ -331,12 +435,83 @@ DOM_INSPECTION_SCRIPT = """
         let detectedOverlay = null;
         let canvasObscured = false;
 
+        // Intro / splash gates: a loading-style overlay that holds a visible, enabled control the user
+        // must press (e.g. an "Enter" button) is an intentional gate, not a stuck loader.
+        const GATE_CONTROL_SELECTOR = 'button, [role="button"], a[href], input[type="button"], input[type="submit"]';
+        let introGate = null;
+        let introGateEl = null;
+
+        const isShown = (node) => {
+            const st = window.getComputedStyle(node);
+            if (st.display === 'none' || st.visibility === 'hidden') return false;
+            if (parseFloat(st.opacity || '1') <= 0.05) return false;
+            const r = node.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+        };
+        const cssPath = (node) => {
+            const uniqueId = (n) => n.id && document.querySelectorAll('#' + CSS.escape(n.id)).length === 1;
+            if (uniqueId(node)) return '#' + CSS.escape(node.id);
+            const parts = [];
+            let cur = node;
+            while (cur && cur.nodeType === 1 && cur !== document.documentElement) {
+                if (uniqueId(cur)) { parts.unshift('#' + CSS.escape(cur.id)); break; }
+                let idx = 1;
+                let sib = cur;
+                while ((sib = sib.previousElementSibling)) { if (sib.tagName === cur.tagName) idx++; }
+                parts.unshift(cur.tagName.toLowerCase() + ':nth-of-type(' + idx + ')');
+                cur = cur.parentElement;
+            }
+            return parts.join(' > ');
+        };
+        const findGateControl = (root) => {
+            try {
+                if (!root || !root.querySelectorAll) return null;
+                for (const c of Array.from(root.querySelectorAll(GATE_CONTROL_SELECTOR))) {
+                    if (c.disabled || c.hidden || c.getAttribute('aria-disabled') === 'true') continue;
+                    if (!isShown(c)) continue;
+                    let faded = false;
+                    for (let a = c.parentElement; a && a !== root.parentElement; a = a.parentElement) {
+                        const st = window.getComputedStyle(a);
+                        if (st.display === 'none' || st.visibility === 'hidden' || parseFloat(st.opacity || '1') <= 0.05) {
+                            faded = true;
+                            break;
+                        }
+                    }
+                    if (!faded) return c;
+                }
+            } catch (e) {}
+            return null;
+        };
+        // Cheap content signature (text + inline styles such as a progress bar width) to tell
+        // whether a loading overlay is still progressing between two inspections.
+        const sigOf = (node) => {
+            try {
+                const src = String(node.outerHTML || '').slice(0, 20000);
+                let h = 5381;
+                for (let i = 0; i < src.length; i++) { h = ((h << 5) + h + src.charCodeAt(i)) | 0; }
+                return String(h);
+            } catch (e) { return ''; }
+        };
+        const recordGate = (el, ctrl) => {
+            if (introGate) return;
+            const cls = typeof el.className === 'string' ? el.className : '';
+            introGateEl = el;
+            introGate = {
+                detected: true,
+                selector: el.id ? `#${el.id}` : (cls ? `.${cls.trim().split(/\\s+/)[0]}` : el.tagName.toLowerCase()),
+                text: (el.innerText || el.textContent || '').trim().slice(0, 200),
+                control_selector: cssPath(ctrl),
+                control_text: String(ctrl.innerText || ctrl.value || ctrl.getAttribute('aria-label') || '').trim().slice(0, 80),
+            };
+        };
+
         // 0. Explicit stuck-initialization markers (#loading-screen, #loading-status, ...)
         const initIdSelector = '#loading-screen, #loading-status, #loading, #loader, #splash, #splash-screen, #preloader, #init-screen, [data-loading="true"], [aria-busy="true"]';
         const initTextRegex = /(?:initialisation de la cartographie|initiali[sz]ing (?:the )?map|chargement de la carte|loading map|loading\\s*(?:\\.\\.\\.|…)|initialisation\\s*(?:\\.\\.\\.|…))/i;
         let loadingStatusText = '';
         try {
             for (const el of Array.from(document.querySelectorAll(initIdSelector))) {
+                if (introGateEl && introGateEl.contains(el)) continue;
                 const style = window.getComputedStyle(el);
                 if (style.display === 'none' || style.visibility === 'hidden') continue;
                 if (parseFloat(style.opacity || '1') <= 0.05) continue;
@@ -347,6 +522,8 @@ DOM_INSPECTION_SCRIPT = """
                 const bigEnough = rect.width >= vw * 0.5 && rect.height >= vh * 0.5;
                 const textMatch = initTextRegex.test(text) || loadingTextRegex.test(text);
                 if (!(textMatch || (isLoadingId && bigEnough))) continue;
+                const gateCtrl = findGateControl(el);
+                if (gateCtrl) { recordGate(el, gateCtrl); continue; }
                 if (!loadingStatusText) loadingStatusText = text.slice(0, 200);
                 if (!detectedOverlay && (bigEnough || textMatch)) {
                     const centerEl = document.elementFromPoint(vw / 2, vh / 2);
@@ -358,6 +535,7 @@ DOM_INSPECTION_SCRIPT = """
                         class: (typeof el.className === 'string' ? el.className : '').slice(0, 100),
                         text: text.slice(0, 200),
                         covers_center: coversCenter,
+                        signature: sigOf(el),
                     };
                 }
             }
@@ -367,6 +545,7 @@ DOM_INSPECTION_SCRIPT = """
         const allElements = Array.from(document.body ? document.body.querySelectorAll('*') : []);
         for (const el of allElements) {
             try {
+                if (introGateEl && introGateEl.contains(el)) continue;
                 const style = window.getComputedStyle(el);
                 if (style.display === 'none' || style.visibility === 'hidden') continue;
                 const opacity = parseFloat(style.opacity || '1');
@@ -395,6 +574,8 @@ DOM_INSPECTION_SCRIPT = """
                     const coversCenter = Boolean(centerEl && (el === centerEl || el.contains(centerEl)));
 
                     if (coversCenter || isPositioned) {
+                        const gateCtrl = findGateControl(el);
+                        if (gateCtrl) { recordGate(el, gateCtrl); continue; }
                         detectedOverlay = {
                             detected: true,
                             selector: id ? `#${id}` : (className ? `.${className.trim().split(/\\s+/)[0]}` : el.tagName.toLowerCase()),
@@ -402,6 +583,7 @@ DOM_INSPECTION_SCRIPT = """
                             class: className.slice(0, 100),
                             text: text.slice(0, 200),
                             covers_center: coversCenter,
+                            signature: sigOf(el),
                         };
                         break;
                     }
@@ -414,6 +596,7 @@ DOM_INSPECTION_SCRIPT = """
             try {
                 let curr = document.elementFromPoint(vw / 2, vh / 2);
                 while (curr && curr !== document.body && curr !== document.documentElement) {
+                    if (introGateEl && introGateEl.contains(curr)) break;
                     const style = window.getComputedStyle(curr);
                     if (style.display !== 'none' && style.visibility !== 'hidden' && parseFloat(style.opacity || '1') > 0.05) {
                         const rect = curr.getBoundingClientRect();
@@ -423,6 +606,8 @@ DOM_INSPECTION_SCRIPT = """
                         const text = (curr.innerText || curr.textContent || '').trim();
 
                         if ((loadingAttrRegex.test(id) || loadingAttrRegex.test(className) || loadingTextRegex.test(text)) && isLarge) {
+                            const gateCtrl = findGateControl(curr);
+                            if (gateCtrl) { recordGate(curr, gateCtrl); break; }
                             detectedOverlay = {
                                 detected: true,
                                 selector: id ? `#${id}` : (className ? `.${className.trim().split(/\\s+/)[0]}` : curr.tagName.toLowerCase()),
@@ -430,6 +615,7 @@ DOM_INSPECTION_SCRIPT = """
                                 class: className.slice(0, 100),
                                 text: text.slice(0, 200),
                                 covers_center: true,
+                                signature: sigOf(curr),
                             };
                             break;
                         }
@@ -451,10 +637,13 @@ DOM_INSPECTION_SCRIPT = """
                         if (topEl && topEl !== c && !c.contains(topEl)) {
                             let anc = topEl;
                             while (anc && anc !== document.body && anc !== document.documentElement) {
+                                if (introGateEl && introGateEl.contains(anc)) break;
                                 const aid = anc.id || '';
                                 const aclass = typeof anc.className === 'string' ? anc.className : '';
                                 const atext = (anc.innerText || anc.textContent || '').trim();
                                 if (loadingAttrRegex.test(aid) || loadingAttrRegex.test(aclass) || loadingTextRegex.test(atext)) {
+                                    const gateCtrl = findGateControl(anc);
+                                    if (gateCtrl) { recordGate(anc, gateCtrl); break; }
                                     canvasObscured = true;
                                     if (!detectedOverlay) {
                                         detectedOverlay = {
@@ -464,6 +653,7 @@ DOM_INSPECTION_SCRIPT = """
                                             class: aclass.slice(0, 100),
                                             text: atext.slice(0, 200),
                                             covers_center: true,
+                                            signature: sigOf(anc),
                                         };
                                     }
                                     break;
@@ -483,6 +673,7 @@ DOM_INSPECTION_SCRIPT = """
             canvas_obscured: canvasObscured,
             loading_overlay: detectedOverlay,
             loading_status_text: loadingStatusText,
+            intro_gate: introGate,
             svg_count: svgs,
             webgl_context: webglContext,
             text_length: textLength,
@@ -495,6 +686,7 @@ DOM_INSPECTION_SCRIPT = """
             canvas_obscured: false,
             loading_overlay: null,
             loading_status_text: '',
+            intro_gate: null,
             svg_count: 0,
             webgl_context: false,
             text_length: 0,
@@ -538,6 +730,23 @@ def identify_critical_failures(
             clean_text = " ".join(raw_text.split())
             snippet = f": '{clean_text[:80]}...'" if len(clean_text) > 80 else (f": '{clean_text}'" if clean_text else "")
             critical.append(f"Persistent loading overlay detected ({sel}){snippet}")
+
+        # An intro gate (overlay with an enabled "Enter"/"Start" control) is intentional once the
+        # verifier pressed its control. If it is still on screen afterwards, it is a stuck overlay.
+        intro_gate = dom.get("intro_gate")
+        if (
+            isinstance(intro_gate, dict)
+            and intro_gate.get("detected")
+            and intro_gate.get("dismissed") is False
+            and not any("loading overlay" in c for c in critical)
+        ):
+            sel = intro_gate.get("selector") or "overlay"
+            ctrl_text = " ".join(str(intro_gate.get("control_text") or "").split())
+            action = "clicked" if intro_gate.get("clicked") else "could not click"
+            label = f" '{ctrl_text}'" if ctrl_text else ""
+            critical.append(
+                f"Persistent loading overlay detected ({sel}): intro control{label} {action} but the overlay stayed visible"
+            )
 
         status_text = " ".join(str(dom.get("loading_status_text") or "").split())
         if status_text and not any("loading overlay" in c for c in critical):
@@ -583,6 +792,9 @@ def identify_critical_failures(
     return critical
 
 
+DISMISS_GRACE_STEPS = 8
+
+
 def run_playwright_telemetry(
     url: str | None,
     server_mode: str,
@@ -591,6 +803,9 @@ def run_playwright_telemetry(
     timeout: float = 30.0,
     viewport: str = "1440x900",
     wait_ms: int = 2500,
+    settle_ms: int = 90000,
+    settle_step_ms: int = 1000,
+    stall_ms: int = 8000,
 ) -> dict:
     verified_at = utc_now_iso()
     if not url:
@@ -653,6 +868,7 @@ def run_playwright_telemetry(
     dom: dict | None = None
     screenshot_path: str | None = None
     load_time_ms: float | None = None
+    load_settle_ms = 0
     start_time = time.time()
 
     try:
@@ -702,6 +918,72 @@ def run_playwright_telemetry(
             collecting_telemetry = False
 
             dom = page.evaluate(DOM_INSPECTION_SCRIPT)
+
+            # Slow loaders: while a loading overlay is still visibly progressing (its content or
+            # progress bar keeps changing), keep waiting, up to settle_ms. An overlay that stops
+            # changing for stall_ms is reported as stuck, as before.
+            step_ms = max(100, settle_step_ms)
+            max_steps = max(0, settle_ms // step_ms)
+            stall_steps = max(1, -(-stall_ms // step_ms))
+            last_signature: object = None
+            stagnant_steps = 0
+            settle_steps = 0
+            while settle_steps < max_steps and isinstance(dom, dict):
+                overlay = dom.get("loading_overlay")
+                if not (isinstance(overlay, dict) and overlay.get("detected")):
+                    break
+                signature = overlay.get("signature")
+                if signature is None:
+                    break  # cannot tell whether it progresses (e.g. an older DOM payload)
+                stagnant_steps = 0 if signature != last_signature else stagnant_steps + 1
+                last_signature = signature
+                if stagnant_steps >= stall_steps:
+                    break
+                collecting_telemetry = True
+                page.wait_for_timeout(step_ms)
+                collecting_telemetry = False
+                settle_steps += 1
+                dom = page.evaluate(DOM_INSPECTION_SCRIPT)
+            if settle_steps:
+                load_settle_ms = settle_steps * step_ms
+
+            # Intro / splash gate: press its control once, let the app start, then inspect and
+            # screenshot the real app. Telemetry keeps flowing while the app reacts to the click.
+            gate = dom.get("intro_gate") if isinstance(dom, dict) else None
+            if isinstance(gate, dict) and gate.get("detected") and gate.get("control_selector"):
+                collecting_telemetry = True
+                clicked = False
+                control = page.locator(str(gate["control_selector"])).first
+                try:
+                    control.click(timeout=3000)
+                    clicked = True
+                except Exception:
+                    # Heavy WebGL pages can starve Playwright's actionability checks (frames take
+                    # seconds under software rendering); a direct DOM click is the robust fallback.
+                    try:
+                        control.evaluate("el => el.click()", timeout=45000)
+                        clicked = True
+                    except Exception:
+                        pass
+                page.wait_for_timeout(wait_ms)
+                collecting_telemetry = False
+                post_dom = page.evaluate(DOM_INSPECTION_SCRIPT)
+                # Gates usually fade out (CSS transition) and heavy pages render frames slowly, so
+                # give a dismissed gate a few more steps to disappear before calling it stuck.
+                for _ in range(DISMISS_GRACE_STEPS):
+                    post_gate = post_dom.get("intro_gate") if isinstance(post_dom, dict) else None
+                    if not (isinstance(post_gate, dict) and post_gate.get("detected")):
+                        break
+                    collecting_telemetry = True
+                    page.wait_for_timeout(step_ms)
+                    collecting_telemetry = False
+                    post_dom = page.evaluate(DOM_INSPECTION_SCRIPT)
+                if isinstance(post_dom, dict):
+                    still_gated = bool(
+                        isinstance(post_dom.get("intro_gate"), dict) and post_dom["intro_gate"].get("detected")
+                    )
+                    dom = dict(post_dom)
+                    dom["intro_gate"] = {**gate, "clicked": clicked, "dismissed": not still_gated}
 
             artifacts_dir.mkdir(parents=True, exist_ok=True)
             screenshot_file = artifacts_dir / "screenshot.png"
@@ -754,6 +1036,7 @@ def run_playwright_telemetry(
         "critical_failures": critical_failures,
         "dom": dom,
         "screenshot_path": screenshot_path,
+        "loading_settle_ms": load_settle_ms,
         "verified_at": verified_at,
     }
 
@@ -829,6 +1112,7 @@ def verify_run(
     timeout: float = 30.0,
     viewport: str = "1440x900",
     wait_ms: int = 2500,
+    settle_ms: int = 90000,
     update_run_json: bool = False,
     skip_data_probe: bool = False,
 ) -> dict:
@@ -852,6 +1136,7 @@ def verify_run(
             timeout=timeout,
             viewport=viewport,
             wait_ms=wait_ms,
+            settle_ms=settle_ms,
         )
     finally:
         cleanup()
@@ -938,6 +1223,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=float, default=30.0, help="Timeout in seconds for page load.")
     parser.add_argument("--viewport", default="1440x900", help="Browser viewport size (WxH, default 1440x900).")
     parser.add_argument("--wait-ms", type=int, default=2500, help="Settle wait time after load in ms (default 2500).")
+    parser.add_argument(
+        "--settle-seconds",
+        type=float,
+        default=90.0,
+        help="Max extra seconds to wait while a loading overlay is still visibly progressing (default 90).",
+    )
     parser.add_argument("--update-run-json", action="store_true", help="Update run.json with verification results.")
     parser.add_argument("--skip-data-probe", action="store_true", help="Skip running data pipeline probe.")
     parser.add_argument(
@@ -991,6 +1282,7 @@ def main() -> int:
             timeout=args.timeout,
             viewport=args.viewport,
             wait_ms=args.wait_ms,
+            settle_ms=int(args.settle_seconds * 1000),
             update_run_json=args.update_run_json,
             skip_data_probe=args.skip_data_probe,
         )
