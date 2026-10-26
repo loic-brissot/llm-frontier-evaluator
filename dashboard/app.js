@@ -364,7 +364,7 @@
       runsWithTurns.forEach((r) => {
         const opt = document.createElement('option');
         opt.value = r.run_id;
-        opt.textContent = `${r.model.name} — ${r.prompt_id} (${r.turns.length} turns)`;
+        opt.textContent = `${runLabel(r)} — ${r.prompt_id} (${r.turns.length} turns)`;
         cacheRunSelect.appendChild(opt);
       });
       if (runsWithTurns.length > 0) {
@@ -549,7 +549,7 @@
       }
       if (filters.search) {
         const q = filters.search;
-        const text = `${run.model.name} ${run.model.label} ${run.prompt_id} ${run.run_id} ${run.model.provider}`.toLowerCase();
+        const text = `${runLabel(run)} ${run.model.name} ${run.model.label} ${run.prompt_id} ${run.run_id} ${run.model.provider}`.toLowerCase();
         if (!text.includes(q)) return false;
       }
       return true;
@@ -573,7 +573,7 @@
         case 'tokens-desc':
           return tokB - tokA;
         case 'name-asc':
-          return a.model.name.localeCompare(b.model.name);
+          return runLabel(a).localeCompare(runLabel(b));
         case 'pareto':
         default:
           // Pareto-efficient first, then quality score desc, then cost asc
@@ -613,6 +613,10 @@
   // ==========================================================================
   // CHART 1: PARETO FRONTIER SCATTER
   // ==========================================================================
+
+  function runLabel(run) {
+    return (run.model && (run.model.display || run.model.name)) || '';
+  }
 
   function renderParetoChart() {
     const container = document.getElementById('pareto-chart-container');
@@ -799,7 +803,7 @@
       // Tooltip & Click events
       g.addEventListener('mouseenter', (ev) => {
         showTooltip(ev, `
-          <div class="tooltip-title">${escapeHtml(run.model.name)}</div>
+          <div class="tooltip-title">${escapeHtml(runLabel(run))}</div>
           <div class="tooltip-row"><span>Series:</span> <span class="val">${escapeHtml(run.prompt_id)}</span></div>
           <div class="tooltip-row"><span>Cost:</span> <span class="val">$${c.toFixed(2)}</span></div>
           <div class="tooltip-row"><span>Gen Time:</span> <span class="val">${formatDurationSec(t)}</span></div>
@@ -850,7 +854,7 @@
 
       tr.innerHTML = `
         <td><span class="badge ${isPass ? 'pass' : 'fail'}">${isPass ? '✓ PASS' : '✗ FAIL'}</span></td>
-        <td><strong>${escapeHtml(r.model.name)}</strong> <span style="font-size:0.75rem;color:#64748b;">(${escapeHtml(r.model.provider)})</span></td>
+        <td><strong>${escapeHtml(runLabel(r))}</strong> <span style="font-size:0.75rem;color:#64748b;">(${escapeHtml(r.model.provider)})</span></td>
         <td><span class="series-badge">${escapeHtml(r.prompt_id)}</span></td>
         <td style="font-family:var(--font-mono);">$${c.toFixed(2)}</td>
         <td style="font-family:var(--font-mono);">${formatDurationSec(t)}</td>
@@ -931,7 +935,7 @@
       }
 
       // X Label (rotated)
-      const label = createSvgText(cx, pad.top + innerH + 15, truncate(r.model.name, 12), 'axis-text', 'end');
+      const label = createSvgText(cx, pad.top + innerH + 15, truncate(runLabel(r), 28), 'axis-text', 'end');
       label.setAttribute('transform', `rotate(-45 ${cx} ${pad.top + innerH + 15})`);
       svg.appendChild(label);
 
@@ -939,7 +943,7 @@
       const reasPct = tot > 0 ? Math.round((reas / tot) * 100) : 0;
       g.addEventListener('mouseenter', (ev) => {
         showTooltip(ev, `
-          <div class="tooltip-title">${escapeHtml(r.model.name)}</div>
+          <div class="tooltip-title">${escapeHtml(runLabel(r))}</div>
           <div class="tooltip-row"><span>Total:</span> <span class="val">${formatCompactNumber(tot)} tokens</span></div>
           <div class="tooltip-row"><span>Visible:</span> <span class="val">${formatCompactNumber(vis)}</span></div>
           <div class="tooltip-row"><span>Reasoning:</span> <span class="val">${formatCompactNumber(reas)} (${reasPct}%)</span></div>
@@ -1018,13 +1022,13 @@
       }
 
       // X Label
-      const label = createSvgText(cx, pad.top + innerH + 15, truncate(r.model.name, 12), 'axis-text', 'end');
+      const label = createSvgText(cx, pad.top + innerH + 15, truncate(runLabel(r), 28), 'axis-text', 'end');
       label.setAttribute('transform', `rotate(-45 ${cx} ${pad.top + innerH + 15})`);
       svg.appendChild(label);
 
       g.addEventListener('mouseenter', (ev) => {
         showTooltip(ev, `
-          <div class="tooltip-title">${escapeHtml(r.model.name)}</div>
+          <div class="tooltip-title">${escapeHtml(runLabel(r))}</div>
           <div class="tooltip-row"><span>Wall Clock:</span> <span class="val">${formatDurationSec(wallS)}</span></div>
           <div class="tooltip-row"><span>API Gen Time:</span> <span class="val">${formatDurationSec(genS)}</span></div>
           <div class="tooltip-row"><span>Tool Overhead:</span> <span class="val">${formatDurationSec(overheadS)}</span></div>
@@ -1119,13 +1123,13 @@
       }
 
       // X Label
-      const label = createSvgText(cx, pad.top + innerH + 15, truncate(r.model.name, 12), 'axis-text', 'end');
+      const label = createSvgText(cx, pad.top + innerH + 15, truncate(runLabel(r), 28), 'axis-text', 'end');
       label.setAttribute('transform', `rotate(-45 ${cx} ${pad.top + innerH + 15})`);
       svg.appendChild(label);
 
       g.addEventListener('mouseenter', (ev) => {
         showTooltip(ev, `
-          <div class="tooltip-title">${escapeHtml(r.model.name)}</div>
+          <div class="tooltip-title">${escapeHtml(runLabel(r))}</div>
           <div class="tooltip-row"><span>Total Calls:</span> <span class="val">${tc.total.calls} (Failures: ${tc.total.failures})</span></div>
           <div class="tooltip-row"><span style="color:#38bdf8;">Shell:</span> <span class="val">${tc.shell?.calls || 0}</span></div>
           <div class="tooltip-row"><span style="color:#fbbf24;">Files:</span> <span class="val">${tc.files?.calls || 0}</span></div>
@@ -1206,7 +1210,7 @@
       g.appendChild(createSvgRect(x2, yBilled, barW, hBilled, '#10b981'));
 
       // X Label
-      const label = createSvgText(cx, pad.top + innerH + 15, truncate(r.model.name, 12), 'axis-text', 'end');
+      const label = createSvgText(cx, pad.top + innerH + 15, truncate(runLabel(r), 28), 'axis-text', 'end');
       label.setAttribute('transform', `rotate(-45 ${cx} ${pad.top + innerH + 15})`);
       svg.appendChild(label);
 
@@ -1215,7 +1219,7 @@
 
       g.addEventListener('mouseenter', (ev) => {
         showTooltip(ev, `
-          <div class="tooltip-title">${escapeHtml(r.model.name)}</div>
+          <div class="tooltip-title">${escapeHtml(runLabel(r))}</div>
           <div class="tooltip-row"><span>Estimated Cost:</span> <span class="val">$${est.toFixed(2)}</span></div>
           <div class="tooltip-row"><span>Actual Billed:</span> <span class="val">$${billed.toFixed(2)}</span></div>
           <div class="tooltip-row"><span>Delta:</span> <span class="val">${delta >= 0 ? '+' : ''}$${delta.toFixed(2)} (${deltaPct.toFixed(1)}%)</span></div>
@@ -1359,13 +1363,13 @@
         g.appendChild(badgeTxt);
 
         // X Label (rotated model name)
-        const xLabel = createSvgText(cx, pad.top + innerH + 16, truncate(r.model.name, 12), 'axis-text', 'end');
+        const xLabel = createSvgText(cx, pad.top + innerH + 16, truncate(runLabel(r), 28), 'axis-text', 'end');
         xLabel.setAttribute('transform', `rotate(-45 ${cx} ${pad.top + innerH + 16})`);
         svg.appendChild(xLabel);
 
         // Tooltip & click handler
         const tooltipHtml = `
-          <div class="tooltip-title">${escapeHtml(r.model.name)}</div>
+          <div class="tooltip-title">${escapeHtml(runLabel(r))}</div>
           <div class="tooltip-row"><span>Series:</span> <span class="val">${escapeHtml(r.prompt_id)}</span></div>
           <div class="tooltip-row"><span>Turns &amp; Tools:</span> <span class="val">${numTurns} Turn${numTurns > 1 ? 's' : ''} · ${toolCalls} calls</span></div>
           <div class="tooltip-row"><span>Total Context Re-Read:</span> <span class="val">${formatCompactNumber(totContext)}</span></div>
@@ -1537,15 +1541,15 @@
         circle.setAttribute('stroke-width', '2');
         g.appendChild(circle);
 
-        // Point label: `${truncate(r.model.name, 10)} (${numTurns}T)`
-        const pointLabel = createSvgText(cx + radius + 4, cy + 3, `${truncate(r.model.name, 10)} (${numTurns}T)`, 'axis-text', 'start');
+        // Point label: `${truncate(runLabel(r), 28)} (${numTurns}T)`
+        const pointLabel = createSvgText(cx + radius + 4, cy + 3, `${truncate(runLabel(r), 28)} (${numTurns}T)`, 'axis-text', 'start');
         pointLabel.setAttribute('font-size', '10px');
         pointLabel.setAttribute('fill', isMultiTurn ? '#fcd34d' : '#94a3b8');
         g.appendChild(pointLabel);
 
         // Tooltip
         const tooltipHtml = `
-          <div class="tooltip-title">${escapeHtml(r.model.name)}</div>
+          <div class="tooltip-title">${escapeHtml(runLabel(r))}</div>
           <div class="tooltip-row"><span>Series:</span> <span class="val">${escapeHtml(r.prompt_id)}</span></div>
           <div class="tooltip-row"><span>Turns &amp; Tools:</span> <span class="val">${numTurns} Turn${numTurns > 1 ? 's' : ''} · ${calls} calls</span></div>
           <div class="tooltip-row"><span>Total Context Re-Read:</span> <span class="val">${formatCompactNumber(totContext)}</span></div>
@@ -1605,7 +1609,7 @@
       card.innerHTML = `
         <div class="run-card-header">
           <div>
-            <div class="run-card-title">${escapeHtml(run.model.name)}</div>
+            <div class="run-card-title">${escapeHtml(runLabel(run))}</div>
             <div class="run-card-meta">
               <span class="series-badge">${escapeHtml(run.prompt_id)}</span>
               <span class="provider-badge">${escapeHtml(run.model.provider)}</span>
@@ -1620,7 +1624,7 @@
         <div class="card-preview-area" data-runid="${run.run_id}">
           ${
             hasScreenshot
-              ? `<img src="${run.screenshot_path}" alt="${escapeHtml(run.model.name)} preview" loading="lazy">`
+              ? `<img src="${run.screenshot_path}" alt="${escapeHtml(runLabel(run))} preview" loading="lazy">`
               : `<div class="card-preview-placeholder">
                   <span>📊 3D / Web App Observatory</span>
                   <span>(No screenshot recorded)</span>
@@ -1745,7 +1749,7 @@
       const btn = document.createElement('button');
       btn.className = `model-tab-btn ${r.run_id === showcaseRunId ? 'active' : ''}`;
       const hasDemoIcon = r.demo_url ? '🎮 ' : '';
-      btn.innerHTML = `${hasDemoIcon}${escapeHtml(r.model.name)} <span style="font-size:0.7rem;opacity:0.75;">(${r.verification.passed ? '✓' : '✗'})</span>`;
+      btn.innerHTML = `${hasDemoIcon}${escapeHtml(runLabel(r))} <span style="font-size:0.7rem;opacity:0.75;">(${r.verification.passed ? '✓' : '✗'})</span>`;
       btn.addEventListener('click', () => {
         showcaseRunId = r.run_id;
         updateUrlParams();
@@ -1765,7 +1769,7 @@
     statusBadge.textContent = isPass ? '✓ PASSED' : '✗ FAILED';
     statusBadge.className = `badge ${isPass ? 'pass' : 'fail'}`;
 
-    document.getElementById('showcase-model-name').textContent = activeRun.model.label || activeRun.model.name;
+    document.getElementById('showcase-model-name').textContent = runLabel(activeRun);
     document.getElementById('showcase-provider').textContent = activeRun.model.provider || 'cursor';
 
     const cost = activeRun.cost.estimated_with_harness_usd ?? activeRun.cost.estimated_usd ?? 0;
@@ -2005,7 +2009,7 @@
     statusBadge.textContent = isPass ? '✓ PASSED (100%)' : '✗ FAILED';
     statusBadge.className = `badge ${isPass ? 'pass' : 'fail'}`;
 
-    document.getElementById('modal-model-title').textContent = run.model.label || run.model.name;
+    document.getElementById('modal-model-title').textContent = runLabel(run);
     document.getElementById('modal-series-tag').textContent = `${run.prompt_id} / ${run.run_id}`;
     document.getElementById('modal-tool-count').textContent = run.tool_timeline ? run.tool_timeline.length : 0;
 
