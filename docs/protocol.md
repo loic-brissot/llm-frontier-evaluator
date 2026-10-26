@@ -71,7 +71,7 @@ Run `python3 scripts/finish_run.py --prompt <prompt-id> --run-id <run-id>`. `fin
 6. Run `python3 scripts/compare_runs.py`. Use `--check-readme` to verify `README.md` comparison tables match all run records, or `--sync-readme` to update `README.md` in place.
 7. Commit `run.json`, `artifacts/`, and the usage export.
 
-`.gitignore` omits `workspace/` and `tool-events/`. Keep downloaded open data and generated geometry in `workspace/`. Keep the ODbL attribution with that data.
+`.gitignore` omits `workspace/`, `tool-events/`, `claude-sessions/` and `hook-events/`. A Cursor run and a Claude Code run commit the same set: `run.json`, `artifacts/` and `usage/` (plus the dashboard and README tables derived from them); the raw logs and the workspace stay local. Keep downloaded open data and generated geometry in `workspace/`. Keep the ODbL attribution with that data.
 
 ## Follow-up
 
