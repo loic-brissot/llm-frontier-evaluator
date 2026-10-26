@@ -27,14 +27,14 @@
   <script id="benchmark-data" type="application/json">
 {
   "version": "1.0.0",
-  "generated_at": "2026-10-24T10:11:19.785Z",
+  "generated_at": "2026-10-26T07:59:00.244Z",
   "summary": {
-    "total_runs": 16,
-    "successful_runs": 6,
+    "total_runs": 18,
+    "successful_runs": 8,
     "total_series": 8,
     "total_models": 12,
-    "total_tokens_generated": 998149,
-    "total_estimated_cost_usd": 55.18
+    "total_tokens_generated": 1587209,
+    "total_estimated_cost_usd": 68.17
   },
   "prompts": [
     {
@@ -57,7 +57,7 @@
       "prompt_id": "france-rail-24h-pulse",
       "description": "24-hour French passenger rail network map and accessibility atlas",
       "type": "open_data",
-      "runs_count": 6,
+      "runs_count": 7,
       "checks_count": 3,
       "text": "Build an interactive 24-hour animated map and accessibility atlas of the French passenger rail network (TGV, Intercités, TER).\nThe goal is an exceptional visual result, as beautiful and impressive as a national railway control center and transport atlas, not a mere technical demo.\nExpected result:\n\n* Smooth 24-hour timeline scrubbing and animation of every scheduled passenger train across metropolitan France, colored and sized by service category (TGV, Intercités, TER), with a legend to filter or highlight each category.\n* Interactive station-to-station travel-time accessibility mode: clicking any station computes and colors all reachable stations across France by shortest rail travel time (\u003c1h, 1–2h, 2–3h, 3–5h, \u003e5h), including transfer wait times.\n* A daily corridor flow view showing cumulative 24-hour train frequency along each line of the national rail network (RFN), with line weight and luminance scaled by traffic volume.\n* Live statistics for the current clock time showing active trains in circulation by category, the 24-hour traffic profile, and the busiest stations.\n* Selecting any train or station displays its full stop-by-stop timetable, route path, and scheduled connections.\n\nAvailable data sources (Open Licence / ODbL):\n\n* transport.data.gouv.fr, \"Réseau SNCF TGV, Intercités et TER\" (GTFS schedules for TGV, Intercités and TER): https://transport.data.gouv.fr/datasets/horaires-sncf\n* SNCF Open Data, \"HORAIRES SNCF\" (GTFS timetable catalog and archive): https://ressources.data.sncf.com/explore/dataset/horaires-sncf\n* SNCF Open Data, \"Fichier de formes des lignes du Réseau Ferré National\" (RFN rail line geometries): https://ressources.data.sncf.com/explore/dataset/formes-des-lignes-du-rfn\n* SNCF Open Data, \"Liste des gares\" (stations, UIC codes, line codes and coordinates): https://ressources.data.sncf.com/explore/dataset/liste-des-gares\n* SNCF Open Data, \"Gares de voyageurs\" (passenger stations and categories): https://ressources.data.sncf.com/explore/dataset/gares-de-voyageurs"
     },
@@ -81,7 +81,7 @@
       "prompt_id": "paris-1910-flood-simulator",
       "description": "Paris 1910 3D flood simulator with building ground elevations and river gauges",
       "type": "open_data",
-      "runs_count": 3,
+      "runs_count": 4,
       "checks_count": 6,
       "text": "Build an interactive 3D flood simulator of Paris that lets the viewer raise the level of the Seine centimeter by centimeter, from its normal level up to and beyond the historic 1910 centennial flood (+8.62 m at the Pont d'Austerlitz).\nThe goal is an exceptional visual result, as dramatic, clear and impressive as a great interactive atlas or museum exhibit, not a mere technical demo.\nExpected result:\n\n* Every building in inner Paris rises from its real ground elevation to its real height along the Seine and across low-lying districts.\n* A continuous water-level slider (0 m to +10 m at the Pont d'Austerlitz gauge) with historical flood markers (2018 at +5.84 m, 2016 at +6.10 m, 1955 at +7.12 m, 1910 at +8.62 m) raises the 3D water surface and highlights flooded streets and buildings in real time.\n* Metro and rail stations are plotted on the map and switch state as rising waters reach their elevation.\n* Live impact counters track the flooded area in hectares, the number of affected buildings by arrondissement, and the number of flooded stations.\n* Regulatory flood risk zones (PPRI / PHEC) can be toggled as an overlay to compare with the 3D water level.\n* The map covers inner Paris (intra-muros), excluding the Bois de Boulogne and the Bois de Vincennes.\n\nAvailable data sources (ODbL / Open Licence):\n\n* Apur, \"Emprise bâtie Paris\" (footprint, height and median ground elevation of each building): https://carto2.apur.org/apur/rest/services/OPENDATA/EMPRISE_BATIE_PARIS/MapServer/0\n* Paris Open Data, \"PLU bioclimatique – Secteurs de risque – Inondations\" (PPRI flood risk zones): https://opendata.paris.fr/explore/dataset/plub_pprizone\n* Paris Open Data, \"Plan de voirie – Repère de nivellement\" (street elevation benchmarks): https://opendata.paris.fr/explore/dataset/plan-de-voirie-repere-de-nivellement\n* Paris Open Data, \"Plan de voirie – Voies d'eau\" (waterways): https://opendata.paris.fr/explore/dataset/plan-de-voirie-voies-deau\n* Paris Open Data, \"Arrondissements\" (district boundaries): https://opendata.paris.fr/explore/dataset/arrondissements\n* Île-de-France Mobilités, \"Gares et stations du réseau ferré d'Île-de-France\" (metro, RER and rail stations): https://data.iledefrance-mobilites.fr/explore/dataset/emplacement-des-gares-idf"
     },
@@ -10761,6 +10761,182 @@
       }
     },
     {
+      "run_id": "2026-10-25-claude-code-claude-sonnet-5-5-high",
+      "prompt_id": "france-rail-24h-pulse",
+      "series_id": "france-rail-24h-pulse-claude-code",
+      "shot": "primary",
+      "rules_version": 2,
+      "model": {
+        "name": "Claude Sonnet 5.5",
+        "label": "Claude Sonnet 5.5 high",
+        "id": "claude-sonnet-5-5",
+        "provider": "anthropic",
+        "reasoning": "high",
+        "context": null
+      },
+      "harness": {
+        "name": "claude-code",
+        "version": "2.1.310 (Claude Code)"
+      },
+      "wall_clock": {
+        "started_at": "2026-10-25T22:35:12.706Z",
+        "ended_at": "2026-10-25T23:07:04.010Z",
+        "seconds": 1911.3
+      },
+      "model_time": {
+        "generating_seconds": 1615.7,
+        "thinking_seconds": 993.1,
+        "source": "harness_model_time"
+      },
+      "tokens": {
+        "reasoning": 0,
+        "visible": 231387,
+        "total_output": 231387,
+        "input": 18268961,
+        "uncached_input": 182,
+        "cache_read": 17940768,
+        "cache_write": 328011,
+        "split_rule": "combined_output_as_visible"
+      },
+      "cost": {
+        "estimated_usd": 4.93,
+        "estimated_with_harness_usd": 4.93,
+        "billed_usd": null,
+        "rates": {
+          "input": "2.00",
+          "cache_write": "2.50",
+          "cache_read": "0.10",
+          "output": "10.00"
+        }
+      },
+      "tool_calls": {
+        "shell": {
+          "calls": 69,
+          "failures": 2
+        },
+        "files": {
+          "calls": 30,
+          "failures": 0
+        },
+        "visual_checks": {
+          "calls": 0,
+          "failures": 0
+        },
+        "web": {
+          "calls": 0,
+          "failures": 0
+        },
+        "other": {
+          "calls": 1,
+          "failures": 0
+        },
+        "total": {
+          "calls": 100,
+          "failures": 2
+        },
+        "failure_rate_pct": 2.0
+      },
+      "verification": {
+        "passed": true,
+        "runtime": {
+          "passed": true,
+          "http_status": 200,
+          "load_time_ms": 5032.39,
+          "page_errors": [],
+          "console_errors": [],
+          "console_warnings_count": 0,
+          "dom": {
+            "title": "Atlas ferroviaire · French passenger rail, 24 hours",
+            "canvas_count": 3,
+            "visible_canvas_count": 3,
+            "canvas_obscured": false,
+            "loading_overlay": null,
+            "loading_status_text": "",
+            "intro_gate": null,
+            "svg_count": 4,
+            "webgl_context": false,
+            "text_length": 791
+          },
+          "critical_failures": []
+        },
+        "data_pipeline": {
+          "passed": true,
+          "score": 1.0,
+          "authenticity": "real_open_data",
+          "total_records": 830027,
+          "checks": [
+            {
+              "id": "sncf_stations_dataset",
+              "description": "SNCF stations list with UIC codes or coordinates",
+              "passed": true,
+              "observed_records": 8991,
+              "matched_files": [
+                "data-raw/gares/gares.csv",
+                "app/data/stations.json"
+              ],
+              "detail": "Matched 2 file(s) with 8991 observed records (min: 200)"
+            },
+            {
+              "id": "rail_network_lines_dataset",
+              "description": "RFN rail line shapes / geometries",
+              "passed": true,
+              "observed_records": 1638,
+              "matched_files": [
+                "data-raw/rfn/rfn.geojson"
+              ],
+              "detail": "Matched 1 file(s) with 1638 observed records (min: 10)"
+            },
+            {
+              "id": "gtfs_timetables_trips_dataset",
+              "description": "GTFS schedules or processed timetables/trips for TGV, Intercités, TER",
+              "passed": true,
+              "observed_records": 570045,
+              "matched_files": [
+                "data-raw/gtfs/transfers.txt",
+                "data-raw/gtfs/stop_times.txt",
+                "data-raw/gtfs/trips.txt",
+                "data-raw/gtfs/stops.txt"
+              ],
+              "detail": "Matched 4 file(s) with 570045 observed records (min: 200)"
+            }
+          ],
+          "synthetic_signals": []
+        }
+      },
+      "screenshot_path": "screenshots/2026-10-25-claude-code-claude-sonnet-5-5-high.png",
+      "demo_url": null,
+      "results_paths": {
+        "run_json": "results/france-rail-24h-pulse/2026-10-25-claude-code-claude-sonnet-5-5-high/run.json",
+        "runtime_json": "results/france-rail-24h-pulse/2026-10-25-claude-code-claude-sonnet-5-5-high/artifacts/runtime.json",
+        "data_pipeline_json": "results/france-rail-24h-pulse/2026-10-25-claude-code-claude-sonnet-5-5-high/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
+      "tool_timeline": [],
+      "turns": [
+        {
+          "turn_index": 1,
+          "timestamp": "",
+          "model_slug": "Claude Sonnet 5.5",
+          "input_tokens": 18268779,
+          "uncached_input_tokens": 0,
+          "cache_read_tokens": 17940768,
+          "cache_write_tokens": 328011,
+          "output_tokens": 231387,
+          "cost_usd": null,
+          "cumulative_cache_read_tokens": 17940768,
+          "cache_hit_rate_pct": 98.2
+        }
+      ],
+      "pareto": {
+        "is_pareto_series": true,
+        "is_pareto_global": false,
+        "is_pareto_successful": true,
+        "quality_score": 1.0,
+        "is_pareto_successful_series": true,
+        "is_pareto_successful_global": false
+      }
+    },
+    {
       "run_id": "2026-10-19-cursor-muse-wonder-300k-medium",
       "prompt_id": "france-road-accidents",
       "series_id": "france-road-accidents-cursor",
@@ -18534,6 +18710,226 @@
         "is_pareto_successful": true,
         "quality_score": 1.0,
         "is_pareto_successful_series": true,
+        "is_pareto_successful_global": false
+      }
+    },
+    {
+      "run_id": "2026-10-26-claude-code-claude-sonnet-5-5-high-2",
+      "prompt_id": "paris-1910-flood-simulator",
+      "series_id": "paris-1910-flood-simulator-claude-code",
+      "shot": "primary",
+      "rules_version": 2,
+      "model": {
+        "name": "Claude Sonnet 5.5",
+        "label": "Claude Sonnet 5.5 high",
+        "id": "claude-sonnet-5-5",
+        "provider": "anthropic",
+        "reasoning": "high",
+        "context": null
+      },
+      "harness": {
+        "name": "claude-code",
+        "version": "2.1.310 (Claude Code)"
+      },
+      "wall_clock": {
+        "started_at": "2026-10-26T06:57:56.106Z",
+        "ended_at": "2026-10-26T07:59:00.244Z",
+        "seconds": 3664.1
+      },
+      "model_time": {
+        "generating_seconds": 2588.8,
+        "thinking_seconds": 1746.5,
+        "source": "harness_model_time"
+      },
+      "tokens": {
+        "reasoning": 0,
+        "visible": 357673,
+        "total_output": 357673,
+        "input": 32744802,
+        "uncached_input": 218,
+        "cache_read": 32241350,
+        "cache_write": 503234,
+        "split_rule": "combined_output_as_visible"
+      },
+      "cost": {
+        "estimated_usd": 8.06,
+        "estimated_with_harness_usd": 8.06,
+        "billed_usd": null,
+        "rates": {
+          "input": "2.00",
+          "cache_write": "2.50",
+          "cache_read": "0.10",
+          "output": "10.00"
+        }
+      },
+      "tool_calls": {
+        "shell": {
+          "calls": 94,
+          "failures": 7
+        },
+        "files": {
+          "calls": 81,
+          "failures": 4
+        },
+        "visual_checks": {
+          "calls": 0,
+          "failures": 0
+        },
+        "web": {
+          "calls": 4,
+          "failures": 0
+        },
+        "other": {
+          "calls": 2,
+          "failures": 0
+        },
+        "total": {
+          "calls": 181,
+          "failures": 11
+        },
+        "failure_rate_pct": 6.1
+      },
+      "verification": {
+        "passed": true,
+        "runtime": {
+          "passed": true,
+          "http_status": 200,
+          "load_time_ms": 3818.28,
+          "page_errors": [],
+          "console_errors": [],
+          "console_warnings_count": 2,
+          "dom": {
+            "title": "Paris under water — interactive flood simulator",
+            "canvas_count": 1,
+            "visible_canvas_count": 1,
+            "canvas_obscured": false,
+            "loading_overlay": null,
+            "loading_status_text": "",
+            "intro_gate": {
+              "detected": true,
+              "selector": "#loader",
+              "text": "INTERACTIVE ATLAS · SEINE · PARIS INTRA-MUROS\nParis under water\n125,000 building footprints · 5 m ground model\nEnter the simulation\nDrag to orbit · scroll to zoom · right-drag to pan",
+              "control_selector": "#enterBtn",
+              "control_text": "Enter the simulation",
+              "clicked": true,
+              "dismissed": true
+            },
+            "svg_count": 4,
+            "webgl_context": true,
+            "text_length": 1722
+          },
+          "critical_failures": []
+        },
+        "data_pipeline": {
+          "passed": true,
+          "score": 1.0,
+          "authenticity": "real_open_data",
+          "total_records": 146047,
+          "checks": [
+            {
+              "id": "buildings_elevation_dataset",
+              "description": "Paris buildings footprint dataset with height and median ground elevation",
+              "passed": true,
+              "observed_records": 128206,
+              "matched_files": [
+                "data-raw/idfm/emplacement-des-gares-idf.geojson",
+                "data-raw/apur/emprise_batie.json",
+                "data-raw/plan-de-voirie-repere-de-nivellement/plan-de-voirie-repere-de-nivellement.geojson"
+              ],
+              "detail": "Matched 3 file(s) with 128206 observed records (min: 1000)"
+            },
+            {
+              "id": "ppri_flood_risk_zones",
+              "description": "PPRI flood risk zones (plub_pprizone)",
+              "passed": true,
+              "observed_records": 1653,
+              "matched_files": [
+                "data-raw/plub_pprizone/plub_pprizone.geojson"
+              ],
+              "detail": "Matched 1 file(s) with 1653 observed records (min: 1)"
+            },
+            {
+              "id": "street_elevation_benchmarks",
+              "description": "Street elevation leveling benchmarks (repere-de-nivellement)",
+              "passed": true,
+              "observed_records": 9811,
+              "matched_files": [
+                "data-raw/plan-de-voirie-repere-de-nivellement/plan-de-voirie-repere-de-nivellement.geojson"
+              ],
+              "detail": "Matched 1 file(s) with 9811 observed records (min: 50)"
+            },
+            {
+              "id": "stations_dataset",
+              "description": "Île-de-France metro and rail stations (emplacement-des-gares-idf)",
+              "passed": true,
+              "observed_records": 1582,
+              "matched_files": [
+                "data-raw/idfm/emplacement-des-gares-idf.geojson",
+                "public/data/stations.json"
+              ],
+              "detail": "Matched 2 file(s) with 1582 observed records (min: 20)"
+            },
+            {
+              "id": "arrondissements_dataset",
+              "description": "Paris 20 arrondissements district boundaries",
+              "passed": true,
+              "observed_records": 40,
+              "matched_files": [
+                "data-raw/arrondissements/arrondissements.geojson",
+                "public/data/meta.json"
+              ],
+              "detail": "Matched 2 file(s) with 40 observed records (min: 20)"
+            },
+            {
+              "id": "historical_flood_markers",
+              "description": "Historical flood markers (1910 at +8.62m, 2018 at +5.84m, 2016 at +6.10m, 1955 at +7.12m)",
+              "passed": true,
+              "observed_records": 143572,
+              "matched_files": [
+                "data-raw/idfm/emplacement-des-gares-idf.geojson",
+                "data-raw/espaces_verts/espaces_verts.geojson",
+                "data-raw/arrondissements/arrondissements.geojson",
+                "data-raw/apur/emprise_batie.json",
+                "data-raw/plan-de-voirie-repere-de-nivellement/plan-de-voirie-repere-de-nivellement.geojson",
+                "data-raw/plub_pprizone/plub_pprizone.geojson",
+                "data-raw/plan-de-voirie-voies-deau/plan-de-voirie-voies-deau.geojson"
+              ],
+              "detail": "Matched 7 file(s) with 143572 observed records (min: 1)"
+            }
+          ],
+          "synthetic_signals": []
+        }
+      },
+      "screenshot_path": "screenshots/2026-10-26-claude-code-claude-sonnet-5-5-high-2.png",
+      "demo_url": null,
+      "results_paths": {
+        "run_json": "results/paris-1910-flood-simulator/2026-10-26-claude-code-claude-sonnet-5-5-high-2/run.json",
+        "runtime_json": "results/paris-1910-flood-simulator/2026-10-26-claude-code-claude-sonnet-5-5-high-2/artifacts/runtime.json",
+        "data_pipeline_json": "results/paris-1910-flood-simulator/2026-10-26-claude-code-claude-sonnet-5-5-high-2/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
+      "tool_timeline": [],
+      "turns": [
+        {
+          "turn_index": 1,
+          "timestamp": "",
+          "model_slug": "Claude Sonnet 5.5",
+          "input_tokens": 32744584,
+          "uncached_input_tokens": 0,
+          "cache_read_tokens": 32241350,
+          "cache_write_tokens": 503234,
+          "output_tokens": 357673,
+          "cost_usd": null,
+          "cumulative_cache_read_tokens": 32241350,
+          "cache_hit_rate_pct": 98.5
+        }
+      ],
+      "pareto": {
+        "is_pareto_series": false,
+        "is_pareto_global": false,
+        "is_pareto_successful": false,
+        "quality_score": 1.0,
+        "is_pareto_successful_series": false,
         "is_pareto_successful_global": false
       }
     },

@@ -48,6 +48,12 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 *Note: Token and cost columns show `n/a` for headless CLI runs until a Cursor billing CSV export is ingested (`finish_run.py --usage-export`).*
 
+**Local series `france-rail-24h-pulse-claude-code`**: Claude Code, recorded with this repository ([`runs/`](runs/README.md)).
+
+| Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Claude Sonnet 5.5 high | Claude Code | 231k | 26.9 min<br>16.6 min thinking | 97 ✓<br>2 ✗ | 17.9M | $4.93 | UI ✓<br>Data 3/3 ✓<br>830k records |
+
 ### `france-road-accidents`
 
 ![france-road-accidents — Muse Wonder 300k medium (2026-10-19-cursor-muse-wonder-300k-medium)](runs/france-road-accidents/2026-10-19-cursor-muse-wonder-300k-medium/artifacts/screenshot.png)
@@ -69,6 +75,12 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 | Claude Opus 5.5 high | Cursor | 228k | 42.2 min<br>19.6 min thinking | 134 ✓<br>11 ✗ | 12.9M | $12.08 | UI ✓<br>Data 6/6 ✓<br>351k records<br>[Live Demo](demos/paris-1910-flood-simulator/2026-10-20-cursor-claude-opus-5-5-high/index.html) |
 | Claude Opus 5.5 medium | Cursor | 198k | 39.2 min<br>15.4 min thinking | 171 ✓<br>2 ✗ | 16.0M | $13.81 | UI ✓<br>Data 6/6 ✓<br>142k records<br>[Live Demo](demos/paris-1910-flood-simulator/2026-10-21-cursor-claude-opus-5-5-medium/index.html) |
 | Gemini 4 Argon medium | Cursor | 133k | 32.4 min<br>17.4 min thinking | 91 ✓<br>10 ✗ | 6.0M | $4.29 | UI ✓<br>Data 6/6 ✓<br>9.5k records<br>[Live Demo](demos/paris-1910-flood-simulator/2026-10-22-cursor-gemini-4-argon-medium/index.html) |
+
+**Local series `paris-1910-flood-simulator-claude-code`**: Claude Code, recorded with this repository ([`runs/`](runs/README.md)).
+
+| Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Claude Sonnet 5.5 high | Claude Code | 358k | 43.1 min<br>29.1 min thinking | 168 ✓<br>11 ✗ | 32.2M | $8.06 | UI ✓<br>Data 6/6 ✓<br>146k records |
 
 ### `paris-tree-canopy`
 
