@@ -1,13 +1,13 @@
 {
   "version": "1.0.0",
-  "generated_at": "2026-10-26T07:59:00.244Z",
+  "generated_at": "2026-10-26T23:02:54.281Z",
   "summary": {
-    "total_runs": 18,
-    "successful_runs": 8,
+    "total_runs": 22,
+    "successful_runs": 12,
     "total_series": 8,
     "total_models": 12,
-    "total_tokens_generated": 1587209,
-    "total_estimated_cost_usd": 68.17
+    "total_tokens_generated": 2298892,
+    "total_estimated_cost_usd": 88.26
   },
   "prompts": [
     {
@@ -38,7 +38,7 @@
       "prompt_id": "france-road-accidents",
       "description": "Metropolitan France road accidents collision observatory (BAAC)",
       "type": "open_data",
-      "runs_count": 1,
+      "runs_count": 3,
       "checks_count": 2,
       "text": "Build an interactive map and collision observatory of road accidents in metropolitan France that reveals who hits whom, where, and under what conditions.\nThe goal is an exceptional visual result, as clear, insightful and impressive as a flagship data-journalism piece or a great atlas, not a mere technical demo.\nExpected result:\n\n* Every geolocated corporeal accident in metropolitan France from the latest validated year (or last 3 years) is mapped and colored by worst injury severity (unharmed, slight injury, hospitalized, killed) or by victim transport mode, joining the four BAAC tables (`caracteristiques`, `lieux`, `vehicules`, `usagers`).\n* An interactive \"who hits whom\" collision matrix cross-tabulates the victim's mode of transport (pedestrian, bicycle, e-scooter/EDPM, motorized two-wheeler, passenger car, heavy vehicle) against the opposing vehicle category in the same accident, including single-vehicle crashes and pedestrians struck by a vehicle. Clicking a cell filters the map and all charts.\n* Interactive filters slice accidents by hour of day, day of week, lighting conditions, weather, road category, speed limit, and presence of cycling infrastructure.\n* A live summary panel updates with the current map viewport and active filters to show total accidents, fatality and hospitalization rates, victim age distribution, and top collision pairs.\n* Selecting an individual accident or local cluster inspects its full relational record: location and road profile, involved vehicles, and every user's role, age, sex, safety equipment, and injury outcome.\n* Department boundaries provide geographic context across metropolitan France, with national-to-street zoom and a department ranking by accident rate or severity.\n\nAvailable data sources (Open Licence / Etalab):\n\n* ONISR, \"Bases de données annuelles des accidents corporels de la circulation routière (BAAC)\" (`caracteristiques`, `lieux`, `vehicules`, `usagers` CSV tables and codebook): https://www.data.gouv.fr/datasets/bases-de-donnees-annuelles-des-accidents-corporels-de-la-circulation-routiere-annees-de-2005-a-2024\n* Etalab, \"Contours administratifs\" (department boundaries GeoJSON): https://etalab-datasets.geo.data.gouv.fr/contours-administratifs/latest/geojson/departements-100m.geojson\n* API Découpage administratif (departments and communes lookup): https://geo.api.gouv.fr/departements"
     },
@@ -62,7 +62,7 @@
       "prompt_id": "paris-tree-canopy",
       "description": "Paris municipal tree canopy and remarkable trees biodiversity explorer",
       "type": "open_data",
-      "runs_count": 5,
+      "runs_count": 7,
       "checks_count": 3,
       "text": "Build an interactive map and biodiversity explorer of the municipal tree canopy of Paris.\nThe goal is an exceptional visual result, as clear, elegant and engaging as an environmental atlas or urban forestry dashboard, not a mere technical demo.\nExpected result:\n\n* An interactive map of Paris displays municipal trees with smooth spatial aggregation or clustering at high zooms and individual tree markers at close zooms, color-coded by botanical family/genus or height, with prominent visual badges for remarkable heritage trees (arbres remarquables).\n* Interactive filters slice trees by arrondissement (1er to 20e), botanical genus/species (e.g., Platanus, Aesculus, Tilia, Sophora, Celtis), tree height and circumference ranges, and a one-click toggle for remarkable trees.\n* An urban forest analytics panel provides summary metrics: total tree count, species and genus diversity breakdown (top species distribution chart), mean and median height/circumference, and canopy density by arrondissement.\n* A remarkable trees showcase highlights Paris's heritage trees with their common name, scientific name, estimated planting date or age, remarkable criteria, and direct pan-to-map inspection.\n* A district comparison view compares tree coverage across arrondissements, contrasting street trees against parks and public squares, with species variety indicators.\n* Selecting any tree opens a detail card showing its exact location, French common name, botanical genus/species, height, circumference, and stage of development.\n\nAvailable data sources (ODbL / Open Licence):\n\n* Paris Open Data, \"Les arbres\" (municipal tree inventory with botanical name, height, circumference, address and coordinates): https://opendata.paris.fr/explore/dataset/les-arbres\n* Paris Open Data, \"Arbres remarquables\" (heritage and remarkable trees of Paris with botanical data and history): https://opendata.paris.fr/explore/dataset/arbresremarquablesparis\n* Paris Open Data, \"Arrondissements\" (Paris 20 administrative arrondissements boundaries): https://opendata.paris.fr/explore/dataset/arrondissements"
     },
@@ -10885,7 +10885,7 @@
         }
       },
       "screenshot_path": "screenshots/2026-10-25-claude-code-claude-sonnet-5-5-high.png",
-      "demo_url": null,
+      "demo_url": "demos/france-rail-24h-pulse/2026-10-25-claude-code-claude-sonnet-5-5-high/index.html",
       "results_paths": {
         "run_json": "results/france-rail-24h-pulse/2026-10-25-claude-code-claude-sonnet-5-5-high/run.json",
         "runtime_json": "results/france-rail-24h-pulse/2026-10-25-claude-code-claude-sonnet-5-5-high/artifacts/runtime.json",
@@ -11528,6 +11528,341 @@
         "quality_score": 1.0,
         "is_pareto_successful_series": true,
         "is_pareto_successful_global": true
+      }
+    },
+    {
+      "run_id": "2026-10-26-claude-code-claude-sonnet-5-5-high",
+      "prompt_id": "france-road-accidents",
+      "series_id": "france-road-accidents-claude-code",
+      "shot": "primary",
+      "rules_version": 2,
+      "model": {
+        "name": "Claude Sonnet 5.5",
+        "label": "Claude Sonnet 5.5 high",
+        "display": "Claude Sonnet 5.5 (high, Claude Code)",
+        "id": "claude-sonnet-5-5",
+        "provider": "anthropic",
+        "reasoning": "high",
+        "context": null
+      },
+      "harness": {
+        "name": "claude-code",
+        "version": "2.1.310 (Claude Code)"
+      },
+      "wall_clock": {
+        "started_at": "2026-10-26T14:25:15.053Z",
+        "ended_at": "2026-10-26T15:20:11.579Z",
+        "seconds": 3296.5
+      },
+      "model_time": {
+        "generating_seconds": 2243.2,
+        "thinking_seconds": 1364.2,
+        "source": "harness_model_time"
+      },
+      "tokens": {
+        "reasoning": 0,
+        "visible": 321479,
+        "total_output": 321479,
+        "input": 39325609,
+        "uncached_input": 274,
+        "cache_read": 38867787,
+        "cache_write": 457548,
+        "split_rule": "combined_output_as_visible"
+      },
+      "cost": {
+        "estimated_usd": 8.25,
+        "estimated_with_harness_usd": 8.25,
+        "billed_usd": null,
+        "rates": {
+          "input": "2.00",
+          "cache_write": "2.50",
+          "cache_read": "0.10",
+          "output": "10.00"
+        }
+      },
+      "tool_calls": {
+        "shell": {
+          "calls": 96,
+          "failures": 9
+        },
+        "files": {
+          "calls": 56,
+          "failures": 1
+        },
+        "visual_checks": {
+          "calls": 0,
+          "failures": 0
+        },
+        "web": {
+          "calls": 0,
+          "failures": 0
+        },
+        "other": {
+          "calls": 1,
+          "failures": 0
+        },
+        "total": {
+          "calls": 153,
+          "failures": 10
+        },
+        "failure_rate_pct": 6.5
+      },
+      "verification": {
+        "passed": true,
+        "runtime": {
+          "passed": true,
+          "http_status": null,
+          "load_time_ms": null,
+          "page_errors": [
+            "No workspace server found or started"
+          ],
+          "console_errors": [],
+          "console_warnings_count": 0,
+          "dom": null,
+          "critical_failures": [
+            "No workspace server found or started"
+          ]
+        },
+        "data_pipeline": {
+          "passed": true,
+          "score": 1.0,
+          "authenticity": "real_open_data",
+          "total_records": 1073665,
+          "checks": [
+            {
+              "id": "baac_relational_tables",
+              "description": "ONISR BAAC relational tables (caracteristiques, lieux, vehicules, usagers) or joined dataset",
+              "passed": true,
+              "observed_records": 126662,
+              "matched_files": [
+                "data/raw/2022/usag.csv",
+                "data/raw/2022/lieu.csv",
+                "data/raw/2022/vehi.csv",
+                "data/raw/2024/usag.csv",
+                "data/raw/2024/lieu.csv",
+                "data/raw/2024/vehi.csv",
+                "data/raw/2024/cara.csv",
+                "data/raw/2023/usag.csv",
+                "data/raw/2023/lieu.csv",
+                "data/raw/2023/vehi.csv",
+                "data/raw/2023/cara.csv"
+              ],
+              "detail": "Matched 11 file(s) with 126662 observed records (min: 5000)"
+            },
+            {
+              "id": "departments_dataset",
+              "description": "Metropolitan France department boundaries",
+              "passed": true,
+              "observed_records": 306,
+              "matched_files": [
+                "data/raw/geo/departements-100m.geojson",
+                "data/raw/geo/departements-api.json",
+                "site/data/departements.geojson"
+              ],
+              "detail": "Matched 3 file(s) with 306 observed records (min: 90)"
+            }
+          ],
+          "synthetic_signals": []
+        }
+      },
+      "screenshot_path": null,
+      "demo_url": "demos/france-road-accidents/2026-10-26-claude-code-claude-sonnet-5-5-high/index.html",
+      "results_paths": {
+        "run_json": "results/france-road-accidents/2026-10-26-claude-code-claude-sonnet-5-5-high/run.json",
+        "runtime_json": "results/france-road-accidents/2026-10-26-claude-code-claude-sonnet-5-5-high/artifacts/runtime.json",
+        "data_pipeline_json": "results/france-road-accidents/2026-10-26-claude-code-claude-sonnet-5-5-high/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
+      "tool_timeline": [],
+      "turns": [
+        {
+          "turn_index": 1,
+          "timestamp": "",
+          "model_slug": "Claude Sonnet 5.5",
+          "input_tokens": 39325335,
+          "uncached_input_tokens": 0,
+          "cache_read_tokens": 38867787,
+          "cache_write_tokens": 457548,
+          "output_tokens": 321479,
+          "cost_usd": null,
+          "cumulative_cache_read_tokens": 38867787,
+          "cache_hit_rate_pct": 98.8
+        }
+      ],
+      "pareto": {
+        "is_pareto_series": false,
+        "is_pareto_global": false,
+        "is_pareto_successful": false,
+        "quality_score": 1.0,
+        "is_pareto_successful_series": false,
+        "is_pareto_successful_global": false
+      }
+    },
+    {
+      "run_id": "2026-10-26-claude-code-claude-opus-5-5-medium",
+      "prompt_id": "france-road-accidents",
+      "series_id": "france-road-accidents-claude-code",
+      "shot": "primary",
+      "rules_version": 2,
+      "model": {
+        "name": "Claude Opus 5.5",
+        "label": "Claude Opus 5.5 medium",
+        "display": "Claude Opus 5.5 (medium, Claude Code)",
+        "id": "claude-opus-5-5",
+        "provider": "anthropic",
+        "reasoning": "medium",
+        "context": null
+      },
+      "harness": {
+        "name": "claude-code",
+        "version": "2.1.310 (Claude Code)"
+      },
+      "wall_clock": {
+        "started_at": "2026-10-26T14:25:15.710Z",
+        "ended_at": "2026-10-26T15:06:47.623Z",
+        "seconds": 2491.9
+      },
+      "model_time": {
+        "generating_seconds": 847.8,
+        "thinking_seconds": 375.8,
+        "source": "harness_model_time"
+      },
+      "tokens": {
+        "reasoning": 0,
+        "visible": 90742,
+        "total_output": 90742,
+        "input": 4566220,
+        "uncached_input": 92,
+        "cache_read": 4424173,
+        "cache_write": 141955,
+        "split_rule": "combined_output_as_visible"
+      },
+      "cost": {
+        "estimated_usd": 3.41,
+        "estimated_with_harness_usd": 3.41,
+        "billed_usd": null,
+        "rates": {
+          "input": "4.00",
+          "cache_write": "5.00",
+          "cache_read": "0.20",
+          "output": "20.00"
+        }
+      },
+      "tool_calls": {
+        "shell": {
+          "calls": 31,
+          "failures": 2
+        },
+        "files": {
+          "calls": 14,
+          "failures": 0
+        },
+        "visual_checks": {
+          "calls": 0,
+          "failures": 0
+        },
+        "web": {
+          "calls": 0,
+          "failures": 0
+        },
+        "other": {
+          "calls": 1,
+          "failures": 0
+        },
+        "total": {
+          "calls": 46,
+          "failures": 2
+        },
+        "failure_rate_pct": 4.3
+      },
+      "verification": {
+        "passed": true,
+        "runtime": {
+          "passed": true,
+          "http_status": null,
+          "load_time_ms": null,
+          "page_errors": [
+            "No workspace server found or started"
+          ],
+          "console_errors": [],
+          "console_warnings_count": 0,
+          "dom": null,
+          "critical_failures": [
+            "No workspace server found or started"
+          ]
+        },
+        "data_pipeline": {
+          "passed": true,
+          "score": 1.0,
+          "authenticity": "real_open_data",
+          "total_records": 1209823,
+          "checks": [
+            {
+              "id": "baac_relational_tables",
+              "description": "ONISR BAAC relational tables (caracteristiques, lieux, vehicules, usagers) or joined dataset",
+              "passed": true,
+              "observed_records": 854804,
+              "matched_files": [
+                "data/raw/usagers-2024.csv",
+                "data/raw/lieux-2022.csv",
+                "data/raw/lieux-2023.csv",
+                "data/raw/usagers-2022.csv",
+                "data/raw/usagers-2023.csv",
+                "data/raw/lieux-2024.csv",
+                "data/raw/vehicules-2024.csv",
+                "data/raw/vehicules-2022.csv",
+                "data/raw/vehicules-2023.csv"
+              ],
+              "detail": "Matched 9 file(s) with 854804 observed records (min: 5000)"
+            },
+            {
+              "id": "departments_dataset",
+              "description": "Metropolitan France department boundaries",
+              "passed": true,
+              "observed_records": 402,
+              "matched_files": [
+                "data/raw/departements.json",
+                "data/raw/departements-100m.geojson",
+                "web/data/departements.geojson",
+                "web/data/meta.json"
+              ],
+              "detail": "Matched 4 file(s) with 402 observed records (min: 90)"
+            }
+          ],
+          "synthetic_signals": []
+        }
+      },
+      "screenshot_path": null,
+      "demo_url": "demos/france-road-accidents/2026-10-26-claude-code-claude-opus-5-5-medium/index.html",
+      "results_paths": {
+        "run_json": "results/france-road-accidents/2026-10-26-claude-code-claude-opus-5-5-medium/run.json",
+        "runtime_json": "results/france-road-accidents/2026-10-26-claude-code-claude-opus-5-5-medium/artifacts/runtime.json",
+        "data_pipeline_json": "results/france-road-accidents/2026-10-26-claude-code-claude-opus-5-5-medium/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
+      "tool_timeline": [],
+      "turns": [
+        {
+          "turn_index": 1,
+          "timestamp": "",
+          "model_slug": "Claude Opus 5.5",
+          "input_tokens": 4566128,
+          "uncached_input_tokens": 0,
+          "cache_read_tokens": 4424173,
+          "cache_write_tokens": 141955,
+          "output_tokens": 90742,
+          "cost_usd": null,
+          "cumulative_cache_read_tokens": 4424173,
+          "cache_hit_rate_pct": 96.9
+        }
+      ],
+      "pareto": {
+        "is_pareto_series": false,
+        "is_pareto_global": false,
+        "is_pareto_successful": false,
+        "quality_score": 1.0,
+        "is_pareto_successful_series": false,
+        "is_pareto_successful_global": false
       }
     },
     {
@@ -18887,7 +19222,7 @@
         }
       },
       "screenshot_path": "screenshots/2026-10-26-claude-code-claude-sonnet-5-5-high-2.png",
-      "demo_url": null,
+      "demo_url": "demos/paris-1910-flood-simulator/2026-10-26-claude-code-claude-sonnet-5-5-high-2/index.html",
       "results_paths": {
         "run_json": "results/paris-1910-flood-simulator/2026-10-26-claude-code-claude-sonnet-5-5-high-2/run.json",
         "runtime_json": "results/paris-1910-flood-simulator/2026-10-26-claude-code-claude-sonnet-5-5-high-2/artifacts/runtime.json",
@@ -25125,6 +25460,382 @@
         "is_pareto_successful": false,
         "quality_score": 0.0,
         "is_pareto_successful_series": false,
+        "is_pareto_successful_global": false
+      }
+    },
+    {
+      "run_id": "2026-10-26-claude-code-claude-sonnet-5-5-high",
+      "prompt_id": "paris-tree-canopy",
+      "series_id": "paris-tree-canopy-claude-code",
+      "shot": "primary",
+      "rules_version": 2,
+      "model": {
+        "name": "Claude Sonnet 5.5",
+        "label": "Claude Sonnet 5.5 high",
+        "display": "Claude Sonnet 5.5 (high, Claude Code)",
+        "id": "claude-sonnet-5-5",
+        "provider": "anthropic",
+        "reasoning": "high",
+        "context": null
+      },
+      "harness": {
+        "name": "claude-code",
+        "version": "2.1.310 (Claude Code)"
+      },
+      "wall_clock": {
+        "started_at": "2026-10-26T20:04:01.840Z",
+        "ended_at": "2026-10-26T20:30:36.675Z",
+        "seconds": 1594.8
+      },
+      "model_time": {
+        "generating_seconds": 1324.0,
+        "thinking_seconds": 737.0,
+        "source": "harness_model_time"
+      },
+      "tokens": {
+        "reasoning": 0,
+        "visible": 194570,
+        "total_output": 194570,
+        "input": 12030241,
+        "uncached_input": 134,
+        "cache_read": 11741282,
+        "cache_write": 288825,
+        "split_rule": "combined_output_as_visible"
+      },
+      "cost": {
+        "estimated_usd": 3.84,
+        "estimated_with_harness_usd": 3.84,
+        "billed_usd": null,
+        "rates": {
+          "input": "2.00",
+          "cache_write": "2.50",
+          "cache_read": "0.10",
+          "output": "10.00"
+        }
+      },
+      "tool_calls": {
+        "shell": {
+          "calls": 43,
+          "failures": 2
+        },
+        "files": {
+          "calls": 40,
+          "failures": 0
+        },
+        "visual_checks": {
+          "calls": 0,
+          "failures": 0
+        },
+        "web": {
+          "calls": 0,
+          "failures": 0
+        },
+        "other": {
+          "calls": 1,
+          "failures": 0
+        },
+        "total": {
+          "calls": 84,
+          "failures": 2
+        },
+        "failure_rate_pct": 2.4
+      },
+      "verification": {
+        "passed": true,
+        "runtime": {
+          "passed": true,
+          "http_status": 200,
+          "load_time_ms": 5001.6,
+          "page_errors": [],
+          "console_errors": [],
+          "console_warnings_count": 4,
+          "dom": {
+            "title": "Canopée — Atlas of Paris's urban forest",
+            "canvas_count": 2,
+            "visible_canvas_count": 2,
+            "canvas_obscured": false,
+            "loading_overlay": null,
+            "loading_status_text": "",
+            "intro_gate": null,
+            "svg_count": 18,
+            "webgl_context": true,
+            "text_length": 661
+          },
+          "critical_failures": []
+        },
+        "data_pipeline": {
+          "passed": true,
+          "score": 0.67,
+          "authenticity": "partial_or_filtered",
+          "total_records": 7993,
+          "checks": [
+            {
+              "id": "trees_dataset",
+              "description": "Paris municipal trees inventory with botanical species and measurements",
+              "passed": false,
+              "observed_records": 1,
+              "matched_files": [
+                "scripts/build_data.py",
+                "scripts/fetch_data.sh",
+                "vendor/maplibre-gl.js",
+                "vendor/maplibre-gl.css",
+                ".claude/hooks/log-tool-event.py"
+              ],
+              "detail": "Matched 5 file(s) but observed 1 records < min threshold 1000"
+            },
+            {
+              "id": "remarkable_trees_dataset",
+              "description": "Paris remarkable heritage trees (arbres remarquables)",
+              "passed": true,
+              "observed_records": 182,
+              "matched_files": [
+                "data/heritage.json"
+              ],
+              "detail": "Matched 1 file(s) with 182 observed records (min: 20)"
+            },
+            {
+              "id": "arrondissements_dataset",
+              "description": "Paris arrondissements administrative boundaries",
+              "passed": true,
+              "observed_records": 43,
+              "matched_files": [
+                "data/arrondissements.json",
+                "data/meta.json"
+              ],
+              "detail": "Matched 2 file(s) with 43 observed records (min: 20)"
+            }
+          ],
+          "synthetic_signals": []
+        }
+      },
+      "screenshot_path": "screenshots/2026-10-26-claude-code-claude-sonnet-5-5-high.png",
+      "demo_url": "demos/paris-tree-canopy/2026-10-26-claude-code-claude-sonnet-5-5-high/index.html",
+      "results_paths": {
+        "run_json": "results/paris-tree-canopy/2026-10-26-claude-code-claude-sonnet-5-5-high/run.json",
+        "runtime_json": "results/paris-tree-canopy/2026-10-26-claude-code-claude-sonnet-5-5-high/artifacts/runtime.json",
+        "data_pipeline_json": "results/paris-tree-canopy/2026-10-26-claude-code-claude-sonnet-5-5-high/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
+      "tool_timeline": [],
+      "turns": [
+        {
+          "turn_index": 1,
+          "timestamp": "",
+          "model_slug": "Claude Sonnet 5.5",
+          "input_tokens": 12030107,
+          "uncached_input_tokens": 0,
+          "cache_read_tokens": 11741282,
+          "cache_write_tokens": 288825,
+          "output_tokens": 194570,
+          "cost_usd": null,
+          "cumulative_cache_read_tokens": 11741282,
+          "cache_hit_rate_pct": 97.6
+        }
+      ],
+      "pareto": {
+        "is_pareto_series": true,
+        "is_pareto_global": false,
+        "is_pareto_successful": true,
+        "quality_score": 0.67,
+        "is_pareto_successful_series": true,
+        "is_pareto_successful_global": false
+      }
+    },
+    {
+      "run_id": "2026-10-26-claude-code-claude-opus-5-5-medium",
+      "prompt_id": "paris-tree-canopy",
+      "series_id": "paris-tree-canopy-claude-code",
+      "shot": "primary",
+      "rules_version": 2,
+      "model": {
+        "name": "Claude Opus 5.5",
+        "label": "Claude Opus 5.5 medium",
+        "display": "Claude Opus 5.5 (medium, Claude Code)",
+        "id": "claude-opus-5-5",
+        "provider": "anthropic",
+        "reasoning": "medium",
+        "context": null
+      },
+      "harness": {
+        "name": "claude-code",
+        "version": "2.1.310 (Claude Code)"
+      },
+      "wall_clock": {
+        "started_at": "2026-10-26T22:35:23.981Z",
+        "ended_at": "2026-10-26T23:02:54.281Z",
+        "seconds": 1650.3
+      },
+      "model_time": {
+        "generating_seconds": 971.5,
+        "thinking_seconds": 365.3,
+        "source": "harness_model_time"
+      },
+      "tokens": {
+        "reasoning": 0,
+        "visible": 104892,
+        "total_output": 104892,
+        "input": 8108451,
+        "uncached_input": 142,
+        "cache_read": 7926559,
+        "cache_write": 181750,
+        "split_rule": "combined_output_as_visible"
+      },
+      "cost": {
+        "estimated_usd": 4.59,
+        "estimated_with_harness_usd": 4.59,
+        "billed_usd": null,
+        "rates": {
+          "input": "4.00",
+          "cache_write": "5.00",
+          "cache_read": "0.20",
+          "output": "20.00"
+        }
+      },
+      "tool_calls": {
+        "shell": {
+          "calls": 60,
+          "failures": 6
+        },
+        "files": {
+          "calls": 18,
+          "failures": 0
+        },
+        "visual_checks": {
+          "calls": 0,
+          "failures": 0
+        },
+        "web": {
+          "calls": 0,
+          "failures": 0
+        },
+        "other": {
+          "calls": 1,
+          "failures": 0
+        },
+        "total": {
+          "calls": 79,
+          "failures": 6
+        },
+        "failure_rate_pct": 7.6
+      },
+      "verification": {
+        "passed": true,
+        "runtime": {
+          "passed": true,
+          "http_status": 200,
+          "load_time_ms": 4844.43,
+          "page_errors": [],
+          "console_errors": [],
+          "console_warnings_count": 4,
+          "dom": {
+            "title": "Paris Canopy Atlas · The municipal trees of Paris",
+            "canvas_count": 1,
+            "visible_canvas_count": 1,
+            "canvas_obscured": false,
+            "loading_overlay": null,
+            "loading_status_text": "",
+            "intro_gate": {
+              "detected": true,
+              "selector": "#app",
+              "text": "Paris Canopy Atlas\n\nThe municipal trees of Paris — an interactive biodiversity explorer\n\n220,112\nTREES\n201\nGENERA\n799\nSPECIES\n183\nREMARKABLE\nRemarkable trees only\n183 heritage trees\nARRONDISSEMENT\ncli",
+              "control_selector": "#filters > div:nth-of-type(1) > button:nth-of-type(1)",
+              "control_text": "Remarkable trees only\n183 heritage trees",
+              "clicked": true,
+              "dismissed": false
+            },
+            "svg_count": 189,
+            "webgl_context": true,
+            "text_length": 2477
+          },
+          "critical_failures": [
+            "Persistent loading overlay detected (#app): intro control 'Remarkable trees only 183 heritage trees' clicked but the overlay stayed visible"
+          ]
+        },
+        "data_pipeline": {
+          "passed": true,
+          "score": 0.67,
+          "authenticity": "partial_or_filtered",
+          "total_records": 33634,
+          "checks": [
+            {
+              "id": "trees_dataset",
+              "description": "Paris municipal trees inventory with botanical species and measurements",
+              "passed": false,
+              "observed_records": 1,
+              "matched_files": [
+                "scripts/fetch-data.sh",
+                "scripts/build-data.py",
+                "src/util.js",
+                "src/charts.js",
+                "src/main.js",
+                "src/analytics.js",
+                "src/colors.js",
+                "src/data.js",
+                "src/filters.js",
+                "src/remarkable.js",
+                "src/style.css",
+                "src/engine.js",
+                "src/map.js",
+                "src/districts.js",
+                "src/detail.js",
+                ".claude/hooks/log-tool-event.py"
+              ],
+              "detail": "Matched 16 file(s) but observed 1 records < min threshold 1000"
+            },
+            {
+              "id": "remarkable_trees_dataset",
+              "description": "Paris remarkable heritage trees (arbres remarquables)",
+              "passed": true,
+              "observed_records": 183,
+              "matched_files": [
+                "public/data/remarkable.json"
+              ],
+              "detail": "Matched 1 file(s) with 183 observed records (min: 20)"
+            },
+            {
+              "id": "arrondissements_dataset",
+              "description": "Paris arrondissements administrative boundaries",
+              "passed": true,
+              "observed_records": 20,
+              "matched_files": [
+                "public/data/arrondissements.geojson"
+              ],
+              "detail": "Matched 1 file(s) with 20 observed records (min: 20)"
+            }
+          ],
+          "synthetic_signals": []
+        }
+      },
+      "screenshot_path": "screenshots/2026-10-26-claude-code-claude-opus-5-5-medium.png",
+      "demo_url": "demos/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium/index.html",
+      "results_paths": {
+        "run_json": "results/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium/run.json",
+        "runtime_json": "results/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium/artifacts/runtime.json",
+        "data_pipeline_json": "results/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium/artifacts/data_pipeline.json",
+        "verification_log": null
+      },
+      "tool_timeline": [],
+      "turns": [
+        {
+          "turn_index": 1,
+          "timestamp": "",
+          "model_slug": "Claude Opus 5.5",
+          "input_tokens": 8108309,
+          "uncached_input_tokens": 0,
+          "cache_read_tokens": 7926559,
+          "cache_write_tokens": 181750,
+          "output_tokens": 104892,
+          "cost_usd": null,
+          "cumulative_cache_read_tokens": 7926559,
+          "cache_hit_rate_pct": 97.8
+        }
+      ],
+      "pareto": {
+        "is_pareto_series": true,
+        "is_pareto_global": false,
+        "is_pareto_successful": true,
+        "quality_score": 0.67,
+        "is_pareto_successful_series": true,
         "is_pareto_successful_global": false
       }
     }
