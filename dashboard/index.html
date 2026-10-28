@@ -27,12 +27,12 @@
   <script id="benchmark-data" type="application/json">
 {
   "version": "1.0.0",
-  "generated_at": "2026-10-26T23:02:54.281Z",
+  "generated_at": "2026-10-28T20:06:50.757Z",
   "summary": {
-    "total_runs": 22,
+    "total_runs": 26,
     "successful_runs": 12,
     "total_series": 8,
-    "total_models": 12,
+    "total_models": 13,
     "total_tokens_generated": 2298892,
     "total_estimated_cost_usd": 91.6
   },
@@ -41,7 +41,7 @@
       "prompt_id": "adaptive-endurance-coach",
       "description": "Adaptive endurance training planner and physiological simulator",
       "type": "domain_model",
-      "runs_count": 0,
+      "runs_count": 4,
       "checks_count": 5,
       "text": "Build an interactive adaptive training planner and physiological simulator for four endurance disciplines: triathlon, running, cycling, and cross-training (cycling, running, and easy weight training).\nThe goal is an exceptional visual and functional result, as polished and impressive as a flagship sports-science studio, not a mere technical demo.\nExpected result:\n\n* An athlete profile editor accepts physiological baselines—FTP (watts and W/kg), VO2max or recent race time, threshold heart rate, Critical Swim Speed (CSS) pace, weekly training hours, and sessions per week—and automatically computes individualized Coggan power zones, running pace zones, heart rate zones, and swim pace zones.\n* A multi-week periodized plan generator structures mesocycles (Base, Build, Peak, Taper, plus recovery weeks) from start date to race day, tailored to the chosen discipline (triathlon, running, cycling, or cross-training combining cycling, running, and foundational weight training) while respecting weekly session and hour budgets.\n* An interactive Performance Management Chart models daily Training Stress Score (TSS), Chronic Training Load (CTL, 42-day EWMA), Acute Training Load (ATL, 7-day EWMA), and Training Stress Balance (TSB = CTL - ATL) from start date to race day.\n* Every workout renders as a visual interval block profile (warm-up, work intervals at exact target watts, pace, or heart rate, recovery valleys, cool-down, or structured strength sets) with calendar (.ics) and structured workout (.zwo) export.\n* Live plan adaptation lets the athlete mark sessions as skipped, shortened, or over-reached, or simulate illness and changed weekly availability; the engine dynamically recalibrates the remaining plan to cap weekly ramp rate and peak on race day, overlaying the original and adapted CTL/ATL/TSB curves.\n\nReference physiological models:\n\n* Banister impulse-response \u0026 Performance Management Chart: CTL_t = CTL_{t-1} + (TSS_t - CTL_{t-1}) / 42, ATL_t = ATL_{t-1} + (TSS_t - ATL_{t-1}) / 7, TSB_t = CTL_t - ATL_t\n* Coggan 7-zone cycling power \u0026 stress: IF = NP / FTP, TSS = (seconds * NP * IF) / (FTP * 3600) * 100\n* Daniels VDOT running zones \u0026 rTSS: Easy, Marathon, Threshold, Interval, and Repetition paces derived from VDOT / recent race performance, with running stress scaled against threshold pace\n* Critical Swim Speed (CSS): CSS (m/s) = (400 - 200) / (T_400 - T_200) and swim stress sTSS = IF^3 * hours * 100"
     },
@@ -103,6 +103,510 @@
     }
   ],
   "runs": [
+    {
+      "run_id": "2026-10-28-cursor-grok-4-7-high",
+      "prompt_id": "adaptive-endurance-coach",
+      "series_id": "adaptive-endurance-coach-cursor",
+      "shot": "primary",
+      "rules_version": 2,
+      "model": {
+        "name": "Grok 4.7",
+        "label": "Grok 4.7 high",
+        "display": "Grok 4.7 (high, Cursor)",
+        "id": "Grok 4.7",
+        "provider": "xai",
+        "reasoning": "high",
+        "context": null
+      },
+      "harness": {
+        "name": "cursor",
+        "version": ""
+      },
+      "wall_clock": {
+        "started_at": "2026-10-28T20:06:05.308Z",
+        "ended_at": null,
+        "seconds": null
+      },
+      "model_time": {
+        "generating_seconds": null,
+        "thinking_seconds": null,
+        "source": "unavailable"
+      },
+      "tokens": {
+        "reasoning": null,
+        "visible": null,
+        "total_output": null,
+        "input": null,
+        "uncached_input": null,
+        "cache_read": null,
+        "cache_write": null,
+        "split_rule": "unavailable"
+      },
+      "cost": {
+        "estimated_usd": null,
+        "estimated_with_harness_usd": null,
+        "billed_usd": null,
+        "rates": {}
+      },
+      "tool_calls": {
+        "shell": {
+          "calls": 0,
+          "failures": 0
+        },
+        "files": {
+          "calls": 0,
+          "failures": 0
+        },
+        "visual_checks": {
+          "calls": 0,
+          "failures": 0
+        },
+        "web": {
+          "calls": 0,
+          "failures": 0
+        },
+        "other": {
+          "calls": 0,
+          "failures": 0
+        },
+        "total": {
+          "calls": 0,
+          "failures": 0
+        },
+        "failure_rate_pct": 0.0
+      },
+      "verification": {
+        "passed": false,
+        "runtime": {
+          "passed": false,
+          "http_status": null,
+          "load_time_ms": null,
+          "page_errors": [],
+          "console_errors": [],
+          "console_warnings_count": 0,
+          "dom": {},
+          "critical_failures": []
+        },
+        "data_pipeline": {
+          "passed": false,
+          "score": 0.0,
+          "authenticity": "",
+          "total_records": 0,
+          "checks": [],
+          "synthetic_signals": []
+        }
+      },
+      "screenshot_path": null,
+      "demo_url": null,
+      "results_paths": {
+        "run_json": "results/adaptive-endurance-coach/2026-10-28-cursor-grok-4-7-high/run.json",
+        "runtime_json": null,
+        "data_pipeline_json": null,
+        "verification_log": null
+      },
+      "tool_timeline": [],
+      "turns": [
+        {
+          "turn_index": 1,
+          "timestamp": "2026-10-28T20:06:05.308Z",
+          "model_slug": "Grok 4.7",
+          "input_tokens": 0,
+          "uncached_input_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "output_tokens": 0,
+          "cost_usd": null,
+          "cumulative_cache_read_tokens": 0,
+          "cache_hit_rate_pct": 0.0
+        }
+      ],
+      "pareto": {
+        "is_pareto_series": false,
+        "is_pareto_global": false,
+        "is_pareto_successful": false,
+        "quality_score": 0.0,
+        "is_pareto_successful_series": false,
+        "is_pareto_successful_global": false
+      }
+    },
+    {
+      "run_id": "2026-10-28-cursor-kimi-k3-high",
+      "prompt_id": "adaptive-endurance-coach",
+      "series_id": "adaptive-endurance-coach-cursor",
+      "shot": "primary",
+      "rules_version": 2,
+      "model": {
+        "name": "Kimi K3",
+        "label": "Kimi K3 high",
+        "display": "Kimi K3 (high, Cursor)",
+        "id": "Kimi K3",
+        "provider": "moonshot",
+        "reasoning": "high",
+        "context": null
+      },
+      "harness": {
+        "name": "cursor",
+        "version": ""
+      },
+      "wall_clock": {
+        "started_at": "2026-10-28T20:06:49.636Z",
+        "ended_at": null,
+        "seconds": null
+      },
+      "model_time": {
+        "generating_seconds": null,
+        "thinking_seconds": null,
+        "source": "unavailable"
+      },
+      "tokens": {
+        "reasoning": null,
+        "visible": null,
+        "total_output": null,
+        "input": null,
+        "uncached_input": null,
+        "cache_read": null,
+        "cache_write": null,
+        "split_rule": "unavailable"
+      },
+      "cost": {
+        "estimated_usd": null,
+        "estimated_with_harness_usd": null,
+        "billed_usd": null,
+        "rates": {}
+      },
+      "tool_calls": {
+        "shell": {
+          "calls": 0,
+          "failures": 0
+        },
+        "files": {
+          "calls": 0,
+          "failures": 0
+        },
+        "visual_checks": {
+          "calls": 0,
+          "failures": 0
+        },
+        "web": {
+          "calls": 0,
+          "failures": 0
+        },
+        "other": {
+          "calls": 0,
+          "failures": 0
+        },
+        "total": {
+          "calls": 0,
+          "failures": 0
+        },
+        "failure_rate_pct": 0.0
+      },
+      "verification": {
+        "passed": false,
+        "runtime": {
+          "passed": false,
+          "http_status": null,
+          "load_time_ms": null,
+          "page_errors": [],
+          "console_errors": [],
+          "console_warnings_count": 0,
+          "dom": {},
+          "critical_failures": []
+        },
+        "data_pipeline": {
+          "passed": false,
+          "score": 0.0,
+          "authenticity": "",
+          "total_records": 0,
+          "checks": [],
+          "synthetic_signals": []
+        }
+      },
+      "screenshot_path": null,
+      "demo_url": null,
+      "results_paths": {
+        "run_json": "results/adaptive-endurance-coach/2026-10-28-cursor-kimi-k3-high/run.json",
+        "runtime_json": null,
+        "data_pipeline_json": null,
+        "verification_log": null
+      },
+      "tool_timeline": [],
+      "turns": [
+        {
+          "turn_index": 1,
+          "timestamp": "2026-10-28T20:06:49.636Z",
+          "model_slug": "Kimi K3",
+          "input_tokens": 0,
+          "uncached_input_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "output_tokens": 0,
+          "cost_usd": null,
+          "cumulative_cache_read_tokens": 0,
+          "cache_hit_rate_pct": 0.0
+        }
+      ],
+      "pareto": {
+        "is_pareto_series": false,
+        "is_pareto_global": false,
+        "is_pareto_successful": false,
+        "quality_score": 0.0,
+        "is_pareto_successful_series": false,
+        "is_pareto_successful_global": false
+      }
+    },
+    {
+      "run_id": "2026-10-28-cursor-muse-wonder-high",
+      "prompt_id": "adaptive-endurance-coach",
+      "series_id": "adaptive-endurance-coach-cursor",
+      "shot": "primary",
+      "rules_version": 2,
+      "model": {
+        "name": "Muse Wonder",
+        "label": "Muse Wonder high",
+        "display": "Muse Wonder (high, Cursor)",
+        "id": "Muse Wonder",
+        "provider": "meta",
+        "reasoning": "high",
+        "context": null
+      },
+      "harness": {
+        "name": "cursor",
+        "version": ""
+      },
+      "wall_clock": {
+        "started_at": "2026-10-28T20:06:50.205Z",
+        "ended_at": null,
+        "seconds": null
+      },
+      "model_time": {
+        "generating_seconds": null,
+        "thinking_seconds": null,
+        "source": "unavailable"
+      },
+      "tokens": {
+        "reasoning": null,
+        "visible": null,
+        "total_output": null,
+        "input": null,
+        "uncached_input": null,
+        "cache_read": null,
+        "cache_write": null,
+        "split_rule": "unavailable"
+      },
+      "cost": {
+        "estimated_usd": null,
+        "estimated_with_harness_usd": null,
+        "billed_usd": null,
+        "rates": {}
+      },
+      "tool_calls": {
+        "shell": {
+          "calls": 0,
+          "failures": 0
+        },
+        "files": {
+          "calls": 0,
+          "failures": 0
+        },
+        "visual_checks": {
+          "calls": 0,
+          "failures": 0
+        },
+        "web": {
+          "calls": 0,
+          "failures": 0
+        },
+        "other": {
+          "calls": 0,
+          "failures": 0
+        },
+        "total": {
+          "calls": 0,
+          "failures": 0
+        },
+        "failure_rate_pct": 0.0
+      },
+      "verification": {
+        "passed": false,
+        "runtime": {
+          "passed": false,
+          "http_status": null,
+          "load_time_ms": null,
+          "page_errors": [],
+          "console_errors": [],
+          "console_warnings_count": 0,
+          "dom": {},
+          "critical_failures": []
+        },
+        "data_pipeline": {
+          "passed": false,
+          "score": 0.0,
+          "authenticity": "",
+          "total_records": 0,
+          "checks": [],
+          "synthetic_signals": []
+        }
+      },
+      "screenshot_path": null,
+      "demo_url": null,
+      "results_paths": {
+        "run_json": "results/adaptive-endurance-coach/2026-10-28-cursor-muse-wonder-high/run.json",
+        "runtime_json": null,
+        "data_pipeline_json": null,
+        "verification_log": null
+      },
+      "tool_timeline": [],
+      "turns": [
+        {
+          "turn_index": 1,
+          "timestamp": "2026-10-28T20:06:50.205Z",
+          "model_slug": "Muse Wonder",
+          "input_tokens": 0,
+          "uncached_input_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "output_tokens": 0,
+          "cost_usd": null,
+          "cumulative_cache_read_tokens": 0,
+          "cache_hit_rate_pct": 0.0
+        }
+      ],
+      "pareto": {
+        "is_pareto_series": false,
+        "is_pareto_global": false,
+        "is_pareto_successful": false,
+        "quality_score": 0.0,
+        "is_pareto_successful_series": false,
+        "is_pareto_successful_global": false
+      }
+    },
+    {
+      "run_id": "2026-10-28-cursor-claude-haiku-5-5-high",
+      "prompt_id": "adaptive-endurance-coach",
+      "series_id": "adaptive-endurance-coach-cursor",
+      "shot": "primary",
+      "rules_version": 2,
+      "model": {
+        "name": "Claude Haiku 5.5",
+        "label": "Claude Haiku 5.5 high",
+        "display": "Claude Haiku 5.5 (high, Cursor)",
+        "id": "Claude Haiku 5.5",
+        "provider": "anthropic",
+        "reasoning": "high",
+        "context": null
+      },
+      "harness": {
+        "name": "cursor",
+        "version": ""
+      },
+      "wall_clock": {
+        "started_at": "2026-10-28T20:06:50.757Z",
+        "ended_at": null,
+        "seconds": null
+      },
+      "model_time": {
+        "generating_seconds": null,
+        "thinking_seconds": null,
+        "source": "unavailable"
+      },
+      "tokens": {
+        "reasoning": null,
+        "visible": null,
+        "total_output": null,
+        "input": null,
+        "uncached_input": null,
+        "cache_read": null,
+        "cache_write": null,
+        "split_rule": "unavailable"
+      },
+      "cost": {
+        "estimated_usd": null,
+        "estimated_with_harness_usd": null,
+        "billed_usd": null,
+        "rates": {}
+      },
+      "tool_calls": {
+        "shell": {
+          "calls": 0,
+          "failures": 0
+        },
+        "files": {
+          "calls": 0,
+          "failures": 0
+        },
+        "visual_checks": {
+          "calls": 0,
+          "failures": 0
+        },
+        "web": {
+          "calls": 0,
+          "failures": 0
+        },
+        "other": {
+          "calls": 0,
+          "failures": 0
+        },
+        "total": {
+          "calls": 0,
+          "failures": 0
+        },
+        "failure_rate_pct": 0.0
+      },
+      "verification": {
+        "passed": false,
+        "runtime": {
+          "passed": false,
+          "http_status": null,
+          "load_time_ms": null,
+          "page_errors": [],
+          "console_errors": [],
+          "console_warnings_count": 0,
+          "dom": {},
+          "critical_failures": []
+        },
+        "data_pipeline": {
+          "passed": false,
+          "score": 0.0,
+          "authenticity": "",
+          "total_records": 0,
+          "checks": [],
+          "synthetic_signals": []
+        }
+      },
+      "screenshot_path": null,
+      "demo_url": null,
+      "results_paths": {
+        "run_json": "results/adaptive-endurance-coach/2026-10-28-cursor-claude-haiku-5-5-high/run.json",
+        "runtime_json": null,
+        "data_pipeline_json": null,
+        "verification_log": null
+      },
+      "tool_timeline": [],
+      "turns": [
+        {
+          "turn_index": 1,
+          "timestamp": "2026-10-28T20:06:50.757Z",
+          "model_slug": "Claude Haiku 5.5",
+          "input_tokens": 0,
+          "uncached_input_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "output_tokens": 0,
+          "cost_usd": null,
+          "cumulative_cache_read_tokens": 0,
+          "cache_hit_rate_pct": 0.0
+        }
+      ],
+      "pareto": {
+        "is_pareto_series": false,
+        "is_pareto_global": false,
+        "is_pareto_successful": false,
+        "quality_score": 0.0,
+        "is_pareto_successful_series": false,
+        "is_pareto_successful_global": false
+      }
+    },
     {
       "run_id": "2026-10-19-cursor-gemini-4-argon-1m-medium",
       "prompt_id": "france-electricity-carbon-flow",
@@ -25921,6 +26425,10 @@
     {
       "name": "Grok 4.7",
       "provider": "xai"
+    },
+    {
+      "name": "Kimi K3",
+      "provider": "moonshot"
     },
     {
       "name": "Muse Wonder",

@@ -21,6 +21,19 @@ Inspired by Charles de Lassence's 11 October 2026 benchmark post: [Building a 3D
 
 Rows compare only inside one series, so each series has its own table ([`docs/protocol.md`](docs/protocol.md)). Metric details and tool classifications are documented in [`docs/metrics.md`](docs/metrics.md) and [`docs/tool-buckets.md`](docs/tool-buckets.md); pricing rates use [`reference/pricing-2026-10-18.json`](reference/pricing-2026-10-18.json).
 
+### `adaptive-endurance-coach`
+
+**Local series `adaptive-endurance-coach-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
+
+| Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Claude Haiku 5.5 high | Cursor | n/a | n/a | n/a | n/a | n/a | n/a |
+| Grok 4.7 high | Cursor | n/a | n/a | n/a | n/a | n/a | n/a |
+| Kimi K3 high | Cursor | n/a | n/a | n/a | n/a | n/a | n/a |
+| Muse Wonder high | Cursor | n/a | n/a | n/a | n/a | n/a | n/a |
+
+*Note: Token and cost columns show `n/a` for headless CLI runs until a Cursor billing CSV export is ingested (`finish_run.py --usage-export`).*
+
 ### `france-electricity-carbon-flow`
 
 ![france-electricity-carbon-flow — Gemini 4 Argon 1m medium (2026-10-19-cursor-gemini-4-argon-1m-medium)](runs/france-electricity-carbon-flow/2026-10-19-cursor-gemini-4-argon-1m-medium/artifacts/screenshot.png)
