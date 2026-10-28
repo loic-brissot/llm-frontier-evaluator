@@ -72,6 +72,23 @@ def model_label(run: dict) -> str:
     return f"{name} {reasoning}".strip()
 
 
+def model_display_label(run: dict) -> str:
+    """Presentation label: '{model name} {version} ({effort}, {context, }{harness})'."""
+    model = run["model"]
+    name = str(model.get("name") or "")
+    reasoning = model.get("reasoning") or UNKNOWN_REASONING
+    words = name.split()
+    if words and words[-1].lower() == str(reasoning).lower():
+        name = " ".join(words[:-1])
+    parts = [str(reasoning)]
+    if model.get("context"):
+        parts.append(str(model["context"]))
+    harness = (run.get("harness") or {}).get("name") or ""
+    if harness:
+        parts.append(harness_label(harness))
+    return f"{name} ({', '.join(parts)})".strip()
+
+
 def round_half_up(value: Decimal, places: int) -> Decimal:
     quant = Decimal("1") if places == 0 else Decimal("0.1") ** places
     return value.quantize(quant, rounding=ROUND_HALF_UP)

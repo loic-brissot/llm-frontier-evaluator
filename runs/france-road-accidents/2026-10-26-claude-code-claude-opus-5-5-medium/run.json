@@ -1,0 +1,342 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-26-claude-code-claude-opus-5-5-medium",
+  "series_id": "france-road-accidents-claude-code",
+  "prompt_id": "france-road-accidents",
+  "prompt_sha256": "982eebe095732d52f4ca2e904d1cc284b76e9522d3f6f634c571f60ee96747a9",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "anthropic",
+    "name": "Claude Opus 5.5",
+    "context": null,
+    "reasoning": "medium"
+  },
+  "harness": {
+    "name": "claude-code",
+    "version": "2.1.310 (Claude Code)",
+    "detail": "headless; subscription OAuth"
+  },
+  "wall_clock": {
+    "started_at": "2026-10-26T14:25:15.710Z",
+    "ended_at": "2026-10-26T15:06:47.623Z"
+  },
+  "tokens": {
+    "split_rule": "combined_output_as_visible",
+    "reasoning_tokens": 0,
+    "visible_tokens": 90742,
+    "raw": {
+      "duration_api_ms": 847793,
+      "stop_reason": "end_turn",
+      "session_id": "b77d43dd-e793-463a-97ef-0d86edc83a85",
+      "total_cost_usd": 3.8356825999999993,
+      "usage": {
+        "input_tokens": 92,
+        "cache_creation_input_tokens": 141955,
+        "cache_read_input_tokens": 4424173,
+        "output_tokens": 90742,
+        "output_tokens_details": {
+          "thinking_tokens": 27108
+        },
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 141955,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "global",
+        "iterations": [
+          {
+            "input_tokens": 2,
+            "output_tokens": 1410,
+            "cache_read_input_tokens": 150679,
+            "cache_creation_input_tokens": 2963,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 2963
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "fallback_credit": null
+      },
+      "modelUsage": {
+        "claude-opus-5-5": {
+          "inputTokens": 92,
+          "outputTokens": 90742,
+          "cacheReadInputTokens": 4424173,
+          "cacheCreationInputTokens": 141955,
+          "webSearchRequests": 0,
+          "costUSD": 3.8356825999999993,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 27108,
+          "canonicalModel": "claude-opus-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "permission_denials": [],
+      "terminal_reason": "completed",
+      "fast_mode_state": "off",
+      "fast_mode_disabled_reason": "sdk_opt_in_required",
+      "subagent_stats": {
+        "spawned": 0,
+        "requested": {
+          "background": 0,
+          "foreground": 0,
+          "unset": 0
+        },
+        "started_in_background": 0,
+        "max_depth": 0,
+        "spawned_by_subagents": 0,
+        "completed": 0,
+        "failed": 0,
+        "killed": {
+          "parent": 0,
+          "user": 0,
+          "system": 0
+        },
+        "refused": {
+          "depth_limit": 0,
+          "concurrency_limit": 0,
+          "budget": 0
+        },
+        "by_type": {}
+      },
+      "safety_stops": 0,
+      "is_error": false,
+      "num_turns": 48,
+      "subtype": "success",
+      "api_error_status": null,
+      "result": "I've built the observatory as a static web app in `web/`. It's being served at **http://localhost:8765** right now. It covers all three validated years (2022\u20132024): **155,076 geolocated injury accidents** in metropolitan France, joined across the four BAAC tables, with 204,262 casualties and 9,627 deaths. The death toll per year (3,267 / 3,167 / 3,193) matches ONISR's official metropolitan figures exactly. Only 3 accidents had no usable coordinates.\n\nI checked it with headless-browser screenshots at national, city (Lyon, Paris) and street zoom. I tested the matrix filter, the cluster and single-accident inspector, the department shading, the victim-mode colouring, a story preset and the About dialog. No page errors came up. The test browser had no GPU and took 1\u20133 minutes per screenshot when filters were active; I haven't timed it in a normal browser, where it should be fast.\n\n**What you get:**\n- **Map:** one dot per accident, coloured by worst injury or by the victim's mode of transport. Fatal accidents get a red halo from zoom 7.5. Accidents removed by a filter stay as a faint ghost layer for context. Department outlines are always on and can be shaded by accident rate, deaths per inhabitant, or deaths per 100 accidents. Zoom runs from all of France down to street level.\n- **\"Who hits whom\" matrix:** 8 victim modes (rows) against 9 \"other party\" columns, including \"No other party\" for single-vehicle crashes. Pedestrians are matched to the vehicle that struck them. You can switch between casualties, killed and lethality. Clicking a cell, row or column filters the map and every chart.\n- **Filters:** hour (drag across a range), day of week, lighting, weather, road category, speed limit, cycling infrastructure, built-up area, and year. Each bar counts accidents under all the *other* filters.\n- **Live summary:** follows the map view and the filters. It shows totals, fatality and hospitalisation rates, a severity split, the top collision pairs, and a victim age chart with median age and share of men.\n- **Inspector:** clicking a dot shows the full record: circumstances, every road segment, each vehicle (manoeuvre, point of impact, obstacle, engine), and every person's role, seat, sex, age, safety equipment, trip purpose and injury. Clicking a dense area gives a summary of the local cluster, and you can drill into any accident in it.\n- **Department ranking:** annualised per inhabitant using INSEE populations, under the current filters. Clicking a department zooms to it.\n- **Six \"stories\":** curated starting points such as pedestrians after dark, cyclists vs heavy vehicles and e-scooters in Paris. Their figures are computed from the data.\n\n**Limitations:**\n- **Other party in pile-ups:** for vehicle occupants it's the heaviest other vehicle in the accident. That's exact for one- and two-vehicle crashes but a simplification when three or more vehicles are involved. The About dialog says so.\n- **Dot colour when the matrix is filtered:** dots stay coloured by the worst injury in the whole accident, not just among the victims in the selected cell. The charts and figures do count only those victims.\n- **Basemap:** it needs internet access (CARTO). Offline, the map is a blank dark background, but the departments and accidents still show.\n- **Dark theme only:** there's no light theme.\n\n**To rebuild from scratch:** run `scripts/fetch_data.sh`, then `python3 -I scripts/build_data.py data/raw web/data 2022 2023 2024` (standard library only, about 25 s), then `python3 -m http.server 8765 --directory web`. The map libraries are bundled in `web/vendor/`. `.gitignore` leaves the raw data and the generated `web/data/` (about 53 MB) out of git, so they have to be rebuilt. Nothing is committed yet.\n\nFiles are in `web/`, plus the data scripts and `README.md` at the top level:\n- index.html\n- js/app.js\n- js/codebook.js\n- css/app.css",
+      "ttft_ms": 4147,
+      "type": "result",
+      "duration_ms": 2492306,
+      "uuid": "f0c97884-27eb-429e-8004-eb97f4691147",
+      "ttft_stream_ms": 2308,
+      "time_to_request_ms": 489,
+      "first_content_frame_ms": 2308,
+      "queued_turn_count": 0,
+      "result_index": 0,
+      "model_usage_since_last_result": {
+        "claude-opus-5-5": {
+          "inputTokens": 92,
+          "outputTokens": 90742,
+          "cacheReadInputTokens": 4424173,
+          "cacheCreationInputTokens": 141955,
+          "webSearchRequests": 0,
+          "costUSD": 3.8356825999999993,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 27108,
+          "canonicalModel": "claude-opus-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "claude_code": {
+        "attempts": 1,
+        "attempts_without_result": 0,
+        "uncached_input_tokens": 92,
+        "cache_write_tokens": 141955,
+        "cache_read_tokens": 4424173,
+        "output_tokens": 90742,
+        "duration_api_seconds": 847.8,
+        "total_cost_usd": 3.8357
+      },
+      "hook_tokens": {
+        "source": "transcript_or_hook",
+        "model": "claude-opus-5-5",
+        "input_tokens": 4566220,
+        "uncached_input_tokens": 92,
+        "cache_read_tokens": 4424173,
+        "cache_write_tokens": 141955,
+        "output_tokens": 90742,
+        "split_rule": "unavailable"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "claude-opus-5-5",
+        "context_variant": null,
+        "long_context_applied": false,
+        "harness": "claude-code",
+        "harness_token_rate_per_1m": "0",
+        "harness_surcharge_usd": "0.00",
+        "rates_per_1m_usd": {
+          "input": "4.00",
+          "cache_write": "5.00",
+          "cache_read": "0.20",
+          "output": "20.00"
+        },
+        "estimated_cost_usd": "3.41",
+        "estimated_cost_with_harness_usd": "3.41"
+      }
+    }
+  },
+  "model_time": {
+    "source": "harness_model_time",
+    "generating_seconds": 847.8,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 2491.9,
+        "tool_seconds_merged": 1640.3,
+        "tool_seconds_summed": 1640.3,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": 851.6,
+        "thinking_seconds": 375.8,
+        "thought_blocks": 31,
+        "timing_source": "claude_sessions",
+        "active_seconds": 2491.9,
+        "retry_gap_seconds": 0.0,
+        "duration_api_seconds": 847.8,
+        "attempts": 1,
+        "attempts_without_result": 0
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 31,
+      "failures": 2,
+      "by_tool": {
+        "Bash": {
+          "calls": 31,
+          "failures": 2
+        }
+      }
+    },
+    "files": {
+      "calls": 14,
+      "failures": 0,
+      "by_tool": {
+        "Write": {
+          "calls": 5,
+          "failures": 0
+        },
+        "Read": {
+          "calls": 9,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": 1,
+      "failures": 0,
+      "by_tool": {
+        "Skill": {
+          "calls": 1,
+          "failures": 0
+        }
+      }
+    }
+  },
+  "context_reread": {
+    "source": "provider_cache_read",
+    "cache_read_tokens": 4424173,
+    "cache_write_tokens": 141955,
+    "uncached_input_tokens": 92,
+    "raw": {
+      "source": "transcript_or_hook",
+      "model": "claude-opus-5-5",
+      "input_tokens": 4566220,
+      "uncached_input_tokens": 92,
+      "cache_read_tokens": 4424173,
+      "cache_write_tokens": 141955,
+      "output_tokens": 90742,
+      "split_rule": "unavailable"
+    }
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": true,
+    "summary": ""
+  },
+  "observations": "other tools: Skill. Operator override (2026-10-28): verification marked passed. Smoke test false negative: the app is built in web/ and served by the model; the verifier only looks for a server at the workspace root.",
+  "verification": {
+    "runtime": {
+      "passed": true,
+      "http_status": null,
+      "url": "",
+      "server_mode": "none",
+      "load_time_ms": null,
+      "console_errors": [],
+      "console_warnings_count": 0,
+      "page_errors": [
+        "No workspace server found or started"
+      ],
+      "failed_requests": [],
+      "critical_failures": [
+        "No workspace server found or started"
+      ],
+      "dom": null,
+      "screenshot_path": null,
+      "verified_at": "2026-10-26T15:06:51.299Z",
+      "operator_override": {
+        "verifier_passed": false,
+        "passed": true,
+        "at": "2026-10-28",
+        "reason": "Smoke test false negative: the app is built in web/ and served by the model; the verifier only looks for a server at the workspace root."
+      },
+      "demo_url": "demos/france-road-accidents/2026-10-26-claude-code-claude-opus-5-5-medium/index.html"
+    },
+    "data_pipeline": {
+      "prompt_id": "france-road-accidents",
+      "passed": true,
+      "authenticity": "real_open_data",
+      "score": 1.0,
+      "total_data_files": 117,
+      "total_records": 1209823,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "baac_relational_tables",
+          "description": "ONISR BAAC relational tables (caracteristiques, lieux, vehicules, usagers) or joined dataset",
+          "passed": true,
+          "observed_records": 854804,
+          "matched_files": [
+            "data/raw/usagers-2024.csv",
+            "data/raw/lieux-2022.csv",
+            "data/raw/lieux-2023.csv",
+            "data/raw/usagers-2022.csv",
+            "data/raw/usagers-2023.csv",
+            "data/raw/lieux-2024.csv",
+            "data/raw/vehicules-2024.csv",
+            "data/raw/vehicules-2022.csv",
+            "data/raw/vehicules-2023.csv"
+          ],
+          "detail": "Matched 9 file(s) with 854804 observed records (min: 5000)"
+        },
+        {
+          "id": "departments_dataset",
+          "description": "Metropolitan France department boundaries",
+          "passed": true,
+          "observed_records": 402,
+          "matched_files": [
+            "data/raw/departements.json",
+            "data/raw/departements-100m.geojson",
+            "web/data/departements.geojson",
+            "web/data/meta.json"
+          ],
+          "detail": "Matched 4 file(s) with 402 observed records (min: 90)"
+        }
+      ],
+      "verified_at": "2026-10-26T15:06:51.308Z"
+    },
+    "passed": true
+  }
+}

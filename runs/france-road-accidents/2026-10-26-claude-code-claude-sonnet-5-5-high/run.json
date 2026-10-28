@@ -1,0 +1,380 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-26-claude-code-claude-sonnet-5-5-high",
+  "series_id": "france-road-accidents-claude-code",
+  "prompt_id": "france-road-accidents",
+  "prompt_sha256": "982eebe095732d52f4ca2e904d1cc284b76e9522d3f6f634c571f60ee96747a9",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "anthropic",
+    "name": "Claude Sonnet 5.5",
+    "context": null,
+    "reasoning": "high"
+  },
+  "harness": {
+    "name": "claude-code",
+    "version": "2.1.310 (Claude Code)",
+    "detail": "headless; subscription OAuth"
+  },
+  "wall_clock": {
+    "started_at": "2026-10-26T14:25:15.053Z",
+    "ended_at": "2026-10-26T15:20:11.579Z"
+  },
+  "tokens": {
+    "split_rule": "combined_output_as_visible",
+    "reasoning_tokens": 0,
+    "visible_tokens": 321479,
+    "raw": {
+      "duration_api_ms": 2243195,
+      "stop_reason": "end_turn",
+      "session_id": "fe71f7fe-52da-447c-bd9e-4999cc810c86",
+      "total_cost_usd": 8.9323087,
+      "usage": {
+        "input_tokens": 274,
+        "cache_creation_input_tokens": 457548,
+        "cache_read_input_tokens": 38867787,
+        "output_tokens": 321479,
+        "output_tokens_details": {
+          "thinking_tokens": 147647
+        },
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 457548,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "global",
+        "iterations": [
+          {
+            "input_tokens": 2,
+            "output_tokens": 1272,
+            "cache_read_input_tokens": 468902,
+            "cache_creation_input_tokens": 449,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 449
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "fallback_credit": null
+      },
+      "modelUsage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 274,
+          "outputTokens": 321479,
+          "cacheReadInputTokens": 38867787,
+          "cacheCreationInputTokens": 457548,
+          "webSearchRequests": 0,
+          "costUSD": 8.9323087,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 147647,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "permission_denials": [
+        {
+          "tool_name": "Bash",
+          "tool_use_id": "toolu_017Lg2AmJA8bbzkKdTUbTVjt",
+          "tool_input": {
+            "command": "cat >> icons.js <<'EOF'\nexport const iconBody = (name) => P[name] || '';\nEOF\ncat > ui/matrix.js <<'EOF'\n// \"Who hits whom\": victims (rows) \u00d7 opposing party (columns). Bubble area = people hurt, colour = share severe.\nimport { h, s, fmt, pct, tooltip, showTip, hideTip } from '../util.js';\nimport { ramp } from '../theme.js';\nimport { MODE_ICON, OPP_ICON, iconBody, icon } from '../icons.js';\nimport { NMODE, NOPP, cellOf } from '../engine.js';\n\nconst CW = 28, CH = 34, LW = 114, GAP = 9, HEAD = 56, TOP = 14;\nconst SHORT = ['Ped.', 'Bike', 'E-sc.', 'Moto', 'Car', 'Van', 'Truck', 'Other', 'Animal', 'Obstacle', 'Alone'];\nconst ROWNAME = ['Pedestrian', 'Bicycle', 'E-scooter', 'Moped / moto', 'Car', 'Van', 'Heavy vehicle', 'Other vehicle'];\nconst W = LW + NOPP * CW + GAP + 4, H = TOP + HEAD + NMODE * CH + 4;\nconst cx = (j) => LW + j * CW + (j >= 8 ? GAP : 0) + CW / 2;\nconst cy = (i) => TOP + HEAD + i * CH + CH / 2;\n\nexport const pairName = (meta, c) => {\n  const m = Math.floor(c / NOPP), o = c % NOPP;\n  return { victim: ROWNAME[m], opp: meta.opps[o].label };\n};\n\nexport function Matrix({ engine, meta, theme, onChange }) {\n  const svg = s('svg.mx', { viewBox: `0 0 ${W} ${H}`, role: 'group', 'aria-label': 'Collision matrix: victim mode by opposing party' });\n  let metric = 'victims';\n\n  // ---- static skeleton ---------------------------------------------------------------------\n  svg.append(s('text.axis', { x: LW, y: 9 }, 'OPPOSING PARTY'), s('text.axis', { x: 0, y: TOP + HEAD - 6 }, 'VICTIM'));\n  svg.append(s('text.axis.grp', { x: cx(8) - CW / 2, y: 9 }, 'NO OTHER VEHICLE'));\n  const colHeads = [], rowHeads = [], cells = [], guides = [];\n  for (let j = 0; j < NOPP; j++) {\n    const g = s('g.colhead', { tabindex: 0, role: 'button', 'aria-label': `Select every victim facing: ${meta.opps[j].label}` },\n      s('rect', { x: cx(j) - CW / 2, y: TOP, width: CW, height: HEAD - 4, rx: 6 }),\n      s('svg', { x: cx(j) - 9, y: TOP + 6, width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', html: iconBody(OPP_ICON[j]) }),\n      s('text.cl', { x: cx(j), y: TOP + 38, 'text-anchor': 'middle' }, SHORT[j]));\n    g.addEventListener('click', () => selectLine('col', j));\n    g.addEventListener('keydown', (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), selectLine('col', j)));\n    tooltip(g, () => `<div class=\"tt-h\">${meta.opps[j].label}</div><div class=\"tt-r tt-dim\">Click to select every victim type facing this opponent</div>`);\n    svg.append(g); colHeads.push(g);\n  }\n  for (let i = 0; i < NMODE; i++) {\n    const band = s('rect.band', { x: 0, y: cy(i) - CH / 2, width: W, height: CH, rx: 6 });\n    guides.push(band); svg.append(band);\n  }\n  for (let i = 0; i < NMODE; i++) {\n    const nameT = s('text.rn', { x: 24, y: cy(i) - 2 }, ROWNAME[i]), cntT = s('text.rc', { x: 24, y: cy(i) + 10 }, '');\n    const g = s('g.rowhead', { tabindex: 0, role: 'button', 'aria-label': `Select all ${ROWNAME[i]} victims` },\n      s('rect', { x: 0, y: cy(i) - CH / 2 + 1, width: LW - 4, height: CH - 2, rx: 6 }),\n      s('circle.mdot', { cx: 8, cy: cy(i), r: 3, fill: theme.mode[i] }),\n      s('svg', { x: 12, y: cy(i) - 6, width: 0, height: 0 }), nameT, cntT);\n    g.querySelector('svg')?.remove();\n    g.append(s('svg', { x: LW - 24, y: cy(i) - 8, width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', class: 'ri', html: iconBody(MODE_ICON[i]) }));\n    g.addEventListener('click', () => selectLine('row', i));\n    g.addEventListener('keydown', (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), selectLine('row', i)));\n    tooltip(g, () => `<div class=\"tt-h\">${ROWNAME[i]}</div><div class=\"tt-r tt-dim\">Click to select this victim type against every opponent</div>`);\n    svg.append(g); rowHeads.push({ g, cntT });\n  }\n  for (let i = 0; i < NMODE; i++) {\n    for (let j = 0; j < NOPP; j++) {\n      const c = cellOf(i, j);\n      const circle = s('circle.bub', { cx: cx(j), cy: cy(i), r: 0 });\n      const ring = s('circle.sel', { cx: cx(j), cy: cy(i), r: 0 });\n      const hit = s('rect.hit', { x: cx(j) - CW / 2 + 1, y: cy(i) - CH / 2 + 1, width: CW - 2, height: CH - 2, rx: 5 });\n      const g = s('g.cell', { tabindex: 0, role: 'button', 'aria-pressed': 'false', 'data-c': c }, hit, circle, ring);\n      g.addEventListener('click', () => { engine.togglePair(c); onChange(); });\n      g.addEventListener('keydown', (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), engine.togglePair(c), onChange()));\n      g.addEventListener('pointerenter', () => hover(i, j)); g.addEventListener('pointerleave', () => hover(null, null));\n      tooltip(g, () => cellTip(i, j));\n      svg.append(g); cells.push({ g, circle, ring, c, i, j });\n    }\n  }\n  const cellsLayer = cells; // alias for clarity\n\n  function selectLine(kind, k) {\n    const set = []; for (let i = 0; i < NMODE; i++) for (let j = 0; j < NOPP; j++) if ((kind === 'row' ? i : j) === k) set.push(cellOf(i, j));\n    const all = set.every((c) => engine.pairMask[c]);\n    for (const c of set) if (!!engine.pairMask[c] === all) engine.togglePair(c);\n    onChange();\n  }\n  function hover(i, j) {\n    guides.forEach((b, k) => b.classList.toggle('on', k === i));\n    cells.forEach((c) => c.g.classList.toggle('xhair', i != null && (c.i === i || c.j === j)));\n    colHeads.forEach((g, k) => g.classList.toggle('on', k === j));\n    rowHeads.forEach((r, k) => r.g.classList.toggle('on', k === i));\n    caption(i, j);\n  }\n\n  // ---- numbers ---------------------------------------------------------------------------------\n  let vals = null;\n  const stats = (R, i, j) => {\n    const c = cellOf(i, j), n = R.cell.n[c], sv = R.cell.sev;\n    return { n, slight: sv[c * 4 + 1], hosp: sv[c * 4 + 2], killed: sv[c * 4 + 3] };\n  };\n  function cellTip(i, j) {\n    const R = engine.R, st = stats(R, i, j), name = pairName(meta, cellOf(i, j));\n    const sel = engine.pairMask[cellOf(i, j)];\n    if (!st.n) return `<div class=\"tt-h\">${name.victim} \u00d7 ${name.opp}</div><div class=\"tt-r tt-dim\">No victims with the current filters</div>`;\n    return `<div class=\"tt-h\">${name.victim} \u00d7 ${name.opp}</div>` +\n      `<div class=\"tt-r\"><b>${fmt(st.n)}</b> people hurt or killed</div>` +\n      `<div class=\"tt-r\"><i class=\"sw\" style=\"background:${theme.sev[3]}\"></i>${fmt(st.killed)} killed (${pct(st.killed / st.n)})</div>` +\n      `<div class=\"tt-r\"><i class=\"sw\" style=\"background:${theme.sev[2]}\"></i>${fmt(st.hosp)} hospitalised (${pct(st.hosp / st.n)})</div>` +\n      `<div class=\"tt-r\"><i class=\"sw\" style=\"background:${theme.sev[1]}\"></i>${fmt(st.slight)} slightly injured</div>` +\n      `<div class=\"tt-r tt-dim\">${sel ? 'Click to remove from selection' : 'Click to filter the map and every chart'}</div>`;\n  }\n\n  const caption = (i, j) => {\n    const el = capEl;\n    if (i == null) { el.innerHTML = defaultCaption; return; }\n    const st = stats(engine.R, i, j), name = pairName(meta, cellOf(i, j));\n    el.innerHTML = st.n\n      ? `<b>${name.victim}</b> \u00d7 <b>${name.opp}</b> \u2014 ${fmt(st.n)} people hurt, <span class=\"k\">${fmt(st.killed)} killed</span> (${pct(st.killed / st.n)}), ${pct((st.killed + st.hosp) / st.n, 0)} severe`\n      : `<b>${name.victim}</b> \u00d7 <b>${name.opp}</b> \u2014 none with the current filters`;\n  };\n\n  const capEl = h('p.mx-cap');\n  let defaultCaption = '';\n\n  // ---- table view ------------------------------------------------------------------------------\n  const tableEl = h('div.mx-table', { hidden: true });\n  const rendered = (R) => {\n    const m = metric === 'killed';\n    let vmax = 1;\n    const rowTot = new Array(NMODE).fill(0);\n    for (let i = 0; i < NMODE; i++) for (let j = 0; j < NOPP; j++) {\n      const st = stats(R, i, j), v = m ? st.killed : st.n;\n      vmax = Math.max(vmax, v); rowTot[i] += st.n;\n    }\n    const any = engine.pairCount > 0;\n    for (const c of cellsLayer) {\n      const st = stats(R, c.i, c.j), v = m ? st.killed : st.n, sh = st.n ? (m ? st.killed / st.n : (st.killed + st.hosp) / st.n) : 0;\n      const r = v ? Math.max(1.6, Math.sqrt(v / vmax) * (CW / 2 - 1.5)) : 0;\n      c.circle.style.r = r + 'px';\n      c.circle.style.fill = v ? ramp(sh / (m ? 0.14 : 0.6)) : 'transparent';\n      const on = !!engine.pairMask[c.c];\n      c.ring.style.r = on ? r + 2.4 + 'px' : '0px';\n      c.g.classList.toggle('on', on); c.g.classList.toggle('dim', any && !on); c.g.classList.toggle('empty', !st.n);\n      c.g.setAttribute('aria-pressed', on);\n      c.g.setAttribute('aria-label', `${pairName(meta, c.c).victim} \u00d7 ${pairName(meta, c.c).opp}: ${fmt(st.n)} victims, ${fmt(st.killed)} killed`);\n    }\n    rowHeads.forEach((r, i) => { r.cntT.textContent = rowTot[i] ? `${fmt(rowTot[i])} hurt` : '\u2014'; r.g.classList.toggle('zero', !rowTot[i]); });\n    vals = { rowTot };\n    // insight line\n    let big = null, lethal = null;\n    const minN = Math.max(30, R.victims * 0.0006);\n    for (let i = 0; i < NMODE; i++) for (let j = 0; j < NOPP; j++) {\n      const st = stats(R, i, j);\n      if (!big || st.n > big.st.n) big = { i, j, st };\n      if (st.n >= minN && (!lethal || st.killed / st.n > lethal.st.killed / lethal.st.n)) lethal = { i, j, st };\n    }\n    const nm = (o) => pairName(meta, cellOf(o.i, o.j));\n    defaultCaption = big && big.st.n\n      ? `Most frequent: <b>${nm(big).victim} \u00d7 ${nm(big).opp}</b> (${fmt(big.st.n)}).` + (lethal ? ` Deadliest with \u2265${fmt(minN)} victims: <b>${nm(lethal).victim} \u00d7 ${nm(lethal).opp}</b>, <span class=\"k\">${pct(lethal.st.killed / lethal.st.n)} killed</span>.` : '')\n      : 'No accidents match the current filters.';\n    if (!capEl.dataset.hover) capEl.innerHTML = defaultCaption;\n    if (!tableEl.hidden) buildTable(R);\n  };\n\n  function buildTable(R) {\n    const m = metric === 'killed';\n    tableEl.replaceChildren(h('table', { 'aria-label': 'Collision matrix as a table' },\n      h('thead', h('tr', h('th', 'Victim \u2193 / Opponent \u2192'), meta.opps.map((o) => h('th', { title: o.label }, SHORT[o.id === undefined ? 0 : meta.opps.indexOf(o)])))),\n      h('tbody', ROWNAME.map((r, i) => h('tr', h('th', r), Array.from({ length: NOPP }, (_, j) => {\n        const st = stats(R, i, j), c = cellOf(i, j);\n        return h('td', { class: engine.pairMask[c] ? 'on' : '', onclick: () => { engine.togglePair(c); onChange(); }, title: `${fmt(st.n)} hurt \u00b7 ${fmt(st.killed)} killed` }, st.n ? fmt(m ? st.killed : st.n) : '\u00b7');\n      }))))));\n  }\n\n  // ---- header controls -------------------------------------------------------------------------\n  const seg = h('div.seg.small', { role: 'radiogroup', 'aria-label': 'Matrix measure' },\n    ...[['victims', 'People hurt'], ['killed', 'Killed']].map(([v, l]) => h('button', { type: 'button', role: 'radio', 'aria-checked': v === metric, 'data-v': v, onclick: (e) => { metric = v; seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-checked', b.dataset.v === v)); rendered(engine.R); } }, l)));\n  const tableBtn = h('button.icon-btn', { type: 'button', title: 'Show as table', 'aria-label': 'Toggle table view', html: icon('table', 16), onclick: () => { tableEl.hidden = !tableEl.hidden; svg.parentElement.classList.toggle('as-table', !tableEl.hidden); if (!tableEl.hidden) buildTable(engine.R); } });\n  const clearBtn = h('button.link', { type: 'button', hidden: true, onclick: () => { engine.setPairs([]); onChange(); } }, 'Clear selection');\n\n  const legend = h('div.mx-legend',\n    h('span', 'Area = ', h('b', { class: 'mxl' }, 'people hurt')),\n    h('span.mx-l2', h('span', 'Colour = share killed or hospitalised'), h('span.rl-scale', { style: { background: `linear-gradient(90deg, ${ramp(0)}, ${ramp(0.5)}, ${ramp(1)})` } }), h('span', '0 \u2192 60%')));\n  const el = h('section.card.matrix',\n    h('header.card-h', h('div', h('p.eyebrow', 'Who hits whom'), h('h2', 'Collision matrix')), h('span.grow'), seg, tableBtn),\n    h('p.lede', 'Each bubble counts people injured or killed, by their mode of transport and what they collided with. ', h('b', 'Click cells'), ' to filter the map and every chart.'),\n    h('div.mx-wrap', svg, tableEl), capEl, h('div.mx-foot', legend, clearBtn));\n  svg.addEventListener('pointerleave', () => { delete capEl.dataset.hover; capEl.innerHTML = defaultCaption; });\n  svg.addEventListener('pointermove', () => { capEl.dataset.hover = '1'; });\n\n  return {\n    el,\n    update(R) { rendered(R); clearBtn.hidden = !engine.pairCount; },\n  };\n}\nEOF\necho done"
+          }
+        },
+        {
+          "tool_name": "Bash",
+          "tool_use_id": "toolu_018WUVUGpyRgUqPtw9omadaj",
+          "tool_input": {
+            "command": "cd /workspace/site/js && /tmp/venv/bin/python - <<'EOF'\ndef sub(path, pairs):\n    s=open(path).read()\n    for a,b in pairs:\n        if a not in s: print(\"MISSING in\",path,\":\",a[:80])\n        s=s.replace(a,b)\n    open(path,'w').write(s)\nsub('ui/chrome.js',[\n (\"out.push(len === 1 ? `${i}h` : `${i}h\u2013${(i + len) % 24}h`);\",\"out.push(len === 1 ? `${i}h` : `${i}h\u2013${(i + len - 1) % 24}h`);\"),\n (\"h('p', { class: 'lg-note' }, 'One dot = one accident \u00b7 ringed dots are fatal'));\",\"h('p', { class: 'lg-note' }, 'One dot = one accident \u00b7 ringed dots are fatal \u00b7 ', h('span', { class: 'lg-unh' }, h('i', { class: 'swatch', style: { background: theme.sev[0] } }), `${fmt(R.people[0])} people were unharmed (no accident is unharmed overall)`)));\"),\n])\nsub('ui/filters.js',[\n (\"r.rib.textContent = s.n ? (s.killed * 100).toFixed(s.killed < 0.1 ? 1 : 0) + '%' : '\u2013';\\n        r.rib.style.background = s.n ? ramp(s.killed / FATAL_MAX) : 'transparent';\",\"r.rib.textContent = s.n >= 20 ? (s.killed * 100).toFixed(s.killed < 0.1 ? 1 : 0) + '%' : '\u2013';\\n        r.rib.style.background = s.n >= 20 ? ramp(s.killed / FATAL_MAX) : 'transparent';\"),\n (\"c.rib.style.background = s.n ? ramp(s.killed / FATAL_MAX) : 'transparent';\",\"c.rib.style.background = s.n >= 20 ? ramp(s.killed / FATAL_MAX) : 'transparent';\"),\n])\nsub('ui/summary.js',[(\"${nUnknown ? ` \u00b7 age unknown for ${pct(nUnknown / all, 1)}` : ''}\",\"${nUnknown / all > 0.001 ? ` \u00b7 age unknown for ${pct(nUnknown / all, 1)}` : ''}\")])\nsub('main.js',[\n (\"    h('button', { type: 'button', class: 'btn ghost', onclick: () => about.open() }, h('span', { html: icon('info', 15) }), 'Method')));\",\n  \"    h('button', { type: 'button', class: 'btn ghost', onclick: shareLink, title: 'Copy a link to this exact view and filters' }, h('span', { html: icon('link', 15) }), 'Share'),\\n    h('button', { type: 'button', class: 'btn ghost', onclick: () => about.open() }, h('span', { html: icon('info', 15) }), 'Method')));\"),\n (\"function depBounds(i)\",\"\"\"async function shareLink() {\n  scheduleHash.flush?.(); history.replaceState(null, '', location.hash);\n  try { await navigator.clipboard.writeText(location.href); toast('Link copied \u2014 it restores this view and every filter'); } catch { toast('Copy the address bar to share this view'); }\n}\nlet toastEl;\nfunction toast(msg) {\n  toastEl?.remove(); toastEl = h('div', { class: 'toast', role: 'status' }, msg); document.body.append(toastEl);\n  setTimeout(() => toastEl?.classList.add('out'), 2600); setTimeout(() => toastEl?.remove(), 3100);\n}\nfunction depBounds(i)\"\"\"),\n])\nsub('mapview.js',[(\"this.layer.setPalette(theme.sev, theme.mode);\",\"this.layer.setPalette(theme.sev, theme.mode);\\n    this.layer.setGhost(0.07);\")])\nsub('../css/style.css',[(\".lg-note { margin: 6px 0 0; font-size: 11px; color: var(--ink-3); }\",\".lg-note { margin: 6px 0 0; font-size: 11px; color: var(--ink-3); }\\n.lg-unh { display: inline-flex; align-items: center; gap: 6px; } .lg-unh .swatch { width: 8px; height: 8px; }\\n.toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 80; padding: 10px 16px; border-radius: 12px; background: #f1efe9; color: #0b0d12; font-weight: 600; font-size: 12.5px; box-shadow: 0 14px 40px rgba(0,0,0,.5); transition: opacity .4s, transform .4s; }\\n.toast.out { opacity: 0; transform: translate(-50%, 8px); }\")])\nEOF\ngrep -n \"debounce\" util.js | head -3"
+          }
+        },
+        {
+          "tool_name": "Bash",
+          "tool_use_id": "toolu_01WC9q9hbf9r3UvD2Punocpf",
+          "tool_input": {
+            "command": "cd /workspace/site/js && /tmp/venv/bin/python - <<'EOF'\nB='/workspace/site/js/'\ndef sub(path, pairs):\n    path=B+path\n    s=open(path).read()\n    for a,b in pairs:\n        if a not in s: print(\"MISSING in\",path,\":\",a[:80])\n        s=s.replace(a,b)\n    open(path,'w').write(s)\n\nsub('ui/matrix.js',[(\"export const pairName =\",\"export const MODE_NAMES = ROWNAME;\\nexport const pairName =\")])\nsub('ui/summary.js',[\n (\"import { pairName } from './matrix.js';\",\"import { pairName, MODE_NAMES } from './matrix.js';\\n\\nconst HIST_DIMS = [['lum', 'Lighting'], ['atm', 'Weather'], ['road', 'Road'], ['vma', 'Speed limit'], ['vosp', 'Cycling infrastructure'], ['int', 'Junction'], ['surf', 'Surface'], ['agg', 'Area']];\"),\n (\"export function Summary({ engine, meta, theme, onSev, onPair }) {\",\"\"\"/** Descriptive, auto-generated observations about whatever is currently selected. */\nfunction insights(R, engine, meta) {\n  const out = [], total = R.total, fatal = R.sevAcc[3] / (total || 1);\n  if (total < 300) return [];\n  // 1. which victim type is over-represented among the dead\n  const vic = new Array(8).fill(0), kil = new Array(8).fill(0);\n  for (let c = 0; c < NMODE * NOPP; c++) { const m = Math.floor(c / NOPP); vic[m] += R.selCell.n[c]; kil[m] += R.selCell.sev[c * 4 + 3]; }\n  const tv = vic.reduce((a, b) => a + b, 0), tk = kil.reduce((a, b) => a + b, 0);\n  if (tk >= 30) {\n    let best = -1, ratio = 1.3;\n    for (let m = 0; m < 8; m++) if (vic[m] >= 100 && kil[m] >= 10 && kil[m] / tk / (vic[m] / tv) > ratio) { ratio = kil[m] / tk / (vic[m] / tv); best = m; }\n    if (best >= 0) out.push(['Victims', `<b>${MODE_NAMES[best]}</b> make up ${pct(vic[best] / tv, 0)} of the people hurt but ${pct(kil[best] / tk, 0)} of those killed.`]);\n  }\n  // 2. deadliest hour\n  const hh = R.hist.hour; let bh = -1, bs = 0;\n  for (let hr = 0; hr < 24; hr++) { const n = hh[hr * 4] + hh[hr * 4 + 1] + hh[hr * 4 + 2] + hh[hr * 4 + 3]; const s = hh[hr * 4 + 3] / (n || 1); if (n >= Math.max(120, total * 0.01) && s > bs) { bs = s; bh = hr; } }\n  if (bh >= 0 && bs > fatal * 1.3) out.push(['When', `Fatal accidents peak around <b>${String(bh).padStart(2, '0')}:00</b> \u2014 ${pct(bs)} of accidents then, against ${pct(fatal)} overall.`]);\n  // 3. condition with the highest fatal share\n  let top = null;\n  for (const [key, title] of HIST_DIMS) {\n    const hs = R.hist[key], L = meta.labels[key];\n    for (let b = 1; b < hs.length / 4; b++) {\n      if (key === 'vma' && b === 8) continue;\n      const n = hs[b * 4] + hs[b * 4 + 1] + hs[b * 4 + 2] + hs[b * 4 + 3];\n      if (n < Math.max(200, total * 0.012) || /^(Not recorded|\u2014|Other|Unknown)/.test(L[b] || '')) continue;\n      const s = hs[b * 4 + 3] / n;\n      if (!top || s > top.s) top = { s, n, label: key === 'vma' ? `${L[b]} km/h limit` : L[b], title };\n    }\n  }\n  if (top && top.s > fatal * 1.4) out.push(['Where', `<b>${top.label}</b>: ${pct(top.s)} of ${fmt(top.n)} accidents are fatal \u2014 ${(top.s / fatal).toFixed(1)}\u00d7 the ${pct(fatal)} average.`]);\n  return out;\n}\n\nexport function Summary({ engine, meta, theme, onSev, onPair }) {\"\"\"),\n (\"  const el = h('div', { class: 'overview' },\\n    h('section', { class: 'card hero' }, scope, heroN, heroSub, h('div', { class: 'kpis' }, kFatal.el, kHosp.el, kKilled.el)),\",\n  \"  const stand = h('ul', { class: 'stand' });\\n  const standCard = h('section', { class: 'card standout' }, h('p', { class: 'eyebrow' }, 'What stands out here'), stand);\\n  const el = h('div', { class: 'overview' },\\n    h('section', { class: 'card hero' }, scope, heroN, heroSub, h('div', { class: 'kpis' }, kFatal.el, kHosp.el, kKilled.el)), standCard,\"),\n (\"      renderAge(R); renderPairs(R);\",\"      renderAge(R); renderPairs(R);\\n      const ins = insights(R, engine, meta);\\n      standCard.hidden = !ins.length;\\n      stand.replaceChildren(...ins.map(([k, t]) => h('li', h('span', { class: 'sk' }, k), h('span', { html: t }))));\"),\n (\"const heroN = h('div', { class: 'hero-n' }, '0')\",\"const heroN = h('div', { class: 'hero-n', 'aria-live': 'polite' }, '0')\"),\n])\nsub('ui/chrome.js',[\n (\"When a junction lists several roads, filters use the main road.</p></section>\",\"Since 2023 about one accident in five lists several roads (a junction): road category and speed-limit filters use the first road listed, cycling infrastructure counts as present if <i>any</i> listed road has it, and every road appears in the accident's record. Colours in the matrix are the share of victims killed, gently pulled toward the overall rate when a cell has few victims so that tiny samples do not look alarming; counts and exact figures are always in the tooltips and the table view.</p></section>\"),\n])\nsub('../css/style.css',[(\".kpi { padding: 0 10px;\",\".standout { padding-bottom: 8px; } .stand { list-style: none; margin: 4px 0 0; padding: 0; } .stand li { display: grid; grid-template-columns: 56px 1fr; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 12.5px; line-height: 1.5; color: var(--ink-2); } .stand li:first-child { border-top: 0; } .stand b { color: var(--ink); } .sk { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); font-weight: 650; padding-top: 2px; }\\n.kpi { padding: 0 10px;\")] if False else [])\nEOF\ncat >> /workspace/site/css/style.css <<'EOF'\n\n/* ---- insights ------------------------------------------------------------------------------------------------------------------- */\n.standout { padding-bottom: 8px; }\n.stand { list-style: none; margin: 6px 0 0; padding: 0; }\n.stand li { display: grid; grid-template-columns: 58px 1fr; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }\n.stand li:first-child { border-top: 0; }\n.stand b { color: var(--ink); }\n.sk { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); font-weight: 650; padding-top: 2px; }\nEOF\ncd /tmp/pw && node shot.mjs /tmp/pw/m1.png http://localhost:8765/index.html 1440 900 12000 2>&1 | head"
+          }
+        },
+        {
+          "tool_name": "Bash",
+          "tool_use_id": "toolu_014bMfoX3aZn1Gk6zbcamU8w",
+          "tool_input": {
+            "command": "/tmp/venv/bin/python - <<'EOF'\np='/workspace/tests/e2e.mjs'\ns=open(p).read()\ns=s.replace(\"const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.');\\nconst site = path.join(root, 'site');\",\"const site = fileURLToPath(new URL('../site/', import.meta.url));\")\ns=s.replace(\"import path from 'node:path';\\n\",\"\")\ns=s.replace(\"const [total, expected] = await page.evaluate(() => { const d = window.__app.data.acc; let n = 0; for (let i = 0; i < d.dep.length; i++) if (d.dep[i] === 32) n++; return [window.__app.engine.R.total, n]; });\",\"const [total, expected] = await page.evaluate(() => { const { acc: d, meta } = window.__app.data, gi = meta.deps.findIndex((x) => x.code === '33'); let n = 0; for (let i = 0; i < d.dep.length; i++) if (d.dep[i] === gi) n++; return [window.__app.engine.R.total, n]; });\")\nopen(p,'w').write(s)\nEOF\ncd /workspace && NODE_PATH=/usr/local/lib/node_modules node tests/e2e.mjs"
+          }
+        }
+      ],
+      "terminal_reason": "completed",
+      "fast_mode_state": "off",
+      "fast_mode_disabled_reason": "sdk_opt_in_required",
+      "subagent_stats": {
+        "spawned": 0,
+        "requested": {
+          "background": 0,
+          "foreground": 0,
+          "unset": 0
+        },
+        "started_in_background": 0,
+        "max_depth": 0,
+        "spawned_by_subagents": 0,
+        "completed": 0,
+        "failed": 0,
+        "killed": {
+          "parent": 0,
+          "user": 0,
+          "system": 0
+        },
+        "refused": {
+          "depth_limit": 0,
+          "concurrency_limit": 0,
+          "budget": 0
+        },
+        "by_type": {}
+      },
+      "safety_stops": 0,
+      "is_error": false,
+      "num_turns": 155,
+      "subtype": "success",
+      "api_error_status": null,
+      "result": "I built the Collision Observatory, a static site you serve from `site/`. It maps all 155,076 geolocated injury accidents in metropolitan France for 2022\u20132024. The 11 end-to-end checks pass in headless Chromium, and the data integrity check passes. I haven't run it on real GPUs or in Firefox or Safari.\n\nTo run it, use `make serve` and open http://localhost:8765. It needs network access for the basemap tiles and for the place search. Everything else is bundled in `site/data/`.\n\n- **Data:** the four BAAC tables for 2022, 2023 and 2024 are joined into 155,076 accidents, 264,541 vehicles and 355,108 people. The totals match official figures: about 3,200 people killed per year, about 460 of them pedestrians. `make fetch` and `make data` rebuild everything from the open sources, and the build is byte-for-byte reproducible.\n- **Map:** one dot per accident, coloured by worst injury or by victim mode. Fatal accidents are larger and ringed. In mode view, pedestrians, cyclists and e-scooters get their own shapes so colour isn't the only cue. It zooms from national down to street level.\n- **Who hits whom:** a matrix of 8 victim types by 11 opposing parties, including animal, fixed obstacle and \"nothing\" for single-vehicle crashes. For a pedestrian, the opponent is the vehicle that struck them. Click a cell, row or column header and the map and every chart filter. It also has a table view.\n- **Filters:** hour, day of week, lighting, weather, road category, speed limit and cycling infrastructure, plus year, built-up area, junction and surface. You can click or drag across bars.\n- **Live summary:** accident count, fatal and hospitalisation rates against the France average, severity split, victim age distribution and top collision pairs. It follows the map viewport and the filters, and adds a few auto-generated \"what stands out\" lines.\n- **Record inspector:** clicking a dot opens its full record: location and road profile, each vehicle, and each person's role, age, sex, safety equipment and injury. Clicking a crowded area lists the local cluster worst-first.\n- **D\u00e9partements:** boundaries on the map and a ranking by accident rate, fatality rate, severity or count. Clicking a d\u00e9partement zooms and filters, and the search box uses geo.api.gouv.fr.\n\nI also added ten guided scenes, a Share button that copies a link restoring the view and all filters, and a Method dialog explaining definitions and caveats.\n\nThings that behave differently from what you might expect:\n- **Basemap:** CARTO's free tiles now return an \"API key required\" watermark. I wrote my own dark style on free OpenFreeMap vector tiles instead.\n- **\"Unharmed\" accidents:** no accident is unharmed overall, because BAAC only records accidents with a victim. The map legend notes this, and the 150,535 unharmed people appear in the records and the people count.\n- **Colour-blind safety:** the three severity colours pass all-pairs checks. Seven victim-mode hues cannot be made pairwise safe on a map, so legend filters, tooltips and the shapes cover identity.\n- **Colours and \"hospitalised\":** the matrix and chart ribbons are coloured by share killed, not hospitalised, because ONISR no longer certifies the hospitalised indicator.\n- **Junctions with several roads:** the first listed road drives the road-category and speed filters. Cycling infrastructure counts as present if any listed road has it.\n- **Counts, not risks:** the data has no exposure information, so all figures are counts of recorded injuries.\n- **Dark theme only.**\n- **Git:** nothing is committed, since you didn't ask for it.\n\nThe README has the full architecture, the method and the test instructions, and `docs/` has three screenshots.",
+      "ttft_ms": 1717,
+      "type": "result",
+      "duration_ms": 3296821,
+      "uuid": "cb746aa2-6051-4879-aee5-be158b4bef13",
+      "ttft_stream_ms": 1372,
+      "time_to_request_ms": 431,
+      "first_content_frame_ms": 1373,
+      "queued_turn_count": 0,
+      "result_index": 0,
+      "model_usage_since_last_result": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 274,
+          "outputTokens": 321479,
+          "cacheReadInputTokens": 38867787,
+          "cacheCreationInputTokens": 457548,
+          "webSearchRequests": 0,
+          "costUSD": 8.9323087,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 147647,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "claude_code": {
+        "attempts": 1,
+        "attempts_without_result": 0,
+        "uncached_input_tokens": 274,
+        "cache_write_tokens": 457548,
+        "cache_read_tokens": 38867787,
+        "output_tokens": 321479,
+        "duration_api_seconds": 2243.2,
+        "total_cost_usd": 8.9323
+      },
+      "hook_tokens": {
+        "source": "transcript_or_hook",
+        "model": "claude-sonnet-5-5",
+        "input_tokens": 39325609,
+        "uncached_input_tokens": 274,
+        "cache_read_tokens": 38867787,
+        "cache_write_tokens": 457548,
+        "output_tokens": 321479,
+        "split_rule": "unavailable"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "claude-sonnet-5-5",
+        "context_variant": null,
+        "long_context_applied": false,
+        "harness": "claude-code",
+        "harness_token_rate_per_1m": "0",
+        "harness_surcharge_usd": "0.00",
+        "rates_per_1m_usd": {
+          "input": "2.00",
+          "cache_write": "2.50",
+          "cache_read": "0.10",
+          "output": "10.00"
+        },
+        "estimated_cost_usd": "8.25",
+        "estimated_cost_with_harness_usd": "8.25"
+      }
+    }
+  },
+  "model_time": {
+    "source": "harness_model_time",
+    "generating_seconds": 2243.2,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 3296.5,
+        "tool_seconds_merged": 1038.4,
+        "tool_seconds_summed": 1038.8,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": 2258.1,
+        "thinking_seconds": 1364.2,
+        "thought_blocks": 120,
+        "timing_source": "claude_sessions",
+        "active_seconds": 3296.5,
+        "retry_gap_seconds": 0.0,
+        "duration_api_seconds": 2243.2,
+        "attempts": 1,
+        "attempts_without_result": 0
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 96,
+      "failures": 9,
+      "by_tool": {
+        "Bash": {
+          "calls": 95,
+          "failures": 8
+        },
+        "bash": {
+          "calls": 1,
+          "failures": 1
+        }
+      }
+    },
+    "files": {
+      "calls": 56,
+      "failures": 1,
+      "by_tool": {
+        "Read": {
+          "calls": 32,
+          "failures": 1
+        },
+        "Write": {
+          "calls": 21,
+          "failures": 0
+        },
+        "Edit": {
+          "calls": 3,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": 1,
+      "failures": 0,
+      "by_tool": {
+        "Skill": {
+          "calls": 1,
+          "failures": 0
+        }
+      }
+    }
+  },
+  "context_reread": {
+    "source": "provider_cache_read",
+    "cache_read_tokens": 38867787,
+    "cache_write_tokens": 457548,
+    "uncached_input_tokens": 274,
+    "raw": {
+      "source": "transcript_or_hook",
+      "model": "claude-sonnet-5-5",
+      "input_tokens": 39325609,
+      "uncached_input_tokens": 274,
+      "cache_read_tokens": 38867787,
+      "cache_write_tokens": 457548,
+      "output_tokens": 321479,
+      "split_rule": "unavailable"
+    }
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": true,
+    "summary": ""
+  },
+  "observations": "Isolation hook denied 4 tool call(s): Bash denied: Parent directory traversal outside workspace is blocked by isolation policy; Bash denied: Parent directory traversal outside workspace is blocked by isolation policy; Bash denied: Parent directory traversal outside workspace is blocked by isolation policy; Bash denied: Parent directory traversal outside workspace is blocked by isolation policy. other tools: Skill. Operator override (2026-10-28): verification marked passed. Smoke test false negative: the app is built in site/ and served by the model; the verifier only looks for a server at the workspace root.",
+  "verification": {
+    "runtime": {
+      "passed": true,
+      "http_status": null,
+      "url": "",
+      "server_mode": "none",
+      "load_time_ms": null,
+      "console_errors": [],
+      "console_warnings_count": 0,
+      "page_errors": [
+        "No workspace server found or started"
+      ],
+      "failed_requests": [],
+      "critical_failures": [
+        "No workspace server found or started"
+      ],
+      "dom": null,
+      "screenshot_path": null,
+      "verified_at": "2026-10-26T15:20:13.610Z",
+      "operator_override": {
+        "verifier_passed": false,
+        "passed": true,
+        "at": "2026-10-28",
+        "reason": "Smoke test false negative: the app is built in site/ and served by the model; the verifier only looks for a server at the workspace root."
+      },
+      "demo_url": "demos/france-road-accidents/2026-10-26-claude-code-claude-sonnet-5-5-high/index.html"
+    },
+    "data_pipeline": {
+      "prompt_id": "france-road-accidents",
+      "passed": true,
+      "authenticity": "real_open_data",
+      "score": 1.0,
+      "total_data_files": 22,
+      "total_records": 1073665,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "baac_relational_tables",
+          "description": "ONISR BAAC relational tables (caracteristiques, lieux, vehicules, usagers) or joined dataset",
+          "passed": true,
+          "observed_records": 126662,
+          "matched_files": [
+            "data/raw/2022/usag.csv",
+            "data/raw/2022/lieu.csv",
+            "data/raw/2022/vehi.csv",
+            "data/raw/2024/usag.csv",
+            "data/raw/2024/lieu.csv",
+            "data/raw/2024/vehi.csv",
+            "data/raw/2024/cara.csv",
+            "data/raw/2023/usag.csv",
+            "data/raw/2023/lieu.csv",
+            "data/raw/2023/vehi.csv",
+            "data/raw/2023/cara.csv"
+          ],
+          "detail": "Matched 11 file(s) with 126662 observed records (min: 5000)"
+        },
+        {
+          "id": "departments_dataset",
+          "description": "Metropolitan France department boundaries",
+          "passed": true,
+          "observed_records": 306,
+          "matched_files": [
+            "data/raw/geo/departements-100m.geojson",
+            "data/raw/geo/departements-api.json",
+            "site/data/departements.geojson"
+          ],
+          "detail": "Matched 3 file(s) with 306 observed records (min: 90)"
+        }
+      ],
+      "verified_at": "2026-10-26T15:20:13.612Z"
+    },
+    "passed": true
+  }
+}

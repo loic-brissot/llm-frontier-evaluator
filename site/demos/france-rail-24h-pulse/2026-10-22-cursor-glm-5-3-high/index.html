@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atlas Ferré Français — SNCF · TGV · Intercités · TER</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="load"><div class="ring"></div><div class="lt">Atlas Ferré Français</div><div class="lp" id="lp">initialisation…</div></div>
+<canvas id="map"></canvas>
+
+<div class="topbar">
+  <div class="brand"><div class="logo"></div>
+    <div><h1>ATLAS <span>FERRÉ</span> FRANÇAIS</h1>
+    <div class="sub">SNCF · TGV · INTERCITÉS · TER — Réseau Ferré National</div></div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" data-mode="live">Circulation</div>
+    <div class="tab" data-mode="corridor">Flux corridors</div>
+    <div class="tab" data-mode="access">Accessibilité</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="clock"><div class="live-dot"></div>
+    <div><div class="time mono" id="clk">00:00</div><div class="label" id="clksub">heure théorique</div></div>
+  </div>
+</div>
+
+<div class="left">
+  <div class="sec">
+    <h3>Trains en circulation</h3>
+    <div class="stat-grid">
+      <div class="stat tgv"><div class="v mono" id="stTGV">0</div><div class="l">TGV</div></div>
+      <div class="stat ic"><div class="v mono" id="stIC">0</div><div class="l">Intercités</div></div>
+      <div class="stat ter"><div class="v mono" id="stTER">0</div><div class="l">TER</div></div>
+    </div>
+    <div style="margin-top:6px"><div class="stat tot"><div class="v mono" id="stTot">0</div><div class="l">Total actif</div></div></div>
+  </div>
+  <div class="sec">
+    <h3>Profil de trafic 24 h</h3>
+    <canvas id="profile" width="240" height="64"></canvas>
+  </div>
+  <div class="sec">
+    <h3>Légende &amp; filtres</h3>
+    <div id="legend"></div>
+  </div>
+  <div class="sec">
+    <h3>Gares les plus actives</h3>
+    <div class="busiest" id="busiest"></div>
+  </div>
+  <div class="sec" id="isoSec" style="display:none">
+    <h3>Courbes isochrones</h3>
+    <div class="iso-legend" id="isoLegend"></div>
+  </div>
+</div>
+
+<div class="right" id="right">
+  <div class="close" id="closeRight">&times;</div>
+  <div id="details"></div>
+</div>
+
+<div class="bottom" id="bottom">
+  <div class="tl-top">
+    <button class="btn primary" id="play" title="Lecture / Pause">&#9654;</button>
+    <button class="btn" id="reset" title="Recommencer la journée">&#9664;&#9664;</button>
+    <div class="speeds" id="speeds">
+      <div class="spd" data-spd="60">60×</div>
+      <div class="spd" data-spd="300">300×</div>
+      <div class="spd active" data-spd="900">900×</div>
+      <div class="spd" data-spd="1800">1800×</div>
+      <div class="spd" data-spd="3600">3600×</div>
+    </div>
+    <div style="flex:1"></div>
+    <div class="mono" style="font-size:11px;color:var(--text-dim)" id="modehint">Cliquez un train ou une gare · molette = zoom · glisser = déplacer</div>
+  </div>
+  <div class="tl-wrap" id="tlWrap">
+    <div class="tl-track"></div>
+    <div class="tl-fill" id="tlFill"></div>
+    <div class="tl-knob" id="tlKnob"></div>
+    <div class="tl-ticks" id="tlTicks"></div>
+  </div>
+</div>
+
+<div id="tip"></div>
+<div class="hint" id="hint"></div>
+<div class="credit">Données : transport.data.gouv.fr · ressources.data.sncf.com (GTFS SNCF · RFN · liste des gares) — ODbL · Atlas indépendant, non affilié à la SNCF</div>
+<script src="proj.js"></script>
+<script src="data.js"></script>
+<script src="access.js"></script>
+<script src="render.js"></script>
+<script src="ui.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

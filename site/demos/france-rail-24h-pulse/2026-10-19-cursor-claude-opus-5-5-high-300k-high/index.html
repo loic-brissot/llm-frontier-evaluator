@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rail Pulse France — 24-hour atlas of TGV, Intercités &amp; TER</title>
+  <link rel="stylesheet" href="src/styles.css" />
+</head>
+<body>
+  <div id="map"></div>
+  <div id="vignette"></div>
+
+  <header id="brand" class="glass">
+    <div class="brand-row">
+      <div class="logo"><span></span><span></span><span></span></div>
+      <div>
+        <h1>RAIL PULSE <em>France</em></h1>
+        <p class="sub">24-hour atlas of the national passenger rail network</p>
+      </div>
+    </div>
+    <div class="search">
+      <input id="search" type="search" placeholder="Search a station or train number…" autocomplete="off" spellcheck="false" />
+      <div id="search-results"></div>
+    </div>
+  </header>
+
+  <nav id="modes" class="glass">
+    <button data-mode="pulse" class="on" title="Animated trains (1)"><i class="ico ico-pulse"></i>Live pulse</button>
+    <button data-mode="flow" title="Daily corridor flows (2)"><i class="ico ico-flow"></i>Corridor flows</button>
+    <button data-mode="reach" title="Travel-time accessibility (3)"><i class="ico ico-reach"></i>Accessibility</button>
+  </nav>
+
+  <aside id="stats" class="glass">
+    <div class="clock-block">
+      <div id="clock">08:00<small>:00</small></div>
+      <div id="clock-day">Tuesday 20 October 2026</div>
+    </div>
+    <div class="section-title">In circulation now <span id="active-total" class="big-num">0</span></div>
+    <div id="cats"></div>
+    <div class="hint">Click a category to show or hide it · hover to highlight</div>
+    <div class="section-title">
+      Busiest stations
+      <span class="seg-toggle" id="busy-toggle"><button data-v="now" class="on">±30 min</button><button data-v="day">24 h</button></span>
+    </div>
+    <ol id="busy"></ol>
+  </aside>
+
+  <aside id="panel" class="glass hidden">
+    <button id="panel-close" title="Close (Esc)">×</button>
+    <div id="panel-body"></div>
+  </aside>
+
+  <aside id="mode-legend" class="glass hidden"></aside>
+
+  <footer id="timeline" class="glass">
+    <div class="tl-controls">
+      <button id="play" title="Play / pause (space)"><svg viewBox="0 0 24 24"><path id="play-icon" d="M7 5l12 7-12 7z"/></svg></button>
+      <div class="tl-side">
+        <div class="speeds" id="speeds">
+          <button data-s="60">1 min/s</button>
+          <button data-s="300" class="on">5 min/s</button>
+          <button data-s="900">15 min/s</button>
+          <button data-s="3600">1 h/s</button>
+        </div>
+        <button id="trails" class="on">Trails on</button>
+      </div>
+    </div>
+    <div class="tl-chart">
+      <div class="tl-title">24-hour traffic profile · trains in circulation <span id="tl-readout"></span></div>
+      <canvas id="profile"></canvas>
+    </div>
+  </footer>
+
+  <div id="tooltip"></div>
+  <div id="attrib">Data: SNCF Voyageurs GTFS (transport.data.gouv.fr) · SNCF Réseau RFN line shapes · SNCF Liste des gares &amp; Gares de voyageurs — Licence Ouverte / ODbL · Basemap: Natural Earth, france-geojson · <span id="feed-info"></span></div>
+
+  <div id="loader">
+    <div class="loader-inner">
+      <div class="logo big"><span></span><span></span><span></span></div>
+      <div class="loader-title">RAIL PULSE <em>France</em></div>
+      <div id="loader-msg">Loading timetable…</div>
+      <div class="bar"><div id="loader-bar"></div></div>
+    </div>
+  </div>
+
+  <script src="vendor/deck.min.js"></script>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

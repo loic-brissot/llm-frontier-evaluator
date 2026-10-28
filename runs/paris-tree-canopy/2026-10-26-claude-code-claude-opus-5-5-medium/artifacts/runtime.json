@@ -1,0 +1,44 @@
+{
+  "passed": true,
+  "http_status": 200,
+  "url": "http://127.0.0.1:60491",
+  "server_mode": "static",
+  "load_time_ms": 4844.43,
+  "console_errors": [],
+  "console_warnings_count": 4,
+  "page_errors": [],
+  "failed_requests": [],
+  "critical_failures": [
+    "Persistent loading overlay detected (#app): intro control 'Remarkable trees only 183 heritage trees' clicked but the overlay stayed visible"
+  ],
+  "dom": {
+    "title": "Paris Canopy Atlas \u00b7 The municipal trees of Paris",
+    "canvas_count": 1,
+    "visible_canvas_count": 1,
+    "canvas_obscured": false,
+    "loading_overlay": null,
+    "loading_status_text": "",
+    "intro_gate": {
+      "detected": true,
+      "selector": "#app",
+      "text": "Paris Canopy Atlas\n\nThe municipal trees of Paris \u2014 an interactive biodiversity explorer\n\n220,112\nTREES\n201\nGENERA\n799\nSPECIES\n183\nREMARKABLE\nRemarkable trees only\n183 heritage trees\nARRONDISSEMENT\ncli",
+      "control_selector": "#filters > div:nth-of-type(1) > button:nth-of-type(1)",
+      "control_text": "Remarkable trees only\n183 heritage trees",
+      "clicked": true,
+      "dismissed": false
+    },
+    "svg_count": 189,
+    "webgl_context": true,
+    "text_length": 2477
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "loading_settle_ms": 0,
+  "verified_at": "2026-10-26T23:03:04.784Z",
+  "operator_override": {
+    "verifier_passed": false,
+    "passed": true,
+    "at": "2026-10-28",
+    "reason": "Smoke test false negative: the intro-gate heuristic clicked the 'Remarkable trees only' filter toggle, which is not an intro overlay; the app renders."
+  },
+  "demo_url": "demos/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium/index.html"
+}

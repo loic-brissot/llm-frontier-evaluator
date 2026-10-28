@@ -360,7 +360,8 @@
       },
       "screenshot_path": "artifacts/screenshot.png",
       "loading_settle_ms": 24000,
-      "verified_at": "2026-10-26T09:30:14.298Z"
+      "verified_at": "2026-10-26T09:30:14.298Z",
+      "demo_url": "demos/paris-1910-flood-simulator/2026-10-26-claude-code-claude-sonnet-5-5-high-2/index.html"
     },
     "data_pipeline": {
       "prompt_id": "paris-1910-flood-simulator",

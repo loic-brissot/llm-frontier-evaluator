@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from compare_runs import format_local_cost, model_label
+from compare_runs import format_local_cost, model_display_label, model_label
 from export_warehouse import export_warehouse
 from run_common import (
     ROOT,
@@ -228,6 +228,7 @@ def extract_run_record(run_dir: Path) -> dict[str, Any] | None:
         "model": {
             "name": m_name,
             "label": m_label,
+            "display": model_display_label(run),
             "id": norm["model_id"],
             "provider": m_provider,
             "reasoning": m_reasoning,

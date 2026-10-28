@@ -1,0 +1,670 @@
+{
+ "years": [
+  2022,
+  2023,
+  2024
+ ],
+ "n": 155076,
+ "nVictims": 204262,
+ "columns": [
+  {
+   "name": "lon",
+   "type": "f32",
+   "offset": 0
+  },
+  {
+   "name": "lat",
+   "type": "f32",
+   "offset": 620304
+  },
+  {
+   "name": "year",
+   "type": "u8",
+   "offset": 1240608
+  },
+  {
+   "name": "month",
+   "type": "u8",
+   "offset": 1395684
+  },
+  {
+   "name": "dow",
+   "type": "u8",
+   "offset": 1550760
+  },
+  {
+   "name": "hour",
+   "type": "u8",
+   "offset": 1705836
+  },
+  {
+   "name": "lum",
+   "type": "u8",
+   "offset": 1860912
+  },
+  {
+   "name": "atm",
+   "type": "u8",
+   "offset": 2015988
+  },
+  {
+   "name": "catr",
+   "type": "u8",
+   "offset": 2171064
+  },
+  {
+   "name": "vmab",
+   "type": "u8",
+   "offset": 2326140
+  },
+  {
+   "name": "infra",
+   "type": "u8",
+   "offset": 2481216
+  },
+  {
+   "name": "dep",
+   "type": "u8",
+   "offset": 2636292
+  },
+  {
+   "name": "agg",
+   "type": "u8",
+   "offset": 2791368
+  },
+  {
+   "name": "col",
+   "type": "u8",
+   "offset": 2946444
+  },
+  {
+   "name": "sev",
+   "type": "u8",
+   "offset": 3101520
+  },
+  {
+   "name": "vmode",
+   "type": "u8",
+   "offset": 3256596
+  },
+  {
+   "name": "nveh",
+   "type": "u8",
+   "offset": 3411672
+  },
+  {
+   "name": "nusers",
+   "type": "u8",
+   "offset": 3566748
+  },
+  {
+   "name": "nkilled",
+   "type": "u8",
+   "offset": 3721824
+  },
+  {
+   "name": "nhosp",
+   "type": "u8",
+   "offset": 3876900
+  },
+  {
+   "name": "nslight",
+   "type": "u8",
+   "offset": 4031976
+  }
+ ],
+ "victimColumns": [
+  {
+   "name": "acc",
+   "type": "u32",
+   "offset": 0
+  },
+  {
+   "name": "vmode",
+   "type": "u8",
+   "offset": 817048
+  },
+  {
+   "name": "omode",
+   "type": "u8",
+   "offset": 1021310
+  },
+  {
+   "name": "sev",
+   "type": "u8",
+   "offset": 1225572
+  },
+  {
+   "name": "age",
+   "type": "u8",
+   "offset": 1429834
+  },
+  {
+   "name": "sex",
+   "type": "u8",
+   "offset": 1634096
+  },
+  {
+   "name": "catu",
+   "type": "u8",
+   "offset": 1838358
+  }
+ ],
+ "modes": [
+  "Pedestrian",
+  "Bicycle",
+  "E-scooter / EDPM",
+  "Motorised 2-wheeler",
+  "Car",
+  "Van",
+  "Heavy vehicle",
+  "Other"
+ ],
+ "opponents": [
+  "Pedestrian",
+  "Bicycle",
+  "E-scooter / EDPM",
+  "Motorised 2-wheeler",
+  "Car",
+  "Van",
+  "Heavy vehicle",
+  "Other",
+  "No other party"
+ ],
+ "vmaLabels": [
+  "≤ 30",
+  "40–50",
+  "60–70",
+  "80",
+  "90–110",
+  "130"
+ ],
+ "departments": [
+  {
+   "code": "01",
+   "name": "Ain",
+   "pop": 679344
+  },
+  {
+   "code": "02",
+   "name": "Aisne",
+   "pop": 523342
+  },
+  {
+   "code": "03",
+   "name": "Allier",
+   "pop": 333298
+  },
+  {
+   "code": "04",
+   "name": "Alpes-de-Haute-Provence",
+   "pop": 168054
+  },
+  {
+   "code": "05",
+   "name": "Hautes-Alpes",
+   "pop": 143467
+  },
+  {
+   "code": "06",
+   "name": "Alpes-Maritimes",
+   "pop": 1128418
+  },
+  {
+   "code": "07",
+   "name": "Ardèche",
+   "pop": 334231
+  },
+  {
+   "code": "08",
+   "name": "Ardennes",
+   "pop": 265893
+  },
+  {
+   "code": "09",
+   "name": "Ariège",
+   "pop": 155722
+  },
+  {
+   "code": "10",
+   "name": "Aube",
+   "pop": 310447
+  },
+  {
+   "code": "11",
+   "name": "Aude",
+   "pop": 379648
+  },
+  {
+   "code": "12",
+   "name": "Aveyron",
+   "pop": 279609
+  },
+  {
+   "code": "13",
+   "name": "Bouches-du-Rhône",
+   "pop": 2087658
+  },
+  {
+   "code": "14",
+   "name": "Calvados",
+   "pop": 709441
+  },
+  {
+   "code": "15",
+   "name": "Cantal",
+   "pop": 144196
+  },
+  {
+   "code": "16",
+   "name": "Charente",
+   "pop": 352683
+  },
+  {
+   "code": "17",
+   "name": "Charente-Maritime",
+   "pop": 672279
+  },
+  {
+   "code": "18",
+   "name": "Cher",
+   "pop": 298660
+  },
+  {
+   "code": "19",
+   "name": "Corrèze",
+   "pop": 240826
+  },
+  {
+   "code": "21",
+   "name": "Côte-d'Or",
+   "pop": 540100
+  },
+  {
+   "code": "22",
+   "name": "Côtes-d'Armor",
+   "pop": 611859
+  },
+  {
+   "code": "23",
+   "name": "Creuse",
+   "pop": 115527
+  },
+  {
+   "code": "24",
+   "name": "Dordogne",
+   "pop": 417614
+  },
+  {
+   "code": "25",
+   "name": "Doubs",
+   "pop": 547163
+  },
+  {
+   "code": "26",
+   "name": "Drôme",
+   "pop": 524207
+  },
+  {
+   "code": "27",
+   "name": "Eure",
+   "pop": 602714
+  },
+  {
+   "code": "28",
+   "name": "Eure-et-Loir",
+   "pop": 433129
+  },
+  {
+   "code": "29",
+   "name": "Finistère",
+   "pop": 933455
+  },
+  {
+   "code": "30",
+   "name": "Gard",
+   "pop": 770940
+  },
+  {
+   "code": "31",
+   "name": "Haute-Garonne",
+   "pop": 1471468
+  },
+  {
+   "code": "32",
+   "name": "Gers",
+   "pop": 192645
+  },
+  {
+   "code": "33",
+   "name": "Gironde",
+   "pop": 1690493
+  },
+  {
+   "code": "34",
+   "name": "Hérault",
+   "pop": 1230289
+  },
+  {
+   "code": "35",
+   "name": "Ille-et-Vilaine",
+   "pop": 1120666
+  },
+  {
+   "code": "36",
+   "name": "Indre",
+   "pop": 216069
+  },
+  {
+   "code": "37",
+   "name": "Indre-et-Loire",
+   "pop": 619362
+  },
+  {
+   "code": "38",
+   "name": "Isère",
+   "pop": 1298990
+  },
+  {
+   "code": "39",
+   "name": "Jura",
+   "pop": 257973
+  },
+  {
+   "code": "40",
+   "name": "Landes",
+   "pop": 433570
+  },
+  {
+   "code": "41",
+   "name": "Loir-et-Cher",
+   "pop": 328543
+  },
+  {
+   "code": "42",
+   "name": "Loire",
+   "pop": 774133
+  },
+  {
+   "code": "43",
+   "name": "Haute-Loire",
+   "pop": 228654
+  },
+  {
+   "code": "44",
+   "name": "Loire-Atlantique",
+   "pop": 1487570
+  },
+  {
+   "code": "45",
+   "name": "Loiret",
+   "pop": 691268
+  },
+  {
+   "code": "46",
+   "name": "Lot",
+   "pop": 176473
+  },
+  {
+   "code": "47",
+   "name": "Lot-et-Garonne",
+   "pop": 333602
+  },
+  {
+   "code": "48",
+   "name": "Lozère",
+   "pop": 76486
+  },
+  {
+   "code": "49",
+   "name": "Maine-et-Loire",
+   "pop": 833776
+  },
+  {
+   "code": "50",
+   "name": "Manche",
+   "pop": 497522
+  },
+  {
+   "code": "51",
+   "name": "Marne",
+   "pop": 563076
+  },
+  {
+   "code": "52",
+   "name": "Haute-Marne",
+   "pop": 168331
+  },
+  {
+   "code": "53",
+   "name": "Mayenne",
+   "pop": 305468
+  },
+  {
+   "code": "54",
+   "name": "Meurthe-et-Moselle",
+   "pop": 732236
+  },
+  {
+   "code": "55",
+   "name": "Meuse",
+   "pop": 180290
+  },
+  {
+   "code": "56",
+   "name": "Morbihan",
+   "pop": 783390
+  },
+  {
+   "code": "57",
+   "name": "Moselle",
+   "pop": 1051309
+  },
+  {
+   "code": "58",
+   "name": "Nièvre",
+   "pop": 201417
+  },
+  {
+   "code": "59",
+   "name": "Nord",
+   "pop": 2615635
+  },
+  {
+   "code": "60",
+   "name": "Oise",
+   "pop": 829899
+  },
+  {
+   "code": "61",
+   "name": "Orne",
+   "pop": 275201
+  },
+  {
+   "code": "62",
+   "name": "Pas-de-Calais",
+   "pop": 1457905
+  },
+  {
+   "code": "63",
+   "name": "Puy-de-Dôme",
+   "pop": 664453
+  },
+  {
+   "code": "64",
+   "name": "Pyrénées-Atlantiques",
+   "pop": 706564
+  },
+  {
+   "code": "65",
+   "name": "Hautes-Pyrénées",
+   "pop": 231349
+  },
+  {
+   "code": "66",
+   "name": "Pyrénées-Orientales",
+   "pop": 496855
+  },
+  {
+   "code": "67",
+   "name": "Bas-Rhin",
+   "pop": 1163810
+  },
+  {
+   "code": "68",
+   "name": "Haut-Rhin",
+   "pop": 770738
+  },
+  {
+   "code": "69",
+   "name": "Rhône",
+   "pop": 1914667
+  },
+  {
+   "code": "70",
+   "name": "Haute-Saône",
+   "pop": 233185
+  },
+  {
+   "code": "71",
+   "name": "Saône-et-Loire",
+   "pop": 550310
+  },
+  {
+   "code": "72",
+   "name": "Sarthe",
+   "pop": 566733
+  },
+  {
+   "code": "73",
+   "name": "Savoie",
+   "pop": 448226
+  },
+  {
+   "code": "74",
+   "name": "Haute-Savoie",
+   "pop": 861158
+  },
+  {
+   "code": "75",
+   "name": "Paris",
+   "pop": 2103778
+  },
+  {
+   "code": "76",
+   "name": "Seine-Maritime",
+   "pop": 1260964
+  },
+  {
+   "code": "77",
+   "name": "Seine-et-Marne",
+   "pop": 1468108
+  },
+  {
+   "code": "78",
+   "name": "Yvelines",
+   "pop": 1485086
+  },
+  {
+   "code": "79",
+   "name": "Deux-Sèvres",
+   "pop": 375229
+  },
+  {
+   "code": "80",
+   "name": "Somme",
+   "pop": 565413
+  },
+  {
+   "code": "81",
+   "name": "Tarn",
+   "pop": 397352
+  },
+  {
+   "code": "82",
+   "name": "Tarn-et-Garonne",
+   "pop": 265817
+  },
+  {
+   "code": "83",
+   "name": "Var",
+   "pop": 1119307
+  },
+  {
+   "code": "84",
+   "name": "Vaucluse",
+   "pop": 572056
+  },
+  {
+   "code": "85",
+   "name": "Vendée",
+   "pop": 713609
+  },
+  {
+   "code": "86",
+   "name": "Vienne",
+   "pop": 438897
+  },
+  {
+   "code": "87",
+   "name": "Haute-Vienne",
+   "pop": 373167
+  },
+  {
+   "code": "88",
+   "name": "Vosges",
+   "pop": 357248
+  },
+  {
+   "code": "89",
+   "name": "Yonne",
+   "pop": 332267
+  },
+  {
+   "code": "90",
+   "name": "Territoire de Belfort",
+   "pop": 140255
+  },
+  {
+   "code": "91",
+   "name": "Essonne",
+   "pop": 1338485
+  },
+  {
+   "code": "92",
+   "name": "Hauts-de-Seine",
+   "pop": 1654712
+  },
+  {
+   "code": "93",
+   "name": "Seine-Saint-Denis",
+   "pop": 1704316
+  },
+  {
+   "code": "94",
+   "name": "Val-de-Marne",
+   "pop": 1426929
+  },
+  {
+   "code": "95",
+   "name": "Val-d'Oise",
+   "pop": 1281653
+  },
+  {
+   "code": "2A",
+   "name": "Corse-du-Sud",
+   "pop": 168306
+  },
+  {
+   "code": "2B",
+   "name": "Haute-Corse",
+   "pop": 187180
+  }
+ ],
+ "stats": {
+  "metro": 155079,
+  "no_geo": 3,
+  "mapped": 155076
+ },
+ "source": "ONISR BAAC (data.gouv.fr, Licence Ouverte / Etalab)"
+}

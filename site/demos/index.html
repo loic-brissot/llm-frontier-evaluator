@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Frontier Benchmark — Interactive Web Demos &amp; Showcase</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.25);
+      --pass: #34d399;
+      --fail: #f87171;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2.5rem 1.5rem;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    header {
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 1.5rem;
+    }
+    h1 {
+      font-size: 1.85rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.5rem;
+      color: #ffffff;
+    }
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+    .stats-bar {
+      display: flex;
+      gap: 1.5rem;
+      margin: 1.25rem 0;
+      flex-wrap: wrap;
+    }
+    .stat-item {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    .stat-item strong { color: var(--accent); }
+    .search-box {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.95rem;
+      margin-bottom: 2rem;
+      outline: none;
+    }
+    .search-box:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-glow);
+    }
+    .demo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 1.25rem;
+    }
+    .demo-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+    .demo-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+    }
+    .demo-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+    .series-badge {
+      font-size: 0.75rem;
+      background: #0284c7;
+      color: #fff;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .badge {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .badge.pass { background: rgba(52, 211, 153, 0.15); color: var(--pass); }
+    .badge.fail { background: rgba(248, 113, 113, 0.15); color: var(--fail); }
+    .badge.static { background: rgba(56, 189, 248, 0.15); color: var(--accent); }
+    .demo-card-title {
+      font-size: 0.9rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: #cbd5e1;
+      margin-bottom: 1rem;
+      word-break: break-all;
+    }
+    .demo-card-stats {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    .btn-launch {
+      display: inline-block;
+      width: 100%;
+      text-align: center;
+      background: #2563eb;
+      color: #fff;
+      padding: 0.6rem 1rem;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: background 0.15s ease;
+    }
+    .btn-launch:hover {
+      background: #1d4ed8;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>LLM Frontier Benchmark — Multi-Run Web Showcase</h1>
+      <p class="subtitle">Self-contained, stripped static web application builds compiled from frontier model workspaces, styled in the tradition of lassence.net/demos/benchmark/.</p>
+      <div class="stats-bar">
+        <div class="stat-item">Live Interactive Demos: <strong>22</strong></div>
+        <div class="stat-item">Total Bundle Size: <strong>340.76 MB</strong></div>
+      </div>
+    </header>
+    <input type="text" id="filter-input" class="search-box" placeholder="Filter demos by prompt, model, or run ID..." autocomplete="off">
+    <div class="demo-grid" id="demo-grid">
+      
+        <div class="demo-card" data-prompt="paris-1910-flood-simulator" data-run="2026-10-26-claude-code-claude-sonnet-5-5-high-2">
+          <div class="demo-card-header">
+            <span class="series-badge">paris-1910-flood-simulator</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-26-claude-code-claude-sonnet-5-5-high-2</div>
+          <div class="demo-card-stats">
+            <span>📦 17 files</span>
+            <span>💾 14883.3 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="paris-1910-flood-simulator/2026-10-26-claude-code-claude-sonnet-5-5-high-2/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="paris-tree-canopy" data-run="2026-10-26-claude-code-claude-sonnet-5-5-high">
+          <div class="demo-card-header">
+            <span class="series-badge">paris-tree-canopy</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-26-claude-code-claude-sonnet-5-5-high</div>
+          <div class="demo-card-stats">
+            <span>📦 33 files</span>
+            <span>💾 8997.6 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="paris-tree-canopy/2026-10-26-claude-code-claude-sonnet-5-5-high/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="france-road-accidents" data-run="2026-10-26-claude-code-claude-sonnet-5-5-high">
+          <div class="demo-card-header">
+            <span class="series-badge">france-road-accidents</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-26-claude-code-claude-sonnet-5-5-high</div>
+          <div class="demo-card-stats">
+            <span>📦 26 files</span>
+            <span>💾 11835.1 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="france-road-accidents/2026-10-26-claude-code-claude-sonnet-5-5-high/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="paris-tree-canopy" data-run="2026-10-26-claude-code-claude-opus-5-5-medium">
+          <div class="demo-card-header">
+            <span class="series-badge">paris-tree-canopy</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-26-claude-code-claude-opus-5-5-medium</div>
+          <div class="demo-card-stats">
+            <span>📦 16 files</span>
+            <span>💾 9258.3 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="france-road-accidents" data-run="2026-10-26-claude-code-claude-opus-5-5-medium">
+          <div class="demo-card-header">
+            <span class="series-badge">france-road-accidents</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-26-claude-code-claude-opus-5-5-medium</div>
+          <div class="demo-card-stats">
+            <span>📦 107 files</span>
+            <span>💾 56910.3 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="france-road-accidents/2026-10-26-claude-code-claude-opus-5-5-medium/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="france-rail-24h-pulse" data-run="2026-10-25-claude-code-claude-sonnet-5-5-high">
+          <div class="demo-card-header">
+            <span class="series-badge">france-rail-24h-pulse</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-25-claude-code-claude-sonnet-5-5-high</div>
+          <div class="demo-card-stats">
+            <span>📦 19 files</span>
+            <span>💾 8772.5 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="france-rail-24h-pulse/2026-10-25-claude-code-claude-sonnet-5-5-high/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="paris-tree-canopy" data-run="2026-10-24-cursor-gpt-5-6-luna-high">
+          <div class="demo-card-header">
+            <span class="series-badge">paris-tree-canopy</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-24-cursor-gpt-5-6-luna-high</div>
+          <div class="demo-card-stats">
+            <span>📦 3 files</span>
+            <span>💾 50.9 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="paris-tree-canopy/2026-10-24-cursor-gpt-5-6-luna-high/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="paris-tree-canopy" data-run="2026-10-24-cursor-gemini-3-8-flash-high">
+          <div class="demo-card-header">
+            <span class="series-badge">paris-tree-canopy</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-24-cursor-gemini-3-8-flash-high</div>
+          <div class="demo-card-stats">
+            <span>📦 7 files</span>
+            <span>💾 2213.7 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="paris-tree-canopy/2026-10-24-cursor-gemini-3-8-flash-high/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="paris-tree-canopy" data-run="2026-10-24-cursor-composer-2-5-high">
+          <div class="demo-card-header">
+            <span class="series-badge">paris-tree-canopy</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-24-cursor-composer-2-5-high</div>
+          <div class="demo-card-stats">
+            <span>📦 9 files</span>
+            <span>💾 45717.3 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="paris-tree-canopy/2026-10-24-cursor-composer-2-5-high/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="paris-tree-canopy" data-run="2026-10-24-cursor-claude-sonnet-5-5-high">
+          <div class="demo-card-header">
+            <span class="series-badge">paris-tree-canopy</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-24-cursor-claude-sonnet-5-5-high</div>
+          <div class="demo-card-stats">
+            <span>📦 20 files</span>
+            <span>💾 6464.2 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="paris-tree-canopy/2026-10-24-cursor-claude-sonnet-5-5-high/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="paris-tree-canopy" data-run="2026-10-24-cursor-claude-haiku-5-5-high">
+          <div class="demo-card-header">
+            <span class="series-badge">paris-tree-canopy</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-24-cursor-claude-haiku-5-5-high</div>
+          <div class="demo-card-stats">
+            <span>📦 6 files</span>
+            <span>💾 15573.0 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="paris-tree-canopy/2026-10-24-cursor-claude-haiku-5-5-high/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="france-rail-24h-pulse" data-run="2026-10-22-cursor-muse-wonder-medium">
+          <div class="demo-card-header">
+            <span class="series-badge">france-rail-24h-pulse</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-22-cursor-muse-wonder-medium</div>
+          <div class="demo-card-stats">
+            <span>📦 2 files</span>
+            <span>💾 41.9 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="france-rail-24h-pulse/2026-10-22-cursor-muse-wonder-medium/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="france-rail-24h-pulse" data-run="2026-10-22-cursor-grok-4-7-high">
+          <div class="demo-card-header">
+            <span class="series-badge">france-rail-24h-pulse</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-22-cursor-grok-4-7-high</div>
+          <div class="demo-card-stats">
+            <span>📦 14 files</span>
+            <span>💾 6229.7 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="france-rail-24h-pulse/2026-10-22-cursor-grok-4-7-high/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="france-rail-24h-pulse" data-run="2026-10-22-cursor-gpt-5-6-sol-medium">
+          <div class="demo-card-header">
+            <span class="series-badge">france-rail-24h-pulse</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-22-cursor-gpt-5-6-sol-medium</div>
+          <div class="demo-card-stats">
+            <span>📦 3 files</span>
+            <span>💾 260.8 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="france-rail-24h-pulse/2026-10-22-cursor-gpt-5-6-sol-medium/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="france-rail-24h-pulse" data-run="2026-10-22-cursor-glm-5-3-high">
+          <div class="demo-card-header">
+            <span class="series-badge">france-rail-24h-pulse</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-22-cursor-glm-5-3-high</div>
+          <div class="demo-card-stats">
+            <span>📦 15 files</span>
+            <span>💾 7584.0 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="france-rail-24h-pulse/2026-10-22-cursor-glm-5-3-high/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="paris-1910-flood-simulator" data-run="2026-10-22-cursor-gemini-4-argon-medium">
+          <div class="demo-card-header">
+            <span class="series-badge">paris-1910-flood-simulator</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-22-cursor-gemini-4-argon-medium</div>
+          <div class="demo-card-stats">
+            <span>📦 6 files</span>
+            <span>💾 10474.7 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="paris-1910-flood-simulator/2026-10-22-cursor-gemini-4-argon-medium/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="france-rail-24h-pulse" data-run="2026-10-22-cursor-gemini-3-8-flash-high">
+          <div class="demo-card-header">
+            <span class="series-badge">france-rail-24h-pulse</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-22-cursor-gemini-3-8-flash-high</div>
+          <div class="demo-card-stats">
+            <span>📦 9 files</span>
+            <span>💾 12436.4 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="paris-1910-flood-simulator" data-run="2026-10-21-cursor-claude-opus-5-5-medium">
+          <div class="demo-card-header">
+            <span class="series-badge">paris-1910-flood-simulator</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-21-cursor-claude-opus-5-5-medium</div>
+          <div class="demo-card-stats">
+            <span>📦 9 files</span>
+            <span>💾 15797.2 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="paris-1910-flood-simulator/2026-10-21-cursor-claude-opus-5-5-medium/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="paris-1910-flood-simulator" data-run="2026-10-20-cursor-claude-opus-5-5-high">
+          <div class="demo-card-header">
+            <span class="series-badge">paris-1910-flood-simulator</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-20-cursor-claude-opus-5-5-high</div>
+          <div class="demo-card-stats">
+            <span>📦 20 files</span>
+            <span>💾 89955.8 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="paris-1910-flood-simulator/2026-10-20-cursor-claude-opus-5-5-high/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="france-road-accidents" data-run="2026-10-19-cursor-muse-wonder-300k-medium">
+          <div class="demo-card-header">
+            <span class="series-badge">france-road-accidents</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-19-cursor-muse-wonder-300k-medium</div>
+          <div class="demo-card-stats">
+            <span>📦 8 files</span>
+            <span>💾 15253.1 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="france-road-accidents/2026-10-19-cursor-muse-wonder-300k-medium/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="france-electricity-carbon-flow" data-run="2026-10-19-cursor-gemini-4-argon-1m-medium">
+          <div class="demo-card-header">
+            <span class="series-badge">france-electricity-carbon-flow</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-19-cursor-gemini-4-argon-1m-medium</div>
+          <div class="demo-card-stats">
+            <span>📦 9 files</span>
+            <span>💾 4087.5 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="france-electricity-carbon-flow/2026-10-19-cursor-gemini-4-argon-1m-medium/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+        <div class="demo-card" data-prompt="france-rail-24h-pulse" data-run="2026-10-19-cursor-claude-opus-5-5-high-300k-high">
+          <div class="demo-card-header">
+            <span class="series-badge">france-rail-24h-pulse</span>
+            <span class="badge static">⚡ Standalone Static</span>
+          </div>
+          <div class="demo-card-title">2026-10-19-cursor-claude-opus-5-5-high-300k-high</div>
+          <div class="demo-card-stats">
+            <span>📦 16 files</span>
+            <span>💾 6142.9 KB</span>
+          </div>
+          <div class="demo-card-actions">
+            <a href="france-rail-24h-pulse/2026-10-19-cursor-claude-opus-5-5-high-300k-high/index.html" target="_blank" class="btn-launch">Launch App ↗</a>
+          </div>
+        </div>
+        
+    </div>
+  </div>
+  <script>
+    const input = document.getElementById('filter-input');
+    const cards = Array.from(document.querySelectorAll('.demo-card'));
+    input.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      for (const card of cards) {
+        const text = (card.innerText || '').toLowerCase();
+        card.style.display = (!q || text.includes(q)) ? 'flex' : 'none';
+      }
+    });
+  </script>
+</body>
+</html>

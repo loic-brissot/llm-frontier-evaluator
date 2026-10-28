@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Canopée de Paris — an atlas of the municipal urban forest</title>
+    <meta
+      name="description"
+      content="Interactive map and biodiversity explorer of the 220,000 municipal trees of Paris: species, heritage trees, districts."
+    />
+    <meta name="theme-color" content="#1f4d37" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%231f4d37'/%3E%3Cpath d='M16 6c5 3 8 7 8 11a8 8 0 0 1-16 0c0-4 3-8 8-11z' fill='%23a9d46f'/%3E%3Cpath d='M16 12v14' stroke='%231f4d37' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <script type="module" crossorigin src="./assets/index-DklOCt-I.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CzueBO3U.css">
+  </head>
+  <body>
+    <div id="splash" class="splash" role="status" aria-live="polite">
+      <div class="splash-inner">
+        <svg class="splash-leaf" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M32 6C46 14 54 26 54 38a22 22 0 0 1-44 0C10 26 18 14 32 6z" />
+          <path d="M32 22v36M32 34l-9-7M32 42l10-8" />
+        </svg>
+        <h1>Canopée <em>de Paris</em></h1>
+        <p id="splash-msg">Gathering 220,000 trees…</p>
+        <div class="splash-bar"><i id="splash-progress"></i></div>
+      </div>
+    </div>
+
+    <div class="app" id="app">
+      <header class="topbar">
+        <button class="icon-btn only-narrow" id="btn-filters" aria-label="Open filters" aria-expanded="false">
+          <svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+          <span>Filters</span><b class="badge" id="filters-badge" hidden>0</b>
+        </button>
+        <div class="brand">
+          <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+            <rect width="32" height="32" rx="9" />
+            <path d="M16 5.5c5.2 3 8.3 7.2 8.3 11.3a8.3 8.3 0 0 1-16.6 0C7.7 12.7 10.800 8.500 16 5.500z" />
+            <path d="M16 12v15M16 19l-4-3.200M16 22.500l4.500-3.600" />
+          </svg>
+          <div>
+            <h1>Canopée <em>de Paris</em></h1>
+            <p>Atlas of the municipal urban forest</p>
+          </div>
+        </div>
+        <div class="topbar-stat" id="topbar-stat" aria-live="polite"></div>
+        <div class="topbar-credit">
+          Data: <a href="https://opendata.paris.fr/explore/dataset/les-arbres" target="_blank" rel="noopener">Ville de Paris · Open Data</a>
+          <span>ODbL</span>
+        </div>
+        <button class="icon-btn only-narrow" id="btn-insights" aria-label="Open insights" aria-expanded="false">
+          <svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7" /></svg>
+          <span>Insights</span>
+        </button>
+      </header>
+
+      <main class="layout">
+        <aside class="sidebar" id="filters" aria-label="Filters"></aside>
+
+        <section class="mapwrap" aria-label="Map of Paris trees">
+          <div id="map"></div>
+          <div class="map-ui">
+            <div class="colorby" id="colorby" role="radiogroup" aria-label="Colour trees by"></div>
+            <div class="legend" id="legend"></div>
+            <div class="map-hint" id="map-hint">Zoom in to reveal individual trees</div>
+            <div class="detail-slot" id="detail"></div>
+          </div>
+          <div class="tooltip" id="map-tip" role="tooltip" hidden></div>
+        </section>
+
+        <aside class="insights" id="insights" aria-label="Insights">
+          <nav class="tabs" id="tabs" role="tablist"></nav>
+          <div class="tabpanels">
+            <section class="tabpanel" id="panel-overview" role="tabpanel"></section>
+            <section class="tabpanel" id="panel-heritage" role="tabpanel" hidden></section>
+            <section class="tabpanel" id="panel-districts" role="tabpanel" hidden></section>
+          </div>
+        </aside>
+      </main>
+      <div class="scrim" id="scrim"></div>
+    </div>
+
+    <div class="tooltip global" id="tip" role="tooltip" hidden></div>
+  </body>
+</html>
