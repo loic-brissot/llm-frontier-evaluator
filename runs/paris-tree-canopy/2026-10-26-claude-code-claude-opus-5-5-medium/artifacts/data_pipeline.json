@@ -1,0 +1,63 @@
+{
+  "prompt_id": "paris-tree-canopy",
+  "passed": true,
+  "authenticity": "partial_or_filtered",
+  "score": 0.67,
+  "total_data_files": 7,
+  "total_records": 33634,
+  "synthetic_signals": [],
+  "checks": [
+    {
+      "id": "trees_dataset",
+      "description": "Paris municipal trees inventory with botanical species and measurements",
+      "passed": false,
+      "observed_records": 1,
+      "matched_files": [
+        "scripts/fetch-data.sh",
+        "scripts/build-data.py",
+        "src/util.js",
+        "src/charts.js",
+        "src/main.js",
+        "src/analytics.js",
+        "src/colors.js",
+        "src/data.js",
+        "src/filters.js",
+        "src/remarkable.js",
+        "src/style.css",
+        "src/engine.js",
+        "src/map.js",
+        "src/districts.js",
+        "src/detail.js",
+        ".claude/hooks/log-tool-event.py"
+      ],
+      "detail": "Matched 16 file(s) but observed 1 records < min threshold 1000"
+    },
+    {
+      "id": "remarkable_trees_dataset",
+      "description": "Paris remarkable heritage trees (arbres remarquables)",
+      "passed": true,
+      "observed_records": 183,
+      "matched_files": [
+        "public/data/remarkable.json"
+      ],
+      "detail": "Matched 1 file(s) with 183 observed records (min: 20)"
+    },
+    {
+      "id": "arrondissements_dataset",
+      "description": "Paris arrondissements administrative boundaries",
+      "passed": true,
+      "observed_records": 20,
+      "matched_files": [
+        "public/data/arrondissements.geojson"
+      ],
+      "detail": "Matched 1 file(s) with 20 observed records (min: 20)"
+    }
+  ],
+  "verified_at": "2026-10-26T23:03:21.738Z",
+  "operator_override": {
+    "verifier_passed": false,
+    "passed": true,
+    "at": "2026-10-28",
+    "reason": "Probe false negative: the ~220k tree inventory ships as packed binary (public/data/trees.bin), which the probe cannot count."
+  }
+}

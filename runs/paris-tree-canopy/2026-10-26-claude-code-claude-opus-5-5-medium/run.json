@@ -1,0 +1,376 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-26-claude-code-claude-opus-5-5-medium",
+  "series_id": "paris-tree-canopy-claude-code",
+  "prompt_id": "paris-tree-canopy",
+  "prompt_sha256": "69f692b4adcfe21e0dbcab273537095a344735479a4309ab4a85b8a76288bfaf",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "anthropic",
+    "name": "Claude Opus 5.5",
+    "context": null,
+    "reasoning": "medium"
+  },
+  "harness": {
+    "name": "claude-code",
+    "version": "2.1.310 (Claude Code)",
+    "detail": "headless; subscription OAuth"
+  },
+  "wall_clock": {
+    "started_at": "2026-10-26T22:35:23.981Z",
+    "ended_at": "2026-10-26T23:02:54.281Z"
+  },
+  "tokens": {
+    "split_rule": "combined_output_as_visible",
+    "reasoning_tokens": 0,
+    "visible_tokens": 104892,
+    "raw": {
+      "duration_api_ms": 971480,
+      "stop_reason": "end_turn",
+      "session_id": "aa0d651c-fd73-4bb4-b710-fade3c2ed624",
+      "total_cost_usd": 5.137719800000004,
+      "usage": {
+        "input_tokens": 142,
+        "cache_creation_input_tokens": 181750,
+        "cache_read_input_tokens": 7926559,
+        "output_tokens": 104892,
+        "output_tokens_details": {
+          "thinking_tokens": 21095
+        },
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 181750,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "global",
+        "iterations": [
+          {
+            "input_tokens": 2,
+            "output_tokens": 1367,
+            "cache_read_input_tokens": 193234,
+            "cache_creation_input_tokens": 203,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 203
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard",
+        "fallback_credit": null
+      },
+      "modelUsage": {
+        "claude-opus-5-5": {
+          "inputTokens": 142,
+          "outputTokens": 104892,
+          "cacheReadInputTokens": 7926559,
+          "cacheCreationInputTokens": 181750,
+          "webSearchRequests": 0,
+          "costUSD": 5.137719800000004,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 21095,
+          "canonicalModel": "claude-opus-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "permission_denials": [],
+      "terminal_reason": "completed",
+      "fast_mode_state": "off",
+      "fast_mode_disabled_reason": "sdk_opt_in_required",
+      "subagent_stats": {
+        "spawned": 0,
+        "requested": {
+          "background": 0,
+          "foreground": 0,
+          "unset": 0
+        },
+        "started_in_background": 0,
+        "max_depth": 0,
+        "spawned_by_subagents": 0,
+        "completed": 0,
+        "failed": 0,
+        "killed": {
+          "parent": 0,
+          "user": 0,
+          "system": 0
+        },
+        "refused": {
+          "depth_limit": 0,
+          "concurrency_limit": 0,
+          "budget": 0
+        },
+        "by_type": {}
+      },
+      "safety_stops": 0,
+      "is_error": false,
+      "num_turns": 81,
+      "subtype": "success",
+      "api_error_status": null,
+      "result": "I've built the Paris Canopy Atlas in `/workspace`. It's a single-page web app (Vite, MapLibre and deck.gl) that loads all 220,112 municipal trees and the 183 remarkable trees in the browser. I checked it in a headless browser on both the dev server and the production build. That run covered city and street zooms, the arrondissement, genus, species-search and remarkable filters, the 3D view, the district choropleth, the tree and heritage-tree detail cards, and all three panel tabs. It wasn't tested on a phone-sized screen.\n\n**Run it:** `npm install && npm run dev`, then open http://localhost:5173. `npm run build` gives a static site in `dist/`.\n\n**What it does**\n- **Map:** zoomed out, trees are grouped into green density hexagons, with an optional 3D view; clicking a hexagon zooms into it. Past about zoom 15 they fade into individual trees, sized by height and coloured by family, genus or height. Clicking a legend entry shows only that group. Remarkable trees have gold star badges at every zoom. If a filter leaves fewer than 2,500 trees, they're shown as individual points at any zoom.\n- **Filters:**\n  - arrondissement (1er\u201320e, the two Bois, and the cemeteries outside Paris);\n  - setting (streets, parks and squares, cemeteries, schools and other facilities);\n  - genus or species search in Latin or French, plus quick buttons for Platanus, Aesculus, Tilia, Sophora, Celtis and others;\n  - height and circumference sliders;\n  - a one-click remarkable-trees toggle.\n\n  Filtering takes about 6 ms.\n- **Urban forest panel:**\n  - summary tiles: tree count, genera, species, a diversity index, median and mean height and circumference, street-tree share;\n  - charts: top 12 species, family breakdown, height and circumference histograms, stage of development, trees per hectare by arrondissement.\n\n  All of it follows the active filters.\n- **Remarkable trees:**\n  - cards for all 183 trees with photo, French and Latin names, planting year and age, height, girth and criteria (landscape, botanical, symbolic, historic);\n  - the full story behind each tree and \"Show on map\", which flies to it;\n  - record holders: oldest is a 1602 false acacia, tallest a 45 m plane tree, widest girth 740 cm.\n- **Districts:** a sortable table of trees per hectare, the street/park/cemetery/facility mix, species count, a diversity score and the top genus. It can also shade the map by any of these.\n- **Tree card:** French name, Latin name and cultivar, family, height, circumference, trunk diameter, stage of development, address, district, setting and coordinates. It also says how the tree's height compares with others of its species (e.g. \"taller than 57% of the 18,832 horse chestnuts\"), and links to Street View and OpenStreetMap.\n\n**Things you should know**\n- **The data ships with the app:** about 7 MB in `public/data/`. `npm run fetch-data` then `npm run data` re-downloads and rebuilds it. The inventory has no botanical family, so I added a genus-to-family table myself; a handful of genera with one or two trees each fall under \"Other\".\n- **MapLibre is pinned to version 5:** version 6 doesn't work with deck.gl's map integration.\n- **Colour limits:** two of the eight category colours (pink and red) are hard to tell apart when many points are mixed on the map. The legend's click-to-isolate is there to cover that.\n- **External services needed:** the basemap (CARTO) and the remarkable-tree photos (Ville de Paris servers) are loaded live.\n- **Density for the 12e and 16e** leaves out the Bois de Vincennes and Bois de Boulogne, which get their own rows. The Jardin du Luxembourg is empty because the Senate manages it, so it isn't in the city's inventory.\n\nNothing is committed yet; say if you want me to commit it.",
+      "ttft_ms": 2532,
+      "type": "result",
+      "duration_ms": 1650591,
+      "uuid": "26f593b2-0771-4959-9990-a46d8b3deb1d",
+      "ttft_stream_ms": 2349,
+      "time_to_request_ms": 356,
+      "first_content_frame_ms": 2349,
+      "queued_turn_count": 0,
+      "result_index": 0,
+      "model_usage_since_last_result": {
+        "claude-opus-5-5": {
+          "inputTokens": 142,
+          "outputTokens": 104892,
+          "cacheReadInputTokens": 7926559,
+          "cacheCreationInputTokens": 181750,
+          "webSearchRequests": 0,
+          "costUSD": 5.137719800000004,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 21095,
+          "canonicalModel": "claude-opus-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "claude_code": {
+        "attempts": 1,
+        "attempts_without_result": 0,
+        "uncached_input_tokens": 142,
+        "cache_write_tokens": 181750,
+        "cache_read_tokens": 7926559,
+        "output_tokens": 104892,
+        "duration_api_seconds": 971.5,
+        "total_cost_usd": 5.1377
+      },
+      "hook_tokens": {
+        "source": "transcript_or_hook",
+        "model": "claude-opus-5-5",
+        "input_tokens": 8108451,
+        "uncached_input_tokens": 142,
+        "cache_read_tokens": 7926559,
+        "cache_write_tokens": 181750,
+        "output_tokens": 104892,
+        "split_rule": "unavailable"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "claude-opus-5-5",
+        "context_variant": null,
+        "long_context_applied": false,
+        "harness": "claude-code",
+        "harness_token_rate_per_1m": "0",
+        "harness_surcharge_usd": "0.00",
+        "rates_per_1m_usd": {
+          "input": "4.00",
+          "cache_write": "5.00",
+          "cache_read": "0.20",
+          "output": "20.00"
+        },
+        "estimated_cost_usd": "4.59",
+        "estimated_cost_with_harness_usd": "4.59"
+      }
+    }
+  },
+  "model_time": {
+    "source": "harness_model_time",
+    "generating_seconds": 971.5,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 1650.3,
+        "tool_seconds_merged": 675.7,
+        "tool_seconds_summed": 675.7,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": 974.6,
+        "thinking_seconds": 365.3,
+        "thought_blocks": 54,
+        "timing_source": "claude_sessions",
+        "active_seconds": 1650.3,
+        "retry_gap_seconds": 0.0,
+        "duration_api_seconds": 971.5,
+        "attempts": 1,
+        "attempts_without_result": 0
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 60,
+      "failures": 6,
+      "by_tool": {
+        "Bash": {
+          "calls": 60,
+          "failures": 6
+        }
+      }
+    },
+    "files": {
+      "calls": 18,
+      "failures": 0,
+      "by_tool": {
+        "Read": {
+          "calls": 18,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": 1,
+      "failures": 0,
+      "by_tool": {
+        "Skill": {
+          "calls": 1,
+          "failures": 0
+        }
+      }
+    }
+  },
+  "context_reread": {
+    "source": "provider_cache_read",
+    "cache_read_tokens": 7926559,
+    "cache_write_tokens": 181750,
+    "uncached_input_tokens": 142,
+    "raw": {
+      "source": "transcript_or_hook",
+      "model": "claude-opus-5-5",
+      "input_tokens": 8108451,
+      "uncached_input_tokens": 142,
+      "cache_read_tokens": 7926559,
+      "cache_write_tokens": 181750,
+      "output_tokens": 104892,
+      "split_rule": "unavailable"
+    }
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": true,
+    "summary": ""
+  },
+  "observations": "other tools: Skill. Operator override (2026-10-28): verification marked passed. Smoke test false negative: the intro-gate heuristic clicked the 'Remarkable trees only' filter toggle, which is not an intro overlay; the app renders. Probe false negative: the ~220k tree inventory ships as packed binary (public/data/trees.bin), which the probe cannot count.",
+  "verification": {
+    "runtime": {
+      "passed": true,
+      "http_status": 200,
+      "url": "http://127.0.0.1:60491",
+      "server_mode": "static",
+      "load_time_ms": 4844.43,
+      "console_errors": [],
+      "console_warnings_count": 4,
+      "page_errors": [],
+      "failed_requests": [],
+      "critical_failures": [
+        "Persistent loading overlay detected (#app): intro control 'Remarkable trees only 183 heritage trees' clicked but the overlay stayed visible"
+      ],
+      "dom": {
+        "title": "Paris Canopy Atlas \u00b7 The municipal trees of Paris",
+        "canvas_count": 1,
+        "visible_canvas_count": 1,
+        "canvas_obscured": false,
+        "loading_overlay": null,
+        "loading_status_text": "",
+        "intro_gate": {
+          "detected": true,
+          "selector": "#app",
+          "text": "Paris Canopy Atlas\n\nThe municipal trees of Paris \u2014 an interactive biodiversity explorer\n\n220,112\nTREES\n201\nGENERA\n799\nSPECIES\n183\nREMARKABLE\nRemarkable trees only\n183 heritage trees\nARRONDISSEMENT\ncli",
+          "control_selector": "#filters > div:nth-of-type(1) > button:nth-of-type(1)",
+          "control_text": "Remarkable trees only\n183 heritage trees",
+          "clicked": true,
+          "dismissed": false
+        },
+        "svg_count": 189,
+        "webgl_context": true,
+        "text_length": 2477
+      },
+      "screenshot_path": "artifacts/screenshot.png",
+      "loading_settle_ms": 0,
+      "verified_at": "2026-10-26T23:03:04.784Z",
+      "operator_override": {
+        "verifier_passed": false,
+        "passed": true,
+        "at": "2026-10-28",
+        "reason": "Smoke test false negative: the intro-gate heuristic clicked the 'Remarkable trees only' filter toggle, which is not an intro overlay; the app renders."
+      },
+      "demo_url": "demos/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium/index.html"
+    },
+    "data_pipeline": {
+      "prompt_id": "paris-tree-canopy",
+      "passed": true,
+      "authenticity": "partial_or_filtered",
+      "score": 0.67,
+      "total_data_files": 7,
+      "total_records": 33634,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "trees_dataset",
+          "description": "Paris municipal trees inventory with botanical species and measurements",
+          "passed": false,
+          "observed_records": 1,
+          "matched_files": [
+            "scripts/fetch-data.sh",
+            "scripts/build-data.py",
+            "src/util.js",
+            "src/charts.js",
+            "src/main.js",
+            "src/analytics.js",
+            "src/colors.js",
+            "src/data.js",
+            "src/filters.js",
+            "src/remarkable.js",
+            "src/style.css",
+            "src/engine.js",
+            "src/map.js",
+            "src/districts.js",
+            "src/detail.js",
+            ".claude/hooks/log-tool-event.py"
+          ],
+          "detail": "Matched 16 file(s) but observed 1 records < min threshold 1000"
+        },
+        {
+          "id": "remarkable_trees_dataset",
+          "description": "Paris remarkable heritage trees (arbres remarquables)",
+          "passed": true,
+          "observed_records": 183,
+          "matched_files": [
+            "public/data/remarkable.json"
+          ],
+          "detail": "Matched 1 file(s) with 183 observed records (min: 20)"
+        },
+        {
+          "id": "arrondissements_dataset",
+          "description": "Paris arrondissements administrative boundaries",
+          "passed": true,
+          "observed_records": 20,
+          "matched_files": [
+            "public/data/arrondissements.geojson"
+          ],
+          "detail": "Matched 1 file(s) with 20 observed records (min: 20)"
+        }
+      ],
+      "verified_at": "2026-10-26T23:03:21.738Z",
+      "operator_override": {
+        "verifier_passed": false,
+        "passed": true,
+        "at": "2026-10-28",
+        "reason": "Probe false negative: the ~220k tree inventory ships as packed binary (public/data/trees.bin), which the probe cannot count."
+      }
+    },
+    "passed": true
+  }
+}

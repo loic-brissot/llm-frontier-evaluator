@@ -1,0 +1,53 @@
+{
+  "prompt_id": "paris-tree-canopy",
+  "passed": true,
+  "authenticity": "partial_or_filtered",
+  "score": 0.67,
+  "total_data_files": 5,
+  "total_records": 7993,
+  "synthetic_signals": [],
+  "checks": [
+    {
+      "id": "trees_dataset",
+      "description": "Paris municipal trees inventory with botanical species and measurements",
+      "passed": false,
+      "observed_records": 1,
+      "matched_files": [
+        "scripts/build_data.py",
+        "scripts/fetch_data.sh",
+        "vendor/maplibre-gl.js",
+        "vendor/maplibre-gl.css",
+        ".claude/hooks/log-tool-event.py"
+      ],
+      "detail": "Matched 5 file(s) but observed 1 records < min threshold 1000"
+    },
+    {
+      "id": "remarkable_trees_dataset",
+      "description": "Paris remarkable heritage trees (arbres remarquables)",
+      "passed": true,
+      "observed_records": 182,
+      "matched_files": [
+        "data/heritage.json"
+      ],
+      "detail": "Matched 1 file(s) with 182 observed records (min: 20)"
+    },
+    {
+      "id": "arrondissements_dataset",
+      "description": "Paris arrondissements administrative boundaries",
+      "passed": true,
+      "observed_records": 43,
+      "matched_files": [
+        "data/arrondissements.json",
+        "data/meta.json"
+      ],
+      "detail": "Matched 2 file(s) with 43 observed records (min: 20)"
+    }
+  ],
+  "verified_at": "2026-10-26T20:30:44.720Z",
+  "operator_override": {
+    "verifier_passed": false,
+    "passed": true,
+    "at": "2026-10-28",
+    "reason": "Probe false negative: the ~220k tree inventory ships as gzipped binary (data/trees.bin.gz), which the probe cannot count."
+  }
+}
