@@ -1,0 +1,26 @@
+{
+  "passed": true,
+  "http_status": null,
+  "url": "",
+  "server_mode": "none",
+  "load_time_ms": null,
+  "console_errors": [],
+  "console_warnings_count": 0,
+  "page_errors": [
+    "No workspace server found or started"
+  ],
+  "failed_requests": [],
+  "critical_failures": [
+    "No workspace server found or started"
+  ],
+  "dom": null,
+  "screenshot_path": null,
+  "verified_at": "2026-10-26T15:06:51.299Z",
+  "operator_override": {
+    "verifier_passed": false,
+    "passed": true,
+    "at": "2026-10-28",
+    "reason": "Smoke test false negative: the app is built in web/ and served by the model; the verifier only looks for a server at the workspace root."
+  },
+  "demo_url": "demos/france-road-accidents/2026-10-26-claude-code-claude-opus-5-5-medium/index.html"
+}
