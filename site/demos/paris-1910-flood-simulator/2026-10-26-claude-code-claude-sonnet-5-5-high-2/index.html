@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en" data-theme="night">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b1424'/%3E%3Cpath d='M8 30c8-8 14 8 24 0s16-8 24 0v24H8z' fill='%233dd6ff'/%3E%3Cpath d='M14 28V14h8v10M26 28V8h10v16M40 28V16h10v12' fill='%23ffb347'/%3E%3C/svg%3E" />
+<title>Paris under water — interactive flood simulator</title>
+<meta name="description" content="Raise the Seine centimetre by centimetre in 3D, from its normal level to beyond the 1910 centennial flood. Every building in inner Paris, metro and rail stations, live impact counters and the regulatory PPRI flood zones." />
+  <script type="module" crossorigin src="./assets/index-DiEjcMVj.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-nVxt6FGS.css">
+</head>
+<body>
+<canvas id="gl" aria-label="3D map of Paris"></canvas>
+<div id="labels" aria-hidden="true"></div>
+<div id="vignette"></div>
+
+<!-- loader -->
+<div id="loader" role="status">
+  <div class="loader-card">
+    <div class="loader-eyebrow" data-i="eyebrow"></div>
+    <h1 class="loader-title" data-i="title"></h1>
+    <div class="loader-bar"><i id="loaderBar"></i></div>
+    <div class="loader-msg" id="loaderMsg"></div>
+    <div class="loader-sub" data-i="loadingSub"></div>
+    <button id="enterBtn" class="primary" hidden data-i="start"></button>
+    <div class="loader-hint" data-i="startHint"></div>
+  </div>
+</div>
+
+<main id="ui" hidden>
+  <button class="edge-toggle left" data-toggle=".leftcol" aria-label="Show or hide the controls"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+  <button class="edge-toggle right" data-toggle="#rightPanel" aria-label="Show or hide the impact panel"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M5 20V10M12 20V4M19 20v-7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+  <div class="leftcol">
+  <header class="brand glass">
+    <div class="eyebrow" data-i="eyebrow"></div>
+    <h1 data-i="title"></h1>
+    <p class="lede" data-i="lede"></p>
+  </header>
+
+  <aside class="panel left glass" id="leftPanel">
+    <section>
+      <h2 data-i="views"></h2>
+      <div class="chips" id="viewChips"></div>
+    </section>
+    <section>
+      <h2 data-i="layers"></h2>
+      <label class="switch"><input type="checkbox" id="lyBuildings" checked /><span></span><b data-i="buildingsLayer"></b></label>
+      <label class="switch"><input type="checkbox" id="lyShadows" checked /><span></span><b data-i="shadows"></b></label>
+      <label class="switch"><input type="checkbox" id="lyStations" checked /><span></span><b data-i="stationsLayer"></b></label>
+      <div class="st-legend"><span><i class="ok"></i><em data-i="stateOk"></em></span><span><i class="alert"></i><em data-i="stateAlert"></em></span><span><i class="flooded"></i><em data-i="stateFlooded"></em></span></div>
+      <label class="switch"><input type="checkbox" id="lyPPRI" /><span></span><b data-i="ppri"></b></label>
+      <div class="ppri-legend" id="ppriLegend" hidden>
+        <p class="hint" data-i="ppriHint"></p>
+        <ul>
+          <li><i style="--c: var(--ppri-bc)"></i><span data-i="ppriBC"></span></li>
+          <li><i style="--c: var(--ppri-bs)"></i><span data-i="ppriBS"></span></li>
+          <li><i style="--c: var(--ppri-r)"></i><span data-i="ppriR"></span></li>
+          <li><i style="--c: var(--ppri-v)"></i><span data-i="ppriV"></span></li>
+          <li><i class="hatch" style="--c: var(--ppri-bs)"></i><span data-i="ppriH"></span></li>
+        </ul>
+        <div class="ppri-cmp" id="ppriCmp"></div>
+        <label class="range"><span data-i="ppriOpacity"></span><input type="range" id="ppriOpacity" min="10" max="100" value="100" /></label>
+      </div>
+      <label class="switch"><input type="checkbox" id="lyLabels" checked /><span></span><b data-i="labels"></b></label>
+      <label class="switch"><input type="checkbox" id="lyArr" checked /><span></span><b data-i="arrLines"></b></label>
+      <label class="switch"><input type="checkbox" id="lyContours" checked /><span></span><b data-i="contours"></b></label>
+    </section>
+    <section>
+      <h2 data-i="modeTitle"></h2>
+      <div class="seg" role="radiogroup" id="modeSeg">
+        <button role="radio" data-mode="0" class="on" data-i="modeConnected"></button>
+        <button role="radio" data-mode="1" data-i="modeAny"></button>
+      </div>
+      <p class="hint" id="modeHint"></p>
+    </section>
+    <section>
+      <h2 data-i="appearance"></h2>
+      <div class="row2">
+        <div class="seg small" id="themeSeg"><button data-theme="night" class="on" data-i="night"></button><button data-theme="day" data-i="day"></button></div>
+        <div class="seg small" id="langSeg"><button data-lang="en" class="on">EN</button><button data-lang="fr">FR</button></div>
+      </div>
+      <label class="range"><span data-i="relief"></span><input type="range" id="exag" min="10" max="40" value="10" /><output id="exagOut">×1</output></label>
+      <button class="link" id="aboutBtn" data-i="about"></button>
+    </section>
+  </aside>
+  </div>
+
+  <aside class="panel right glass" id="rightPanel">
+    <div class="panel-head"><h2 data-i="impact"></h2><span class="sub" data-i="impactSub"></span></div>
+    <div class="tiles">
+      <div class="tile">
+        <div class="tile-label" data-i="area"></div>
+        <div class="tile-value"><b id="vArea">0</b><small data-i="areaUnit"></small></div>
+        <div class="tile-sub" id="sArea"></div>
+      </div>
+      <div class="tile">
+        <div class="tile-label" data-i="buildings"></div>
+        <div class="tile-value"><b id="vBld">0</b></div>
+        <div class="tile-sub" id="sBld"></div>
+      </div>
+      <button class="tile tile-btn" id="stationsTile" aria-expanded="false">
+        <div class="tile-label" data-i="stations"></div>
+        <div class="tile-value"><b id="vSt">0</b></div>
+        <div class="tile-sub" id="sSt"></div>
+        <div class="mode-pills" id="stPills"></div>
+      </button>
+      <div class="tile">
+        <div class="tile-label" data-i="depth"></div>
+        <div class="tile-value"><b id="vDepth">0.0</b><small data-i="depthUnit"></small></div>
+        <div class="tile-sub" id="sDepth"></div>
+      </div>
+    </div>
+
+    <div class="stations-list" id="stationsList" hidden>
+      <p class="hint" data-i="stationsPanelHint"></p>
+      <input type="search" id="stSearch" data-iph="search" />
+      <ul id="stUl"></ul>
+    </div>
+
+    <div class="chart-head">
+      <h3 data-i="byArr"></h3>
+      <button class="link" id="chartToggle" data-i="tableView"></button>
+    </div>
+    <div id="arrChart" class="arr-chart"></div>
+    <div id="arrTable" class="arr-table" hidden></div>
+
+    <div class="legend">
+      <div class="legend-title" data-i="legendDepth"></div>
+      <div class="ramp" id="depthRamp"></div>
+      <div class="ramp-labels"><span>0</span><span>0.8</span><span>2</span><span>4</span><span>7+ <span data-i="legendM"></span></span></div>
+    </div>
+  </aside>
+
+  <section class="gauge glass" id="gauge">
+    <div class="gauge-top">
+      <div class="readout" aria-live="off">
+        <div class="readout-label" data-i="gaugeName"></div>
+        <div class="readout-num"><span class="sign">+</span><span id="levelNum">0.00</span><span class="unit">m</span></div>
+      </div>
+      <div class="gauge-meta">
+        <div id="compare" class="compare"></div>
+        <div id="ngf" class="ngf"></div>
+        <div class="steppers">
+          <button data-step="-10">−10 cm</button><button data-step="-1">−1 cm</button><button data-step="1">+1 cm</button><button data-step="10">+10 cm</button>
+        </div>
+      </div>
+      <div class="gauge-actions">
+        <button id="playBtn" class="primary"><svg viewBox="0 0 24 24" width="18" height="18"><path id="playIcon" d="M7 4.5v15l12-7.5z" fill="currentColor"/></svg><span id="playLabel"></span></button>
+        <button id="resetBtn" class="ghost"></button>
+        <div class="seg small" id="speedSeg"><button data-speed="0.25">¼×</button><button data-speed="0.6" class="on">1×</button><button data-speed="1.5">2×</button></div>
+      </div>
+    </div>
+    <div class="track" id="track">
+      <svg class="area-svg" id="areaSvg" preserveAspectRatio="none"></svg>
+      <div class="fill" id="trackFill"></div>
+      <div class="markers" id="markers"></div>
+      <input type="range" id="slider" min="0" max="1000" step="1" value="0" />
+      <div class="ticks" id="ticks"></div>
+    </div>
+    <div class="toast" id="toast"></div>
+  </section>
+
+  <div id="tooltip" class="tooltip glass" hidden></div>
+  <footer class="credits" id="credits"></footer>
+  <div id="aboutModal" class="modal" hidden>
+    <div class="modal-card glass">
+      <button class="link" id="aboutClose" data-i="close"></button>
+      <h2 data-i="about"></h2>
+      <div id="aboutBody"></div>
+      <p class="hint" id="aboutCredits"></p>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>

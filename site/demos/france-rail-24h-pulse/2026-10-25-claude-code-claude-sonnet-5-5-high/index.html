@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atlas ferroviaire · French passenger rail, 24 hours</title>
+<meta name="description" content="Interactive 24-hour animated map and accessibility atlas of the French passenger rail network (TGV, Intercités, TER).">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app" data-mode="live">
+  <div id="stage">
+    <canvas id="base"></canvas>
+    <canvas id="dyn"></canvas>
+    <div id="night"></div>
+    <div id="vignette"></div>
+    <div id="tooltip" role="tooltip"></div>
+  </div>
+
+  <header id="top">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="brand-txt">
+        <h1>Atlas ferroviaire</h1>
+        <p>France · TGV · Intercités · TER</p>
+      </div>
+    </div>
+    <nav id="modes" aria-label="View">
+      <button data-mode="live" class="on"><b>01</b> Live traffic</button>
+      <button data-mode="access"><b>02</b> Accessibility</button>
+      <button data-mode="flow"><b>03</b> Corridor flow</button>
+    </nav>
+    <div class="top-right">
+      <div id="days" role="group" aria-label="Service day"></div>
+      <button id="infoBtn" aria-label="About, method and data sources" aria-expanded="false" title="About &amp; data sources">i</button>
+      <div class="search">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4.5 4.5"/></svg>
+        <input id="q" type="search" placeholder="Station or train no.  ( / )" autocomplete="off" spellcheck="false" aria-label="Search station or train">
+        <div id="results" role="listbox"></div>
+      </div>
+    </div>
+  </header>
+
+  <aside id="left" aria-label="Statistics">
+    <section class="card" id="cardMain"></section>
+    <section class="card" id="cardProfile">
+      <h2>24-hour traffic profile <span class="hint">trains in circulation</span></h2>
+      <div id="profile"></div>
+    </section>
+    <section class="card" id="cardBusy">
+      <h2>Busiest stations
+        <span class="seg" id="busyMode"><button data-m="now" class="on">±30 min</button><button data-m="day">24 h</button></span>
+      </h2>
+      <ol id="busy"></ol>
+    </section>
+  </aside>
+
+  <aside id="right" aria-label="Details" hidden></aside>
+
+  <div id="hint"></div>
+
+  <section id="about" hidden aria-label="About and data sources">
+    <button class="x" id="aboutClose" aria-label="Close">×</button>
+    <h2>Atlas ferroviaire</h2>
+    <p>A 24-hour replay of the scheduled French passenger rail timetable — <b>TGV</b> (INOUI, OUIGO, ICE, Lyria), <b>Intercités</b> and <b>TER</b> — with travel-time accessibility and daily corridor flows.</p>
+    <h3>How it is computed</h3>
+    <ul>
+      <li><b>Trains</b> move along the real track: every stop-to-stop leg of every trip is routed over the RFN line geometry (shortest path; TGV prefers high-speed lines, TER/Intercités avoid them). Legs without track data (abroad) are drawn straight. Positions are interpolated between the scheduled times — no delays.</li>
+      <li><b>Accessibility</b> runs an earliest-arrival Connection Scan over the day's timetable (≥ 5 min to change trains, walking links under 650 m), departing at the timeline clock. Travel time counts from the first train and includes every transfer wait.</li>
+      <li><b>Corridor flow</b> counts the scheduled trains crossing each section of the network over the service day.</li>
+      <li>Service days shown: Tue 17, Sat 14 and Sun 15 November 2026. Trips running past midnight wrap onto the next morning.</li>
+    </ul>
+    <h3>Data</h3>
+    <ul>
+      <li>Réseau SNCF TGV, Intercités et TER — GTFS, transport.data.gouv.fr (ODbL)</li>
+      <li>Formes des lignes du RFN, Liste des gares, Gares de voyageurs, Lignes LGV — SNCF Open Data (ODbL)</li>
+      <li>Départements: IGN via Etalab (Licence Ouverte) · Countries: Natural Earth (public domain)</li>
+    </ul>
+    <h3>Keys</h3>
+    <p class="keys"><kbd>Space</kbd> play/pause · <kbd>←</kbd><kbd>→</kbd> ±10 min · <kbd>L</kbd><kbd>A</kbd><kbd>F</kbd> modes · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> categories · <kbd>/</kbd> search · <kbd>Esc</kbd> deselect</p>
+  </section>
+
+  <div id="zoom">
+    <button id="zin" aria-label="Zoom in">+</button>
+    <button id="zout" aria-label="Zoom out">−</button>
+    <button id="zhome" aria-label="Reset view" title="Reset view"><svg viewBox="0 0 20 20"><path d="M10 3v3M10 14v3M3 10h3M14 10h3"/><circle cx="10" cy="10" r="3"/></svg></button>
+  </div>
+
+  <footer id="timeline">
+    <button id="play" aria-label="Play / pause"></button>
+    <div class="clock"><span id="clock">07:45</span><small id="clockSec">:00</small><em id="dateLbl"></em></div>
+    <div class="scrub-wrap">
+      <div id="scrub" role="slider" tabindex="0" aria-label="Time of day" aria-valuemin="0" aria-valuemax="1439" aria-valuenow="0">
+        <canvas id="scrubCanvas"></canvas>
+        <div id="scrubHead"></div>
+        <div id="scrubTip"></div>
+      </div>
+    </div>
+    <div id="speeds" role="group" aria-label="Playback speed"></div>
+  </footer>
+
+  <div id="loader"><div class="ring"></div><p id="loadMsg">Loading the national timetable…</p><div class="bar"><i id="loadBar"></i></div></div>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

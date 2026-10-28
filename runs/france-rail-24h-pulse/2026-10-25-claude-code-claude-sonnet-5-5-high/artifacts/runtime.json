@@ -23,5 +23,6 @@
   },
   "screenshot_path": "artifacts/screenshot.png",
   "loading_settle_ms": 0,
-  "verified_at": "2026-10-26T09:29:41.323Z"
+  "verified_at": "2026-10-26T09:29:41.323Z",
+  "demo_url": "demos/france-rail-24h-pulse/2026-10-25-claude-code-claude-sonnet-5-5-high/index.html"
 }

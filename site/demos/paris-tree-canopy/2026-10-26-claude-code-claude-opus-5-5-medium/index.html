@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Paris Canopy Atlas · The municipal trees of Paris</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='13' r='10' fill='%2342b883'/%3E%3Crect x='14.5' y='20' width='3' height='10' rx='1.5' fill='%2342b883'/%3E%3C/svg%3E" />
+  <script type="module" crossorigin src="./assets/index-BN6evcha.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/array-utils-flat-BL8Cekj1.js">
+  <link rel="modulepreload" crossorigin href="./assets/get-attribute-from-layouts-Dd2gixpo.js">
+  <link rel="modulepreload" crossorigin href="./assets/webgl-device-DchxaUZB.js">
+  <link rel="modulepreload" crossorigin href="./assets/expression-C4x9yiMU.js">
+  <link rel="modulepreload" crossorigin href="./assets/buffer-transform-DyjAKu06.js">
+  <link rel="modulepreload" crossorigin href="./assets/webgpu-DhR-Xd8M.js">
+  <link rel="stylesheet" crossorigin href="./assets/index-BhzeG_vF.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="12.5" r="9.5"/><rect x="14.6" y="19" width="2.8" height="11" rx="1.4"/></svg>
+        <div>
+          <h1>Paris Canopy Atlas</h1>
+          <p class="subtitle">The municipal trees of Paris — an interactive biodiversity explorer</p>
+        </div>
+      </div>
+      <div class="headline" id="headline"></div>
+    </header>
+
+    <aside class="filters" id="filters" aria-label="Filters"></aside>
+
+    <main class="map-wrap">
+      <div id="map"></div>
+      <div class="map-controls" id="map-controls"></div>
+      <div class="legend" id="legend"></div>
+      <div class="zoom-hint" id="zoom-hint"></div>
+      <div class="detail" id="detail" hidden></div>
+      <div class="tooltip" id="tooltip" hidden></div>
+      <div class="loading" id="loading"><div class="spinner"></div><span>Planting 220,000 trees…</span></div>
+    </main>
+
+    <section class="panel" aria-label="Analytics">
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-tab="analytics" aria-selected="true">Urban forest</button>
+        <button role="tab" data-tab="remarkable">Remarkable</button>
+        <button role="tab" data-tab="districts">Districts</button>
+      </nav>
+      <div class="tab-body" id="tab-analytics" role="tabpanel"></div>
+      <div class="tab-body" id="tab-remarkable" role="tabpanel" hidden></div>
+      <div class="tab-body" id="tab-districts" role="tabpanel" hidden></div>
+    </section>
+  </div>
+  <div class="chart-tip" id="chart-tip" hidden></div>
+</body>
+</html>

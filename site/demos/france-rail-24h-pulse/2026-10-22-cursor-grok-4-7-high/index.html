@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Atlas ferroviaire — France</title>
+    <meta
+      name="description"
+      content="Carte animée du réseau voyageurs français : TGV, Intercités et TER, sur vingt-quatre heures."
+    />
+  </head>
+  <body>
+    <div id="map"></div>
+    <div class="vignette" aria-hidden="true"></div>
+    <div id="labels" aria-hidden="true"></div>
+
+    <header class="top">
+      <div class="modes" role="tablist" aria-label="Mode de lecture">
+        <button type="button" data-mode="run" aria-pressed="true">Circulation</button>
+        <button type="button" data-mode="access" aria-pressed="false">Accessibilité</button>
+        <button type="button" data-mode="flow" aria-pressed="false">Fréquentation</button>
+      </div>
+    </header>
+
+    <aside class="panel panel-left" id="left">
+      <p class="kicker">Réseau voyageurs</p>
+      <h1>Atlas</h1>
+      <p class="lede">Ferroviaire · France métropolitaine</p>
+      <p class="day" id="day">Jeudi 22 octobre 2026</p>
+
+      <label class="search">
+        <span class="sr">Rechercher une gare</span>
+        <input id="q" type="search" placeholder="Rechercher une gare" autocomplete="off" spellcheck="false" />
+        <ul id="results" hidden></ul>
+      </label>
+
+      <section id="legend-cats" class="legend">
+        <header>
+          <h2>Services</h2>
+          <button type="button" id="show-all" hidden>Tout afficher</button>
+        </header>
+        <button type="button" class="cat" data-cat="0">
+          <i class="swatch tgv"></i>
+          <span class="cat-name">TGV<small>InOui, Ouigo, Lyria, ICE</small></span>
+          <span class="cat-num"><b data-live="0">0</b><small data-day="0"></small></span>
+        </button>
+        <button type="button" class="cat" data-cat="1">
+          <i class="swatch ic"></i>
+          <span class="cat-name">Intercités<small>Jour et nuit</small></span>
+          <span class="cat-num"><b data-live="1">0</b><small data-day="1"></small></span>
+        </button>
+        <button type="button" class="cat" data-cat="2">
+          <i class="swatch ter"></i>
+          <span class="cat-name">TER<small>Régional et tram-train</small></span>
+          <span class="cat-num"><b data-live="2">0</b><small data-day="2"></small></span>
+        </button>
+        <p class="hint">Cliquer pour filtrer. Double-clic pour isoler une catégorie. Le calcul d’accessibilité suit ce filtre.</p>
+      </section>
+
+      <section id="legend-access" class="legend" hidden>
+        <h2>Temps de parcours</h2>
+        <ul class="scale">
+          <li><i style="background:#ffe08a"></i> Moins d’1 h <b data-bin="0"></b></li>
+          <li><i style="background:#b6e38a"></i> 1 à 2 h <b data-bin="1"></b></li>
+          <li><i style="background:#3dcec2"></i> 2 à 3 h <b data-bin="2"></b></li>
+          <li><i style="background:#7aa2ff"></i> 3 à 5 h <b data-bin="3"></b></li>
+          <li><i style="background:#c792ea"></i> Plus de 5 h <b data-bin="4"></b></li>
+          <li><i style="background:#3a424c"></i> Sans liaison <b data-bin="5"></b></li>
+        </ul>
+        <p class="hint" id="access-note">Choisissez une gare. Le temps indiqué est le meilleur de la journée, attentes en gare et correspondances comprises. Entre les gares parisiennes, une liaison urbaine de 20 à 45&nbsp;min est comptée.</p>
+      </section>
+
+      <section id="legend-flow" class="legend" hidden>
+        <h2>Trains sur 24 h</h2>
+        <div class="ramp" aria-hidden="true"></div>
+        <div class="ramp-labels"><span>calme</span><span>très fréquenté</span></div>
+        <p class="hint">Épaisseur et lumière suivent le nombre de trains voyageurs qui empruntent chaque tronçon du réseau ferré national au cours de la journée.</p>
+      </section>
+
+      <footer class="sources">
+        <p>
+          Horaires SNCF (GTFS), formes du RFN et liste des gares — Open Data SNCF, licence ODbL.
+          <a href="https://ressources.data.sncf.com/explore/dataset/horaires-sncf" target="_blank" rel="noreferrer">Horaires</a>
+          ·
+          <a href="https://ressources.data.sncf.com/explore/dataset/formes-des-lignes-du-rfn" target="_blank" rel="noreferrer">RFN</a>
+          ·
+          <a href="https://transport.data.gouv.fr/datasets/horaires-sncf" target="_blank" rel="noreferrer">transport.data.gouv.fr</a>
+        </p>
+      </footer>
+    </aside>
+
+    <aside class="panel panel-right" id="right">
+      <div class="clock-block">
+        <div class="clock" id="clock" aria-live="off">
+          <span id="hh">00</span><span class="colon">:</span><span id="mm">00</span>
+          <span id="ss">00</span>
+        </div>
+        <p class="clock-caption">Heure de Paris · horaire du 22 octobre 2026</p>
+      </div>
+
+      <div class="summary">
+        <p class="big" id="active-total">0</p>
+        <p class="big-label">trains en circulation</p>
+        <div class="bars" id="bars"></div>
+      </div>
+
+      <div class="spark">
+        <div class="spark-head">
+          <h2>Profil des 24 heures</h2>
+        </div>
+        <div class="spark-frame">
+          <canvas id="spark"></canvas>
+          <div id="spark-play"></div>
+        </div>
+      </div>
+
+      <div id="stats-detail">
+        <h2 id="hour-title">Gares les plus actives</h2>
+        <ol id="busy"></ol>
+      </div>
+
+      <div id="inspector" hidden></div>
+    </aside>
+
+    <footer class="deck">
+      <button type="button" id="play" aria-label="Lecture" aria-pressed="true">
+        <svg id="icon-play" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <path d="M4 2.5v11l10-5.5z" fill="currentColor" />
+        </svg>
+        <svg id="icon-pause" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" hidden>
+          <path d="M3 2h3.2v12H3zM9.8 2H13v12H9.8z" fill="currentColor" />
+        </svg>
+      </button>
+      <div class="speeds" role="group" aria-label="Vitesse">
+        <button type="button" data-rate="1">×60</button>
+        <button type="button" data-rate="5" aria-pressed="true">×300</button>
+        <button type="button" data-rate="15">×900</button>
+        <button type="button" data-rate="60">×3600</button>
+      </div>
+      <div class="track" id="track">
+        <canvas id="profile"></canvas>
+        <div id="playhead"></div>
+      </div>
+      <button type="button" id="now" class="now">Maintenant</button>
+    </footer>
+
+    <div id="tip" hidden></div>
+
+    <div id="boot">
+      <p class="kicker">Réseau voyageurs</p>
+      <h1>Atlas</h1>
+      <p class="lede">Ferroviaire · France métropolitaine</p>
+      <div class="boot-bar"><span id="boot-fill"></span></div>
+      <p id="boot-status">Ouverture du réseau…</p>
+    </div>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
