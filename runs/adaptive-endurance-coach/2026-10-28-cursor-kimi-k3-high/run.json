@@ -1,0 +1,75 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-28-cursor-kimi-k3-high",
+  "series_id": "adaptive-endurance-coach-cursor",
+  "prompt_id": "adaptive-endurance-coach",
+  "prompt_sha256": "e063f7eae123635edd93949fd72db2786565f11feb74211cad924bcb1309570c",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "moonshot",
+    "name": "Kimi K3",
+    "context": null,
+    "reasoning": "high"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": null,
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-28T20:06:49.636Z",
+    "ended_at": null
+  },
+  "tokens": {
+    "split_rule": "unavailable",
+    "reasoning_tokens": null,
+    "visible_tokens": null,
+    "raw": {}
+  },
+  "model_time": {
+    "source": "unavailable",
+    "generating_seconds": null,
+    "raw": {}
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    },
+    "files": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    },
+    "visual_checks": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": null,
+      "failures": null,
+      "by_tool": {}
+    }
+  },
+  "context_reread": {
+    "source": "unavailable",
+    "cache_read_tokens": null,
+    "cache_write_tokens": null,
+    "uncached_input_tokens": null,
+    "raw": {}
+  },
+  "outcome": {
+    "model_stopped": null,
+    "operator_saw_a_page": null,
+    "summary": ""
+  },
+  "observations": ""
+}
