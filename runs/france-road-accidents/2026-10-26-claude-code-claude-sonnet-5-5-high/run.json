@@ -218,10 +218,10 @@
     "raw": {
       "tool_events": {
         "wall_seconds": 3296.5,
-        "tool_seconds_merged": 1038.4,
-        "tool_seconds_summed": 1038.8,
+        "tool_seconds_merged": 1038.0,
+        "tool_seconds_summed": 1038.4,
         "tools_without_duration": 0,
-        "wall_clock_minus_tool_seconds": 2258.1,
+        "wall_clock_minus_tool_seconds": 2258.6,
         "thinking_seconds": 1364.2,
         "thought_blocks": 120,
         "timing_source": "claude_sessions",
@@ -235,25 +235,29 @@
   },
   "tool_calls": {
     "shell": {
-      "calls": 96,
-      "failures": 9,
+      "calls": 92,
+      "failures": 5,
       "by_tool": {
         "Bash": {
-          "calls": 95,
-          "failures": 8
+          "calls": 91,
+          "failures": 4
         },
-        "bash": {
+        "unknown tool (error)": {
           "calls": 1,
           "failures": 1
         }
       }
     },
     "files": {
-      "calls": 56,
+      "calls": 26,
       "failures": 1,
       "by_tool": {
+        "Skill": {
+          "calls": 1,
+          "failures": 0
+        },
         "Read": {
-          "calls": 32,
+          "calls": 1,
           "failures": 1
         },
         "Write": {
@@ -267,9 +271,14 @@
       }
     },
     "visual_checks": {
-      "calls": 0,
+      "calls": 31,
       "failures": 0,
-      "by_tool": {}
+      "by_tool": {
+        "Read": {
+          "calls": 31,
+          "failures": 0
+        }
+      }
     },
     "web": {
       "calls": 0,
@@ -277,14 +286,9 @@
       "by_tool": {}
     },
     "other": {
-      "calls": 1,
+      "calls": 0,
       "failures": 0,
-      "by_tool": {
-        "Skill": {
-          "calls": 1,
-          "failures": 0
-        }
-      }
+      "by_tool": {}
     }
   },
   "context_reread": {
@@ -308,7 +312,7 @@
     "operator_saw_a_page": true,
     "summary": ""
   },
-  "observations": "Isolation hook denied 4 tool call(s): Bash denied: Parent directory traversal outside workspace is blocked by isolation policy; Bash denied: Parent directory traversal outside workspace is blocked by isolation policy; Bash denied: Parent directory traversal outside workspace is blocked by isolation policy; Bash denied: Parent directory traversal outside workspace is blocked by isolation policy. other tools: Skill. Operator override (2026-10-28): verification marked passed. Smoke test false negative: the app is built in site/ and served by the model; the verifier only looks for a server at the workspace root.",
+  "observations": "Isolation hook denied 4 tool call(s): Bash denied: Parent directory traversal outside workspace is blocked by isolation policy; Bash denied: Parent directory traversal outside workspace is blocked by isolation policy; Bash denied: Parent directory traversal outside workspace is blocked by isolation policy; Bash denied: Parent directory traversal outside workspace is blocked by isolation policy. Operator override (2026-10-28): verification marked passed. Smoke test false negative: the app is built in site/ and served by the model; the verifier only looks for a server at the workspace root.",
   "verification": {
     "runtime": {
       "passed": true,

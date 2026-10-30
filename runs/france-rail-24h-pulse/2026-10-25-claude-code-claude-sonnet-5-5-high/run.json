@@ -215,33 +215,38 @@
   },
   "tool_calls": {
     "shell": {
-      "calls": 69,
-      "failures": 2,
+      "calls": 68,
+      "failures": 1,
       "by_tool": {
         "Bash": {
-          "calls": 69,
-          "failures": 2
+          "calls": 68,
+          "failures": 1
         }
       }
     },
     "files": {
-      "calls": 30,
+      "calls": 13,
       "failures": 0,
       "by_tool": {
         "Write": {
           "calls": 12,
           "failures": 0
         },
-        "Read": {
-          "calls": 18,
+        "Skill": {
+          "calls": 1,
           "failures": 0
         }
       }
     },
     "visual_checks": {
-      "calls": 0,
+      "calls": 18,
       "failures": 0,
-      "by_tool": {}
+      "by_tool": {
+        "Read": {
+          "calls": 18,
+          "failures": 0
+        }
+      }
     },
     "web": {
       "calls": 0,
@@ -249,14 +254,9 @@
       "by_tool": {}
     },
     "other": {
-      "calls": 1,
+      "calls": 0,
       "failures": 0,
-      "by_tool": {
-        "Skill": {
-          "calls": 1,
-          "failures": 0
-        }
-      }
+      "by_tool": {}
     }
   },
   "context_reread": {
@@ -280,7 +280,7 @@
     "operator_saw_a_page": false,
     "summary": ""
   },
-  "observations": "Isolation hook denied 1 tool call(s): Bash denied: Parent directory traversal outside workspace is blocked by isolation policy. other tools: Skill.",
+  "observations": "Isolation hook denied 1 tool call(s): Bash denied: Parent directory traversal outside workspace is blocked by isolation policy.",
   "verification": {
     "runtime": {
       "passed": true,

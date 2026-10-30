@@ -128,17 +128,17 @@
   },
   "tool_calls": {
     "shell": {
-      "calls": 60,
-      "failures": 10,
+      "calls": 59,
+      "failures": 9,
       "by_tool": {
         "Shell": {
-          "calls": 60,
-          "failures": 10
+          "calls": 59,
+          "failures": 9
         }
       }
     },
     "files": {
-      "calls": 41,
+      "calls": 36,
       "failures": 0,
       "by_tool": {
         "Grep": {
@@ -150,7 +150,7 @@
           "failures": 0
         },
         "Read": {
-          "calls": 21,
+          "calls": 16,
           "failures": 0
         },
         "Glob": {
@@ -160,9 +160,14 @@
       }
     },
     "visual_checks": {
-      "calls": 0,
+      "calls": 5,
       "failures": 0,
-      "by_tool": {}
+      "by_tool": {
+        "Read": {
+          "calls": 5,
+          "failures": 0
+        }
+      }
     },
     "web": {
       "calls": 0,
@@ -201,7 +206,7 @@
     "operator_saw_a_page": true,
     "summary": ""
   },
-  "observations": "1 transcript/tool-event lines were not JSON objects. No stop event recorded; capped run end time at the last non-idle tool/thought event. Isolation audit flagged 2 potential contamination event(s): Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..')",
+  "observations": "1 transcript/tool-event lines were not JSON objects. No stop event recorded; capped run end time at the last non-idle tool/thought event. Isolation audit flagged 2 potential contamination event(s): Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..') Isolation hook denied 1 tool call(s): Shell denied: Parent directory traversal outside workspace is blocked by isolation policy.",
   "verification": {
     "runtime": {
       "passed": true,

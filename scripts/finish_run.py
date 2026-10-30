@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import subprocess
 import sys
 from collections import Counter
@@ -1468,8 +1469,13 @@ def print_tool_summary(summary: ToolEventSummary) -> None:
     print("\nTool events")
     if summary.wall_started_at and summary.wall_ended_at:
         print(f"  Wall clock {summary.wall_started_at} to {summary.wall_ended_at}")
-    if summary.stop_status:
+    if summary.stop_status and summary.stop_status not in {"init", "completed", "success", "end_turn"}:
         print(f"  Stop status: {summary.stop_status}")
+    if summary.isolation_denials:
+        print(
+            f"  Isolation hook denials: {len(summary.isolation_denials)} (excluded from tool counts) — "
+            + "; ".join(summary.isolation_denials[:5])
+        )
     for name in BUCKETS:
         bucket = summary.buckets[name]
         tools = ", ".join(
@@ -1769,6 +1775,10 @@ def apply_pricing_estimate(run: dict, summary: ToolEventSummary | None = None) -
 
 def observation_default(run: dict, summary: ToolEventSummary, *, include_other: bool) -> str:
     existing = run.get("observations") if isinstance(run.get("observations"), str) else ""
+    # Strip any stale "other tools: ..." note if other_tools is empty or not included
+    if not (include_other and summary.other_tools):
+        existing = re.sub(r"\s*other tools:\s*[^.]+\.", "", existing).strip()
+
     extra = list(summary.notes)
     if include_other and summary.other_tools:
         extra.append("other tools: " + ", ".join(summary.other_tools) + ".")

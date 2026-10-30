@@ -147,23 +147,24 @@
       }
     },
     "files": {
-      "calls": 42,
+      "calls": 28,
       "failures": 0,
       "by_tool": {
         "Write": {
           "calls": 28,
           "failures": 0
-        },
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 14,
+      "failures": 0,
+      "by_tool": {
         "Read": {
           "calls": 14,
           "failures": 0
         }
       }
-    },
-    "visual_checks": {
-      "calls": 0,
-      "failures": 0,
-      "by_tool": {}
     },
     "web": {
       "calls": 0,

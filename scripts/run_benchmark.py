@@ -395,7 +395,10 @@ def build_container_command(
     """
     norm_harness = canonical_harness(harness)
     norm_cache = normalize_cache_setting(cache)
-    cmd = ["docker", "run", "--rm", "-i", "--init", "--shm-size=2g"]
+    base_flags = ["--rm", "--init", "--shm-size=2g"]
+    if norm_harness != "claude-code":
+        base_flags.insert(1, "-i")
+    cmd = ["docker", "run", *base_flags]
     if container_name:
         cmd.extend(["--name", container_name])
     cmd.extend([
@@ -1685,6 +1688,7 @@ def run_benchmark_container(
             try:
                 res = subprocess.run(
                     full_cmd,
+                    stdin=subprocess.DEVNULL,
                     capture_output=True,
                     text=True,
                     env=env,
@@ -1780,6 +1784,7 @@ def run_benchmark_container(
 
                 proc = subprocess.Popen(
                     full_cmd,
+                    stdin=subprocess.DEVNULL,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,

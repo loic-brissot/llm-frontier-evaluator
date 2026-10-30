@@ -92,10 +92,10 @@
     "raw": {
       "tool_events": {
         "wall_seconds": 1356.5,
-        "tool_seconds_merged": 149.6,
-        "tool_seconds_summed": 149.6,
+        "tool_seconds_merged": 149.9,
+        "tool_seconds_summed": 149.9,
         "tools_without_duration": 0,
-        "wall_clock_minus_tool_seconds": 1206.8,
+        "wall_clock_minus_tool_seconds": 1206.6,
         "thinking_seconds": 464.9,
         "thought_blocks": 51
       }
@@ -114,11 +114,15 @@
     },
     "files": {
       "calls": 18,
-      "failures": 7,
+      "failures": 0,
       "by_tool": {
         "Read": {
-          "calls": 18,
-          "failures": 7
+          "calls": 1,
+          "failures": 0
+        },
+        "Write": {
+          "calls": 17,
+          "failures": 0
         }
       }
     },
@@ -164,7 +168,7 @@
     "operator_saw_a_page": true,
     "summary": "Kickass visualization of the trains running across France"
   },
-  "observations": "Tool counts use the first prompt and the first stop. The logged prompt bytes differ from prompt/france-rail-24h-pulse.txt.",
+  "observations": "Tool counts use the first prompt and the first stop. The logged prompt bytes differ from prompt/france-rail-24h-pulse.txt. Isolation audit flagged 110 potential contamination event(s): Read referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell attempted parent traversal ('..'), Shell referenced 'llm-frontier-evaluator', Shell attempted parent traversal ('..'), Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator'",
   "verification": {
     "data_pipeline": {
       "prompt_id": "france-rail-24h-pulse",

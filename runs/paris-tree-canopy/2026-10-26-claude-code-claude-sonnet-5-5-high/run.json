@@ -213,30 +213,35 @@
           "calls": 42,
           "failures": 1
         },
-        "bash": {
+        "unknown tool (error)": {
           "calls": 1,
           "failures": 1
         }
       }
     },
     "files": {
-      "calls": 40,
+      "calls": 8,
       "failures": 0,
       "by_tool": {
-        "Write": {
-          "calls": 7,
+        "Skill": {
+          "calls": 1,
           "failures": 0
         },
-        "Read": {
-          "calls": 33,
+        "Write": {
+          "calls": 7,
           "failures": 0
         }
       }
     },
     "visual_checks": {
-      "calls": 0,
+      "calls": 33,
       "failures": 0,
-      "by_tool": {}
+      "by_tool": {
+        "Read": {
+          "calls": 33,
+          "failures": 0
+        }
+      }
     },
     "web": {
       "calls": 0,
@@ -244,14 +249,9 @@
       "by_tool": {}
     },
     "other": {
-      "calls": 1,
+      "calls": 0,
       "failures": 0,
-      "by_tool": {
-        "Skill": {
-          "calls": 1,
-          "failures": 0
-        }
-      }
+      "by_tool": {}
     }
   },
   "context_reread": {
@@ -275,7 +275,7 @@
     "operator_saw_a_page": true,
     "summary": ""
   },
-  "observations": "other tools: Skill. Operator override (2026-10-28): verification marked passed. Probe false negative: the ~220k tree inventory ships as gzipped binary (data/trees.bin.gz), which the probe cannot count.",
+  "observations": "Operator override (2026-10-28): verification marked passed. Probe false negative: the ~220k tree inventory ships as gzipped binary (data/trees.bin.gz), which the probe cannot count.",
   "verification": {
     "runtime": {
       "passed": true,

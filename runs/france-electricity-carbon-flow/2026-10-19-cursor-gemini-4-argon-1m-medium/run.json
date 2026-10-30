@@ -91,8 +91,8 @@
     "raw": {
       "tool_events": {
         "wall_seconds": 1101.6,
-        "tool_seconds_merged": 42.5,
-        "tool_seconds_summed": 42.5,
+        "tool_seconds_merged": 42.6,
+        "tool_seconds_summed": 42.6,
         "tools_without_duration": 0,
         "wall_clock_minus_tool_seconds": 1059.0,
         "thinking_seconds": 875.1,
@@ -113,14 +113,18 @@
     },
     "files": {
       "calls": 4,
-      "failures": 2,
+      "failures": 0,
       "by_tool": {
         "Read": {
-          "calls": 3,
-          "failures": 2
+          "calls": 1,
+          "failures": 0
         },
         "Grep": {
           "calls": 1,
+          "failures": 0
+        },
+        "Write": {
+          "calls": 2,
           "failures": 0
         }
       }
@@ -167,7 +171,7 @@
     "operator_saw_a_page": true,
     "summary": "Flashy colors but contains all the information"
   },
-  "observations": "Ignored 2 extra conversation(s) in tool-events log (5328df27-0b60-4acb-984e-0cb1d0a5240c, e3642e3d-a6b4-46d6-984a-d9f0a88b1fbc). The logged prompt bytes differ from prompt/france-electricity-carbon-flow.txt. Ignored 3 extra conversation(s) in tool-events log (2ee0304f-3439-462b-a2b2-2ce9d506ede3, 5328df27-0b60-4acb-984e-0cb1d0a5240c, e3642e3d-a6b4-46d6-984a-d9f0a88b1fbc). The logged prompt bytes differ from prompt/france-electricity-carbon-flow.txt.",
+  "observations": "Ignored 2 extra conversation(s) in tool-events log (5328df27-0b60-4acb-984e-0cb1d0a5240c, e3642e3d-a6b4-46d6-984a-d9f0a88b1fbc). The logged prompt bytes differ from prompt/france-electricity-carbon-flow.txt. Ignored 3 extra conversation(s) in tool-events log (2ee0304f-3439-462b-a2b2-2ce9d506ede3, 5328df27-0b60-4acb-984e-0cb1d0a5240c, e3642e3d-a6b4-46d6-984a-d9f0a88b1fbc). The logged prompt bytes differ from prompt/france-electricity-carbon-flow.txt. Isolation audit flagged 5 potential contamination event(s): Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator'",
   "verification": {
     "data_pipeline": {
       "prompt_id": "france-electricity-carbon-flow",

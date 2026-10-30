@@ -90,17 +90,17 @@
   },
   "tool_calls": {
     "shell": {
-      "calls": 44,
-      "failures": 5,
+      "calls": 41,
+      "failures": 2,
       "by_tool": {
         "Shell": {
-          "calls": 44,
-          "failures": 5
+          "calls": 41,
+          "failures": 2
         }
       }
     },
     "files": {
-      "calls": 39,
+      "calls": 33,
       "failures": 0,
       "by_tool": {
         "Write": {
@@ -108,15 +108,20 @@
           "failures": 0
         },
         "Read": {
-          "calls": 7,
+          "calls": 1,
           "failures": 0
         }
       }
     },
     "visual_checks": {
-      "calls": 0,
+      "calls": 6,
       "failures": 0,
-      "by_tool": {}
+      "by_tool": {
+        "Read": {
+          "calls": 6,
+          "failures": 0
+        }
+      }
     },
     "web": {
       "calls": 0,
@@ -150,7 +155,7 @@
     "operator_saw_a_page": false,
     "summary": ""
   },
-  "observations": "No stop event recorded; capped run end time at the last non-idle tool/thought event. Isolation audit flagged 6 potential contamination event(s): Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..')",
+  "observations": "No stop event recorded; capped run end time at the last non-idle tool/thought event. Isolation audit flagged 6 potential contamination event(s): Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..') Isolation hook denied 1 tool call(s): Shell denied: Parent directory traversal outside workspace is blocked by isolation policy.",
   "verification": {
     "runtime": {
       "passed": false,

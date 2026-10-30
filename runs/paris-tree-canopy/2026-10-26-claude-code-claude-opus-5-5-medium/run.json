@@ -216,6 +216,16 @@
       }
     },
     "files": {
+      "calls": 1,
+      "failures": 0,
+      "by_tool": {
+        "Skill": {
+          "calls": 1,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
       "calls": 18,
       "failures": 0,
       "by_tool": {
@@ -225,25 +235,15 @@
         }
       }
     },
-    "visual_checks": {
-      "calls": 0,
-      "failures": 0,
-      "by_tool": {}
-    },
     "web": {
       "calls": 0,
       "failures": 0,
       "by_tool": {}
     },
     "other": {
-      "calls": 1,
+      "calls": 0,
       "failures": 0,
-      "by_tool": {
-        "Skill": {
-          "calls": 1,
-          "failures": 0
-        }
-      }
+      "by_tool": {}
     }
   },
   "context_reread": {
@@ -267,7 +267,7 @@
     "operator_saw_a_page": true,
     "summary": ""
   },
-  "observations": "other tools: Skill. Operator override (2026-10-28): verification marked passed. Smoke test false negative: the intro-gate heuristic clicked the 'Remarkable trees only' filter toggle, which is not an intro overlay; the app renders. Probe false negative: the ~220k tree inventory ships as packed binary (public/data/trees.bin), which the probe cannot count.",
+  "observations": "Operator override (2026-10-28): verification marked passed. Smoke test false negative: the intro-gate heuristic clicked the 'Remarkable trees only' filter toggle, which is not an intro overlay; the app renders. Probe false negative: the ~220k tree inventory ships as packed binary (public/data/trees.bin), which the probe cannot count.",
   "verification": {
     "runtime": {
       "passed": true,

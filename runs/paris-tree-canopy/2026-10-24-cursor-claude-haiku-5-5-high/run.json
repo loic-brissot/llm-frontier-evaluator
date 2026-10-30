@@ -101,23 +101,24 @@
       }
     },
     "files": {
-      "calls": 57,
+      "calls": 49,
       "failures": 0,
       "by_tool": {
         "Write": {
           "calls": 49,
           "failures": 0
-        },
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 8,
+      "failures": 0,
+      "by_tool": {
         "Read": {
           "calls": 8,
           "failures": 0
         }
       }
-    },
-    "visual_checks": {
-      "calls": 0,
-      "failures": 0,
-      "by_tool": {}
     },
     "web": {
       "calls": 0,
