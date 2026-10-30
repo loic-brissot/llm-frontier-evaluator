@@ -239,10 +239,10 @@
     "raw": {
       "tool_events": {
         "wall_seconds": 3664.1,
-        "tool_seconds_merged": 1111.7,
-        "tool_seconds_summed": 1200.3,
+        "tool_seconds_merged": 1111.5,
+        "tool_seconds_summed": 1200.1,
         "tools_without_duration": 0,
-        "wall_clock_minus_tool_seconds": 2552.4,
+        "wall_clock_minus_tool_seconds": 2552.7,
         "thinking_seconds": 1746.5,
         "thought_blocks": 158,
         "timing_source": "claude_sessions",
@@ -256,33 +256,46 @@
   },
   "tool_calls": {
     "shell": {
-      "calls": 94,
-      "failures": 7,
+      "calls": 90,
+      "failures": 4,
       "by_tool": {
         "Bash": {
-          "calls": 94,
-          "failures": 7
+          "calls": 90,
+          "failures": 4
         }
       }
     },
     "files": {
-      "calls": 81,
-      "failures": 4,
+      "calls": 25,
+      "failures": 0,
       "by_tool": {
-        "Read": {
-          "calls": 59,
-          "failures": 4
+        "ToolSearch": {
+          "calls": 1,
+          "failures": 0
         },
         "Write": {
           "calls": 22,
+          "failures": 0
+        },
+        "Skill": {
+          "calls": 1,
+          "failures": 0
+        },
+        "Read": {
+          "calls": 1,
           "failures": 0
         }
       }
     },
     "visual_checks": {
-      "calls": 0,
-      "failures": 0,
-      "by_tool": {}
+      "calls": 58,
+      "failures": 4,
+      "by_tool": {
+        "Read": {
+          "calls": 58,
+          "failures": 4
+        }
+      }
     },
     "web": {
       "calls": 4,
@@ -295,18 +308,9 @@
       }
     },
     "other": {
-      "calls": 2,
+      "calls": 0,
       "failures": 0,
-      "by_tool": {
-        "ToolSearch": {
-          "calls": 1,
-          "failures": 0
-        },
-        "Skill": {
-          "calls": 1,
-          "failures": 0
-        }
-      }
+      "by_tool": {}
     }
   },
   "context_reread": {
@@ -330,7 +334,7 @@
     "operator_saw_a_page": false,
     "summary": ""
   },
-  "observations": "Isolation hook denied 3 tool call(s): Bash denied: Parent directory traversal outside workspace is blocked by isolation policy; Bash denied: Parent directory traversal outside workspace is blocked by isolation policy; Bash denied: Parent directory traversal outside workspace is blocked by isolation policy. other tools: Skill, ToolSearch.",
+  "observations": "Isolation hook denied 3 tool call(s): Bash denied: Parent directory traversal outside workspace is blocked by isolation policy; Bash denied: Parent directory traversal outside workspace is blocked by isolation policy; Bash denied: Parent directory traversal outside workspace is blocked by isolation policy.",
   "verification": {
     "runtime": {
       "passed": true,

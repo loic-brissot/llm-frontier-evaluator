@@ -61,7 +61,8 @@ NAME_BUCKETS = {
     "askquestion": "other",
     "exitplanmode": "other",
     "enterplanmode": "other",
-    "skill": "other",
+    "skill": "files",
+    "toolsearch": "files",
     "slashcommand": "other",
     "updateplan": "other",
     "requestuserinput": "other",
@@ -105,6 +106,7 @@ class ToolEventSummary:
     notes: list[str] = field(default_factory=list)
     other_tools: list[str] = field(default_factory=list)
     isolation_breaches: list[str] = field(default_factory=list)
+    isolation_denials: list[str] = field(default_factory=list)
     # Headless claude-code (`claude -p --output-format stream-json`) aggregates, one attempt per init event.
     claude_attempts: int = 0
     claude_attempts_without_result: int = 0
@@ -229,6 +231,61 @@ def audit_isolation(records: list[dict]) -> list[str]:
     return breaches
 
 
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+
+UNKNOWN_TOOL_FAILURE = "unknown tool (error)"
+
+
+def _is_image_path(path_val: object) -> bool:
+    if not isinstance(path_val, str) or not path_val.strip():
+        return False
+    clean = path_val.strip().split("?")[0].split("#")[0].lower()
+    return any(clean.endswith(ext) for ext in IMAGE_EXTENSIONS)
+
+
+def _extract_file_path(tool_input: object) -> str | None:
+    if isinstance(tool_input, str) and tool_input.strip().startswith("{"):
+        try:
+            tool_input = json.loads(tool_input)
+        except Exception:
+            pass
+    if isinstance(tool_input, dict):
+        for key in ("file_path", "path", "target_file", "file", "filePath", "targetFile"):
+            val = tool_input.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+    elif isinstance(tool_input, str):
+        return tool_input.strip()
+    return None
+
+
+UNKNOWN_TOOL_FAILURE = "unknown tool (error)"
+
+
+def _is_image_path(path_val: object) -> bool:
+    if not isinstance(path_val, str) or not path_val.strip():
+        return False
+    clean = path_val.strip().split("?")[0].split("#")[0].lower()
+    return any(clean.endswith(ext) for ext in IMAGE_EXTENSIONS)
+
+
+def _extract_file_path(tool_input: object) -> str | None:
+    if isinstance(tool_input, str) and tool_input.strip().startswith("{"):
+        try:
+            tool_input = json.loads(tool_input)
+        except Exception:
+            pass
+    if isinstance(tool_input, dict):
+        for key in ("file_path", "path", "target_file", "file", "filePath", "targetFile"):
+            val = tool_input.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+    elif isinstance(tool_input, str):
+        return tool_input.strip()
+    return None
+
+
 def effective_tool_name(tool_name: str, tool_input: object = None) -> str:
     leaf = tool_name.split(":")[-1]
     key = re.sub(r"[^a-z0-9]+", "", leaf.lower())
@@ -247,9 +304,17 @@ def effective_tool_name(tool_name: str, tool_input: object = None) -> str:
 
 
 def bucket_for(tool_name: str, tool_input: object = None) -> str:
+    if tool_name == UNKNOWN_TOOL_FAILURE:
+        return "other"
     eff_name = effective_tool_name(tool_name, tool_input)
     leaf = eff_name.split(":")[-1]
     key = re.sub(r"[^a-z0-9]+", "", leaf.lower())
+
+    if key in ("read", "readfile", "viewfile"):
+        path_str = _extract_file_path(tool_input)
+        if path_str and _is_image_path(path_str):
+            return "visual_checks"
+
     mapped = NAME_BUCKETS.get(key)
     if mapped:
         return mapped
@@ -913,11 +978,29 @@ def apply_claude_session_timing(summary: ToolEventSummary, run_dir: Path) -> boo
     active = sum((end - begin).total_seconds() for begin, end in spans)
 
     # Tool intervals, keyed by tool_use_id.
+    denied_tids: set[str] = set()
+    for h in hooks:
+        if h.get("hook_event_name") == "PreToolUse" and h.get("failure_type") == "isolation_blocked":
+            tid = h.get("tool_use_id")
+            if tid:
+                denied_tids.add(str(tid))
+    for e in transcript:
+        msg = e.get("message")
+        content = msg.get("content") if isinstance(msg, dict) else None
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "tool_result":
+                    res_content = str(block.get("content") or "")
+                    if "blocked by isolation policy" in res_content:
+                        tid = block.get("tool_use_id")
+                        if tid:
+                            denied_tids.add(str(tid))
+
     pre: dict[str, datetime] = {}
     post: dict[str, datetime] = {}
     for h in hooks:
         tid = h.get("tool_use_id")
-        if not tid:
+        if not tid or str(tid) in denied_tids:
             continue
         if h.get("hook_event_name") == "PreToolUse" and not h.get("failed"):
             pre.setdefault(str(tid), parse_time(h["logged_at"]))
@@ -932,6 +1015,9 @@ def apply_claude_session_timing(summary: ToolEventSummary, run_dir: Path) -> boo
             continue
         for block in content:
             if not isinstance(block, dict):
+                continue
+            tid = block.get("id") or block.get("tool_use_id")
+            if tid and str(tid) in denied_tids:
                 continue
             if block.get("type") == "tool_use" and block.get("id"):
                 used.setdefault(str(block["id"]), parse_time(e["timestamp"]))
@@ -1073,12 +1159,21 @@ def _claude_hook_records(hooks: list[dict]) -> list[dict]:
     records: list[dict] = []
     seen: set[str] = set()
     failed: set[str] = set()
+    denied_tids: set[str] = {
+        str(h.get("tool_use_id"))
+        for h in hooks
+        if h.get("tool_use_id")
+        and h.get("hook_event_name") == "PreToolUse"
+        and h.get("failure_type") == "isolation_blocked"
+    }
     for hook in hooks:
         name = hook.get("hook_event_name")
         tid = hook.get("tool_use_id")
         if not tid or not hook.get("tool_name"):
             continue
         tid = str(tid)
+        if tid in denied_tids:
+            continue
         if name == "PreToolUse" and tid not in seen:
             seen.add(tid)
             records.append({"type": "assistant", "message": {"id": f"hook-{tid}", "content": [
@@ -1200,14 +1295,20 @@ def validate_claude_prompts(
 
 def audit_claude_hook_denials(summary: ToolEventSummary, hooks: list[dict]) -> None:
     """Report tool calls the .claude isolation hook denied (PreToolUse, failure_type isolation_blocked)."""
+    count = 0
     for hook in hooks:
         if hook.get("hook_event_name") == "PreToolUse" and hook.get("failure_type") == "isolation_blocked":
+            count += 1
             tool_name = hook.get("tool_name") or "tool"
             reason = hook.get("error_message") or "blocked by isolation policy"
-            summary.isolation_breaches.append(f"{tool_name} denied: {reason}")
+            entry = f"{tool_name} denied: {reason}"
+            summary.isolation_breaches.append(entry)
+            summary.isolation_denials.append(entry)
     denied = [b for b in summary.isolation_breaches if " denied: " in b]
     if denied:
-        summary.notes.append(f"Isolation hook denied {len(denied)} tool call(s): " + "; ".join(denied[:5]) + ".")
+        denied_note = f"Isolation hook denied {len(denied)} tool call(s): " + "; ".join(denied[:5]) + "."
+        if denied_note not in summary.notes:
+            summary.notes.append(denied_note)
 
 
 def apply_claude_interactive_telemetry(
@@ -1298,9 +1399,11 @@ def _process_transcript_records(
                 summary.model_slug = m.strip()
 
         if not summary.stop_status:
-            st = r.get("subtype") or r.get("status") or r.get("stop_reason")
-            if isinstance(st, str) and st.strip():
-                summary.stop_status = st.strip()
+            # Ignore routine lifecycle events like system/init
+            if r.get("type") not in ("system", "init") and r.get("subtype") != "init":
+                st = r.get("stop_reason") or r.get("subtype") or r.get("status")
+                if isinstance(st, str) and st.strip() and st.strip() != "init":
+                    summary.stop_status = st.strip()
 
     if timestamps:
         start = min(timestamps)
@@ -1522,12 +1625,38 @@ def _process_transcript_records(
             else:
                 summary.split_rule = "unavailable"
 
+    denied_tool_ids: set[str] = set()
+    unknown_tool_ids: set[str] = set()
+    for r in records:
+        content = r.get("content") or (r.get("message", {}).get("content") if isinstance(r.get("message"), dict) else None)
+        if isinstance(content, list):
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "tool_result":
+                    res_content = str(item.get("content") or "")
+                    tid = item.get("tool_use_id")
+                    if "blocked by isolation policy" in res_content or "Parent directory traversal outside workspace is blocked" in res_content:
+                        if tid:
+                            denied_tool_ids.add(str(tid))
+                    elif "No such tool available" in res_content:
+                        if tid:
+                            unknown_tool_ids.add(str(tid))
+        if r.get("hook_event_name") in ("preToolUse", "PreToolUse") and r.get("failure_type") == "isolation_blocked":
+            tid = r.get("tool_use_id")
+            if tid:
+                denied_tool_ids.add(str(tid))
+
     call_map: dict[str, tuple[str, str]] = {}
     buckets = _empty_buckets()
 
     def record_call(tool_id: str | None, tool_name: str, tool_input: object = None) -> None:
-        eff_name = effective_tool_name(tool_name, tool_input)
-        bucket = bucket_for(tool_name, tool_input)
+        if tool_id and str(tool_id) in denied_tool_ids:
+            return
+        if tool_id and str(tool_id) in unknown_tool_ids:
+            eff_name = UNKNOWN_TOOL_FAILURE
+            bucket = bucket_for(tool_name, tool_input)
+        else:
+            eff_name = effective_tool_name(tool_name, tool_input)
+            bucket = bucket_for(tool_name, tool_input)
         if tool_id:
             call_map[str(tool_id)] = (eff_name, bucket)
         entry = buckets[bucket]
@@ -1536,10 +1665,15 @@ def _process_transcript_records(
         tc["calls"] += 1
 
     def record_failure(tool_id: str | None, tool_name: str | None = None, tool_input: object = None) -> None:
+        if tool_id and str(tool_id) in denied_tool_ids:
+            return
         eff_name = None
         bucket = None
         if tool_id and str(tool_id) in call_map:
             eff_name, bucket = call_map[str(tool_id)]
+        elif tool_id and str(tool_id) in unknown_tool_ids:
+            eff_name = UNKNOWN_TOOL_FAILURE
+            bucket = bucket_for(tool_name, tool_input) if tool_name else "other"
         elif tool_name:
             eff_name = effective_tool_name(tool_name, tool_input)
             bucket = bucket_for(tool_name, tool_input)
@@ -1815,11 +1949,34 @@ def _summarize_cursor_hook_records(
             if prompt_text != expected:
                 summary.notes.append(f"The logged prompt bytes differ from prompt/{expected_path.name}.")
 
+    denied_cursor_tids: set[str] = set()
+    for record in records:
+        hook = record.get("hook_event_name")
+        tid = record.get("tool_use_id")
+        if not tid:
+            continue
+        if hook == "preToolUse" and record.get("failure_type") == "isolation_blocked":
+            denied_cursor_tids.add(str(tid))
+            tool_name = record.get("tool_name") or "tool"
+            reason = record.get("error_message") or "blocked by isolation policy"
+            entry = f"{tool_name} denied: {reason}"
+            if entry not in summary.isolation_breaches:
+                summary.isolation_breaches.append(entry)
+            if entry not in summary.isolation_denials:
+                summary.isolation_denials.append(entry)
+        elif hook in TOOL_HOOKS:
+            err_msg = str(record.get("error_message") or record.get("error") or "")
+            if "blocked by isolation policy" in err_msg:
+                denied_cursor_tids.add(str(tid))
+
     selected: list[dict] = []
     thoughts: list[dict] = []
     for record in records:
         hook = record.get("hook_event_name")
         if hook not in TOOL_HOOKS and hook != THOUGHT_HOOK:
+            continue
+        tid = record.get("tool_use_id")
+        if tid and str(tid) in denied_cursor_tids:
             continue
         stamped = parse_time(record.get("logged_at") or record.get("timestamp"))
         if start is not None and (stamped is None or stamped < start):
@@ -1888,6 +2045,12 @@ def _summarize_cursor_hook_records(
     summary.buckets = buckets
     summary.tool_duration_ms = duration_ms
     summary.other_tools = sorted(buckets["other"]["by_tool"])
+    if summary.isolation_denials:
+        summary.notes.append(
+            f"Isolation hook denied {len(summary.isolation_denials)} tool call(s): "
+            + "; ".join(summary.isolation_denials[:5])
+            + "."
+        )
     summary.isolation_breaches = audit_isolation(records)
     if summary.isolation_breaches:
         summary.notes.append(

@@ -100,7 +100,7 @@
       }
     },
     "files": {
-      "calls": 10,
+      "calls": 5,
       "failures": 0,
       "by_tool": {
         "Grep": {
@@ -111,10 +111,6 @@
           "calls": 2,
           "failures": 0
         },
-        "Read": {
-          "calls": 5,
-          "failures": 0
-        },
         "Glob": {
           "calls": 1,
           "failures": 0
@@ -122,9 +118,14 @@
       }
     },
     "visual_checks": {
-      "calls": 0,
+      "calls": 5,
       "failures": 0,
-      "by_tool": {}
+      "by_tool": {
+        "Read": {
+          "calls": 5,
+          "failures": 0
+        }
+      }
     },
     "web": {
       "calls": 0,

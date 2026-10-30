@@ -216,23 +216,28 @@
       }
     },
     "files": {
-      "calls": 14,
+      "calls": 6,
       "failures": 0,
       "by_tool": {
-        "Write": {
-          "calls": 5,
+        "Skill": {
+          "calls": 1,
           "failures": 0
         },
-        "Read": {
-          "calls": 9,
+        "Write": {
+          "calls": 5,
           "failures": 0
         }
       }
     },
     "visual_checks": {
-      "calls": 0,
+      "calls": 9,
       "failures": 0,
-      "by_tool": {}
+      "by_tool": {
+        "Read": {
+          "calls": 9,
+          "failures": 0
+        }
+      }
     },
     "web": {
       "calls": 0,
@@ -240,14 +245,9 @@
       "by_tool": {}
     },
     "other": {
-      "calls": 1,
+      "calls": 0,
       "failures": 0,
-      "by_tool": {
-        "Skill": {
-          "calls": 1,
-          "failures": 0
-        }
-      }
+      "by_tool": {}
     }
   },
   "context_reread": {
@@ -271,7 +271,7 @@
     "operator_saw_a_page": true,
     "summary": ""
   },
-  "observations": "other tools: Skill. Operator override (2026-10-28): verification marked passed. Smoke test false negative: the app is built in web/ and served by the model; the verifier only looks for a server at the workspace root.",
+  "observations": "Operator override (2026-10-28): verification marked passed. Smoke test false negative: the app is built in web/ and served by the model; the verifier only looks for a server at the workspace root.",
   "verification": {
     "runtime": {
       "passed": true,

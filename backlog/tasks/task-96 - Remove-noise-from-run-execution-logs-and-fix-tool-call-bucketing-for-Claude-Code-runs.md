@@ -3,7 +3,7 @@ id: TASK-96
 title: >-
   Remove noise from run execution logs and fix tool-call bucketing for Claude
   Code runs
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-28 17:41'
 labels: []
@@ -28,7 +28,7 @@ The finish_run.py / run_benchmark.py output for headless Claude Code runs carrie
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 'Stop status' is removed from the tool summary (or shown only when it carries a real stop reason), and claude -p is started with stdin redirected from /dev/null so the 3 s stdin warning no longer appears
-- [ ] #2 docs/tool-buckets.md and the bucketing code assign Skill to a defined bucket, count Read of image files (png/jpg/webp) as visual_checks, and fold unknown-tool errors such as lowercase 'bash' into a clearly labelled failure instead of a new tool name; 'Incomplete cells' no longer flags claude-code runs for Skill
-- [ ] #3 Tool calls denied by the isolation hook are excluded from tool-call counts and failure counts (still reported on their own line), with unit tests; existing run.json records are recomputed and README.md / dashboard re-synced
+- [x] #1 'Stop status' is removed from the tool summary (or shown only when it carries a real stop reason), and claude -p is started with stdin redirected from /dev/null so the 3 s stdin warning no longer appears
+- [x] #2 docs/tool-buckets.md and the bucketing code assign Skill to a defined bucket, count Read of image files (png/jpg/webp) as visual_checks, and fold unknown-tool errors such as lowercase 'bash' into a clearly labelled failure instead of a new tool name; 'Incomplete cells' no longer flags claude-code runs for Skill
+- [x] #3 Tool calls denied by the isolation hook are excluded from tool-call counts and failure counts (still reported on their own line), with unit tests; existing run.json records are recomputed and README.md / dashboard re-synced
 <!-- AC:END -->

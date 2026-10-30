@@ -39,6 +39,8 @@ The tool reads, searches, edits, or writes workspace files, and it does not run 
 
 The tool inspects the rendered atlas or page output. A screenshot, a DOM or accessibility snapshot, a browser-console read, and any direct browser or Playwright visual verification and page inspection tools (such as `playwright_*`, `browser_*`, `computer`, `take_screenshot`, `snapshot`, etc., including dynamic tool calls wrapping browser or Playwright tools) are visual checks.
 
+Reading an image file (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`) through a file read tool (such as `Read`, `read_file`, or `view_file`) to inspect visual output is also classified under visual checks.
+
 A dev server command executed in a terminal is shell. A headless script executed via `Shell` (e.g., `python script.py` running Playwright) is shell. A source-file read is files.
 
 ### web
@@ -63,9 +65,10 @@ Use the purpose rules above when a name is missing from this map.
 | --- | --- |
 | `Shell`, `Bash`, `shell`, `local_shell`, `exec_command`, `write_stdin`, `container.exec`, `run_terminal_cmd`, `AwaitShell` | shell |
 | `Read`, `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `NotebookRead`, `LS`, `Glob`, `Grep`, `StrReplace`, `Delete`, `EditNotebook`, `apply_patch`, `read_file`, `write_file`, `list_dir`, `find_by_name`, `grep_search`, `view_file` | files |
+| `Skill`, `ToolSearch` | files |
 | `WebSearch`, `WebFetch`, `web_search`, `web_fetch`, `open_url` | web |
-| Browser screenshot, page snapshot, browser console read, `playwright_*`, `browser_*`, `computer` | visual checks |
-| `TodoWrite`, `TodoRead`, `Task`, `Agent`, `SwitchMode`, `AskQuestion`, `ExitPlanMode`, `EnterPlanMode`, `Skill`, `SlashCommand`, `update_plan`, `request_user_input`, `GenerateImage`, `ReadLints`, `GetDynamicTools` | other |
+| Browser screenshot, page snapshot, browser console read, `playwright_*`, `browser_*`, `computer`, image `Read` (`.png`, `.jpg`, `.webp`) | visual checks |
+| `TodoWrite`, `TodoRead`, `Task`, `Agent`, `SwitchMode`, `AskQuestion`, `ExitPlanMode`, `EnterPlanMode`, `SlashCommand`, `update_plan`, `request_user_input`, `GenerateImage`, `ReadLints`, `GetDynamicTools` | other |
 
 An MCP tool follows the same purpose rules. Record its full tool name in `by_tool`. For `CallDynamicTool` / `call_dynamic_tool`, the classifier inspects `tool_input.toolName` (or `tool_name` / `name`) to classify the unwrapped inner tool into its documented bucket (e.g., dynamic `WebSearch` and `WebFetch` map to `web`, dynamic `Delete` maps to `files`, dynamic Playwright/browser tools map to `visual_checks`, `AwaitShell` maps to `shell`, and `GetDynamicTools` stays in `other`).
 

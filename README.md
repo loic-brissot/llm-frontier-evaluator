@@ -29,7 +29,7 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Gemini 4 Argon 1m medium | Cursor | 73k | 17.7 min<br>14.6 min thinking | 21 ✓<br>7 ✗ | 1.0M | $2.55 | UI ✓<br>Data 4/4 ✓<br>3.5k records<br>[Live Demo](demos/france-electricity-carbon-flow/2026-10-19-cursor-gemini-4-argon-1m-medium/index.html) |
+| Gemini 4 Argon 1m medium | Cursor | 73k | 17.7 min<br>14.6 min thinking | 23 ✓<br>5 ✗ | 1.0M | $2.55 | UI ✓<br>Data 4/4 ✓<br>3.5k records<br>[Live Demo](demos/france-electricity-carbon-flow/2026-10-19-cursor-gemini-4-argon-1m-medium/index.html) |
 
 ### `france-rail-24h-pulse`
 
@@ -39,9 +39,9 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Claude Opus 5.5 300k high | Cursor | 90k | 20.1 min<br>7.7 min thinking | 40 ✓<br>10 ✗ | 5.5M | $6.53 | UI ✓<br>Data 3/3 ✓<br>820k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-19-cursor-claude-opus-5-5-high-300k-high/index.html) |
+| Claude Opus 5.5 300k high | Cursor | 90k | 20.1 min<br>7.7 min thinking | 47 ✓<br>3 ✗ | 5.5M | $6.53 | UI ✓<br>Data 3/3 ✓<br>820k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-19-cursor-claude-opus-5-5-high-300k-high/index.html) |
 | Gemini 3.8 Flash high | Cursor | 118k | 18.1 min<br>5.8 min thinking | 122 ✓<br>8 ✗ | 11.0M | $4.75 | UI ✗<br>Data 3/3 ✓<br>828k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high/index.html) |
-| GLM 5.3 high | Cursor | 59k | 10.4 min<br>3.9 min thinking | 78 ✓<br>5 ✗ | 5.0M | $2.95 | UI ✗<br>Data 3/3 ✓<br>827k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-glm-5-3-high/index.html) |
+| GLM 5.3 high | Cursor | 59k | 10.4 min<br>3.9 min thinking | 78 ✓<br>2 ✗ | 5.0M | $2.95 | UI ✗<br>Data 3/3 ✓<br>827k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-glm-5-3-high/index.html) |
 | GPT-5.6 Sol medium | Cursor | 15k | 2.8 min<br>0.2 min thinking | 13 ✓<br>0 ✗ | 0.2M | $0.60 | UI ✗<br>Data 0/3 ⚠<br>118 records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-gpt-5-6-sol-medium/index.html) |
 | Grok 4.7 high | Cursor | n/a | 60.1 min<br>49.8 min thinking | 138 ✓<br>4 ✗ | n/a | n/a | UI ✗<br>Data 3/3 ✓<br>888k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-grok-4-7-high/index.html) |
 | Muse Wonder medium | Cursor | 25k | 3.4 min | 18 ✓<br>1 ✗ | 0.6M | $0.93 | UI ✓<br>Data 0/3 ⚠<br>0 records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-muse-wonder-medium/index.html) |
@@ -52,7 +52,7 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Claude Sonnet 5.5 high | Claude Code | 231k | 26.9 min<br>16.6 min thinking | 97 ✓<br>2 ✗ | 17.9M | $5.42 | UI ✓<br>Data 3/3 ✓<br>830k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-25-claude-code-claude-sonnet-5-5-high/index.html) |
+| Claude Sonnet 5.5 high | Claude Code | 231k | 26.9 min<br>16.6 min thinking | 98 ✓<br>1 ✗ | 17.9M | $5.42 | UI ✓<br>Data 3/3 ✓<br>830k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-25-claude-code-claude-sonnet-5-5-high/index.html) |
 
 ### `france-road-accidents`
 
@@ -62,14 +62,14 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Muse Wonder 300k medium | Cursor | 25k | 4.8 min | 34 ✓<br>7 ✗ | 1.7M | $1.76 | UI ✓<br>Data 2/2 ✓<br>394k records<br>[Live Demo](demos/france-road-accidents/2026-10-19-cursor-muse-wonder-300k-medium/index.html) |
+| Muse Wonder 300k medium | Cursor | 25k | 4.8 min | 37 ✓<br>4 ✗ | 1.7M | $1.76 | UI ✓<br>Data 2/2 ✓<br>394k records<br>[Live Demo](demos/france-road-accidents/2026-10-19-cursor-muse-wonder-300k-medium/index.html) |
 
 **Local series `france-road-accidents-claude-code`**: Claude Code, recorded with this repository ([`runs/`](runs/README.md)).
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Claude Opus 5.5 medium | Claude Code | 91k | 14.1 min<br>6.3 min thinking | 43 ✓<br>2 ✗ | 4.4M | $3.84 | UI ✓<br>Data 2/2 ✓<br>1.2M records<br>[Live Demo](demos/france-road-accidents/2026-10-26-claude-code-claude-opus-5-5-medium/index.html) |
-| Claude Sonnet 5.5 high | Claude Code | 321k | 37.4 min<br>22.7 min thinking | 142 ✓<br>10 ✗ | 38.9M | $8.93 | UI ✓<br>Data 2/2 ✓<br>1.1M records<br>[Live Demo](demos/france-road-accidents/2026-10-26-claude-code-claude-sonnet-5-5-high/index.html) |
+| Claude Opus 5.5 medium | Claude Code | 91k | 14.1 min<br>6.3 min thinking | 44 ✓<br>2 ✗ | 4.4M | $3.84 | UI ✓<br>Data 2/2 ✓<br>1.2M records<br>[Live Demo](demos/france-road-accidents/2026-10-26-claude-code-claude-opus-5-5-medium/index.html) |
+| Claude Sonnet 5.5 high | Claude Code | 321k | 37.4 min<br>22.7 min thinking | 143 ✓<br>6 ✗ | 38.9M | $8.93 | UI ✓<br>Data 2/2 ✓<br>1.1M records<br>[Live Demo](demos/france-road-accidents/2026-10-26-claude-code-claude-sonnet-5-5-high/index.html) |
 
 ### `paris-1910-flood-simulator`
 
@@ -79,15 +79,15 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Claude Opus 5.5 high | Cursor | 228k | 42.2 min<br>19.6 min thinking | 134 ✓<br>11 ✗ | 12.9M | $12.08 | UI ✓<br>Data 6/6 ✓<br>351k records<br>[Live Demo](demos/paris-1910-flood-simulator/2026-10-20-cursor-claude-opus-5-5-high/index.html) |
-| Claude Opus 5.5 medium | Cursor | 198k | 39.2 min<br>15.4 min thinking | 171 ✓<br>2 ✗ | 16.0M | $13.81 | UI ✓<br>Data 6/6 ✓<br>142k records<br>[Live Demo](demos/paris-1910-flood-simulator/2026-10-21-cursor-claude-opus-5-5-medium/index.html) |
-| Gemini 4 Argon medium | Cursor | 133k | 32.4 min<br>17.4 min thinking | 91 ✓<br>10 ✗ | 6.0M | $4.29 | UI ✓<br>Data 6/6 ✓<br>9.5k records<br>[Live Demo](demos/paris-1910-flood-simulator/2026-10-22-cursor-gemini-4-argon-medium/index.html) |
+| Claude Opus 5.5 high | Cursor | 228k | 42.2 min<br>19.6 min thinking | 134 ✓<br>8 ✗ | 12.9M | $12.08 | UI ✓<br>Data 6/6 ✓<br>351k records<br>[Live Demo](demos/paris-1910-flood-simulator/2026-10-20-cursor-claude-opus-5-5-high/index.html) |
+| Claude Opus 5.5 medium | Cursor | 198k | 39.2 min<br>15.4 min thinking | 171 ✓<br>1 ✗ | 16.0M | $13.81 | UI ✓<br>Data 6/6 ✓<br>142k records<br>[Live Demo](demos/paris-1910-flood-simulator/2026-10-21-cursor-claude-opus-5-5-medium/index.html) |
+| Gemini 4 Argon medium | Cursor | 133k | 32.4 min<br>17.4 min thinking | 91 ✓<br>9 ✗ | 6.0M | $4.29 | UI ✓<br>Data 6/6 ✓<br>9.5k records<br>[Live Demo](demos/paris-1910-flood-simulator/2026-10-22-cursor-gemini-4-argon-medium/index.html) |
 
 **Local series `paris-1910-flood-simulator-claude-code`**: Claude Code, recorded with this repository ([`runs/`](runs/README.md)).
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Claude Sonnet 5.5 high | Claude Code | 358k | 43.1 min<br>29.1 min thinking | 168 ✓<br>11 ✗ | 32.2M | $8.81 | UI ✓<br>Data 6/6 ✓<br>146k records<br>[Live Demo](demos/paris-1910-flood-simulator/2026-10-26-claude-code-claude-sonnet-5-5-high-2/index.html) |
+| Claude Sonnet 5.5 high | Claude Code | 358k | 43.1 min<br>29.1 min thinking | 169 ✓<br>8 ✗ | 32.2M | $8.81 | UI ✓<br>Data 6/6 ✓<br>146k records<br>[Live Demo](demos/paris-1910-flood-simulator/2026-10-26-claude-code-claude-sonnet-5-5-high-2/index.html) |
 
 ### `paris-tree-canopy`
 
@@ -109,8 +109,8 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Claude Opus 5.5 medium | Claude Code | 105k | 16.2 min<br>6.1 min thinking | 72 ✓<br>6 ✗ | 7.9M | $5.14 | UI ✓<br>Data 2/3 ✓<br>34k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium/index.html) |
-| Claude Sonnet 5.5 high | Claude Code | 195k | 22.1 min<br>12.3 min thinking | 81 ✓<br>2 ✗ | 11.7M | $4.28 | UI ✓<br>Data 2/3 ✓<br>8.0k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-26-claude-code-claude-sonnet-5-5-high/index.html) |
+| Claude Opus 5.5 medium | Claude Code | 105k | 16.2 min<br>6.1 min thinking | 73 ✓<br>6 ✗ | 7.9M | $5.14 | UI ✓<br>Data 2/3 ✓<br>34k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium/index.html) |
+| Claude Sonnet 5.5 high | Claude Code | 195k | 22.1 min<br>12.3 min thinking | 82 ✓<br>2 ✗ | 11.7M | $4.28 | UI ✓<br>Data 2/3 ✓<br>8.0k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-26-claude-code-claude-sonnet-5-5-high/index.html) |
 
 ## Protocol
 

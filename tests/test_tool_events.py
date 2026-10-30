@@ -12,12 +12,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from tool_events import (
     CONTENT_KEYS,
     ToolEventSummary,
+    UNKNOWN_TOOL_FAILURE,
     _apply_stop_tokens,
     _collect_non_content_strings,
     _dedupe_thoughts,
     _dedupe_tools,
     _extract_traversal_target,
     _merged_seconds,
+    _process_transcript_records,
     _strip_content_fields,
     _tool_intervals,
     audit_isolation,
@@ -505,7 +507,8 @@ class TestToolEvents(unittest.TestCase):
         self.assertEqual(bucket_for("AskQuestion"), "other")
         self.assertEqual(bucket_for("ExitPlanMode"), "other")
         self.assertEqual(bucket_for("EnterPlanMode"), "other")
-        self.assertEqual(bucket_for("Skill"), "other")
+        self.assertEqual(bucket_for("Skill"), "files")
+        self.assertEqual(bucket_for("ToolSearch"), "files")
         self.assertEqual(bucket_for("SlashCommand"), "other")
         self.assertEqual(bucket_for("update_plan"), "other")
         self.assertEqual(bucket_for("request_user_input"), "other")
@@ -846,6 +849,107 @@ class TestToolEvents(unittest.TestCase):
         self.assertEqual(summary.input_tokens, 8 + 159626 + 1687)
         self.assertEqual(summary.token_turns, 1)
         self.assertEqual(summary.stop_status, "success")
+
+    def test_image_read_bucketed_as_visual_checks(self):
+        self.assertEqual(bucket_for("Read", {"file_path": "shot.png"}), "visual_checks")
+        self.assertEqual(bucket_for("Read", {"path": "chart.jpg"}), "visual_checks")
+        self.assertEqual(bucket_for("read_file", {"target_file": "/tmp/out.webp"}), "visual_checks")
+        self.assertEqual(bucket_for("view_file", {"file": "icon.gif"}), "visual_checks")
+        self.assertEqual(bucket_for("Read", {"file_path": "photo.jpeg"}), "visual_checks")
+        # Non-image files stay in files bucket
+        self.assertEqual(bucket_for("Read", {"file_path": "data.csv"}), "files")
+        self.assertEqual(bucket_for("Read", {"file_path": "index.html"}), "files")
+
+    def test_unknown_tool_call_error_folded_in_transcript(self):
+        records = [
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "tool_use", "id": "tu-err", "name": "bash", "input": {"command": "echo 1"}},
+                        {"type": "tool_use", "id": "tu-ok", "name": "Bash", "input": {"command": "echo 2"}},
+                        {"type": "tool_use", "id": "tu-unknown", "name": "nonexistent_tool", "input": {"arg": "val"}},
+                    ]
+                },
+            },
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "tu-err",
+                            "content": "<tool_use_error>Error: No such tool available: bash. Tool names are case-sensitive: call Bash instead.</tool_use_error>",
+                            "is_error": True,
+                        },
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "tu-ok",
+                            "content": "2",
+                            "is_error": False,
+                        },
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "tu-unknown",
+                            "content": "<tool_use_error>Error: No such tool available: nonexistent_tool.</tool_use_error>",
+                            "is_error": True,
+                        },
+                    ]
+                },
+            },
+        ]
+        summary = _process_transcript_records(records, ToolEventSummary())
+        # 'bash' folds into 'shell' bucket as UNKNOWN_TOOL_FAILURE, so shell has:
+        # Bash (1 call, 0 fail) + unknown tool (error) (1 call, 1 fail) = 2 calls, 1 fail
+        self.assertEqual(summary.buckets["shell"]["calls"], 2)
+        self.assertEqual(summary.buckets["shell"]["failures"], 1)
+        self.assertIn("Bash", summary.buckets["shell"]["by_tool"])
+        self.assertNotIn("bash", summary.buckets["shell"]["by_tool"])
+        self.assertIn(UNKNOWN_TOOL_FAILURE, summary.buckets["shell"]["by_tool"])
+        self.assertEqual(summary.buckets["shell"]["by_tool"][UNKNOWN_TOOL_FAILURE]["calls"], 1)
+        self.assertEqual(summary.buckets["shell"]["by_tool"][UNKNOWN_TOOL_FAILURE]["failures"], 1)
+        # 'nonexistent_tool' folds into 'other' bucket as UNKNOWN_TOOL_FAILURE
+        self.assertEqual(summary.buckets["other"]["calls"], 1)
+        self.assertEqual(summary.buckets["other"]["failures"], 1)
+        self.assertIn(UNKNOWN_TOOL_FAILURE, summary.buckets["other"]["by_tool"])
+        self.assertNotIn("nonexistent_tool", summary.buckets["other"]["by_tool"])
+
+    def test_isolation_denials_excluded_from_tool_and_failure_counts(self):
+        records = [
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "tool_use", "id": "tu-denied", "name": "Bash", "input": {"command": "cat ../run.json"}},
+                        {"type": "tool_use", "id": "tu-ok", "name": "Bash", "input": {"command": "echo hi"}},
+                    ]
+                },
+            },
+            {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "tu-denied",
+                            "content": "PreToolUse:Bash hook error: Parent directory traversal outside workspace is blocked by isolation policy",
+                            "is_error": True,
+                        },
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "tu-ok",
+                            "content": "hi",
+                            "is_error": False,
+                        },
+                    ]
+                },
+            },
+        ]
+        summary = _process_transcript_records(records, ToolEventSummary())
+        self.assertEqual(summary.buckets["shell"]["calls"], 1)
+        self.assertEqual(summary.buckets["shell"]["failures"], 0)
+        self.assertEqual(summary.buckets["shell"]["by_tool"]["Bash"]["calls"], 1)
+        self.assertEqual(summary.buckets["shell"]["by_tool"]["Bash"]["failures"], 0)
 
     def test_load_records_loads_cli_result_json_when_no_result_in_jsonl(self):
         import tempfile

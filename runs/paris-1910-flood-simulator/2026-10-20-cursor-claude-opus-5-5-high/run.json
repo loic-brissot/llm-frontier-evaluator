@@ -103,26 +103,26 @@
   },
   "tool_calls": {
     "shell": {
-      "calls": 54,
-      "failures": 7,
+      "calls": 53,
+      "failures": 6,
       "by_tool": {
         "Shell": {
-          "calls": 54,
-          "failures": 7
+          "calls": 53,
+          "failures": 6
         }
       }
     },
     "files": {
-      "calls": 91,
-      "failures": 4,
+      "calls": 77,
+      "failures": 0,
       "by_tool": {
-        "Write": {
-          "calls": 67,
-          "failures": 2
-        },
         "Read": {
-          "calls": 19,
-          "failures": 2
+          "calls": 7,
+          "failures": 0
+        },
+        "Write": {
+          "calls": 65,
+          "failures": 0
         },
         "Grep": {
           "calls": 4,
@@ -135,9 +135,14 @@
       }
     },
     "visual_checks": {
-      "calls": 0,
-      "failures": 0,
-      "by_tool": {}
+      "calls": 12,
+      "failures": 2,
+      "by_tool": {
+        "Read": {
+          "calls": 12,
+          "failures": 2
+        }
+      }
     },
     "web": {
       "calls": 0,
@@ -176,7 +181,7 @@
     "operator_saw_a_page": true,
     "summary": ""
   },
-  "observations": "No stop event recorded; capped run end time at the last non-idle tool/thought event. Isolation audit flagged 6 potential contamination event(s): Write attempted parent traversal ('..'), Write attempted parent traversal ('..'), Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..'), Write attempted parent traversal ('..'), Write attempted parent traversal ('..')",
+  "observations": "No stop event recorded; capped run end time at the last non-idle tool/thought event. Isolation audit flagged 6 potential contamination event(s): Write attempted parent traversal ('..'), Write attempted parent traversal ('..'), Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..'), Write attempted parent traversal ('..'), Write attempted parent traversal ('..') Isolation hook denied 2 tool call(s): Write denied: Parent directory traversal outside workspace is blocked by isolation policy; Shell denied: Parent directory traversal outside workspace is blocked by isolation policy. Isolation audit flagged 2 potential contamination event(s): Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..')",
   "verification": {
     "runtime": {
       "passed": true,

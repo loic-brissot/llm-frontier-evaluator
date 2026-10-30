@@ -64,8 +64,8 @@
     "raw": {
       "tool_events": {
         "wall_seconds": 425.9,
-        "tool_seconds_merged": 137.9,
-        "tool_seconds_summed": 137.9,
+        "tool_seconds_merged": 138.0,
+        "tool_seconds_summed": 138.0,
         "tools_without_duration": 0,
         "wall_clock_minus_tool_seconds": 287.9,
         "thinking_seconds": null,
@@ -85,19 +85,28 @@
       }
     },
     "files": {
-      "calls": 13,
-      "failures": 3,
+      "calls": 10,
+      "failures": 0,
       "by_tool": {
+        "Write": {
+          "calls": 7,
+          "failures": 0
+        },
         "Read": {
-          "calls": 13,
-          "failures": 3
+          "calls": 3,
+          "failures": 0
         }
       }
     },
     "visual_checks": {
-      "calls": 0,
+      "calls": 3,
       "failures": 0,
-      "by_tool": {}
+      "by_tool": {
+        "Read": {
+          "calls": 3,
+          "failures": 0
+        }
+      }
     },
     "web": {
       "calls": 0,
@@ -130,7 +139,7 @@
     "operator_saw_a_page": true,
     "summary": "Good visualization with dynamic cluster metrics"
   },
-  "observations": "",
+  "observations": "Isolation audit flagged 40 potential contamination event(s): Shell attempted parent traversal ('..'), Shell referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator', Read referenced 'llm-frontier-evaluator', Write referenced 'llm-frontier-evaluator', Shell referenced 'llm-frontier-evaluator'",
   "verification": {
     "runtime": {
       "passed": true,

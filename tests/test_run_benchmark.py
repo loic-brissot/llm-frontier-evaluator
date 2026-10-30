@@ -568,7 +568,7 @@ Options:
         self.assertIn("docker", cmd)
         self.assertIn("run", cmd)
         self.assertIn("--rm", cmd)
-        self.assertIn("-i", cmd)
+        self.assertNotIn("-i", cmd)
         self.assertIn("--init", cmd)
         self.assertIn("--shm-size=2g", cmd)
         self.assertIn("--name", cmd)
