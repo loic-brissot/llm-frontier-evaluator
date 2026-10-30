@@ -805,6 +805,11 @@ def lookup_model_pricing(
 
     input_rate = Decimal(str(matched.get("input", "0")))
     cache_write_rate = Decimal(str(matched.get("cache_write", "0")))
+    cache_write_1h_rate = (
+        Decimal(str(matched["cache_write_1h"]))
+        if "cache_write_1h" in matched
+        else cache_write_rate
+    )
     cache_read_rate = Decimal(str(matched.get("cache_read", "0")))
     output_rate = Decimal(str(matched.get("output", "0")))
 
@@ -818,6 +823,10 @@ def lookup_model_pricing(
                 input_rate = Decimal(str(variant["input"]))
             if "cache_write" in variant:
                 cache_write_rate = Decimal(str(variant["cache_write"]))
+            if "cache_write_1h" in variant:
+                cache_write_1h_rate = Decimal(str(variant["cache_write_1h"]))
+            elif "cache_write" in variant:
+                cache_write_1h_rate = cache_write_rate
             if "cache_read" in variant:
                 cache_read_rate = Decimal(str(variant["cache_read"]))
             if "output" in variant:
@@ -846,6 +855,10 @@ def lookup_model_pricing(
                     input_rate = Decimal(str(lc["input"]))
                 if "cache_write" in lc:
                     cache_write_rate = Decimal(str(lc["cache_write"]))
+                if "cache_write_1h" in lc:
+                    cache_write_1h_rate = Decimal(str(lc["cache_write_1h"]))
+                elif "cache_write" in lc:
+                    cache_write_1h_rate = cache_write_rate
                 if "cache_read" in lc:
                     cache_read_rate = Decimal(str(lc["cache_read"]))
                 if "output" in lc:
@@ -877,6 +890,7 @@ def lookup_model_pricing(
         "provider": matched.get("provider"),
         "input": input_rate,
         "cache_write": cache_write_rate,
+        "cache_write_1h": cache_write_1h_rate,
         "cache_read": cache_read_rate,
         "output": output_rate,
         "context_variant": context_variant_applied,
@@ -897,12 +911,38 @@ def estimate_token_cost(
     harness: str | None = None,
     total_input_tokens: int | Decimal | None = None,
     use_long_context: bool | None = None,
+    cache_write_5m_tokens: int | Decimal | None = None,
+    cache_write_1h_tokens: int | Decimal | None = None,
+    cache_tier_basis: str | None = None,
 ) -> dict | None:
     """Compute estimated USD cost from public per-1M-token rates and harness surcharges."""
     u = Decimal(uncached_input_tokens or 0)
     cw = Decimal(cache_write_tokens or 0)
     cr = Decimal(cache_read_tokens or 0)
     out = Decimal(output_tokens or 0)
+
+    if cache_write_5m_tokens is not None or cache_write_1h_tokens is not None:
+        cw_5m = Decimal(cache_write_5m_tokens or 0)
+        cw_1h = Decimal(cache_write_1h_tokens or 0)
+        if cw > cw_5m + cw_1h:
+            cw_5m += cw - (cw_5m + cw_1h)
+        if cw == 0 and cw_5m + cw_1h > 0:
+            cw = cw_5m + cw_1h
+        basis = cache_tier_basis or "usage_breakdown"
+        if cw_1h > 0 and cw_5m == 0:
+            cache_tier = "1h"
+        elif cw_5m > 0 and cw_1h == 0:
+            cache_tier = "5m"
+        elif cw_5m > 0 and cw_1h > 0:
+            cache_tier = "mixed"
+        else:
+            cache_tier = "5m"
+    else:
+        cw_5m = cw
+        cw_1h = Decimal(0)
+        cache_tier = "5m"
+        basis = cache_tier_basis or "assumed"
+
     total_input = u + cw + cr
     total_tokens = total_input + out
 
@@ -918,7 +958,8 @@ def estimate_token_cost(
     million = Decimal(1_000_000)
     base_cost = (
         u * rates["input"]
-        + cw * rates["cache_write"]
+        + cw_5m * rates["cache_write"]
+        + cw_1h * rates["cache_write_1h"]
         + cr * rates["cache_read"]
         + out * rates["output"]
     ) / million
@@ -929,6 +970,18 @@ def estimate_token_cost(
     est_surcharge = harness_surcharge.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     est_total = total_cost_with_harness.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
+    rates_per_1m = {
+        "input": str(rates["input"]),
+        "cache_write": str(rates["cache_write"]),
+        "cache_read": str(rates["cache_read"]),
+        "output": str(rates["output"]),
+    }
+    if (
+        str(rates.get("provider", "")).lower() == "anthropic"
+        or rates.get("cache_write_1h") != rates.get("cache_write")
+    ):
+        rates_per_1m["cache_write_1h"] = str(rates["cache_write_1h"])
+
     return {
         "as_of": rates["as_of"],
         "model_id": rates["model_id"],
@@ -937,12 +990,11 @@ def estimate_token_cost(
         "harness": rates.get("harness"),
         "harness_token_rate_per_1m": str(rates["harness_token_rate_per_1m"]),
         "harness_surcharge_usd": str(est_surcharge),
-        "rates_per_1m_usd": {
-            "input": str(rates["input"]),
-            "cache_write": str(rates["cache_write"]),
-            "cache_read": str(rates["cache_read"]),
-            "output": str(rates["output"]),
-        },
+        "rates_per_1m_usd": rates_per_1m,
+        "cache_tier": cache_tier,
+        "cache_tier_basis": basis,
+        "cache_write_5m_tokens": int(cw_5m),
+        "cache_write_1h_tokens": int(cw_1h),
         "estimated_cost_usd": str(est_base),
         "estimated_cost_with_harness_usd": str(est_total),
     }

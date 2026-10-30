@@ -482,6 +482,7 @@ def build_pricing_catalog(reference_dir: Path = REFERENCE_DIR) -> dict[str, Any]
             "tier": declared if declared in {t["id"] for t in PRICING_TIERS} else computed,
             "input": _safe_float(m.get("input")),
             "cache_write": _safe_float(m.get("cache_write")),
+            "cache_write_1h": _safe_float(m.get("cache_write_1h") or m.get("cache_write")),
             "cache_read": _safe_float(m.get("cache_read")),
             "output": _safe_float(m.get("output")),
             "first_party_in_cursor": bool(m.get("first_party_in_cursor", False)),

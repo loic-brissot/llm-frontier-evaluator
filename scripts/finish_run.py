@@ -1605,6 +1605,10 @@ def apply_claude_stream_totals(run: dict, summary: ToolEventSummary, hints: dict
         "duration_api_seconds": summary.api_duration_seconds,
         "total_cost_usd": summary.harness_cost_usd,
     }
+    if summary.cache_write_5m_tokens is not None:
+        run["tokens"]["raw"]["claude_code"]["cache_write_5m_tokens"] = summary.cache_write_5m_tokens
+    if summary.cache_write_1h_tokens is not None:
+        run["tokens"]["raw"]["claude_code"]["cache_write_1h_tokens"] = summary.cache_write_1h_tokens
     if summary.interactive_source:
         claude_raw = run["tokens"]["raw"]["claude_code"]
         claude_raw["source"] = "interactive:" + summary.interactive_source
@@ -1628,6 +1632,8 @@ def apply_logged_tokens(run: dict, summary: ToolEventSummary, hints: dict) -> No
         "uncached_input_tokens",
         "cache_read_tokens",
         "cache_write_tokens",
+        "cache_write_5m_tokens",
+        "cache_write_1h_tokens",
         "output_tokens",
         "reasoning_tokens",
         "visible_tokens",
@@ -1690,6 +1696,49 @@ def apply_pricing_estimate(run: dict, summary: ToolEventSummary | None = None) -
     if output_tokens is None and cache_read == 0 and uncached_input == 0:
         return
 
+    # Extract 5m / 1h cache-write token split if available
+    cache_creation = (raw.get("usage") if isinstance(raw.get("usage"), dict) else {}).get("cache_creation")
+    if not isinstance(cache_creation, dict):
+        cache_creation = {}
+    claude_code_block = raw.get("claude_code") if isinstance(raw.get("claude_code"), dict) else {}
+    hook_tokens_block = raw.get("hook_tokens") if isinstance(raw.get("hook_tokens"), dict) else {}
+
+    cw_5m = None
+    cw_1h = None
+    if "ephemeral_5m_input_tokens" in cache_creation or "ephemeral_1h_input_tokens" in cache_creation:
+        cw_5m = cache_creation.get("ephemeral_5m_input_tokens")
+        cw_1h = cache_creation.get("ephemeral_1h_input_tokens")
+    elif "cache_write_5m_tokens" in claude_code_block or "cache_write_1h_tokens" in claude_code_block:
+        cw_5m = claude_code_block.get("cache_write_5m_tokens")
+        cw_1h = claude_code_block.get("cache_write_1h_tokens")
+    elif "cache_write_5m_tokens" in hook_tokens_block or "cache_write_1h_tokens" in hook_tokens_block:
+        cw_5m = hook_tokens_block.get("cache_write_5m_tokens")
+        cw_1h = hook_tokens_block.get("cache_write_1h_tokens")
+    elif summary and (summary.cache_write_5m_tokens is not None or summary.cache_write_1h_tokens is not None):
+        cw_5m = summary.cache_write_5m_tokens
+        cw_1h = summary.cache_write_1h_tokens
+
+    cw_5m_int = int(cw_5m) if is_int(cw_5m) else None
+    cw_1h_int = int(cw_1h) if is_int(cw_1h) else None
+
+    # Determine cache_tier_basis
+    csv_block = raw.get("usage_csv") if isinstance(raw.get("usage_csv"), dict) else {}
+    cost_val = csv_block.get("cost")
+    has_numeric_cost = False
+    if cost_val is not None:
+        try:
+            float(str(cost_val))
+            has_numeric_cost = True
+        except ValueError:
+            has_numeric_cost = False
+
+    if cw_5m_int is not None or cw_1h_int is not None:
+        cache_tier_basis = "usage_breakdown"
+    elif has_numeric_cost:
+        cache_tier_basis = "cursor_cost_column"
+    else:
+        cache_tier_basis = "assumed"
+
     model_info = run.get("model") or {}
     model_name = str(model_info.get("name") or "")
     context = model_info.get("context")
@@ -1703,6 +1752,9 @@ def apply_pricing_estimate(run: dict, summary: ToolEventSummary | None = None) -
         output_tokens=output_tokens or 0,
         context=context if isinstance(context, str) else None,
         harness=harness_name,
+        cache_write_5m_tokens=cw_5m_int,
+        cache_write_1h_tokens=cw_1h_int,
+        cache_tier_basis=cache_tier_basis,
     )
     if estimate is not None:
         run["tokens"].setdefault("raw", {})["pricing"] = estimate

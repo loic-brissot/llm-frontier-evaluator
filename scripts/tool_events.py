@@ -97,6 +97,8 @@ class ToolEventSummary:
     split_rule: str | None = None
     cache_read_tokens: int | None = None
     cache_write_tokens: int | None = None
+    cache_write_5m_tokens: int | None = None
+    cache_write_1h_tokens: int | None = None
     uncached_input_tokens: int | None = None
     token_turns: int = 0
     model_slug: str | None = None
@@ -556,6 +558,14 @@ def _apply_stop_tokens(summary: ToolEventSummary, stop_record: dict | None) -> N
     summary.cache_read_tokens = cache_read
     summary.cache_write_tokens = cache_write
 
+    cache_creation = u.get("cache_creation") if isinstance(u.get("cache_creation"), dict) else {}
+    cw_5m = _nonneg_int(_first_present(cache_creation, "ephemeral_5m_input_tokens"))
+    cw_1h = _nonneg_int(_first_present(cache_creation, "ephemeral_1h_input_tokens"))
+    if cw_5m is not None:
+        summary.cache_write_5m_tokens = cw_5m
+    if cw_1h is not None:
+        summary.cache_write_1h_tokens = cw_1h
+
     if (
         u.get("cache_read_input_tokens") is not None
         or u.get("cache_creation_input_tokens") is not None
@@ -749,6 +759,9 @@ def _apply_claude_stream_totals(summary: ToolEventSummary, records: list[dict]) 
     output total carries no split.
     """
     totals = dict.fromkeys(CLAUDE_USAGE_FIELDS, 0)
+    tot_cw_5m = 0
+    tot_cw_1h = 0
+    has_cw_breakdown = False
     api_ms = 0.0
     cost = 0.0
     has_cost = False
@@ -765,6 +778,11 @@ def _apply_claude_stream_totals(summary: ToolEventSummary, records: list[dict]) 
             usage = result.get("usage") if isinstance(result.get("usage"), dict) else {}
             for key, field_name in CLAUDE_USAGE_FIELDS.items():
                 totals[key] += _nonneg_int(usage.get(field_name)) or 0
+            cc = usage.get("cache_creation") if isinstance(usage.get("cache_creation"), dict) else {}
+            if "ephemeral_5m_input_tokens" in cc or "ephemeral_1h_input_tokens" in cc:
+                has_cw_breakdown = True
+                tot_cw_5m += _nonneg_int(cc.get("ephemeral_5m_input_tokens")) or 0
+                tot_cw_1h += _nonneg_int(cc.get("ephemeral_1h_input_tokens")) or 0
             d = _duration(result.get("duration_api_ms"))
             if d is not None:
                 api_ms += d
@@ -782,6 +800,11 @@ def _apply_claude_stream_totals(summary: ToolEventSummary, records: list[dict]) 
             for usage in by_message.values():
                 for key, field_name in CLAUDE_USAGE_FIELDS.items():
                     totals[key] += _nonneg_int(usage.get(field_name)) or 0
+                cc = usage.get("cache_creation") if isinstance(usage.get("cache_creation"), dict) else {}
+                if "ephemeral_5m_input_tokens" in cc or "ephemeral_1h_input_tokens" in cc:
+                    has_cw_breakdown = True
+                    tot_cw_5m += _nonneg_int(cc.get("ephemeral_5m_input_tokens")) or 0
+                    tot_cw_1h += _nonneg_int(cc.get("ephemeral_1h_input_tokens")) or 0
         for r in segment:
             msg = r.get("message")
             if r.get("type") == "assistant" and isinstance(msg, dict) and isinstance(msg.get("content"), list):
@@ -794,6 +817,9 @@ def _apply_claude_stream_totals(summary: ToolEventSummary, records: list[dict]) 
     summary.claude_attempts_without_result = without_result
     summary.uncached_input_tokens = totals["uncached_input_tokens"]
     summary.cache_write_tokens = totals["cache_write_tokens"]
+    if has_cw_breakdown:
+        summary.cache_write_5m_tokens = tot_cw_5m
+        summary.cache_write_1h_tokens = tot_cw_1h
     summary.cache_read_tokens = totals["cache_read_tokens"]
     summary.output_tokens = totals["output_tokens"]
     summary.input_tokens = totals["uncached_input_tokens"] + totals["cache_write_tokens"] + totals["cache_read_tokens"]
@@ -1367,6 +1393,13 @@ def _process_transcript_records(
             summary.uncached_input_tokens = uncached_input
         summary.cache_read_tokens = cache_read
         summary.cache_write_tokens = cache_write
+        cache_creation = u.get("cache_creation") if isinstance(u.get("cache_creation"), dict) else {}
+        cw_5m = _nonneg_int(_first_present(cache_creation, "ephemeral_5m_input_tokens"))
+        cw_1h = _nonneg_int(_first_present(cache_creation, "ephemeral_1h_input_tokens"))
+        if cw_5m is not None:
+            summary.cache_write_5m_tokens = cw_5m
+        if cw_1h is not None:
+            summary.cache_write_1h_tokens = cw_1h
         summary.output_tokens = output
         summary.input_tokens = (
             (summary.uncached_input_tokens or 0) + (cache_read or 0) + (cache_write or 0)
@@ -1383,6 +1416,8 @@ def _process_transcript_records(
             summary.split_rule = "unavailable"
     else:
         tot_uncached, tot_cache_read, tot_cache_write, tot_output, tot_reasoning = 0, 0, 0, 0, 0
+        tot_cw_5m, tot_cw_1h = 0, 0
+        has_cw_breakdown = False
         has_usage = False
         turn_count = 0
         tot_api_ms = 0.0
@@ -1396,6 +1431,11 @@ def _process_transcript_records(
             if isinstance(u, dict):
                 has_usage = True
                 turn_count += 1
+                cc = u.get("cache_creation") if isinstance(u.get("cache_creation"), dict) else {}
+                if "ephemeral_5m_input_tokens" in cc or "ephemeral_1h_input_tokens" in cc:
+                    has_cw_breakdown = True
+                    tot_cw_5m += _nonneg_int(cc.get("ephemeral_5m_input_tokens")) or 0
+                    tot_cw_1h += _nonneg_int(cc.get("ephemeral_1h_input_tokens")) or 0
                 inp = _first_present(
                     u,
                     "uncached_input_tokens",
@@ -1468,6 +1508,9 @@ def _process_transcript_records(
             summary.uncached_input_tokens = tot_uncached
             summary.cache_read_tokens = tot_cache_read
             summary.cache_write_tokens = tot_cache_write
+            if has_cw_breakdown:
+                summary.cache_write_5m_tokens = tot_cw_5m
+                summary.cache_write_1h_tokens = tot_cw_1h
             summary.output_tokens = tot_output
             summary.input_tokens = tot_uncached + tot_cache_read + tot_cache_write
             summary.token_turns = turn_count
@@ -1897,6 +1940,9 @@ def apply_claude_transcript_token_fallback(summary: ToolEventSummary, run_dir: P
     ]
     records = [r for r in _claude_session_records(transcript) if r["type"] == "assistant"]
     totals = dict.fromkeys(CLAUDE_USAGE_FIELDS, 0)
+    tot_cw_5m = 0
+    tot_cw_1h = 0
+    has_cw_breakdown = False
     has_usage = False
     for r in records:
         usage = r["message"].get("usage")
@@ -1905,10 +1951,18 @@ def apply_claude_transcript_token_fallback(summary: ToolEventSummary, run_dir: P
         has_usage = True
         for key, field_name in CLAUDE_USAGE_FIELDS.items():
             totals[key] += _nonneg_int(usage.get(field_name)) or 0
+        cc = usage.get("cache_creation") if isinstance(usage.get("cache_creation"), dict) else {}
+        if "ephemeral_5m_input_tokens" in cc or "ephemeral_1h_input_tokens" in cc:
+            has_cw_breakdown = True
+            tot_cw_5m += _nonneg_int(cc.get("ephemeral_5m_input_tokens")) or 0
+            tot_cw_1h += _nonneg_int(cc.get("ephemeral_1h_input_tokens")) or 0
     if not has_usage or totals["output_tokens"] < (summary.output_tokens or 0):
         return False
     summary.uncached_input_tokens = totals["uncached_input_tokens"]
     summary.cache_write_tokens = totals["cache_write_tokens"]
+    if has_cw_breakdown:
+        summary.cache_write_5m_tokens = tot_cw_5m
+        summary.cache_write_1h_tokens = tot_cw_1h
     summary.cache_read_tokens = totals["cache_read_tokens"]
     summary.output_tokens = totals["output_tokens"]
     summary.input_tokens = totals["uncached_input_tokens"] + totals["cache_write_tokens"] + totals["cache_read_tokens"]

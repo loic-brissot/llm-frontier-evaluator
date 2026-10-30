@@ -3,10 +3,10 @@ id: TASK-95
 title: >-
   Price Claude Code runs by cache-write tier (5m vs 1h) so estimated cost
   matches what an API user pays
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-28 17:41'
-updated_date: '2026-10-28 17:53'
+updated_date: '2026-10-30 22:30'
 labels: []
 milestone: m-9
 dependencies: []
@@ -29,8 +29,8 @@ Out of scope: Cursor Cost runs 1-4% below 5m+fee on every row (likely the $0.25/
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 reference/pricing-2026-10-18.json gains a cache_write_1h rate for every Anthropic model, and docs/metrics.md documents how cache-write tiers are priced and which basis is used when the tier split is missing
-- [ ] #2 estimate_token_cost() in scripts/run_common.py prices ephemeral_5m and ephemeral_1h cache-write tokens at their own rates and stores the tier split and pricing basis in run.json
-- [ ] #3 A unit test checks that recomputed costs for the existing claude-code runs fall within 1% of the CLI total_cost_usd (list basis), and README.md / dashboard are re-synced with the corrected costs
-- [ ] #4 A unit test checks that, for Cursor runs whose usage CSV has a numeric Cost, the recomputed list estimate at the 5m tier plus the Cursor token rate falls within 5% of the CSV Cost, so a switch to 1h-tier billing would be caught
+- [x] #1 reference/pricing-2026-10-18.json gains a cache_write_1h rate for every Anthropic model, and docs/metrics.md documents how cache-write tiers are priced and which basis is used when the tier split is missing
+- [x] #2 estimate_token_cost() in scripts/run_common.py prices ephemeral_5m and ephemeral_1h cache-write tokens at their own rates and stores the tier split and pricing basis in run.json
+- [x] #3 A unit test checks that recomputed costs for the existing claude-code runs fall within 1% of the CLI total_cost_usd (list basis), and README.md / dashboard are re-synced with the corrected costs
+- [x] #4 A unit test checks that, for Cursor runs whose usage CSV has a numeric Cost, the recomputed list estimate at the 5m tier plus the Cursor token rate falls within 5% of the CSV Cost, so a switch to 1h-tier billing would be caught
 <!-- AC:END -->
