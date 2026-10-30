@@ -171,10 +171,15 @@
           "input": "4.00",
           "cache_write": "5.00",
           "cache_read": "0.20",
-          "output": "20.00"
+          "output": "20.00",
+          "cache_write_1h": "8.00"
         },
-        "estimated_cost_usd": "4.59",
-        "estimated_cost_with_harness_usd": "4.59"
+        "cache_tier": "1h",
+        "cache_tier_basis": "usage_breakdown",
+        "cache_write_5m_tokens": 0,
+        "cache_write_1h_tokens": 181750,
+        "estimated_cost_usd": "5.14",
+        "estimated_cost_with_harness_usd": "5.14"
       }
     }
   },

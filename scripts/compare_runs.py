@@ -269,6 +269,46 @@ def format_local_cost(run: dict) -> str:
     if output_tokens is None and cache_read == 0 and uncached_input == 0:
         return "n/a"
 
+    # Extract 5m / 1h cache-write token split if available
+    cache_creation = (raw.get("usage") if isinstance(raw.get("usage"), dict) else {}).get("cache_creation")
+    if not isinstance(cache_creation, dict):
+        cache_creation = {}
+    claude_code_block = raw.get("claude_code") if isinstance(raw.get("claude_code"), dict) else {}
+    hook_tokens_block = raw.get("hook_tokens") if isinstance(raw.get("hook_tokens"), dict) else {}
+
+    cw_5m = None
+    cw_1h = None
+    if "ephemeral_5m_input_tokens" in cache_creation or "ephemeral_1h_input_tokens" in cache_creation:
+        cw_5m = cache_creation.get("ephemeral_5m_input_tokens")
+        cw_1h = cache_creation.get("ephemeral_1h_input_tokens")
+    elif "cache_write_5m_tokens" in claude_code_block or "cache_write_1h_tokens" in claude_code_block:
+        cw_5m = claude_code_block.get("cache_write_5m_tokens")
+        cw_1h = claude_code_block.get("cache_write_1h_tokens")
+    elif "cache_write_5m_tokens" in hook_tokens_block or "cache_write_1h_tokens" in hook_tokens_block:
+        cw_5m = hook_tokens_block.get("cache_write_5m_tokens")
+        cw_1h = hook_tokens_block.get("cache_write_1h_tokens")
+
+    cw_5m_int = int(cw_5m) if isinstance(cw_5m, int) and not isinstance(cw_5m, bool) else None
+    cw_1h_int = int(cw_1h) if isinstance(cw_1h, int) and not isinstance(cw_1h, bool) else None
+
+    # Determine cache_tier_basis
+    csv_block = raw.get("usage_csv") if isinstance(raw.get("usage_csv"), dict) else {}
+    cost_val = csv_block.get("cost")
+    has_numeric_cost = False
+    if cost_val is not None:
+        try:
+            float(str(cost_val))
+            has_numeric_cost = True
+        except ValueError:
+            has_numeric_cost = False
+
+    if cw_5m_int is not None or cw_1h_int is not None:
+        cache_tier_basis = "usage_breakdown"
+    elif has_numeric_cost:
+        cache_tier_basis = "cursor_cost_column"
+    else:
+        cache_tier_basis = "assumed"
+
     model_info = run.get("model") or {}
     est = estimate_token_cost(
         str(model_info.get("name") or ""),
@@ -278,6 +318,9 @@ def format_local_cost(run: dict) -> str:
         output_tokens=output_tokens or 0,
         context=model_info.get("context") if isinstance(model_info.get("context"), str) else None,
         harness=str((run.get("harness") or {}).get("name") or ""),
+        cache_write_5m_tokens=cw_5m_int,
+        cache_write_1h_tokens=cw_1h_int,
+        cache_tier_basis=cache_tier_basis,
     )
     if est is None:
         return "n/a"
@@ -558,6 +601,36 @@ def check_pricing(pricing_path: Path = PRICING_PATH) -> list[str]:
                         f"{pricing_path}: model {model_id!r} has invalid Decimal rate {rate_field}={val!r}"
                     )
 
+        if provider == "anthropic":
+            val_1h = entry.get("cache_write_1h")
+            if val_1h is None:
+                errors.append(
+                    f"{pricing_path}: Anthropic model {model_id!r} missing required 'cache_write_1h' rate"
+                )
+            else:
+                try:
+                    dec = Decimal(str(val_1h))
+                    if dec < 0:
+                        errors.append(
+                            f"{pricing_path}: Anthropic model {model_id!r} has negative rate cache_write_1h={val_1h!r}"
+                        )
+                except Exception:
+                    errors.append(
+                        f"{pricing_path}: Anthropic model {model_id!r} has invalid Decimal rate cache_write_1h={val_1h!r}"
+                    )
+        elif "cache_write_1h" in entry and entry.get("cache_write_1h") is not None:
+            val_1h = entry.get("cache_write_1h")
+            try:
+                dec = Decimal(str(val_1h))
+                if dec < 0:
+                    errors.append(
+                        f"{pricing_path}: model {model_id!r} has negative rate cache_write_1h={val_1h!r}"
+                    )
+            except Exception:
+                errors.append(
+                    f"{pricing_path}: model {model_id!r} has invalid Decimal rate cache_write_1h={val_1h!r}"
+                )
+
         if "context_variants" in entry:
             cv = entry.get("context_variants")
             if not isinstance(cv, dict) or not cv:
@@ -569,7 +642,7 @@ def check_pricing(pricing_path: Path = PRICING_PATH) -> list[str]:
                             f"{pricing_path}: model {model_id!r} context_variant {var_key!r} must be a dict"
                         )
                     else:
-                        for rate_field in ("input", "cache_write", "cache_read", "output"):
+                        for rate_field in ("input", "cache_write", "cache_write_1h", "cache_read", "output"):
                             if rate_field in var_val:
                                 try:
                                     dec = Decimal(str(var_val[rate_field]))
@@ -592,7 +665,7 @@ def check_pricing(pricing_path: Path = PRICING_PATH) -> list[str]:
                     errors.append(
                         f"{pricing_path}: model {model_id!r} long_context 'threshold_input_tokens' must be a positive integer"
                     )
-                for rate_field in ("input", "cache_write", "cache_read", "output"):
+                for rate_field in ("input", "cache_write", "cache_write_1h", "cache_read", "output"):
                     if rate_field in lc:
                         try:
                             dec = Decimal(str(lc[rate_field]))

@@ -164,6 +164,12 @@ This reading does not change `rules_version`.
 ## Cost estimation (`Est. cost`) vs harness-billed cost
 
 - **Public API list-price `Est. cost`**: Computed by `scripts/run_common.py` (`estimate_token_cost()`) and recorded in `tokens.raw.pricing`. It uses public per-1M-token API list prices from `reference/pricing-2026-10-18.json`. It applies context variants (e.g., `500k`, `1m`) and long-context input token thresholds (`threshold_input_tokens`). For local runs, `Est. cost` uses `estimated_cost_with_harness_usd` (which includes any applicable harness token surcharge such as Cursor's `$0.25/1M` rate on third-party models, while first-party models like `composer-*` and `grok-*` have no surcharge).
+- **Cache-write pricing tiers (`5m` vs `1h`) and tier basis**:
+  - Anthropic models support two cache-write tiers: the `5m` ephemeral tier (billed at 1.25x the base input rate, stored in `cache_write`) and the `1h` ephemeral tier (billed at 2x the base input rate, stored in `cache_write_1h`).
+  - Headless Claude Code runs write prompt caches with a 1-hour TTL, reporting their breakdown in `usage.cache_creation` (`ephemeral_5m_input_tokens` and `ephemeral_1h_input_tokens`). When this breakdown is present, tokens are priced by their respective tier rate and recorded with pricing basis `usage_breakdown`.
+  - When the tier split is missing:
+    - Cursor team usage CSV exports do not break down cache writes by TTL, but their numeric `Cost` column tracks API list price at the `5m` cache-write rate plus the `$0.25/1M` Cursor token surcharge (within 1–4%). Cursor runs with a numeric `Cost` column in `usage_csv` are therefore priced at the `5m` tier with basis `cursor_cost_column` (validated against the CSV `Cost` column).
+    - Runs with neither a tier split nor a cost column fall back to the `5m` tier with basis `assumed`.
 - **Actual harness-billed CSV cost**: Recorded in `tokens.raw.usage_csv.cost` directly from harness exports (e.g. Cursor team usage CSV). It reflects actual account billing, including harness third-party token surcharges, team/enterprise plan rates, and provider rounding.
 - **Hook vs. usage CSV token deltas**: Stop-hook token totals (`cursor_stop_hook`) and Cursor usage CSV token totals may differ slightly (typically <1% due to system/wrapper framing tokens billed in the CSV export). `Est. cost` calculated from hook tokens thus matches billed CSV cost within cents (e.g. $1.76 est. cost vs $1.75 billed CSV cost).
 

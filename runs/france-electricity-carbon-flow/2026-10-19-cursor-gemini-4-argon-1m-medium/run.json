@@ -76,6 +76,10 @@
           "cache_read": "0.20",
           "output": "15.00"
         },
+        "cache_tier": "5m",
+        "cache_tier_basis": "cursor_cost_column",
+        "cache_write_5m_tokens": 0,
+        "cache_write_1h_tokens": 0,
         "estimated_cost_usd": "2.22",
         "estimated_cost_with_harness_usd": "2.55"
       }
