@@ -738,6 +738,72 @@ class TestCompareRuns(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("All prompt files verified successfully", out.getvalue())
 
+    def test_check_unique_run_ids(self):
+        from compare_runs import check_unique_run_ids
+
+        runs = [
+            {"prompt_id": "prompt-1", "run_id": "2026-10-26-shared-id"},
+            {"prompt_id": "prompt-2", "run_id": "2026-10-26-shared-id"},
+        ]
+        errs = check_unique_run_ids(runs)
+        self.assertEqual(len(errs), 1)
+        self.assertIn("duplicated across prompts", errs[0])
+
+        runs_unique = [
+            {"prompt_id": "prompt-1", "run_id": "2026-10-26-id-1"},
+            {"prompt_id": "prompt-2", "run_id": "2026-10-26-id-2"},
+        ]
+        self.assertEqual(check_unique_run_ids(runs_unique), [])
+
+    def test_incomplete_cells_output_includes_prompt_id_and_deduplicates(self):
+        from compare_runs import main
+        from io import StringIO
+
+        dummy_run = {
+            "rules_version": 2,
+            "run_id": "2026-10-26-test-run",
+            "series_id": "test-series",
+            "prompt_id": "test-prompt",
+            "prompt_sha256": "dummy",
+            "shot": "primary",
+            "parent_run_id": None,
+            "model": {"name": "Test", "provider": "test"},
+            "harness": {"name": "cursor", "version": "1.0"},
+            "wall_clock": {"started_at": "2026-10-26T10:00:00Z", "ended_at": "2026-10-26T10:10:00Z"},
+            "tokens": {"split_rule": "unavailable", "reasoning_tokens": None, "visible_tokens": None, "raw": {}},
+            "model_time": {"source": "unavailable", "generating_seconds": None, "raw": {}},
+            "tool_calls": {
+                "shell": {"calls": 0, "failures": 0, "by_tool": {}},
+                "files": {"calls": 0, "failures": 0, "by_tool": {}},
+                "visual_checks": {"calls": 0, "failures": 0, "by_tool": {}},
+                "web": {"calls": 0, "failures": 0, "by_tool": {}},
+                "other": {"calls": 0, "failures": 0, "by_tool": {}},
+            },
+            "context_reread": {"source": "unavailable", "raw": {}},
+            "outcome": {"model_stopped": True, "operator_saw_a_page": True, "summary": ""},
+            "observations": "",
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            r_dir = Path(tmp_dir) / "runs" / "test-prompt" / "2026-10-26-test-run"
+            r_dir.mkdir(parents=True)
+            (r_dir / "run.json").write_text(json.dumps(dummy_run), encoding="utf-8")
+
+            out = StringIO()
+            with (
+                patch("sys.argv", ["compare_runs.py"]),
+                patch("compare_runs.discover_run_dirs", return_value=[r_dir]),
+                patch("compare_runs.check_prompt", return_value=[]),
+                patch("compare_runs.check_pricing", return_value=[]),
+                patch("compare_runs.check_local_run", return_value=[]),
+                patch("sys.stdout", out),
+            ):
+                code = main()
+            self.assertEqual(code, 0)
+            val = out.getvalue()
+            self.assertIn("Incomplete cells:", val)
+            self.assertIn("- test-prompt/2026-10-26-test-run: output tokens unavailable", val)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,7 +3,7 @@ id: TASK-97
 title: >-
   Make run ids globally unique and stop dashboard screenshots from overwriting
   each other across prompts
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-28 17:41'
 labels: []
@@ -22,7 +22,7 @@ Run ids are only unique within one prompt: the same model, harness, effort and d
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Run ids allocated by setup_run.py / run_benchmark.py are unique across all prompts (e.g. by including the prompt id or checking every runs/*/ directory), and the id scheme is documented in docs/protocol.md
-- [ ] #2 Dashboard screenshots, run artifacts and demo bundles are keyed by prompt id plus run id (or the new unique id), so no two runs can share a file; a test builds the dashboard with two prompts sharing a run id and checks both screenshots survive
-- [ ] #3 compare_runs.py 'Incomplete cells' lists entries with their prompt id and without duplicates; existing runs and dashboard/screenshots are migrated and README.md / dashboard re-synced
+- [x] #1 Run ids allocated by setup_run.py / run_benchmark.py are unique across all prompts (e.g. by including the prompt id or checking every runs/*/ directory), and the id scheme is documented in docs/protocol.md
+- [x] #2 Dashboard screenshots, run artifacts and demo bundles are keyed by prompt id plus run id (or the new unique id), so no two runs can share a file; a test builds the dashboard with two prompts sharing a run id and checks both screenshots survive
+- [x] #3 compare_runs.py 'Incomplete cells' lists entries with their prompt id and without duplicates; existing runs and dashboard/screenshots are migrated and README.md / dashboard re-synced
 <!-- AC:END -->

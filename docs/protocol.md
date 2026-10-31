@@ -47,7 +47,7 @@ For a Cursor harness, `setup_run.py` copies the hook template from `templates/cu
 
 Example run ids: `2026-10-17-cursor-claude-opus-4-7-500k-high` (Cursor, with context), `2026-10-17-cursor-claude-opus-4-7-high` (Cursor, context not set — null), `2026-10-17-cursor-composer-2-5-unknown` (reasoning not set — `unknown`), and `2026-10-17-claude-code-claude-opus-4-7-ultra` (Claude, no context).
 
-Add `-2`, `-3`, and so on when the id is already used. A follow-up uses the same id plus `-follow-up`.
+Run ids are globally unique across all prompts (`runs/*/`): when the base id `YYYY-MM-DD-<harness>-<model>-[<context>-]<reasoning>` is already used by any prompt in `runs/*/`, `setup_run.py` / `run_benchmark.py` appends `-2`, `-3`, and so on. A follow-up uses the parent run id plus `-follow-up` (or `-2-follow-up` if already used).
 
 ## During the run
 

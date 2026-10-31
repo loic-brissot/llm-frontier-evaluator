@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import sys
+from unittest.mock import patch
 
 # Add scripts directory to module path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -11,6 +12,7 @@ from run_common import (
     STAGING_PARENT,
     _file_lock,
     _readme_lock,
+    allocate_run_id,
     file_lock,
     infer_provider,
     load_pricing,
@@ -282,7 +284,7 @@ class TestRunCommon(unittest.TestCase):
         with tempfile.NamedTemporaryFile("w+", delete=False) as tf:
             tf.write("test\n")
             tf.flush()
-            with unittest.mock.patch.object(run_common, "fcntl", None):
+            with patch.object(run_common, "fcntl", None):
                 with file_lock(tf):
                     tf.write("no-fcntl\n")
         Path(tf.name).unlink(missing_ok=True)
@@ -320,6 +322,61 @@ class TestRunCommon(unittest.TestCase):
 
         self.assertTrue(callable(compare_runs.readme_lock))
         self.assertTrue(callable(compare_runs._readme_lock))
+
+    def test_allocate_run_id_global_uniqueness(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            runs_dir = Path(tmpdir)
+            # Create a run under prompt-1
+            p1_run = runs_dir / "prompt-1" / "2026-10-26-claude-code-claude-sonnet-5-5-high"
+            p1_run.mkdir(parents=True)
+
+            # Allocate run id for prompt-2 with the exact same model/harness/reasoning
+            from datetime import datetime
+            dt = datetime(2026, 10, 26, 12, 0, 0)
+            allocated = allocate_run_id(
+                "claude-code",
+                "Claude Sonnet 5.5",
+                "high",
+                prompt_id="prompt-2",
+                on_date=dt,
+                runs_dir=runs_dir,
+            )
+            self.assertEqual(allocated, "2026-10-26-claude-code-claude-sonnet-5-5-high-2")
+
+            # Create prompt-2's run directory with the allocated id
+            p2_run = runs_dir / "prompt-2" / allocated
+            p2_run.mkdir(parents=True)
+
+            # Allocate for prompt-3 with same attributes -> should become -3
+            allocated_3 = allocate_run_id(
+                "claude-code",
+                "Claude Sonnet 5.5",
+                "high",
+                prompt_id="prompt-3",
+                on_date=dt,
+                runs_dir=runs_dir,
+            )
+            self.assertEqual(allocated_3, "2026-10-26-claude-code-claude-sonnet-5-5-high-3")
+
+    def test_allocate_run_id_follow_up_global_uniqueness(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            runs_dir = Path(tmpdir)
+            parent_id = "2026-10-26-cursor-opus-high"
+            # Create a follow-up under prompt-1
+            p1_fu = runs_dir / "prompt-1" / f"{parent_id}-follow-up"
+            p1_fu.mkdir(parents=True)
+
+            # Allocate follow-up under prompt-2 with same parent_run_id
+            allocated = allocate_run_id(
+                "cursor",
+                "opus",
+                "high",
+                prompt_id="prompt-2",
+                shot="follow-up",
+                parent_run_id=parent_id,
+                runs_dir=runs_dir,
+            )
+            self.assertEqual(allocated, f"{parent_id}-2-follow-up")
 
 
 if __name__ == "__main__":

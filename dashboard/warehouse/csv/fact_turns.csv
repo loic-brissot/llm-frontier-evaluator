@@ -23,7 +23,7 @@ run_id,turn_index,timestamp,model_slug,input_tokens,uncached_input_tokens,cache_
 2026-10-24-cursor-gpt-5-6-luna-high,1,,GPT-5.6 Luna,220181,0,186620,33561,19331,0,,186620
 2026-10-25-claude-code-claude-sonnet-5-5-high,1,,Claude Sonnet 5.5,18268779,0,17940768,328011,231387,0,,17940768
 2026-10-26-claude-code-claude-opus-5-5-medium,1,,Claude Opus 5.5,4566128,0,4424173,141955,90742,0,,4424173
-2026-10-26-claude-code-claude-opus-5-5-medium,1,,Claude Opus 5.5,8108309,0,7926559,181750,104892,0,,7926559
+2026-10-26-claude-code-claude-opus-5-5-medium-2,1,,Claude Opus 5.5,8108309,0,7926559,181750,104892,0,,7926559
 2026-10-26-claude-code-claude-sonnet-5-5-high,1,,Claude Sonnet 5.5,39325335,0,38867787,457548,321479,0,,38867787
-2026-10-26-claude-code-claude-sonnet-5-5-high,1,,Claude Sonnet 5.5,12030107,0,11741282,288825,194570,0,,11741282
 2026-10-26-claude-code-claude-sonnet-5-5-high-2,1,,Claude Sonnet 5.5,32744584,0,32241350,503234,357673,0,,32241350
+2026-10-26-claude-code-claude-sonnet-5-5-high-3,1,,Claude Sonnet 5.5,12030107,0,11741282,288825,194570,0,,11741282

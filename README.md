@@ -109,8 +109,8 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Claude Opus 5.5 medium | Claude Code | 105k | 16.2 min<br>6.1 min thinking | 73 ✓<br>6 ✗ | 7.9M | $5.14 | UI ✓<br>Data 2/3 ✓<br>34k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium/index.html) |
-| Claude Sonnet 5.5 high | Claude Code | 195k | 22.1 min<br>12.3 min thinking | 82 ✓<br>2 ✗ | 11.7M | $4.28 | UI ✓<br>Data 2/3 ✓<br>8.0k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-26-claude-code-claude-sonnet-5-5-high/index.html) |
+| Claude Opus 5.5 medium | Claude Code | 105k | 16.2 min<br>6.1 min thinking | 73 ✓<br>6 ✗ | 7.9M | $5.14 | UI ✓<br>Data 2/3 ✓<br>34k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium-2/index.html) |
+| Claude Sonnet 5.5 high | Claude Code | 195k | 22.1 min<br>12.3 min thinking | 82 ✓<br>2 ✗ | 11.7M | $4.28 | UI ✓<br>Data 2/3 ✓<br>8.0k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-26-claude-code-claude-sonnet-5-5-high-3/index.html) |
 
 ## Protocol
 

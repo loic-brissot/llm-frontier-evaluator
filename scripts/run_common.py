@@ -530,6 +530,21 @@ def write_json(path: Path, data: dict) -> None:
         handle.write("\n")
 
 
+def _run_id_exists_anywhere(
+    run_id: str,
+    prompt_id: str | None = None,
+    runs_dir: Path | None = None,
+) -> bool:
+    """Check whether run_id exists under any prompt directory (or specifically prompt_id)."""
+    root_runs = runs_dir if runs_dir is not None else RUNS_DIR
+    if prompt_id is not None:
+        if (root_runs / prompt_id / run_id).exists():
+            return True
+    if not root_runs.is_dir():
+        return False
+    return any(p.is_dir() for p in root_runs.glob(f"*/{run_id}"))
+
+
 def allocate_run_id(
     harness: str,
     model: str,
@@ -540,6 +555,7 @@ def allocate_run_id(
     on_date: datetime | None = None,
     shot: str = "primary",
     parent_run_id: str | None = None,
+    runs_dir: Path | None = None,
 ) -> str:
     """Build `YYYY-MM-DD-<harness>-<model>-[<context>-]<reasoning>`.
 
@@ -548,8 +564,8 @@ def allocate_run_id(
     Context is optional even for Cursor: `None`, blank, or `null` emits
     no segment. Reasoning is optional too: `None`, blank, or `null`
     falls back to `unknown`, so the reasoning segment is always present.
-    Uniqueness is checked inside runs/<prompt-id>/, so the same run id
-    may exist once per prompt.
+    Uniqueness is checked across all runs/*/ directories, so every run id
+    is globally unique across the repository.
 
     On a follow-up run (shot="follow-up" or parent_run_id provided),
     the run id ends in `-follow-up` (e.g. `<parent_run_id>-follow-up`, or
@@ -561,7 +577,7 @@ def allocate_run_id(
         base = parent_run_id if parent_run_id.endswith("-follow-up") else f"{parent_run_id}-follow-up"
         candidate = base
         suffix = 2
-        while run_dir_for(prompt_id, candidate).exists():
+        while _run_id_exists_anywhere(candidate, prompt_id=prompt_id, runs_dir=runs_dir):
             if base.endswith("-follow-up"):
                 candidate = f"{base[:-10]}-{suffix}-follow-up"
             else:
@@ -582,7 +598,7 @@ def allocate_run_id(
     base = "-".join(parts)
     candidate = base
     suffix = 2
-    while run_dir_for(prompt_id, candidate).exists():
+    while _run_id_exists_anywhere(candidate, prompt_id=prompt_id, runs_dir=runs_dir):
         candidate = f"{base}-{suffix}"
         suffix += 1
     return candidate
