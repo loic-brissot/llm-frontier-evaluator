@@ -27,11 +27,11 @@
     "visible_tokens": 198300,
     "raw": {
       "usage_csv": {
-        "events_in_file": 435,
+        "events_in_file": 1105,
         "events_selected": 4,
-        "selection": "4 of 435 events. Exact model match for Claude Opus 5.5. Events from 2026-10-21T21:50:12.533000+00:00 through 2026-10-21T23:06:11.638000+00:00.",
+        "selection": "4 of 1105 events. Exact model match for Claude Opus 5.5. Events from 2026-10-21T21:50:12.533000+00:00 through 2026-10-21T23:06:11.638000+00:00.",
         "files": [
-          "team-usage-events-2026-10-22.csv"
+          "team-usage-events-2026-10-31.csv"
         ],
         "models": {
           "claude-opus-5-5-medium": 4
@@ -183,7 +183,7 @@
     "cache_write_tokens": 492712,
     "uncached_input_tokens": 5699,
     "raw": {
-      "selection": "4 of 435 events. Exact model match for Claude Opus 5.5. Events from 2026-10-21T21:50:12.533000+00:00 through 2026-10-21T23:06:11.638000+00:00.",
+      "selection": "4 of 1105 events. Exact model match for Claude Opus 5.5. Events from 2026-10-21T21:50:12.533000+00:00 through 2026-10-21T23:06:11.638000+00:00.",
       "events_selected": 4,
       "fields": {
         "cache_write_tokens": "Input (w/ Cache Write)",

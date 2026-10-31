@@ -24,7 +24,7 @@
   "tokens": {
     "split_rule": "combined_output_as_visible",
     "reasoning_tokens": 0,
-    "visible_tokens": 14714,
+    "visible_tokens": 15493,
     "raw": {
       "type": "result",
       "subtype": "success",
@@ -65,11 +65,63 @@
           "output": "20.00"
         },
         "cache_tier": "5m",
-        "cache_tier_basis": "assumed",
+        "cache_tier_basis": "cursor_cost_column",
         "cache_write_5m_tokens": 29454,
         "cache_write_1h_tokens": 0,
-        "estimated_cost_usd": "0.53",
-        "estimated_cost_with_harness_usd": "0.60"
+        "estimated_cost_usd": "0.56",
+        "estimated_cost_with_harness_usd": "0.63"
+      },
+      "provider_usage": {
+        "type": "result",
+        "subtype": "success",
+        "duration_ms": 188274,
+        "duration_api_ms": 188274,
+        "is_error": false,
+        "result": "I\u2019m treating this as a self-contained interactive atlas first: the app will ship with a polished, deterministic representative service day and a clear data-adapter boundary for the published GTFS/RFN feeds, so it remains usable without relying on third-party APIs at runtime.Implemented a polished interactive French rail atlas with:\n\n- Animated 24-hour train circulation and timeline controls\n- TGV, Intercit\u00e9s and TER filtering\n- Station accessibility isochrones with transfer times\n- Daily corridor-flow visualization\n- Live traffic statistics and station rankings\n- Interactive train/station timetable panels\n- Responsive control-center visual design\n\nBuild passes successfully. Preview is running at:\n\n`http://localhost:5173`\n\nThe bundled dataset is representative and deterministic; `src/data.js` provides the adapter boundary for replacing it with processed SNCF GTFS/RFN data.",
+        "session_id": "2d221ed0-adfd-4b6f-9068-5febbca4b1ff",
+        "request_id": "fd68b56c-abf0-4af7-941d-5e568fecd256",
+        "usage": {
+          "inputTokens": 36,
+          "outputTokens": 14714,
+          "cacheReadTokens": 224247,
+          "cacheWriteTokens": 29454
+        }
+      },
+      "usage_csv": {
+        "events_in_file": 1105,
+        "events_selected": 1,
+        "selection": "1 of 1105 events. Exact model match for GPT-5.6 Sol. Inside the run window.",
+        "files": [
+          "team-usage-events-2026-10-31.csv"
+        ],
+        "models": {
+          "gpt-5.6-sol-medium": 1
+        },
+        "kinds": {
+          "Included": 1
+        },
+        "users": 0,
+        "fields": {
+          "cache_write_tokens": "Input (w/ Cache Write)",
+          "uncached_input_tokens": "Input (w/o Cache Write)",
+          "cache_read_tokens": "Cache Read",
+          "output_tokens": "Output Tokens",
+          "total_tokens": "Total Tokens"
+        },
+        "max_mode": {
+          "No": 1
+        },
+        "first_event_at": "2026-10-22T13:26:36.542Z",
+        "last_event_at": "2026-10-22T13:26:36.542Z",
+        "cache_read_tokens": 229651,
+        "cache_write_tokens": 29454,
+        "uncached_input_tokens": 2430,
+        "output_tokens": 15493,
+        "total_tokens": 277028,
+        "total_tokens_checked": 1,
+        "total_tokens_mismatches": 0,
+        "total_tokens_check": "matches",
+        "cost": "0.59"
       }
     }
   },
@@ -134,19 +186,24 @@
     }
   },
   "context_reread": {
-    "source": "provider_cache_read",
-    "cache_read_tokens": 224247,
+    "source": "cursor_usage_csv",
+    "cache_read_tokens": 229651,
     "cache_write_tokens": 29454,
-    "uncached_input_tokens": 36,
+    "uncached_input_tokens": 2430,
     "raw": {
-      "source": "transcript_or_hook",
-      "model": "gpt-5.6-sol",
-      "input_tokens": 253737,
-      "uncached_input_tokens": 36,
-      "cache_read_tokens": 224247,
+      "selection": "1 of 1105 events. Exact model match for GPT-5.6 Sol. Inside the run window.",
+      "events_selected": 1,
+      "fields": {
+        "cache_write_tokens": "Input (w/ Cache Write)",
+        "uncached_input_tokens": "Input (w/o Cache Write)",
+        "cache_read_tokens": "Cache Read",
+        "output_tokens": "Output Tokens",
+        "total_tokens": "Total Tokens"
+      },
+      "cache_read_tokens": 229651,
       "cache_write_tokens": 29454,
-      "output_tokens": 14714,
-      "split_rule": "unavailable"
+      "uncached_input_tokens": 2430,
+      "total_tokens_check": "matches"
     }
   },
   "outcome": {

@@ -1,0 +1,358 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-30-cursor-composer-2-5-high",
+  "series_id": "adaptive-endurance-coach-cursor",
+  "prompt_id": "adaptive-endurance-coach",
+  "prompt_sha256": "e063f7eae123635edd93949fd72db2786565f11feb74211cad924bcb1309570c",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "cursor",
+    "name": "composer-2.5",
+    "context": null,
+    "reasoning": "high"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": "2026.10.19-6bbf2c4",
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-30T22:24:56.180Z",
+    "ended_at": "2026-10-30T22:29:45.852Z"
+  },
+  "tokens": {
+    "split_rule": "combined_output_as_visible",
+    "reasoning_tokens": 0,
+    "visible_tokens": 28606,
+    "raw": {
+      "type": "result",
+      "subtype": "success",
+      "duration_ms": 295243,
+      "duration_api_ms": 295243,
+      "is_error": false,
+      "result": "Exploring the workspace and scaffolding a polished, flagship-quality training planner and physiological simulator.\n\n\nBuilding a polished React + TypeScript app with physiological models, plan generation, PMC visualization, and export capabilities.\n\n\nImplementing core physiology libraries and the application UI.\n\n\n**VeloLab \u2014 Adaptive Endurance Studio** is in `/workspace/endurance-planner`. It\u2019s a React + TypeScript app with the physiology, planning, PMC, exports, and adaptation behavior you described.\n\n### Run it\n\n```bash\ncd /workspace/endurance-planner\nnpm install\nnpm run dev\n```\n\nOpen the URL Vite prints (usually `http://localhost:5173`).\n\n### What you get\n\n| Area | Behavior |\n|------|----------|\n| **Athlete** | FTP, W/kg, optional VO\u2082max or race-derived **VDOT**, LTHR, 200/400 swim test \u2192 **CSS**, weekly hours & sessions, starting **CTL** |\n| **Zones** | **Coggan** 7-zone power, **Daniels** E/M/T/I/R paces, LTHR HR bands, CSS swim paces |\n| **Plan** | **Base \u2192 Build \u2192 Peak \u2192 Taper** plus recovery weeks; **triathlon**, **running**, **cycling**, or **cross-training** (bike, run, strength) |\n| **Workouts** | Interval block profiles (warm-up, work, recovery, cool-down / strength); per-session status |\n| **PMC** | Daily **TSS**, **CTL** (\u00f742), **ATL** (\u00f77), **TSB**; dashed = original plan, solid = adapted |\n| **Adaptation** | Skip / shorten / over-reach on sessions; illness simulation; hour & session overrides; **Recalibrate** future weeks (~8% ramp cap) |\n| **Export** | Full plan **`.ics`**; bike sessions **`.zwo`** (Zwift) |\n\n### Code layout\n\n- `src/lib/zones.ts` \u2014 Coggan, Daniels/VDOT, CSS, HR  \n- `src/lib/tss.ts` \u2014 cycling TSS, rTSS, sTSS  \n- `src/lib/pmc.ts` \u2014 Banister EWMA  \n- `src/lib/planGenerator.ts` \u2014 mesocycles & structured intervals  \n- `src/lib/adaptation.ts` \u2014 live recalibration  \n- `src/lib/exportIcs.ts` / `exportZwo.ts` \u2014 downloads  \n\nOn first load a sample **12-week triathlon** plan is generated so **Performance** and **Plan & Workouts** are populated immediately. Adjust the profile, pick a discipline and race date, then **Generate periodized plan** or **Regenerate plan** on the Plan tab. Mark session outcomes on workout cards, recalibrate on **Adaptation**, and compare PMC curves on **Performance**.",
+      "session_id": "9290e18f-5ef2-48de-afbf-44977cc2a9ac",
+      "request_id": "b6479c0e-686a-4336-982b-e06fee5f4332",
+      "usage": {
+        "inputTokens": 21755,
+        "outputTokens": 27211,
+        "cacheReadTokens": 860736,
+        "cacheWriteTokens": 0
+      },
+      "hook_tokens": {
+        "source": "transcript_or_hook",
+        "model": "composer-2.5",
+        "input_tokens": 882491,
+        "uncached_input_tokens": 21755,
+        "cache_read_tokens": 860736,
+        "cache_write_tokens": 0,
+        "output_tokens": 27211,
+        "split_rule": "unavailable"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "composer-2-5",
+        "context_variant": null,
+        "long_context_applied": false,
+        "harness": "cursor",
+        "harness_token_rate_per_1m": "0",
+        "harness_surcharge_usd": "0.00",
+        "rates_per_1m_usd": {
+          "input": "0.50",
+          "cache_write": "0.00",
+          "cache_read": "0.20",
+          "output": "2.50"
+        },
+        "cache_tier": "5m",
+        "cache_tier_basis": "cursor_cost_column",
+        "cache_write_5m_tokens": 0,
+        "cache_write_1h_tokens": 0,
+        "estimated_cost_usd": "0.26",
+        "estimated_cost_with_harness_usd": "0.26"
+      },
+      "provider_usage": {
+        "type": "result",
+        "subtype": "success",
+        "duration_ms": 295243,
+        "duration_api_ms": 295243,
+        "is_error": false,
+        "result": "Exploring the workspace and scaffolding a polished, flagship-quality training planner and physiological simulator.\n\n\nBuilding a polished React + TypeScript app with physiological models, plan generation, PMC visualization, and export capabilities.\n\n\nImplementing core physiology libraries and the application UI.\n\n\n**VeloLab \u2014 Adaptive Endurance Studio** is in `/workspace/endurance-planner`. It\u2019s a React + TypeScript app with the physiology, planning, PMC, exports, and adaptation behavior you described.\n\n### Run it\n\n```bash\ncd /workspace/endurance-planner\nnpm install\nnpm run dev\n```\n\nOpen the URL Vite prints (usually `http://localhost:5173`).\n\n### What you get\n\n| Area | Behavior |\n|------|----------|\n| **Athlete** | FTP, W/kg, optional VO\u2082max or race-derived **VDOT**, LTHR, 200/400 swim test \u2192 **CSS**, weekly hours & sessions, starting **CTL** |\n| **Zones** | **Coggan** 7-zone power, **Daniels** E/M/T/I/R paces, LTHR HR bands, CSS swim paces |\n| **Plan** | **Base \u2192 Build \u2192 Peak \u2192 Taper** plus recovery weeks; **triathlon**, **running**, **cycling**, or **cross-training** (bike, run, strength) |\n| **Workouts** | Interval block profiles (warm-up, work, recovery, cool-down / strength); per-session status |\n| **PMC** | Daily **TSS**, **CTL** (\u00f742), **ATL** (\u00f77), **TSB**; dashed = original plan, solid = adapted |\n| **Adaptation** | Skip / shorten / over-reach on sessions; illness simulation; hour & session overrides; **Recalibrate** future weeks (~8% ramp cap) |\n| **Export** | Full plan **`.ics`**; bike sessions **`.zwo`** (Zwift) |\n\n### Code layout\n\n- `src/lib/zones.ts` \u2014 Coggan, Daniels/VDOT, CSS, HR  \n- `src/lib/tss.ts` \u2014 cycling TSS, rTSS, sTSS  \n- `src/lib/pmc.ts` \u2014 Banister EWMA  \n- `src/lib/planGenerator.ts` \u2014 mesocycles & structured intervals  \n- `src/lib/adaptation.ts` \u2014 live recalibration  \n- `src/lib/exportIcs.ts` / `exportZwo.ts` \u2014 downloads  \n\nOn first load a sample **12-week triathlon** plan is generated so **Performance** and **Plan & Workouts** are populated immediately. Adjust the profile, pick a discipline and race date, then **Generate periodized plan** or **Regenerate plan** on the Plan tab. Mark session outcomes on workout cards, recalibrate on **Adaptation**, and compare PMC curves on **Performance**.",
+        "session_id": "9290e18f-5ef2-48de-afbf-44977cc2a9ac",
+        "request_id": "b6479c0e-686a-4336-982b-e06fee5f4332",
+        "usage": {
+          "inputTokens": 21755,
+          "outputTokens": 27211,
+          "cacheReadTokens": 860736,
+          "cacheWriteTokens": 0
+        }
+      },
+      "usage_csv": {
+        "events_in_file": 1105,
+        "events_selected": 1,
+        "selection": "1 of 1105 events. composer-2.5-fast matches run model composer-2.5. composer-2.5 is a shorter name than run model composer-2.5. Events from 2026-10-30T22:24:56.180000+00:00 through 2026-10-30T22:29:45.852000+00:00.",
+        "files": [
+          "team-usage-events-2026-10-31.csv"
+        ],
+        "models": {
+          "composer-2.5": 1
+        },
+        "kinds": {
+          "Included": 1
+        },
+        "users": 0,
+        "fields": {
+          "cache_write_tokens": "Input (w/ Cache Write)",
+          "uncached_input_tokens": "Input (w/o Cache Write)",
+          "cache_read_tokens": "Cache Read",
+          "output_tokens": "Output Tokens",
+          "total_tokens": "Total Tokens"
+        },
+        "max_mode": {
+          "No": 1
+        },
+        "first_event_at": "2026-10-30T22:24:53.401Z",
+        "last_event_at": "2026-10-30T22:24:53.401Z",
+        "cache_read_tokens": 865414,
+        "cache_write_tokens": 0,
+        "uncached_input_tokens": 28289,
+        "output_tokens": 28606,
+        "total_tokens": 922309,
+        "total_tokens_checked": 1,
+        "total_tokens_mismatches": 0,
+        "total_tokens_check": "matches",
+        "cost": "0.25"
+      }
+    }
+  },
+  "model_time": {
+    "source": "wall_clock_minus_tool_time",
+    "generating_seconds": 140.3,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 289.7,
+        "tool_seconds_merged": 149.3,
+        "tool_seconds_summed": 149.9,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": 140.3,
+        "thinking_seconds": 8.1,
+        "thought_blocks": 30
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 12,
+      "failures": 3,
+      "by_tool": {
+        "Shell": {
+          "calls": 12,
+          "failures": 3
+        }
+      }
+    },
+    "files": {
+      "calls": 54,
+      "failures": 0,
+      "by_tool": {
+        "Grep": {
+          "calls": 3,
+          "failures": 0
+        },
+        "Read": {
+          "calls": 14,
+          "failures": 0
+        },
+        "Write": {
+          "calls": 34,
+          "failures": 0
+        },
+        "Delete": {
+          "calls": 1,
+          "failures": 0
+        },
+        "Glob": {
+          "calls": 2,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    }
+  },
+  "context_reread": {
+    "source": "cursor_usage_csv",
+    "cache_read_tokens": 865414,
+    "cache_write_tokens": 0,
+    "uncached_input_tokens": 28289,
+    "raw": {
+      "selection": "1 of 1105 events. composer-2.5-fast matches run model composer-2.5. composer-2.5 is a shorter name than run model composer-2.5. Events from 2026-10-30T22:24:56.180000+00:00 through 2026-10-30T22:29:45.852000+00:00.",
+      "events_selected": 1,
+      "fields": {
+        "cache_write_tokens": "Input (w/ Cache Write)",
+        "uncached_input_tokens": "Input (w/o Cache Write)",
+        "cache_read_tokens": "Cache Read",
+        "output_tokens": "Output Tokens",
+        "total_tokens": "Total Tokens"
+      },
+      "cache_read_tokens": 865414,
+      "cache_write_tokens": 0,
+      "uncached_input_tokens": 28289,
+      "total_tokens_check": "matches"
+    }
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": false,
+    "summary": ""
+  },
+  "observations": "No stop event recorded; capped run end time at the last non-idle tool/thought event.",
+  "verification": {
+    "runtime": {
+      "passed": false,
+      "http_status": null,
+      "url": "",
+      "server_mode": "none",
+      "load_time_ms": null,
+      "console_errors": [],
+      "console_warnings_count": 0,
+      "page_errors": [
+        "No workspace server found or started"
+      ],
+      "failed_requests": [],
+      "critical_failures": [
+        "No workspace server found or started"
+      ],
+      "dom": null,
+      "screenshot_path": null,
+      "verified_at": "2026-10-30T22:29:49.219Z",
+      "demo_url": "demos/adaptive-endurance-coach/2026-10-30-cursor-composer-2-5-high/index.html"
+    },
+    "data_pipeline": {
+      "prompt_id": "adaptive-endurance-coach",
+      "passed": true,
+      "authenticity": "domain_model_verified",
+      "score": 0.8,
+      "total_data_files": 6,
+      "total_records": 177,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "banister_ewma_model",
+          "description": "Banister impulse-response model constants (CTL 42d EWMA, ATL 7d EWMA, TSB = CTL - ATL)",
+          "passed": false,
+          "observed_records": 0,
+          "matched_files": [
+            "endurance-planner/tsconfig.node.json",
+            "endurance-planner/tsconfig.app.json"
+          ],
+          "detail": "Matched 2 file(s) but observed 0 records < min threshold 1"
+        },
+        {
+          "id": "coggan_power_tss_model",
+          "description": "Coggan power zones & TSS formula (FTP, NP, IF, 3600s denominator)",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "endurance-planner/src/lib/planGenerator.ts",
+            "endurance-planner/src/lib/zones.ts",
+            "endurance-planner/src/lib/utils.ts",
+            "endurance-planner/src/lib/pmc.ts",
+            "endurance-planner/src/lib/types.ts",
+            "endurance-planner/src/lib/tss.ts",
+            "endurance-planner/src/store/AppContext.tsx"
+          ],
+          "detail": "Matched 7 file(s) with 1 observed records (min: 1)"
+        },
+        {
+          "id": "daniels_vdot_css_model",
+          "description": "Daniels VDOT running zones & Critical Swim Speed formula (CSS, 400, 200)",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "endurance-planner/src/components/Shell.tsx",
+            "endurance-planner/src/components/PlanSettingsPanel.tsx",
+            "endurance-planner/src/components/ProfileEditor.tsx",
+            "endurance-planner/src/components/PlanView.tsx",
+            "endurance-planner/src/components/AdaptationPanel.tsx",
+            "endurance-planner/src/components/PmcChart.tsx",
+            "endurance-planner/src/components/IntervalProfile.tsx",
+            "endurance-planner/src/lib/exportIcs.ts",
+            "endurance-planner/src/lib/adaptation.ts",
+            "endurance-planner/src/lib/exportZwo.ts",
+            "endurance-planner/src/lib/planGenerator.ts",
+            "endurance-planner/src/lib/zones.ts",
+            "endurance-planner/src/lib/utils.ts",
+            "endurance-planner/src/lib/pmc.ts",
+            "endurance-planner/src/lib/types.ts",
+            "endurance-planner/src/lib/tss.ts",
+            "endurance-planner/src/store/AppContext.tsx"
+          ],
+          "detail": "Matched 17 file(s) with 1 observed records (min: 1)"
+        },
+        {
+          "id": "export_formats_support",
+          "description": "Calendar (.ics) and Zwift workout (.zwo) export implementation",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "endurance-planner/src/components/PlanView.tsx",
+            "endurance-planner/src/components/AdaptationPanel.tsx",
+            "endurance-planner/src/components/PmcChart.tsx",
+            "endurance-planner/src/components/IntervalProfile.tsx",
+            "endurance-planner/src/lib/exportIcs.ts",
+            "endurance-planner/src/lib/adaptation.ts",
+            "endurance-planner/src/lib/exportZwo.ts",
+            "endurance-planner/src/lib/planGenerator.ts",
+            "endurance-planner/src/lib/zones.ts",
+            "endurance-planner/src/lib/utils.ts",
+            "endurance-planner/src/lib/pmc.ts",
+            "endurance-planner/src/lib/types.ts",
+            "endurance-planner/src/lib/tss.ts",
+            "endurance-planner/src/store/AppContext.tsx"
+          ],
+          "detail": "Matched 14 file(s) with 1 observed records (min: 1)"
+        },
+        {
+          "id": "endurance_disciplines",
+          "description": "Four endurance disciplines (triathlon, running, cycling, cross-training)",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "endurance-planner/src/components/PlanSettingsPanel.tsx",
+            "endurance-planner/src/components/ProfileEditor.tsx",
+            "endurance-planner/src/components/PlanView.tsx",
+            "endurance-planner/src/components/AdaptationPanel.tsx",
+            "endurance-planner/src/components/PmcChart.tsx",
+            "endurance-planner/src/components/IntervalProfile.tsx",
+            "endurance-planner/src/lib/exportIcs.ts",
+            "endurance-planner/src/lib/adaptation.ts",
+            "endurance-planner/src/lib/exportZwo.ts",
+            "endurance-planner/src/lib/planGenerator.ts",
+            "endurance-planner/src/lib/zones.ts",
+            "endurance-planner/src/lib/utils.ts",
+            "endurance-planner/src/lib/pmc.ts",
+            "endurance-planner/src/lib/types.ts",
+            "endurance-planner/src/lib/tss.ts",
+            "endurance-planner/src/store/AppContext.tsx"
+          ],
+          "detail": "Matched 16 file(s) with 1 observed records (min: 1)"
+        }
+      ],
+      "verified_at": "2026-10-30T22:29:49.220Z"
+    }
+  }
+}

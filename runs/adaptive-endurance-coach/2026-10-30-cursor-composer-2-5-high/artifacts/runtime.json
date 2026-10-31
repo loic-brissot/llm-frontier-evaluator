@@ -1,0 +1,20 @@
+{
+  "passed": false,
+  "http_status": null,
+  "url": "",
+  "server_mode": "none",
+  "load_time_ms": null,
+  "console_errors": [],
+  "console_warnings_count": 0,
+  "page_errors": [
+    "No workspace server found or started"
+  ],
+  "failed_requests": [],
+  "critical_failures": [
+    "No workspace server found or started"
+  ],
+  "dom": null,
+  "screenshot_path": null,
+  "verified_at": "2026-10-30T22:29:49.219Z",
+  "demo_url": "demos/adaptive-endurance-coach/2026-10-30-cursor-composer-2-5-high/index.html"
+}

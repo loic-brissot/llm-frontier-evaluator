@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "http_status": 200,
+  "url": "http://127.0.0.1:57456",
+  "server_mode": "static",
+  "load_time_ms": 3704.34,
+  "console_errors": [],
+  "console_warnings_count": 0,
+  "page_errors": [],
+  "failed_requests": [],
+  "critical_failures": [],
+  "dom": {
+    "title": "APEX LAB \u2014 Adaptive Training Intelligence",
+    "canvas_count": 0,
+    "visible_canvas_count": 0,
+    "canvas_obscured": false,
+    "loading_overlay": null,
+    "loading_status_text": "",
+    "intro_gate": null,
+    "svg_count": 2,
+    "webgl_context": false,
+    "text_length": 4922
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "loading_settle_ms": 0,
+  "verified_at": "2026-10-30T18:15:28.164Z",
+  "demo_url": "demos/adaptive-endurance-coach/2026-10-30-cursor-kimi-k3-high/index.html"
+}

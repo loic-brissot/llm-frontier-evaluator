@@ -24,7 +24,7 @@
   "tokens": {
     "split_rule": "combined_output_as_visible",
     "reasoning_tokens": 0,
-    "visible_tokens": 26025,
+    "visible_tokens": 26779,
     "raw": {
       "type": "result",
       "subtype": "success",
@@ -65,11 +65,63 @@
           "output": "2.50"
         },
         "cache_tier": "5m",
-        "cache_tier_basis": "assumed",
+        "cache_tier_basis": "cursor_cost_column",
         "cache_write_5m_tokens": 0,
         "cache_write_1h_tokens": 0,
-        "estimated_cost_usd": "0.21",
-        "estimated_cost_with_harness_usd": "0.21"
+        "estimated_cost_usd": "0.22",
+        "estimated_cost_with_harness_usd": "0.22"
+      },
+      "provider_usage": {
+        "type": "result",
+        "subtype": "success",
+        "duration_ms": 200509,
+        "duration_api_ms": 200509,
+        "is_error": false,
+        "result": "Exploring the workspace and Paris Open Data APIs to design an interactive Paris tree canopy explorer.\n\n\nChecking API capabilities and planning the app architecture for ~220k trees.\n\n\nCreating a data pipeline and building the application.\n\n\nBuilding the application UI and core components.\n\n\n**Canop\u00e9e de Paris** is in `/workspace/paris-trees` \u2014 an interactive atlas of the municipal tree canopy.\n\n### What you get\n- **Map** \u2014 MapLibre on a muted Carto basemap; **Supercluster** aggregation when zoomed out; individual markers when zoomed in; color by **genre** or **height**; gold **arbres remarquables** markers; arrondissement outlines.\n- **Filters** \u2014 Arrondissements 1er\u201320e, featured genera (Platanus, Aesculus, Tilia, Sophora, Celtis, \u2026), height/circumference ranges, remarkable-only toggle.\n- **Analytics** \u2014 Totals, diversity, mean/median height & circumference, genus bar chart, density per km\u00b2 by arrondissement (updates with filters).\n- **Remarkable showcase** \u2014 182 heritage trees with photos, criteria, planting age, pan-to-map.\n- **District comparison** \u2014 Stacked voirie vs parcs chart + comparison table with genus variety and density.\n- **Tree detail card** \u2014 French name, taxonomy, dimensions, stade, domaine, coordinates, heritage text/PDF when available.\n\n### Data\n~220k trees from Paris Open Data, preprocessed to `public/data/trees.json.gz` (~7.4 MB download). Sources are credited in the footer.\n\n### Run it\n```bash\ncd /workspace/paris-trees\nnpm install\nnpm run dev\n```\n\nDev server: **http://localhost:5173/**\n\nRefresh data:\n```bash\nnpm run data:fetch\nnpm run data:build\n```\n\nFirst load parses the full inventory (brief loading screen); filtering and clustering then run in the browser on the active selection.",
+        "session_id": "7432144f-0094-449c-b6bf-26ba563aaf6e",
+        "request_id": "6773ebd7-eb38-4371-8af9-11e82b7ac190",
+        "usage": {
+          "inputTokens": 43141,
+          "outputTokens": 26025,
+          "cacheReadTokens": 627823,
+          "cacheWriteTokens": 0
+        }
+      },
+      "usage_csv": {
+        "events_in_file": 1105,
+        "events_selected": 1,
+        "selection": "1 of 1105 events. composer-2.5-fast matches run model Composer 2.5. composer-2.5 is a shorter name than run model Composer 2.5. Events from 2026-10-24T09:18:15.470000+00:00 through 2026-10-24T09:21:32.140000+00:00.",
+        "files": [
+          "team-usage-events-2026-10-31.csv"
+        ],
+        "models": {
+          "composer-2.5": 1
+        },
+        "kinds": {
+          "Included": 1
+        },
+        "users": 0,
+        "fields": {
+          "cache_write_tokens": "Input (w/ Cache Write)",
+          "uncached_input_tokens": "Input (w/o Cache Write)",
+          "cache_read_tokens": "Cache Read",
+          "output_tokens": "Output Tokens",
+          "total_tokens": "Total Tokens"
+        },
+        "max_mode": {
+          "No": 1
+        },
+        "first_event_at": "2026-10-24T09:18:14.036Z",
+        "last_event_at": "2026-10-24T09:18:14.036Z",
+        "cache_read_tokens": 633419,
+        "cache_write_tokens": 0,
+        "uncached_input_tokens": 48354,
+        "output_tokens": 26779,
+        "total_tokens": 708552,
+        "total_tokens_checked": 1,
+        "total_tokens_mismatches": 0,
+        "total_tokens_check": "matches",
+        "cost": "0.21"
       }
     }
   },
@@ -138,19 +190,24 @@
     }
   },
   "context_reread": {
-    "source": "provider_cache_read",
-    "cache_read_tokens": 627823,
+    "source": "cursor_usage_csv",
+    "cache_read_tokens": 633419,
     "cache_write_tokens": 0,
-    "uncached_input_tokens": 43141,
+    "uncached_input_tokens": 48354,
     "raw": {
-      "source": "transcript_or_hook",
-      "model": "composer-2.5",
-      "input_tokens": 670964,
-      "uncached_input_tokens": 43141,
-      "cache_read_tokens": 627823,
+      "selection": "1 of 1105 events. composer-2.5-fast matches run model Composer 2.5. composer-2.5 is a shorter name than run model Composer 2.5. Events from 2026-10-24T09:18:15.470000+00:00 through 2026-10-24T09:21:32.140000+00:00.",
+      "events_selected": 1,
+      "fields": {
+        "cache_write_tokens": "Input (w/ Cache Write)",
+        "uncached_input_tokens": "Input (w/o Cache Write)",
+        "cache_read_tokens": "Cache Read",
+        "output_tokens": "Output Tokens",
+        "total_tokens": "Total Tokens"
+      },
+      "cache_read_tokens": 633419,
       "cache_write_tokens": 0,
-      "output_tokens": 26025,
-      "split_rule": "unavailable"
+      "uncached_input_tokens": 48354,
+      "total_tokens_check": "matches"
     }
   },
   "outcome": {

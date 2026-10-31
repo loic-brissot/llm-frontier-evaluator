@@ -23,7 +23,11 @@ run_id,turn_index,timestamp,cache_read_tokens,cumulative_cache_read_tokens,input
 2026-10-24-cursor-gpt-5-6-luna-high,1,"",186620,186620,220181,220181,84.76
 2026-10-25-claude-code-claude-sonnet-5-5-high,1,"",17940768,17940768,18268779,18268779,98.2
 2026-10-26-claude-code-claude-opus-5-5-medium,1,"",4424173,4424173,4566128,4566128,96.89
-2026-10-26-claude-code-claude-opus-5-5-medium-2,1,"",7926559,7926559,8108309,8108309,97.76
+2026-10-26-claude-code-claude-opus-5-5-medium,1,"",7926559,12350732,8108309,12674437,97.45
 2026-10-26-claude-code-claude-sonnet-5-5-high,1,"",38867787,38867787,39325335,39325335,98.84
+2026-10-26-claude-code-claude-sonnet-5-5-high,1,"",11741282,50609069,12030107,51355442,98.55
 2026-10-26-claude-code-claude-sonnet-5-5-high-2,1,"",32241350,32241350,32744584,32744584,98.46
-2026-10-26-claude-code-claude-sonnet-5-5-high-3,1,"",11741282,11741282,12030107,12030107,97.6
+2026-10-28-cursor-claude-haiku-5-5-high,1,2026-10-28T20:06:50.757Z,0,0,0,0,
+2026-10-28-cursor-grok-4-7-high,1,2026-10-28T20:06:05.308Z,0,0,0,0,
+2026-10-28-cursor-kimi-k3-high,1,2026-10-28T20:06:49.636Z,0,0,0,0,
+2026-10-28-cursor-muse-wonder-high,1,2026-10-28T20:06:50.205Z,0,0,0,0,

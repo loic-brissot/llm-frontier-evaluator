@@ -22,18 +22,19 @@
     "ended_at": "2026-10-19T03:40:45.950Z"
   },
   "tokens": {
-    "split_rule": "unavailable",
-    "reasoning_tokens": null,
-    "visible_tokens": null,
+    "split_rule": "combined_output_as_visible",
+    "reasoning_tokens": 0,
+    "visible_tokens": 26101,
     "raw": {
       "hook_tokens": {
-        "source": "cursor_stop_hook",
+        "source": "transcript_or_hook",
         "model": "muse-wonder-1.0-medium",
         "input_tokens": 1800824,
         "uncached_input_tokens": 115812,
         "cache_read_tokens": 1685012,
         "cache_write_tokens": 0,
-        "output_tokens": 25021
+        "output_tokens": 25021,
+        "split_rule": "unavailable"
       },
       "pricing": {
         "as_of": "2026-10-18",
@@ -50,11 +51,47 @@
           "output": "20.00"
         },
         "cache_tier": "5m",
-        "cache_tier_basis": "assumed",
+        "cache_tier_basis": "cursor_cost_column",
         "cache_write_5m_tokens": 0,
         "cache_write_1h_tokens": 0,
-        "estimated_cost_usd": "1.30",
-        "estimated_cost_with_harness_usd": "1.76"
+        "estimated_cost_usd": "1.35",
+        "estimated_cost_with_harness_usd": "1.81"
+      },
+      "usage_csv": {
+        "events_in_file": 1105,
+        "events_selected": 1,
+        "selection": "1 of 1105 events. muse-wonder-1.0-medium matches run model Muse Wonder. Events from 2026-10-19T03:33:40.099000+00:00 through 2026-10-19T03:40:45.950000+00:00.",
+        "files": [
+          "team-usage-events-2026-10-31.csv"
+        ],
+        "models": {
+          "muse-wonder-1.0-medium": 1
+        },
+        "kinds": {
+          "Included": 1
+        },
+        "users": 0,
+        "fields": {
+          "cache_write_tokens": "Input (w/ Cache Write)",
+          "uncached_input_tokens": "Input (w/o Cache Write)",
+          "cache_read_tokens": "Cache Read",
+          "output_tokens": "Output Tokens",
+          "total_tokens": "Total Tokens"
+        },
+        "max_mode": {
+          "No": 1
+        },
+        "first_event_at": "2026-10-19T03:33:40.675Z",
+        "last_event_at": "2026-10-19T03:33:40.675Z",
+        "cache_read_tokens": 1690682,
+        "cache_write_tokens": 0,
+        "uncached_input_tokens": 122858,
+        "output_tokens": 26101,
+        "total_tokens": 1839641,
+        "total_tokens_checked": 1,
+        "total_tokens_mismatches": 0,
+        "total_tokens_check": "matches",
+        "cost": "1.75"
       }
     }
   },
@@ -120,18 +157,24 @@
     }
   },
   "context_reread": {
-    "source": "provider_cache_read",
-    "cache_read_tokens": 1685012,
+    "source": "cursor_usage_csv",
+    "cache_read_tokens": 1690682,
     "cache_write_tokens": 0,
-    "uncached_input_tokens": 115812,
+    "uncached_input_tokens": 122858,
     "raw": {
-      "source": "cursor_stop_hook",
-      "model": "muse-wonder-1.0-medium",
-      "input_tokens": 1800824,
-      "uncached_input_tokens": 115812,
-      "cache_read_tokens": 1685012,
+      "selection": "1 of 1105 events. muse-wonder-1.0-medium matches run model Muse Wonder. Events from 2026-10-19T03:33:40.099000+00:00 through 2026-10-19T03:40:45.950000+00:00.",
+      "events_selected": 1,
+      "fields": {
+        "cache_write_tokens": "Input (w/ Cache Write)",
+        "uncached_input_tokens": "Input (w/o Cache Write)",
+        "cache_read_tokens": "Cache Read",
+        "output_tokens": "Output Tokens",
+        "total_tokens": "Total Tokens"
+      },
+      "cache_read_tokens": 1690682,
       "cache_write_tokens": 0,
-      "output_tokens": 25021
+      "uncached_input_tokens": 122858,
+      "total_tokens_check": "matches"
     }
   },
   "outcome": {

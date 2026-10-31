@@ -38,6 +38,7 @@ from run_common import (
     copy_usage_export,
     find_run_dir,
     load_json,
+    load_pricing,
     scrub_path,
     slugify,
     utc_now_iso,
@@ -776,6 +777,28 @@ def cell(row: dict[str, str | None], header: str | None) -> str:
 KNOWN_REASONING_LEVELS = set(REASONING_LEVELS)
 
 
+def canonical_model_slug(model_name: str) -> str:
+    """Normalize model slug using reference pricing aliases if available."""
+    raw_slug = slugify(model_name)
+    if not raw_slug:
+        return ""
+    base_slug = raw_slug
+    for lvl in KNOWN_REASONING_LEVELS:
+        if base_slug.endswith(f"-{lvl}"):
+            base_slug = base_slug[: -(len(lvl) + 1)]
+            break
+    try:
+        pricing = load_pricing()
+        for entry in pricing.get("models") or []:
+            names = [entry.get("id", "")] + list(entry.get("names") or [])
+            cand_slugs = {slugify(n) for n in names if n}
+            if base_slug in cand_slugs or raw_slug in cand_slugs:
+                return slugify(entry.get("id", ""))
+    except Exception:
+        pass
+    return raw_slug
+
+
 def models_match(
     run_model: str,
     event_model: str,
@@ -822,7 +845,6 @@ def models_match(
             return "shorter"
         if event_slug.startswith(run_slug + "-"):
             return "longer"
-        return None
 
     if run_slug == event_slug:
         return "exact"
@@ -830,6 +852,22 @@ def models_match(
         return "longer"
     if run_slug.startswith(event_slug + "-"):
         return "shorter"
+
+    c_run = canonical_model_slug(run_model)
+    c_event = canonical_model_slug(event_model)
+    if c_run and c_run == c_event:
+        if reasoning_slug:
+            if event_slug.endswith(f"-{reasoning_slug}") or f"-{reasoning_slug}-" in event_slug:
+                return "exact"
+            if any(
+                event_slug.endswith(f"-{lvl}") or f"-{lvl}-" in event_slug
+                for lvl in KNOWN_REASONING_LEVELS
+                if lvl != reasoning_slug
+            ):
+                return None
+            return "shorter"
+        return "exact"
+
     return None
 
 
@@ -965,7 +1003,21 @@ def default_csv_selection(
                                     f"Selected session start event {chosen[0].date_text} for Gemini session."
                                 )
             else:
-                if not interactive:
+                timed_shorter = (
+                    [e for e in shorter if event_in_window(e, started, ended)]
+                    if shorter
+                    else []
+                )
+                if timed_shorter:
+                    chosen = timed_shorter
+                    kind = "shorter"
+                    short_names = ", ".join(sorted({e.model for e in shorter}))
+                    notes.append(f"{short_names} is a shorter name than run model {run_model}.")
+                    if len(timed_shorter) != len(shorter):
+                        notes.append(window_note(started, ended))
+                    elif started or ended:
+                        notes.append("Inside the run window.")
+                elif not interactive:
                     chosen = []
                     kind = "none"
                     notes.append("No events fall inside the run window.")

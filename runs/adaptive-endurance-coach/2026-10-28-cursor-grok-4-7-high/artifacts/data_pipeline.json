@@ -1,0 +1,106 @@
+{
+  "prompt_id": "adaptive-endurance-coach",
+  "passed": true,
+  "authenticity": "domain_model_verified",
+  "score": 1.0,
+  "total_data_files": 1,
+  "total_records": 1,
+  "synthetic_signals": [],
+  "checks": [
+    {
+      "id": "banister_ewma_model",
+      "description": "Banister impulse-response model constants (CTL 42d EWMA, ATL 7d EWMA, TSB = CTL - ATL)",
+      "passed": true,
+      "observed_records": 1,
+      "matched_files": [
+        "css/studio.css",
+        "js/export.js",
+        "js/format.js",
+        "js/chart.js",
+        "js/plan.js",
+        "js/catalog.js",
+        "js/physio.js",
+        "js/app.js",
+        "js/workouts.js",
+        "tests/model.test.js"
+      ],
+      "detail": "Matched 10 file(s) with 1 observed records (min: 1)"
+    },
+    {
+      "id": "coggan_power_tss_model",
+      "description": "Coggan power zones & TSS formula (FTP, NP, IF, 3600s denominator)",
+      "passed": true,
+      "observed_records": 1,
+      "matched_files": [
+        "js/format.js",
+        "js/chart.js",
+        "js/plan.js",
+        "js/catalog.js",
+        "js/physio.js",
+        "js/app.js",
+        "js/workouts.js",
+        "tests/model.test.js"
+      ],
+      "detail": "Matched 8 file(s) with 1 observed records (min: 1)"
+    },
+    {
+      "id": "daniels_vdot_css_model",
+      "description": "Daniels VDOT running zones & Critical Swim Speed formula (CSS, 400, 200)",
+      "passed": true,
+      "observed_records": 1,
+      "matched_files": [
+        "index.html",
+        "css/studio.css",
+        "js/export.js",
+        "js/format.js",
+        "js/chart.js",
+        "js/plan.js",
+        "js/catalog.js",
+        "js/physio.js",
+        "js/app.js",
+        "js/workouts.js",
+        "tests/model.test.js"
+      ],
+      "detail": "Matched 11 file(s) with 1 observed records (min: 1)"
+    },
+    {
+      "id": "export_formats_support",
+      "description": "Calendar (.ics) and Zwift workout (.zwo) export implementation",
+      "passed": true,
+      "observed_records": 1,
+      "matched_files": [
+        "js/export.js",
+        "js/format.js",
+        "js/chart.js",
+        "js/plan.js",
+        "js/catalog.js",
+        "js/physio.js",
+        "js/app.js",
+        "js/workouts.js",
+        "tests/model.test.js"
+      ],
+      "detail": "Matched 9 file(s) with 1 observed records (min: 1)"
+    },
+    {
+      "id": "endurance_disciplines",
+      "description": "Four endurance disciplines (triathlon, running, cycling, cross-training)",
+      "passed": true,
+      "observed_records": 1,
+      "matched_files": [
+        "index.html",
+        "css/studio.css",
+        "js/export.js",
+        "js/format.js",
+        "js/chart.js",
+        "js/plan.js",
+        "js/catalog.js",
+        "js/physio.js",
+        "js/app.js",
+        "js/workouts.js",
+        "tests/model.test.js"
+      ],
+      "detail": "Matched 11 file(s) with 1 observed records (min: 1)"
+    }
+  ],
+  "verified_at": "2026-10-30T14:06:58.807Z"
+}

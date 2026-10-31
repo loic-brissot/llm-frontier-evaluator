@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "http_status": 200,
+  "url": "http://127.0.0.1:58074",
+  "server_mode": "static",
+  "load_time_ms": 3854.29,
+  "console_errors": [],
+  "console_warnings_count": 0,
+  "page_errors": [],
+  "failed_requests": [],
+  "critical_failures": [],
+  "dom": {
+    "title": "PhysioStudio \u2014 Adaptive Endurance Planner & Physiological Simulator",
+    "canvas_count": 0,
+    "visible_canvas_count": 0,
+    "canvas_obscured": false,
+    "loading_overlay": null,
+    "loading_status_text": "",
+    "intro_gate": null,
+    "svg_count": 518,
+    "webgl_context": false,
+    "text_length": 20923
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "loading_settle_ms": 0,
+  "verified_at": "2026-10-30T23:16:49.419Z",
+  "demo_url": "demos/adaptive-endurance-coach/2026-10-31-cursor-gemini-3-8-flash-high/index.html"
+}

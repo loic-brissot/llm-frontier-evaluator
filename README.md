@@ -23,16 +23,18 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 ### `adaptive-endurance-coach`
 
+![adaptive-endurance-coach — Grok 4.7 high (2026-10-28-cursor-grok-4-7-high)](runs/adaptive-endurance-coach/2026-10-28-cursor-grok-4-7-high/artifacts/screenshot.png)
+
 **Local series `adaptive-endurance-coach-cursor`**: Cursor, recorded with this repository ([`runs/`](runs/README.md)).
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Claude Haiku 5.5 high | Cursor | n/a | n/a | n/a | n/a | n/a | n/a |
-| Grok 4.7 high | Cursor | n/a | n/a | n/a | n/a | n/a | n/a |
-| Kimi K3 high | Cursor | n/a | n/a | n/a | n/a | n/a | n/a |
-| Muse Wonder high | Cursor | n/a | n/a | n/a | n/a | n/a | n/a |
-
-*Note: Token and cost columns show `n/a` for headless CLI runs until a Cursor billing CSV export is ingested (`finish_run.py --usage-export`).*
+| Grok 4.7 high | Cursor | 247k | n/a | 154 ✓<br>1 ✗ | 8.0M | $6.19 | UI ✓<br>Data 5/5 ✓<br>1 records<br>[Live Demo](demos/adaptive-endurance-coach/2026-10-28-cursor-grok-4-7-high/index.html) |
+| claude-haiku-5-5 high | Cursor | 83k | 6.5 min | 67 ✓<br>0 ✗ | 4.6M | $1.31 | UI ✓<br>Data 5/5 ✓<br>0 records<br>[Live Demo](demos/adaptive-endurance-coach/2026-10-30-cursor-claude-haiku-5-5-high/index.html) |
+| composer-2.5 high | Cursor | 29k | 2.3 min<br>0.1 min thinking | 63 ✓<br>3 ✗ | 0.9M | $0.26 | UI ✗<br>Data 4/5 ✓<br>177 records<br>[Live Demo](demos/adaptive-endurance-coach/2026-10-30-cursor-composer-2-5-high/index.html) |
+| kimi-k3 high | Cursor | 69k | 5.2 min<br>2.4 min thinking | 28 ✓<br>3 ✗ | 1.8M | $2.24 | UI ✓<br>Data 5/5 ✓<br>0 records<br>[Live Demo](demos/adaptive-endurance-coach/2026-10-30-cursor-kimi-k3-high/index.html) |
+| muse-wonder high | Cursor | 21k | 2.2 min | 8 ✓<br>0 ✗ | 0.2M | $0.63 | UI ✓<br>Data 5/5 ✓<br>0 records<br>[Live Demo](demos/adaptive-endurance-coach/2026-10-30-cursor-muse-wonder-high/index.html) |
+| gemini-3.8-flash high | Cursor | 109k | 13.7 min<br>8.9 min thinking | 59 ✓<br>3 ✗ | 4.5M | $2.28 | UI ✓<br>Data 5/5 ✓<br>221 records<br>[Live Demo](demos/adaptive-endurance-coach/2026-10-31-cursor-gemini-3-8-flash-high/index.html) |
 
 ### `france-electricity-carbon-flow`
 
@@ -53,13 +55,11 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Claude Opus 5.5 300k high | Cursor | 90k | 20.1 min<br>7.7 min thinking | 47 ✓<br>3 ✗ | 5.5M | $6.53 | UI ✓<br>Data 3/3 ✓<br>820k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-19-cursor-claude-opus-5-5-high-300k-high/index.html) |
-| Gemini 3.8 Flash high | Cursor | 118k | 18.1 min<br>5.8 min thinking | 122 ✓<br>8 ✗ | 11.0M | $4.75 | UI ✗<br>Data 3/3 ✓<br>828k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high/index.html) |
-| GLM 5.3 high | Cursor | 59k | 10.4 min<br>3.9 min thinking | 78 ✓<br>2 ✗ | 5.0M | $2.95 | UI ✗<br>Data 3/3 ✓<br>827k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-glm-5-3-high/index.html) |
-| GPT-5.6 Sol medium | Cursor | 15k | 2.8 min<br>0.2 min thinking | 13 ✓<br>0 ✗ | 0.2M | $0.60 | UI ✗<br>Data 0/3 ⚠<br>118 records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-gpt-5-6-sol-medium/index.html) |
-| Grok 4.7 high | Cursor | n/a | 60.1 min<br>49.8 min thinking | 138 ✓<br>4 ✗ | n/a | n/a | UI ✗<br>Data 3/3 ✓<br>888k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-grok-4-7-high/index.html) |
-| Muse Wonder medium | Cursor | 25k | 3.4 min | 18 ✓<br>1 ✗ | 0.6M | $0.93 | UI ✓<br>Data 0/3 ⚠<br>0 records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-muse-wonder-medium/index.html) |
-
-*Note: Token and cost columns show `n/a` for headless CLI runs until a Cursor billing CSV export is ingested (`finish_run.py --usage-export`).*
+| Gemini 3.8 Flash high | Cursor | 119k | 18.1 min<br>5.8 min thinking | 122 ✓<br>8 ✗ | 11.0M | $4.76 | UI ✗<br>Data 3/3 ✓<br>828k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-gemini-3-8-flash-high/index.html) |
+| GLM 5.3 high | Cursor | 79k | 10.4 min<br>3.9 min thinking | 78 ✓<br>2 ✗ | 5.1M | $3.16 | UI ✗<br>Data 3/3 ✓<br>827k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-glm-5-3-high/index.html) |
+| GPT-5.6 Sol medium | Cursor | 15k | 2.8 min<br>0.2 min thinking | 13 ✓<br>0 ✗ | 0.2M | $0.63 | UI ✗<br>Data 0/3 ⚠<br>118 records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-gpt-5-6-sol-medium/index.html) |
+| Grok 4.7 high | Cursor | 213k | 60.1 min<br>49.8 min thinking | 138 ✓<br>4 ✗ | 9.8M | $7.11 | UI ✗<br>Data 3/3 ✓<br>888k records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-grok-4-7-high/index.html) |
+| Muse Wonder medium | Cursor | 26k | 3.4 min | 18 ✓<br>1 ✗ | 0.6M | $0.98 | UI ✓<br>Data 0/3 ⚠<br>0 records<br>[Live Demo](demos/france-rail-24h-pulse/2026-10-22-cursor-muse-wonder-medium/index.html) |
 
 **Local series `france-rail-24h-pulse-claude-code`**: Claude Code, recorded with this repository ([`runs/`](runs/README.md)).
 
@@ -75,7 +75,7 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Muse Wonder 300k medium | Cursor | 25k | 4.8 min | 37 ✓<br>4 ✗ | 1.7M | $1.76 | UI ✓<br>Data 2/2 ✓<br>394k records<br>[Live Demo](demos/france-road-accidents/2026-10-19-cursor-muse-wonder-300k-medium/index.html) |
+| Muse Wonder 300k medium | Cursor | 26k | 4.8 min | 37 ✓<br>4 ✗ | 1.7M | $1.81 | UI ✓<br>Data 2/2 ✓<br>394k records<br>[Live Demo](demos/france-road-accidents/2026-10-19-cursor-muse-wonder-300k-medium/index.html) |
 
 **Local series `france-road-accidents-claude-code`**: Claude Code, recorded with this repository ([`runs/`](runs/README.md)).
 
@@ -110,13 +110,11 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Claude Haiku 5.5 high | Cursor | 79k | 6.4 min | 94 ✓<br>1 ✗ | 7.5M | $2.06 | UI ✗<br>Data 3/3 ✓<br>177k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-24-cursor-claude-haiku-5-5-high/index.html) |
-| Claude Sonnet 5.5 high | Cursor | n/a | 23.2 min<br>10.3 min thinking | 72 ✓<br>3 ✗ | n/a | n/a | UI ✗<br>Data 3/3 ✓<br>254k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-24-cursor-claude-sonnet-5-5-high/index.html) |
-| Composer 2.5 high | Cursor | 26k | 2.2 min<br>0.4 min thinking | 58 ✓<br>3 ✗ | 0.6M | $0.21 | UI ✗<br>Data 3/3 ✓<br>220k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-24-cursor-composer-2-5-high/index.html) |
-| Gemini 3.8 Flash high | Cursor | 98k | 14.1 min<br>8.0 min thinking | 78 ✓<br>9 ✗ | 5.5M | $2.56 | UI ✗<br>Data 3/3 ✓<br>441k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-24-cursor-gemini-3-8-flash-high/index.html) |
-| GPT-5.6 Luna high | Cursor | 19k | 2.7 min<br>0.3 min thinking | 14 ✓<br>0 ✗ | 0.2M | $0.10 | UI ✓<br>Data 0/3 ⚠<br>0 records<br>[Live Demo](demos/paris-tree-canopy/2026-10-24-cursor-gpt-5-6-luna-high/index.html) |
-
-*Note: Token and cost columns show `n/a` for headless CLI runs until a Cursor billing CSV export is ingested (`finish_run.py --usage-export`).*
+| Claude Haiku 5.5 high | Cursor | 80k | 6.4 min | 94 ✓<br>1 ✗ | 7.6M | $2.07 | UI ✗<br>Data 3/3 ✓<br>177k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-24-cursor-claude-haiku-5-5-high/index.html) |
+| Claude Sonnet 5.5 high | Cursor | 200k | 23.2 min<br>10.3 min thinking | 72 ✓<br>3 ✗ | 9.9M | $6.20 | UI ✗<br>Data 3/3 ✓<br>254k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-24-cursor-claude-sonnet-5-5-high/index.html) |
+| Composer 2.5 high | Cursor | 27k | 2.2 min<br>0.4 min thinking | 58 ✓<br>3 ✗ | 0.6M | $0.22 | UI ✗<br>Data 3/3 ✓<br>220k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-24-cursor-composer-2-5-high/index.html) |
+| Gemini 3.8 Flash high | Cursor | 100k | 14.1 min<br>8.0 min thinking | 78 ✓<br>9 ✗ | 5.5M | $2.58 | UI ✗<br>Data 3/3 ✓<br>441k records<br>[Live Demo](demos/paris-tree-canopy/2026-10-24-cursor-gemini-3-8-flash-high/index.html) |
+| GPT-5.6 Luna high | Cursor | 20k | 2.7 min<br>0.3 min thinking | 14 ✓<br>0 ✗ | 0.2M | $0.10 | UI ✓<br>Data 0/3 ⚠<br>0 records<br>[Live Demo](demos/paris-tree-canopy/2026-10-24-cursor-gpt-5-6-luna-high/index.html) |
 
 **Local series `paris-tree-canopy-claude-code`**: Claude Code, recorded with this repository ([`runs/`](runs/README.md)).
 
@@ -144,6 +142,12 @@ Each benchmark run evaluates one model and agent harness against a single frozen
 6. [`france-electricity-carbon-flow`](prompt/france-electricity-carbon-flow.txt): build, from RTE éCO2mix and ODRE open data, an interactive observatory and grid stress-test simulator of the French electricity system mapping regional generation, power plants, cross-border flows, and carbon intensity ([runs](runs/france-electricity-carbon-flow/)).
 7. [`paris-tree-canopy`](prompt/paris-tree-canopy.txt): build, from Paris Open Data municipal tree inventory and district boundaries, an interactive urban forestry map and biodiversity explorer tracking species distribution, tree dimensions, remarkable heritage specimens, and canopy density across arrondissements.
 8. [`velib-realtime-flow`](prompt/velib-realtime-flow.txt): build, from Paris Open Data and GBFS real-time feeds, an interactive bike-share observatory and station availability explorer for the Greater Paris Vélib' Métropole network tracking live mechanical and electric bike stock, dock availability, and territorial flow.
+9. [`eu-renewable-energy-tracker`](prompt/eu-renewable-energy-tracker.txt): build, from Eurostat (`nrg_ind_ren`) and GISCO open data, an interactive European Union renewable energy adoption atlas and 2030 binding target (42.5%) progress tracker across overall, electricity, heating/cooling, and transport sectors.
+10. [`eu-energy-dependency-shock-simulator`](prompt/eu-energy-dependency-shock-simulator.txt): build, from Eurostat energy import dependency, simplified energy balances, renewable shares, electricity prices, and GHG emissions open data, an interactive European energy security observatory and geopolitical supply-shock / electrification simulator.
+11. [`unhcr-global-displacement-flow`](prompt/unhcr-global-displacement-flow.txt): build, from the UNHCR Population Statistics API and GISCO world boundaries, an interactive global forced-displacement observatory and bilateral origin-to-asylum refugee corridor explorer from 2015 to 2024.
+12. [`unhcr-asylum-recognition-atlas`](prompt/unhcr-asylum-recognition-atlas.txt): build, from UNHCR population, asylum adjudication decisions, durable solutions, demographic cohorts, and World Bank GDP/population open data, an interactive global asylum recognition matrix, demographic pyramid, and host-responsibility observatory.
+13. [`who-world-health-scorecard`](prompt/who-world-health-scorecard.txt): build, from the WHO World Health Statistics 2026 (`WHS2026_DATADOWNLOAD`) xMart OData API and GISCO world boundaries, an interactive SDG 3 global health scorecard and bivariate correlation explorer across 51 indicators and 198 countries.
+14. [`who-global-burden-longevity-simulator`](prompt/who-global-burden-longevity-simulator.txt): build, from WHO Global Health Estimates (`GHE_FULL_FOCUS`), WHO Life Expectancy and Healthy Life Expectancy (`HALE`) time series, and World Health Statistics open data, an interactive global disease burden (Deaths, DALYs, YLLs, YLDs), longevity gap, and cause-deleted life-table intervention simulator.
 
 ## Launch your own run
 

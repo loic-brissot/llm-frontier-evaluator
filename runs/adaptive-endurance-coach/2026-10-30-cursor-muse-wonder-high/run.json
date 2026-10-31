@@ -1,0 +1,307 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-30-cursor-muse-wonder-high",
+  "series_id": "adaptive-endurance-coach-cursor",
+  "prompt_id": "adaptive-endurance-coach",
+  "prompt_sha256": "e063f7eae123635edd93949fd72db2786565f11feb74211cad924bcb1309570c",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "meta",
+    "name": "muse-wonder",
+    "context": null,
+    "reasoning": "high"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": "2026.10.19-6bbf2c4",
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-30T18:10:27.357Z",
+    "ended_at": "2026-10-30T18:12:46.371Z"
+  },
+  "tokens": {
+    "split_rule": "combined_output_as_visible",
+    "reasoning_tokens": 0,
+    "visible_tokens": 20585,
+    "raw": {
+      "type": "result",
+      "subtype": "success",
+      "duration_ms": 150426,
+      "duration_api_ms": 150426,
+      "is_error": false,
+      "result": "Building your flagship sports-science studio \u2014 periodized planner, live PMC simulator, and interval workouts.Initial build checks out \u2014 now fixing the PMC adaptation math so marked workouts aren't double-scaled.Built the complete adaptive training studio in `/workspace/index.html` \u2014 a single self-contained app (no build step, just open it in a browser or serve it: `python3 -m http.server` \u2192 `http://localhost:8765`).\n\n**What was delivered**\n\n* **Flagship studio UI** \u2014 dark sports-science aesthetic, sticky header with live race countdown, discipline switcher (Triathlon / Running / Cycling / Cross-Training), and KPI tiles for W/kg, VDOT, peak CTL, and race-day TSB.\n\n* **Athlete profile editor** \u2014 FTP (W + auto W/kg), weight, VO\u2082max *or* recent race distance/time, threshold HR, CSS pace or 400 m/200 m test times, weekly hours, and sessions/week. It live-computes:\n  - **Coggan 7-zone power** (exact watt ranges from FTP)\n  - **Daniels VDOT running zones** (VDOT solved from race velocity & duration-adjusted %VO\u2082max; E/M/T/I/R paces solved from the VO\u2082\u2013velocity equation)\n  - **HR zones** from LTHR, and **CSS swim zones** (`CSS = 200/(T\u2084\u2080\u2080\u2212T\u2082\u2080\u2080)`, cubic `sTSS = IF\u00b3 \u00d7 hours \u00d7 100`)\n\n* **Periodized plan generator** \u2014 from start date to race day, structured into Base \u2192 Build \u2192 Peak \u2192 Taper mesocycles with every 4th week as recovery, visualized as a phase timeline above a week-by-week calendar that respects your session/hour budgets and discipline-specific templates (including brick sessions and foundational strength for cross-training).\n\n* **Performance Management Chart** \u2014 canvas chart with daily TSS bars, CTL (42-day EWMA), ATL (7-day EWMA), and TSB = CTL \u2212 ATL per the Banister model, with hover crosshair tooltips and an original-vs-adapted dashed overlay toggle.\n\n* **Workout detail modal** \u2014 every session renders as a visual interval block profile (warm-up, work/recovery blocks at exact target watts, pace, HR, or swim pace, cool-down; strength sessions render as set/rep tables), with per-workout **.ics** and **.zwo** exports, plus a full-plan calendar export.\n\n* **Adaptation Lab** \u2014 click any workout to mark it skipped / shortened (\u221230%) / over-reached (+20%), or simulate illness days, changed weekly availability, and an adaptation start week. The engine recalibrates remaining weeks with a capped weekly ramp, preserved recovery weeks, and a 35%\u219255% taper so form peaks on race day, with original and adapted CTL/ATL/TSB curves overlaid for comparison.\n\nVerified: JS syntax passes `node --check`, the page serves with HTTP 200, and the PMC/CSS/TSS formulas and export generators are in place.",
+      "session_id": "59f86be1-3f76-448b-abe6-1b95022caec7",
+      "request_id": "9ee94426-adf7-45f4-8420-ee90333c80a5",
+      "usage": {
+        "inputTokens": 30416,
+        "outputTokens": 19686,
+        "cacheReadTokens": 155564,
+        "cacheWriteTokens": 0
+      },
+      "hook_tokens": {
+        "source": "transcript_or_hook",
+        "model": "muse-wonder-1.0",
+        "input_tokens": 185980,
+        "uncached_input_tokens": 30416,
+        "cache_read_tokens": 155564,
+        "cache_write_tokens": 0,
+        "output_tokens": 19686,
+        "split_rule": "unavailable"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "muse-wonder",
+        "context_variant": null,
+        "long_context_applied": false,
+        "harness": "cursor",
+        "harness_token_rate_per_1m": "0.25",
+        "harness_surcharge_usd": "0.05",
+        "rates_per_1m_usd": {
+          "input": "4.00",
+          "cache_write": "0.00",
+          "cache_read": "0.20",
+          "output": "20.00"
+        },
+        "cache_tier": "5m",
+        "cache_tier_basis": "cursor_cost_column",
+        "cache_write_5m_tokens": 0,
+        "cache_write_1h_tokens": 0,
+        "estimated_cost_usd": "0.58",
+        "estimated_cost_with_harness_usd": "0.63"
+      },
+      "provider_usage": {
+        "type": "result",
+        "subtype": "success",
+        "duration_ms": 150426,
+        "duration_api_ms": 150426,
+        "is_error": false,
+        "result": "Building your flagship sports-science studio \u2014 periodized planner, live PMC simulator, and interval workouts.Initial build checks out \u2014 now fixing the PMC adaptation math so marked workouts aren't double-scaled.Built the complete adaptive training studio in `/workspace/index.html` \u2014 a single self-contained app (no build step, just open it in a browser or serve it: `python3 -m http.server` \u2192 `http://localhost:8765`).\n\n**What was delivered**\n\n* **Flagship studio UI** \u2014 dark sports-science aesthetic, sticky header with live race countdown, discipline switcher (Triathlon / Running / Cycling / Cross-Training), and KPI tiles for W/kg, VDOT, peak CTL, and race-day TSB.\n\n* **Athlete profile editor** \u2014 FTP (W + auto W/kg), weight, VO\u2082max *or* recent race distance/time, threshold HR, CSS pace or 400 m/200 m test times, weekly hours, and sessions/week. It live-computes:\n  - **Coggan 7-zone power** (exact watt ranges from FTP)\n  - **Daniels VDOT running zones** (VDOT solved from race velocity & duration-adjusted %VO\u2082max; E/M/T/I/R paces solved from the VO\u2082\u2013velocity equation)\n  - **HR zones** from LTHR, and **CSS swim zones** (`CSS = 200/(T\u2084\u2080\u2080\u2212T\u2082\u2080\u2080)`, cubic `sTSS = IF\u00b3 \u00d7 hours \u00d7 100`)\n\n* **Periodized plan generator** \u2014 from start date to race day, structured into Base \u2192 Build \u2192 Peak \u2192 Taper mesocycles with every 4th week as recovery, visualized as a phase timeline above a week-by-week calendar that respects your session/hour budgets and discipline-specific templates (including brick sessions and foundational strength for cross-training).\n\n* **Performance Management Chart** \u2014 canvas chart with daily TSS bars, CTL (42-day EWMA), ATL (7-day EWMA), and TSB = CTL \u2212 ATL per the Banister model, with hover crosshair tooltips and an original-vs-adapted dashed overlay toggle.\n\n* **Workout detail modal** \u2014 every session renders as a visual interval block profile (warm-up, work/recovery blocks at exact target watts, pace, HR, or swim pace, cool-down; strength sessions render as set/rep tables), with per-workout **.ics** and **.zwo** exports, plus a full-plan calendar export.\n\n* **Adaptation Lab** \u2014 click any workout to mark it skipped / shortened (\u221230%) / over-reached (+20%), or simulate illness days, changed weekly availability, and an adaptation start week. The engine recalibrates remaining weeks with a capped weekly ramp, preserved recovery weeks, and a 35%\u219255% taper so form peaks on race day, with original and adapted CTL/ATL/TSB curves overlaid for comparison.\n\nVerified: JS syntax passes `node --check`, the page serves with HTTP 200, and the PMC/CSS/TSS formulas and export generators are in place.",
+        "session_id": "59f86be1-3f76-448b-abe6-1b95022caec7",
+        "request_id": "9ee94426-adf7-45f4-8420-ee90333c80a5",
+        "usage": {
+          "inputTokens": 30416,
+          "outputTokens": 19686,
+          "cacheReadTokens": 155564,
+          "cacheWriteTokens": 0
+        }
+      },
+      "usage_csv": {
+        "events_in_file": 1105,
+        "events_selected": 1,
+        "selection": "1 of 1105 events. muse-wonder-1.0-high matches run model muse-wonder. Inside the run window.",
+        "files": [
+          "team-usage-events-2026-10-31.csv"
+        ],
+        "models": {
+          "muse-wonder-1.0-high": 1
+        },
+        "kinds": {
+          "Included": 1
+        },
+        "users": 0,
+        "fields": {
+          "cache_write_tokens": "Input (w/ Cache Write)",
+          "uncached_input_tokens": "Input (w/o Cache Write)",
+          "cache_read_tokens": "Cache Read",
+          "output_tokens": "Output Tokens",
+          "total_tokens": "Total Tokens"
+        },
+        "max_mode": {
+          "No": 1
+        },
+        "first_event_at": "2026-10-30T18:10:24.634Z",
+        "last_event_at": "2026-10-30T18:10:24.634Z",
+        "cache_read_tokens": 161059,
+        "cache_write_tokens": 0,
+        "uncached_input_tokens": 33921,
+        "output_tokens": 20585,
+        "total_tokens": 215565,
+        "total_tokens_checked": 1,
+        "total_tokens_mismatches": 0,
+        "total_tokens_check": "matches",
+        "cost": "0.59"
+      }
+    }
+  },
+  "model_time": {
+    "source": "wall_clock_minus_tool_time",
+    "generating_seconds": 132.6,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 139.0,
+        "tool_seconds_merged": 6.4,
+        "tool_seconds_summed": 6.4,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": 132.6,
+        "thinking_seconds": null,
+        "thought_blocks": 0
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 2,
+      "failures": 0,
+      "by_tool": {
+        "Shell": {
+          "calls": 2,
+          "failures": 0
+        }
+      }
+    },
+    "files": {
+      "calls": 6,
+      "failures": 0,
+      "by_tool": {
+        "Grep": {
+          "calls": 1,
+          "failures": 0
+        },
+        "Write": {
+          "calls": 4,
+          "failures": 0
+        },
+        "Glob": {
+          "calls": 1,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    }
+  },
+  "context_reread": {
+    "source": "cursor_usage_csv",
+    "cache_read_tokens": 161059,
+    "cache_write_tokens": 0,
+    "uncached_input_tokens": 33921,
+    "raw": {
+      "selection": "1 of 1105 events. muse-wonder-1.0-high matches run model muse-wonder. Inside the run window.",
+      "events_selected": 1,
+      "fields": {
+        "cache_write_tokens": "Input (w/ Cache Write)",
+        "uncached_input_tokens": "Input (w/o Cache Write)",
+        "cache_read_tokens": "Cache Read",
+        "output_tokens": "Output Tokens",
+        "total_tokens": "Total Tokens"
+      },
+      "cache_read_tokens": 161059,
+      "cache_write_tokens": 0,
+      "uncached_input_tokens": 33921,
+      "total_tokens_check": "matches"
+    }
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": true,
+    "summary": ""
+  },
+  "observations": "No stop event recorded; capped run end time at the last non-idle tool/thought event.",
+  "verification": {
+    "runtime": {
+      "passed": true,
+      "http_status": 200,
+      "url": "http://127.0.0.1:56311",
+      "server_mode": "static",
+      "load_time_ms": 4856.95,
+      "console_errors": [],
+      "console_warnings_count": 0,
+      "page_errors": [],
+      "failed_requests": [],
+      "critical_failures": [],
+      "dom": {
+        "title": "PULSEFORGE \u2014 Adaptive Training Studio",
+        "canvas_count": 1,
+        "visible_canvas_count": 1,
+        "canvas_obscured": false,
+        "loading_overlay": null,
+        "loading_status_text": "",
+        "intro_gate": null,
+        "svg_count": 0,
+        "webgl_context": false,
+        "text_length": 10474
+      },
+      "screenshot_path": "artifacts/screenshot.png",
+      "loading_settle_ms": 0,
+      "verified_at": "2026-10-30T18:12:56.838Z",
+      "demo_url": "demos/adaptive-endurance-coach/2026-10-30-cursor-muse-wonder-high/index.html"
+    },
+    "data_pipeline": {
+      "prompt_id": "adaptive-endurance-coach",
+      "passed": true,
+      "authenticity": "domain_model_verified",
+      "score": 1.0,
+      "total_data_files": 0,
+      "total_records": 0,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "banister_ewma_model",
+          "description": "Banister impulse-response model constants (CTL 42d EWMA, ATL 7d EWMA, TSB = CTL - ATL)",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "index.html"
+          ],
+          "detail": "Matched markers ['42', '7', 'TSB'] in 1 files"
+        },
+        {
+          "id": "coggan_power_tss_model",
+          "description": "Coggan power zones & TSS formula (FTP, NP, IF, 3600s denominator)",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "index.html"
+          ],
+          "detail": "Matched markers ['3600', 'FTP', 'IF', 'NP'] in 1 files"
+        },
+        {
+          "id": "daniels_vdot_css_model",
+          "description": "Daniels VDOT running zones & Critical Swim Speed formula (CSS, 400, 200)",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "index.html"
+          ],
+          "detail": "Matched markers ['200', '400', 'CSS'] in 1 files"
+        },
+        {
+          "id": "export_formats_support",
+          "description": "Calendar (.ics) and Zwift workout (.zwo) export implementation",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "index.html"
+          ],
+          "detail": "Matched 1 file(s) with 1 observed records (min: 1)"
+        },
+        {
+          "id": "endurance_disciplines",
+          "description": "Four endurance disciplines (triathlon, running, cycling, cross-training)",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "index.html"
+          ],
+          "detail": "Matched markers ['cycling', 'running', 'triathlon'] in 1 files"
+        }
+      ],
+      "verified_at": "2026-10-30T18:13:02.125Z"
+    }
+  }
+}

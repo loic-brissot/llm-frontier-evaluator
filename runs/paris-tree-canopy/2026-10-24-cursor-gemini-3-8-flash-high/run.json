@@ -24,7 +24,7 @@
   "tokens": {
     "split_rule": "combined_output_as_visible",
     "reasoning_tokens": 0,
-    "visible_tokens": 98464,
+    "visible_tokens": 100096,
     "raw": {
       "type": "result",
       "subtype": "success",
@@ -65,11 +65,63 @@
           "output": "3.75"
         },
         "cache_tier": "5m",
-        "cache_tier_basis": "assumed",
+        "cache_tier_basis": "cursor_cost_column",
         "cache_write_5m_tokens": 0,
         "cache_write_1h_tokens": 0,
-        "estimated_cost_usd": "1.07",
-        "estimated_cost_with_harness_usd": "2.56"
+        "estimated_cost_usd": "1.08",
+        "estimated_cost_with_harness_usd": "2.58"
+      },
+      "provider_usage": {
+        "type": "result",
+        "subtype": "success",
+        "duration_ms": 973825,
+        "duration_api_ms": 973825,
+        "is_error": false,
+        "result": "An interactive map and biodiversity explorer of the municipal tree canopy of Paris has been built and is running at `http://localhost:3000`.\n\n### Architectural Overview & Data Integration\n\nThe platform ingests all three official Paris Open Data datasets under open licence (ODbL / Licence Ouverte):\n1. **Les arbres de la Ville de Paris** (`220 112` municipal trees with botanical names, coordinates, dimensions, address, and development stage).\n2. **Arbres remarquables de Paris** (`183` heritage trees with historical dates, criteria, municipal deliberations, and archive photos).\n3. **Arrondissements administratifs de Paris** (`20` polygon boundaries with calculated surfaces, tree densities, and street vs. park ratios).\n\nThe stack is composed of a **Node.js/Express backend** backed by an indexed **SQLite database (`better-sqlite3`)** and a **React 18 + Vite + Tailwind CSS + MapLibre GL JS** frontend designed with an environmental atlas aesthetic.\n\n---\n\n### Key Capabilities & Visual Components\n\n1. **Interactive Map of Paris (`MapView.jsx`)**\n   - **Smooth Spatial Aggregation**: Automatically renders spatial cluster bubbles with tree counts and adaptive radius/color scaling at city-wide zooms (zoom < 13.5) for fluid 60fps performance across the entire 220,000+ tree inventory.\n   - **Individual Tree Markers**: Renders exact tree points at zoom $\\ge 13.5$ with hover inspection tooltips showing French name, Latin botanical name, height, circumference, and address.\n   - **Arbres Remarquables Badging**: Prominent golden star badges with glowing halos visible at all zoom levels, highlighting Paris's heritage trees.\n   - **Dynamic Color Modes**: \n     - *Genre Botanique*: Distinct botanical colors (Platane, Marronnier, Tilleul, \u00c9rable, Sophora, Cerisier, Ch\u00eane, etc.).\n     - *Hauteur*: Gradient scale from sapling lime ($<6\\text{ m}$) to Haussmannian height ($12\\text{\u2013}18\\text{ m}$) to canopy giants ($\\ge 25\\text{ m}$).\n     - *Milieu Urbain*: Street trees (*Alignement*, blue) vs. Parks (*Jardin*, green) vs. Cemeteries (purple).\n     - *Stade de D\u00e9veloppement*: Jeune arbre, Jeune adulte, Adulte, Mature.\n   - **Canopy Density Choropleth Layer**: Toggleable district polygon shading showing tree density per $\\text{km}^2$.\n   - **Basemap Styles**: Switch between *Atlas Nocturne* (Carto Dark Matter), *Atlas Clair* (Carto Positron), and *Satellite Hybride* (Esri Imagery).\n\n2. **Interactive Botanical Filtering (`FilterSidebar.jsx`)**\n   - **Arrondissement Filter**: Quick pills for all 20 arrondissements (1er to 20e), plus the Bois de Vincennes and Bois de Boulogne.\n   - **Botanical Genus & Species**: Quick chips for dominant Parisian taxa (*Platanus*, *Aesculus*, *Tilia*, *Acer*, *Styphnolobium*, *Prunus*, *Quercus*, *Fraxinus*, *Celtis*, *Pinus*, *Ginkgo*, *Robinia*) with instant search input.\n   - **Dimensions Dual Sliders**: Filter by height ($0\\text{ to }35\\text{ m}$) and trunk circumference ($0\\text{ to }400\\text{ cm}$).\n   - **Arbres Remarquables Toggle**: One-click toggle restricting view to the 182 heritage trees.\n   - **Milieu & Stade**: Filter by *Alignement*, *Jardin*, *Cimeti\u00e8re*, and maturity stages.\n   - **Live Matching Counter & Reset**: Dynamic percentage readout of active filtered canopy.\n\n3. **Urban Forest Analytics Panel (`AnalyticsPanel.jsx`)**\n   - **Key Metrics**: Total tree count, classified remarkable trees, distinct species count (390+ species), distinct genera count (202 genera), mean and median height ($10.0\\text{ m}$ / $10\\text{ m}$ median), mean and median circumference ($90.8\\text{ cm}$ / $80\\text{ cm}$ median).\n   - **Top Species Distribution Chart**: Interactive horizontal bar chart (*Platanus x hispanica*, *Aesculus hippocastanum*, *Styphnolobium japonicum*, *Tilia tomentosa*, *Acer platanoides*, etc.).\n   - **Botanical Families Doughnut Chart**: Phylogenic breakdown (*Platanaceae*, *Sapindaceae*, *Malvaceae*, *Rosaceae*, *Fabaceae*, *Fagaceae*).\n   - **Dendrometric Histograms**: Altitudinal height brackets and circumference distribution.\n   - **Canopy Density Ranking**: Top arrondissements ranked by trees per $\\text{km}^2$.\n\n4. **Arbres Remarquables Showcase (`RemarquableShowcase.jsx`)**\n   - Visual heritage gallery of Paris's 182 protected trees.\n   - Filter by qualification criteria (*Historique*, *Botanique*, *Morphologique*, *Paysager*) and sort by estimated age or dimensions.\n   - Showcases Paris's oldest tree: the **Robinier faux-acacia** (*Robinia pseudoacacia*) in Square Ren\u00e9 Viviani (5e arr.), planted in **1602** by royal botanist Jean Robin (~424 years old).\n   - **Direct Pan-to-Map Inspection**: Clicking \"Voir sur la carte\" flies the camera directly to the exact tree at zoom 18.2, highlights it, and opens its detail card.\n\n5. **District Comparison View (`DistrictComparator.jsx`)**\n   - Full comparative matrix across all 20 arrondissements.\n   - **Milieu Breakdown**: Contrasting street trees (*Alignement*) vs. parks & squares (*Jardin*) vs. cemeteries (e.g., P\u00e8re-Lachaise representing 24.3% in the 20e) via stacked comparative visual bars.\n   - **Species Variety Indicators**: Unique botanical species counts (e.g. 393 distinct species in the 16e), dominant species, and remarkable counts.\n   - One-click zoom and filter to any selected arrondissement.\n\n6. **Selected Tree Detail Card (`TreeDetailCard.jsx`)**\n   - Common French name, Latin taxonomy, and botanical family.\n   - Exact location, address, and GPS coordinates with 1-click clipboard copy.\n   - Dimensions gauge: Height, circumference, and calculated trunk diameter ($D = C / \\pi$).\n   - **Architectural Vertical Scale Comparison**: Visual silhouette comparison of the selected tree against a $1.8\\text{ m}$ human and an $18\\text{ m}$ 6-story Haussmann building.\n   - Heritage section (if remarkable) with historical narrative, planting year, deliberation code, and official photo.\n   - Direct links to Google Maps and OpenStreetMap, and nearby neighbor trees inspection within $50\\text{ m}$.\n\n7. **Export Pipeline (`/api/export`)**\n   - Filtered dataset downloadable on-the-fly in **GeoJSON** or **CSV (Excel)** formats.\n\n---\n\n### Verification & Local Access\n\nThe server is active and serving the application:\n```bash\n# Web application URL\nhttp://localhost:3000\n\n# API Endpoints\ncurl -s \"http://localhost:3000/api/summary\"\ncurl -s \"http://localhost:3000/api/remarquables?search=Viviani\"\ncurl -s \"http://localhost:3000/api/districts\"\n```",
+        "session_id": "458e9b81-2456-4a79-892b-ed703f93688d",
+        "request_id": "a52629ab-305b-45c1-89ac-9799e00d3a8a",
+        "usage": {
+          "inputTokens": 382947,
+          "outputTokens": 98464,
+          "cacheReadTokens": 5501022,
+          "cacheWriteTokens": 0
+        }
+      },
+      "usage_csv": {
+        "events_in_file": 1105,
+        "events_selected": 1,
+        "selection": "1 of 1105 events. Exact model match for Gemini 3.8 Flash. Events from 2026-10-24T09:18:18.368000+00:00 through 2026-10-24T09:34:15.674000+00:00.",
+        "files": [
+          "team-usage-events-2026-10-31.csv"
+        ],
+        "models": {
+          "gemini-3.8-flash-high": 1
+        },
+        "kinds": {
+          "Included": 1
+        },
+        "users": 0,
+        "fields": {
+          "cache_write_tokens": "Input (w/ Cache Write)",
+          "uncached_input_tokens": "Input (w/o Cache Write)",
+          "cache_read_tokens": "Cache Read",
+          "output_tokens": "Output Tokens",
+          "total_tokens": "Total Tokens"
+        },
+        "max_mode": {
+          "No": 1
+        },
+        "first_event_at": "2026-10-24T09:18:13.950Z",
+        "last_event_at": "2026-10-24T09:18:13.950Z",
+        "cache_read_tokens": 5506696,
+        "cache_write_tokens": 0,
+        "uncached_input_tokens": 390143,
+        "output_tokens": 100096,
+        "total_tokens": 5996935,
+        "total_tokens_checked": 1,
+        "total_tokens_mismatches": 0,
+        "total_tokens_check": "matches",
+        "cost": "1.06"
       }
     }
   },
@@ -138,19 +190,24 @@
     }
   },
   "context_reread": {
-    "source": "provider_cache_read",
-    "cache_read_tokens": 5501022,
+    "source": "cursor_usage_csv",
+    "cache_read_tokens": 5506696,
     "cache_write_tokens": 0,
-    "uncached_input_tokens": 382947,
+    "uncached_input_tokens": 390143,
     "raw": {
-      "source": "transcript_or_hook",
-      "model": "gemini-3.8-flash",
-      "input_tokens": 5883969,
-      "uncached_input_tokens": 382947,
-      "cache_read_tokens": 5501022,
+      "selection": "1 of 1105 events. Exact model match for Gemini 3.8 Flash. Events from 2026-10-24T09:18:18.368000+00:00 through 2026-10-24T09:34:15.674000+00:00.",
+      "events_selected": 1,
+      "fields": {
+        "cache_write_tokens": "Input (w/ Cache Write)",
+        "uncached_input_tokens": "Input (w/o Cache Write)",
+        "cache_read_tokens": "Cache Read",
+        "output_tokens": "Output Tokens",
+        "total_tokens": "Total Tokens"
+      },
+      "cache_read_tokens": 5506696,
       "cache_write_tokens": 0,
-      "output_tokens": 98464,
-      "split_rule": "unavailable"
+      "uncached_input_tokens": 390143,
+      "total_tokens_check": "matches"
     }
   },
   "outcome": {
