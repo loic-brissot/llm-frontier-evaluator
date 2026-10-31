@@ -252,8 +252,8 @@ class TestPricing(unittest.TestCase):
                 continue
 
             model_name = (data.get("model") or {}).get("name", "")
-            # Verify for Anthropic Cursor runs
-            if "claude" not in model_name.lower():
+            # Verify for Anthropic Cursor runs with tiered cache writes (Opus and Sonnet)
+            if "claude" not in model_name.lower() or "haiku" in model_name.lower():
                 continue
 
             billed = Decimal(str(cost_val))
