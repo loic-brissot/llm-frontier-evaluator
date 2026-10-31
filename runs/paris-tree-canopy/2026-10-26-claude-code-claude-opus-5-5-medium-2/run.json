@@ -1,6 +1,6 @@
 {
   "rules_version": 2,
-  "run_id": "2026-10-26-claude-code-claude-opus-5-5-medium",
+  "run_id": "2026-10-26-claude-code-claude-opus-5-5-medium-2",
   "series_id": "paris-tree-canopy-claude-code",
   "prompt_id": "paris-tree-canopy",
   "prompt_sha256": "69f692b4adcfe21e0dbcab273537095a344735479a4309ab4a85b8a76288bfaf",
@@ -311,7 +311,7 @@
         "at": "2026-10-28",
         "reason": "Smoke test false negative: the intro-gate heuristic clicked the 'Remarkable trees only' filter toggle, which is not an intro overlay; the app renders."
       },
-      "demo_url": "demos/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium/index.html"
+      "demo_url": "demos/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium-2/index.html"
     },
     "data_pipeline": {
       "prompt_id": "paris-tree-canopy",

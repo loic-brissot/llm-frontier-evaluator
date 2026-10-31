@@ -19,6 +19,7 @@ from build_dashboard import (
     check_dashboard_sync,
     compile_dashboard_payload,
     compute_pareto_frontiers,
+    copy_dashboard_screenshots,
     embed_data_in_html,
     extract_run_record,
     find_run_dirs,
@@ -635,3 +636,73 @@ class TestDashboardHeaderAndTabs:
         assert labels[1].endswith("Analytics") and "Benchmark" not in labels[1]
         assert labels[2].endswith("Run Gallery") and "Previews" not in labels[2]
         assert labels[4].endswith("Download Raw Results")
+
+
+class TestDashboardScreenshotsKeyedByPromptAndRun:
+    """Dashboard screenshots keyed by prompt_id + run_id (TASK-97)."""
+
+    def test_screenshots_keyed_by_prompt_and_run_do_not_overwrite(self, tmp_path: Path) -> None:
+        runs_dir = tmp_path / "runs"
+        shared_run_id = "2026-10-26-shared-run-id"
+
+        run_dir_1 = runs_dir / "prompt-one" / shared_run_id
+        run_dir_2 = runs_dir / "prompt-two" / shared_run_id
+        (run_dir_1 / "artifacts").mkdir(parents=True)
+        (run_dir_2 / "artifacts").mkdir(parents=True)
+
+        img_bytes_1 = b"PNG_PROMPT_ONE_BYTES_12345"
+        img_bytes_2 = b"PNG_PROMPT_TWO_BYTES_67890"
+
+        (run_dir_1 / "artifacts" / "screenshot.png").write_bytes(img_bytes_1)
+        (run_dir_2 / "artifacts" / "screenshot.png").write_bytes(img_bytes_2)
+
+        (run_dir_1 / "run.json").write_text(
+            json.dumps({
+                "rules_version": 2,
+                "run_id": shared_run_id,
+                "prompt_id": "prompt-one",
+                "series_id": "s1",
+                "shot": "primary",
+                "model": {"name": "M1"},
+                "harness": {"name": "cursor"},
+                "wall_clock": {"started_at": "2026-10-26T10:00:00Z", "ended_at": "2026-10-26T10:30:00Z"},
+            }),
+            encoding="utf-8",
+        )
+        (run_dir_2 / "run.json").write_text(
+            json.dumps({
+                "rules_version": 2,
+                "run_id": shared_run_id,
+                "prompt_id": "prompt-two",
+                "series_id": "s2",
+                "shot": "primary",
+                "model": {"name": "M2"},
+                "harness": {"name": "cursor"},
+                "wall_clock": {"started_at": "2026-10-26T11:00:00Z", "ended_at": "2026-10-26T11:30:00Z"},
+            }),
+            encoding="utf-8",
+        )
+
+        out_dir = tmp_path / "dashboard_out"
+        out_dir.mkdir(parents=True)
+
+        payload = compile_dashboard_payload(runs_dir=runs_dir)
+        runs_in_payload = {r["prompt_id"]: r for r in payload["runs"]}
+        assert runs_in_payload["prompt-one"]["screenshot_path"] == f"screenshots/prompt-one/{shared_run_id}.png"
+        assert runs_in_payload["prompt-two"]["screenshot_path"] == f"screenshots/prompt-two/{shared_run_id}.png"
+
+        copied = copy_dashboard_screenshots(runs_dir, out_dir)
+        assert copied == 2
+
+        file_1 = out_dir / "screenshots" / "prompt-one" / f"{shared_run_id}.png"
+        file_2 = out_dir / "screenshots" / "prompt-two" / f"{shared_run_id}.png"
+        assert file_1.is_file()
+        assert file_2.is_file()
+        assert file_1.read_bytes() == img_bytes_1
+        assert file_2.read_bytes() == img_bytes_2
+
+        # Verify old flat screenshots are cleaned up
+        stale_flat = out_dir / "screenshots" / "stale.png"
+        stale_flat.write_bytes(b"STALE")
+        copy_dashboard_screenshots(runs_dir, out_dir)
+        assert not stale_flat.exists()

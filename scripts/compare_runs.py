@@ -798,6 +798,22 @@ def check_series_versions(runs: list[dict]) -> list[str]:
     ]
 
 
+def check_unique_run_ids(runs: list[dict]) -> list[str]:
+    """Ensure run_id is globally unique across all prompts."""
+    seen: dict[str, str] = {}
+    errors: list[str] = []
+    for run in runs:
+        rid = run.get("run_id")
+        pid = run.get("prompt_id")
+        if not rid:
+            continue
+        if rid in seen and seen[rid] != pid:
+            errors.append(f"run_id {rid!r} is duplicated across prompts ({seen[rid]} and {pid})")
+        else:
+            seen[rid] = pid
+    return errors
+
+
 def local_row(run: dict) -> tuple[list[str], list[str]]:
     """Return chart cells and incompleteness notes."""
     notes: list[str] = []
@@ -1185,6 +1201,7 @@ def main() -> int:
             continue
         selected.append(run)
     local_errors.extend(check_series_versions(valid))
+    local_errors.extend(check_unique_run_ids(valid))
 
     if args.check_readme or args.sync_readme:
         all_errors = errors + local_errors
@@ -1212,7 +1229,9 @@ def main() -> int:
             row, notes = local_row(run)
             table_rows.append(row)
             if notes:
-                incomplete.append(f"{run['run_id']}: " + "; ".join(notes))
+                entry = f"{run['prompt_id']}/{run['run_id']}: " + "; ".join(notes)
+                if entry not in incomplete:
+                    incomplete.append(entry)
         print()
         print_table(headers, table_rows)
         if incomplete:

@@ -1,6 +1,6 @@
 {
   "rules_version": 2,
-  "run_id": "2026-10-26-claude-code-claude-sonnet-5-5-high",
+  "run_id": "2026-10-26-claude-code-claude-sonnet-5-5-high-3",
   "series_id": "paris-tree-canopy-claude-code",
   "prompt_id": "paris-tree-canopy",
   "prompt_sha256": "69f692b4adcfe21e0dbcab273537095a344735479a4309ab4a85b8a76288bfaf",
@@ -303,7 +303,7 @@
       "screenshot_path": "artifacts/screenshot.png",
       "loading_settle_ms": 0,
       "verified_at": "2026-10-26T20:30:39.199Z",
-      "demo_url": "demos/paris-tree-canopy/2026-10-26-claude-code-claude-sonnet-5-5-high/index.html"
+      "demo_url": "demos/paris-tree-canopy/2026-10-26-claude-code-claude-sonnet-5-5-high-3/index.html"
     },
     "data_pipeline": {
       "prompt_id": "paris-tree-canopy",

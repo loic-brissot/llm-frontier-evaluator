@@ -175,7 +175,7 @@ def extract_run_record(run_dir: Path) -> dict[str, Any] | None:
 
     # Screenshot presence
     screenshot_file = run_dir / "artifacts" / "screenshot.png"
-    screenshot_rel = f"screenshots/{run_id}.png" if screenshot_file.is_file() else None
+    screenshot_rel = f"screenshots/{prompt_id}/{run_id}.png" if screenshot_file.is_file() else None
 
     # Published demo relative URL
     demo_url = (
@@ -695,15 +695,22 @@ def find_run_dirs(runs_dir: Path) -> list[Path]:
 
 
 def copy_dashboard_screenshots(runs_dir: Path, output_dir: Path) -> int:
-    """Copy screenshots from runs to output_dir/screenshots/."""
+    """Copy screenshots from runs to output_dir/screenshots/<prompt-id>/<run-id>.png."""
     screenshots_dir = output_dir / "screenshots"
     screenshots_dir.mkdir(parents=True, exist_ok=True)
+
+    # Remove any stale flat *.png files directly inside screenshots_dir
+    for flat_file in screenshots_dir.glob("*.png"):
+        if flat_file.is_file():
+            flat_file.unlink()
+
     count = 0
 
     for rd in find_run_dirs(runs_dir):
         scr = rd / "artifacts" / "screenshot.png"
         if scr.is_file():
-            dest = screenshots_dir / f"{rd.name}.png"
+            dest = screenshots_dir / rd.parent.name / f"{rd.name}.png"
+            dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(scr, dest)
             count += 1
 

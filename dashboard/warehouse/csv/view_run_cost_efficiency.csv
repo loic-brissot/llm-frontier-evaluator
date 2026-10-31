@@ -16,8 +16,8 @@ run_id,prompt_id,model_name,is_successful,data_pipeline_score,estimated_cost_usd
 2026-10-21-cursor-claude-opus-5-5-medium,paris-1910-flood-simulator,Claude Opus 5.5,true,1.0,9.64,13.81,9.64,13.81
 2026-10-22-cursor-grok-4-7-high,france-rail-24h-pulse,Grok 4.7,false,1.0,,,,
 2026-10-24-cursor-claude-sonnet-5-5-high,paris-tree-canopy,Claude Sonnet 5.5,false,1.0,,,,
-2026-10-26-claude-code-claude-sonnet-5-5-high,paris-tree-canopy,Claude Sonnet 5.5,true,0.67,4.28,4.28,6.39,6.39
-2026-10-26-claude-code-claude-opus-5-5-medium,paris-tree-canopy,Claude Opus 5.5,true,0.67,5.14,5.14,7.67,7.67
+2026-10-26-claude-code-claude-sonnet-5-5-high-3,paris-tree-canopy,Claude Sonnet 5.5,true,0.67,4.28,4.28,6.39,6.39
+2026-10-26-claude-code-claude-opus-5-5-medium-2,paris-tree-canopy,Claude Opus 5.5,true,0.67,5.14,5.14,7.67,7.67
 2026-10-22-cursor-gpt-5-6-sol-medium,france-rail-24h-pulse,GPT-5.6 Sol,false,0.0,0.53,0.6,,
 2026-10-22-cursor-muse-wonder-medium,france-rail-24h-pulse,Muse Wonder,false,0.0,0.77,0.93,,
 2026-10-24-cursor-gpt-5-6-luna-high,paris-tree-canopy,GPT-5.6 Luna,false,0.0,0.04,0.1,,
