@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APEX LAB — Adaptive Training Intelligence</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">◢</div>
+    <div>
+      <div class="brand-name">APEX LAB</div>
+      <div class="brand-sub">Adaptive Training Intelligence</div>
+    </div>
+  </div>
+  <nav class="discipline-tabs" id="disciplineTabs">
+    <button data-disc="triathlon" class="tab active">Triathlon</button>
+    <button data-disc="running" class="tab">Running</button>
+    <button data-disc="cycling" class="tab">Cycling</button>
+    <button data-disc="cross" class="tab">Cross-Training</button>
+  </nav>
+  <div class="topbar-right">
+    <div class="race-chip" id="raceChip">—</div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ══════════ SIDEBAR: ATHLETE PROFILE ══════════ -->
+  <aside class="sidebar">
+    <div class="side-section">
+      <div class="side-title">Athlete Profile</div>
+
+      <label class="fld"><span>Body weight (kg)</span>
+        <input type="number" id="inWeight" value="70" min="40" max="150" step="0.5"></label>
+
+      <label class="fld"><span>FTP (watts) <em id="wkgOut" class="fld-em">3.6 W/kg</em></span>
+        <input type="number" id="inFtp" value="250" min="80" max="500" step="5"></label>
+
+      <div class="fld-group">
+        <div class="fld-label">Run performance <em class="fld-em">race time overrides VO₂max</em></div>
+        <div class="fld-row">
+          <label class="fld"><span>VO₂max</span>
+            <input type="number" id="inVo2" value="52" min="25" max="90" step="0.5"></label>
+          <label class="fld"><span>10k race (mm:ss)</span>
+            <input type="text" id="inRace" value="40:00" placeholder="mm:ss"></label>
+        </div>
+      </div>
+
+      <label class="fld"><span>Threshold HR (LTHR, bpm)</span>
+        <input type="number" id="inLthr" value="168" min="120" max="210" step="1"></label>
+
+      <label class="fld"><span>CSS swim pace (mm:ss /100m)</span>
+        <input type="text" id="inCss" value="1:45"></label>
+
+      <div class="fld-row">
+        <label class="fld"><span>Hours / week</span>
+          <input type="number" id="inHours" value="8" min="3" max="25" step="0.5"></label>
+        <label class="fld"><span>Sessions / week</span>
+          <input type="number" id="inSessions" value="6" min="3" max="10" step="1"></label>
+      </div>
+
+      <div class="fld-row">
+        <label class="fld"><span>Plan start</span>
+          <input type="date" id="inStart"></label>
+        <label class="fld"><span>Race day</span>
+          <input type="date" id="inRace2"></label>
+      </div>
+
+      <div class="vdot-card" id="vdotCard"></div>
+    </div>
+
+    <div class="side-section" id="zonesPanel"></div>
+  </aside>
+
+  <!-- ══════════ MAIN ══════════ -->
+  <main class="main">
+
+    <section class="kpi-row" id="kpiRow"></section>
+
+    <section class="card pmc-card">
+      <div class="card-head">
+        <div>
+          <h2>Performance Management Chart</h2>
+          <p class="card-sub">Banister impulse-response model · CTL 42-day EWMA · ATL 7-day EWMA · TSB = CTL − ATL</p>
+        </div>
+        <div class="legend" id="pmcLegend">
+          <label class="lg-toggle"><input type="checkbox" id="toggleOriginal" checked> original plan</label>
+          <span class="lg"><i class="sw sw-ctl"></i>CTL fitness</span>
+          <span class="lg"><i class="sw sw-atl"></i>ATL fatigue</span>
+          <span class="lg"><i class="sw sw-tsb"></i>TSB form</span>
+          <span class="lg"><i class="sw sw-tss"></i>daily TSS</span>
+        </div>
+      </div>
+      <div class="pmc-wrap">
+        <div id="pmcChart"></div>
+        <div class="pmc-tip" id="pmcTip"></div>
+      </div>
+      <div class="adapt-bar">
+        <div class="adapt-title">Live adaptation</div>
+        <button class="btn btn-danger" id="btnIllness">🤒 Simulate illness</button>
+        <div class="adapt-avail">
+          <span>from today →</span>
+          <input type="number" id="adHours" value="8" min="2" max="25" step="0.5"> h/wk ·
+          <input type="number" id="adSessions" value="6" min="2" max="10"> sess/wk
+          <button class="btn" id="btnAvail">Apply</button>
+        </div>
+        <button class="btn btn-ghost" id="btnResetEvents">Reset adaptations</button>
+        <div class="adapt-events" id="eventsList"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>Periodized Plan</h2>
+          <p class="card-sub" id="planSummary">—</p>
+        </div>
+        <button class="btn" id="btnExportAll">📅 Export full calendar (.ics)</button>
+      </div>
+      <div class="calendar" id="calendar"></div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ══════════ WORKOUT MODAL ══════════ -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal" id="modal">
+    <button class="modal-close" id="modalClose">✕</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script src="js/physiology.js"></script>
+<script src="js/planner.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/export.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

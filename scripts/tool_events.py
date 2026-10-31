@@ -1378,7 +1378,7 @@ def _process_transcript_records(
 
     timestamps: list[datetime] = []
     for r in records:
-        for key in ("timestamp", "created_at", "logged_at", "time", "date"):
+        for key in ("timestamp", "timestamp_ms", "created_at", "logged_at", "time", "date"):
             val = r.get(key)
             if isinstance(val, str):
                 dt = parse_time(val)

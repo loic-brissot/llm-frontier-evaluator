@@ -24,7 +24,7 @@
   "tokens": {
     "split_rule": "combined_output_as_visible",
     "reasoning_tokens": 0,
-    "visible_tokens": 24556,
+    "visible_tokens": 25644,
     "raw": {
       "type": "result",
       "subtype": "success",
@@ -65,11 +65,63 @@
           "output": "20.00"
         },
         "cache_tier": "5m",
-        "cache_tier_basis": "assumed",
+        "cache_tier_basis": "cursor_cost_column",
         "cache_write_5m_tokens": 0,
         "cache_write_1h_tokens": 0,
-        "estimated_cost_usd": "0.77",
-        "estimated_cost_with_harness_usd": "0.93"
+        "estimated_cost_usd": "0.81",
+        "estimated_cost_with_harness_usd": "0.98"
+      },
+      "provider_usage": {
+        "type": "result",
+        "subtype": "success",
+        "duration_ms": 234624,
+        "duration_api_ms": 234624,
+        "is_error": false,
+        "result": "Building your 24-hour animated rail atlas \u2014 designing the network, timeline, and accessibility views.Initial checks revealed an indexing bug in the route data \u2014 fixing it now.The atlas renders beautifully \u2014 now polishing the coastline, station switching in accessibility mode, and a few dead controls.Built and verified: **Atlas Ferroviaire \u2014 France 24H** (`/workspace/index.html`, no build step, works offline).\n\n**Run it**\n```bash\npython3 -m http.server 8000   # then open http://localhost:8000\n```\n(or just open `index.html` in a browser)\n\n**What it delivers**\n- **24h animated traffic** \u2014 1,783 generated trains (418 TGV, 166 Intercit\u00e9s, 1,101 TER) across 104 real georeferenced stations and 65 corridors, positioned in real time along their routes, coloured/sized by category (TGV red, Intercit\u00e9s amber, TER cyan), with a clickable legend to filter/isolate each category. Play/pause, scrubber, and \u00d724\u2013\u00d7480 speeds.\n- **Accessibility atlas mode** \u2014 click any station and a Dijkstra search over the rail graph (route nodes + 8 min transfer edges) colours every station <1h / 1\u20132h / 2\u20133h / 3\u20135h / >5h, with per-bucket station counts (all 104 stations reachable from any origin in testing).\n- **Corridor flow view** \u2014 each RFN segment's width and luminance scale with its cumulative 24h train count, plus a ranked list of the busiest corridors (e.g. Cannes\u2194Nice, Paris\u2194Le Mans).\n- **Live control-centre stats** \u2014 simulated clock, active trains by category, a 24h traffic-profile chart behind the timeline, and the busiest-stations ranking.\n- **Full details** \u2014 clicking a train highlights its route and shows the stop-by-stop timetable with scheduled connections (\u226475 min); clicking a station shows its departure board, lines served, and a one-click \"compute accessibility from here\". Station search included.\n\nStyled as a dark national control centre: glowing network on a custom-drawn France/Corsica landmass, glass panels, mono/display typography.\n\n**Data note** \u2014 as documented in `README.md` and in-app, the layout mirrors the official open datasets (GTFS from transport.data.gouv.fr / SNCF Open Data, RFN line shapes, station lists). This autonomous build embeds a representative GTFS-shaped dataset (`routes \u2192 trips \u2192 stop_times`) so it runs anywhere; swapping in the parsed official GTFS files only requires replacing the `S`/`R` tables in `index.html`.\n\nVerified headlessly with Playwright: no page errors, timeline scrubbing, station search, train timetables with connections, accessibility recomputation per origin, and flow mode all exercised and screenshot-checked (175 active trains at 10:00 simulated time).",
+        "session_id": "61ea18ca-dd43-4015-b7cb-58c84c3ee04e",
+        "request_id": "9e4fe570-b1af-4096-838d-2036cc3f68e2",
+        "usage": {
+          "inputTokens": 40373,
+          "outputTokens": 24556,
+          "cacheReadTokens": 583184,
+          "cacheWriteTokens": 0
+        }
+      },
+      "usage_csv": {
+        "events_in_file": 1105,
+        "events_selected": 1,
+        "selection": "1 of 1105 events. muse-wonder-1.0-medium matches run model Muse Wonder. Events from 2026-10-22T14:14:36.414000+00:00 through 2026-10-22T14:18:20.339000+00:00.",
+        "files": [
+          "team-usage-events-2026-10-31.csv"
+        ],
+        "models": {
+          "muse-wonder-1.0-medium": 1
+        },
+        "kinds": {
+          "Included": 1
+        },
+        "users": 0,
+        "fields": {
+          "cache_write_tokens": "Input (w/ Cache Write)",
+          "uncached_input_tokens": "Input (w/o Cache Write)",
+          "cache_read_tokens": "Cache Read",
+          "output_tokens": "Output Tokens",
+          "total_tokens": "Total Tokens"
+        },
+        "max_mode": {
+          "No": 1
+        },
+        "first_event_at": "2026-10-22T14:14:35.133Z",
+        "last_event_at": "2026-10-22T14:14:35.133Z",
+        "cache_read_tokens": 587794,
+        "cache_write_tokens": 0,
+        "uncached_input_tokens": 45420,
+        "output_tokens": 25644,
+        "total_tokens": 658858,
+        "total_tokens_checked": 1,
+        "total_tokens_mismatches": 0,
+        "total_tokens_check": "matches",
+        "cost": "0.92"
       }
     }
   },
@@ -139,19 +191,24 @@
     }
   },
   "context_reread": {
-    "source": "provider_cache_read",
-    "cache_read_tokens": 583184,
+    "source": "cursor_usage_csv",
+    "cache_read_tokens": 587794,
     "cache_write_tokens": 0,
-    "uncached_input_tokens": 40373,
+    "uncached_input_tokens": 45420,
     "raw": {
-      "source": "transcript_or_hook",
-      "model": "muse-wonder-1.0",
-      "input_tokens": 623557,
-      "uncached_input_tokens": 40373,
-      "cache_read_tokens": 583184,
+      "selection": "1 of 1105 events. muse-wonder-1.0-medium matches run model Muse Wonder. Events from 2026-10-22T14:14:36.414000+00:00 through 2026-10-22T14:18:20.339000+00:00.",
+      "events_selected": 1,
+      "fields": {
+        "cache_write_tokens": "Input (w/ Cache Write)",
+        "uncached_input_tokens": "Input (w/o Cache Write)",
+        "cache_read_tokens": "Cache Read",
+        "output_tokens": "Output Tokens",
+        "total_tokens": "Total Tokens"
+      },
+      "cache_read_tokens": 587794,
       "cache_write_tokens": 0,
-      "output_tokens": 24556,
-      "split_rule": "unavailable"
+      "uncached_input_tokens": 45420,
+      "total_tokens_check": "matches"
     }
   },
   "outcome": {

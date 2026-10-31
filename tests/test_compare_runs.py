@@ -1,5 +1,6 @@
 import io
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -152,8 +153,10 @@ class TestCompareRuns(unittest.TestCase):
     def test_check_readme_detects_drift_when_cell_differs(self):
         # Create a temporary copy of README.md and introduce drift in a table cell
         original_content = README_PATH.read_text(encoding="utf-8")
-        # Tamper with a cell in the local series table (e.g. change $1.76 to $9.99)
-        tampered_content = original_content.replace("$1.76", "$9.99")
+        # Tamper with a cell in the local series table (e.g. change a dollar figure to $999.99)
+        first_price = re.search(r"\$\d+\.\d{2}", original_content)
+        target = first_price.group(0) if first_price else "$1.76"
+        tampered_content = original_content.replace(target, "$999.99", 1)
         self.assertNotEqual(original_content, tampered_content)
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -171,8 +174,8 @@ class TestCompareRuns(unittest.TestCase):
             self.assertFalse(result)
             output = captured_output.getvalue()
             self.assertIn("README.md comparison tables are out of sync", output)
-            self.assertIn("$9.99", output)
-            self.assertIn("$1.76", output)
+            self.assertIn("$999.99", output)
+            self.assertIn(target, output)
 
             # Test that --sync-readme repairs the tampered README
             captured_sync = io.StringIO()

@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Endurance Studio · Adaptive Training Planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><path d="M4 22 L11 12 L16 18 L21 8 L28 22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">Endurance Studio</div>
+        <div class="brand-sub">Adaptive periodization &amp; physiological simulator</div>
+      </div>
+    </div>
+    <nav class="topnav">
+      <a href="#profile">Profile</a>
+      <a href="#planSection">Plan</a>
+      <a href="#adapt">Adapt</a>
+      <button class="btn ghost small" id="exportAllIcs">Export calendar</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Profile -->
+    <section id="profile" class="panel hero">
+      <div class="hero-copy">
+        <div class="eyebrow">Step 1 · Athlete baseline</div>
+        <h1>Build a plan around <em>your</em> physiology.</h1>
+        <p class="lede">Enter your baselines. Zones for power, pace, heart rate and swimming are derived instantly, then a periodized plan is generated from today to race day.</p>
+      </div>
+      <form id="profileForm" class="profile-form" autocomplete="off" onsubmit="return false">
+        <div class="grid3">
+          <label>Name<input id="name" type="text" /></label>
+          <label>Discipline
+            <select id="discipline">
+              <option value="triathlon">Triathlon</option>
+              <option value="running">Running</option>
+              <option value="cycling">Cycling</option>
+              <option value="cross">Cross-training</option>
+            </select>
+          </label>
+          <label>Goal race
+            <select id="raceType">
+              <option value="sprint_tri">Sprint triathlon</option>
+              <option value="olympic_tri">Olympic triathlon</option>
+              <option value="half_ironman">Half Ironman 70.3</option>
+              <option value="ironman">Ironman 140.6</option>
+              <option value="5k">5K</option>
+              <option value="10k">10K</option>
+              <option value="half_marathon">Half marathon</option>
+              <option value="marathon">Marathon</option>
+              <option value="criterium">Road race / gran fondo</option>
+              <option value="century">Century / 100 mi</option>
+              <option value="general">General fitness block</option>
+            </select>
+          </label>
+          <label>Start date<input id="startDate" type="date" /></label>
+          <label>Race day<input id="raceDate" type="date" /></label>
+          <label>Hours / week<input id="hoursPerWeek" type="number" min="1" max="30" step="0.5" /></label>
+          <label>Sessions / week<input id="sessionsPerWeek" type="number" min="2" max="12" step="1" /></label>
+        </div>
+
+        <div class="subgroup">
+          <div class="subhead"><span>Cycling</span><span class="kpi-inline" id="wkg">–</span></div>
+          <div class="grid3">
+            <label>FTP (W)<input id="ftp" type="number" min="50" max="600" step="1" /></label>
+            <label>Body mass (kg)<input id="weightKg" type="number" min="30" max="150" step="0.5" /></label>
+          </div>
+        </div>
+
+        <div class="subgroup">
+          <div class="subhead"><span>Running fitness</span><span class="kpi-inline">VDOT <b id="vdotVal">–</b></span></div>
+          <div class="seg-toggle" role="radiogroup" aria-label="Running baseline source">
+            <label><input type="radio" name="raceMode" value="vo2" checked /><span>VO2max</span></label>
+            <label><input type="radio" name="raceMode" value="race" /><span>Recent race</span></label>
+          </div>
+          <div id="vo2Field" class="grid3">
+            <label>VO2max (ml/kg/min)<input id="vo2max" type="number" min="25" max="90" step="0.5" /></label>
+          </div>
+          <div id="raceField" class="grid3 hidden">
+            <label>Race distance
+              <select id="racePreset">
+                <option value="5k">5K</option>
+                <option value="10k">10K</option>
+                <option value="half">Half marathon</option>
+                <option value="marathon">Marathon</option>
+              </select>
+            </label>
+            <label class="span2">Race time (h : m : s)
+              <div class="inline-trio">
+                <input id="raceH" type="number" min="0" max="12" /><input id="raceM" type="number" min="0" max="59" /><input id="raceS" type="number" min="0" max="59" />
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="subgroup">
+          <div class="subhead"><span>Heart rate</span></div>
+          <div class="grid3">
+            <label>Threshold HR (LTHR)<input id="lthr" type="number" min="100" max="200" /></label>
+            <label>Resting HR<input id="restingHr" type="number" min="30" max="90" /></label>
+            <label>Max HR<input id="maxHr" type="number" min="140" max="230" /></label>
+          </div>
+        </div>
+
+        <div class="subgroup">
+          <div class="subhead"><span>Swimming · CSS</span><span class="kpi-inline" id="cssVal">–</span></div>
+          <div class="grid3">
+            <label class="span2">400 m time (m : s)
+              <div class="inline-duo"><input id="t400M" type="number" min="0" max="30" /><input id="t400S" type="number" min="0" max="59" /></div>
+            </label>
+            <label class="span2">200 m time (m : s)
+              <div class="inline-duo"><input id="t200M" type="number" min="0" max="15" /><input id="t200S" type="number" min="0" max="59" /></div>
+            </label>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn primary" id="generate" type="button">Generate plan</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Zones -->
+    <section id="zones" class="zones">
+      <article class="panel zcard">
+        <header><h2>Power</h2><span class="muted">Coggan · 7 zones</span></header>
+        <div id="powerZones" class="zlist"></div>
+      </article>
+      <article class="panel zcard">
+        <header><h2>Heart rate</h2><span class="muted">LTHR · 5 zones</span></header>
+        <div id="hrZones" class="zlist"></div>
+      </article>
+      <article class="panel zcard">
+        <header><h2>Running</h2><span class="muted">Daniels · VDOT</span></header>
+        <div id="runZones" class="zlist"></div>
+      </article>
+      <article class="panel zcard">
+        <header><h2>Swimming</h2><span class="muted">CSS-relative</span></header>
+        <div id="swimZones" class="zlist"></div>
+      </article>
+    </section>
+
+    <!-- Plan -->
+    <section id="planSection" class="plan">
+      <div class="kpis">
+        <div class="kpi"><span>Fitness · CTL</span><b id="kpiCtl">–</b><em id="kpiCtlDelta">race-day</em></div>
+        <div class="kpi"><span>Form · TSB</span><b id="kpiTsb">–</b><em id="kpiTsbState">–</em></div>
+        <div class="kpi"><span>Total hours</span><b id="kpiHours">–</b><em>across plan</em></div>
+        <div class="kpi"><span>Peak week</span><b id="kpiPeak">–</b><em id="kpiPeakWeek">–</em></div>
+        <div class="kpi"><span>Mesocycle</span><b id="kpiWeeks">–</b><em>weeks</em></div>
+        <div class="kpi"><span>Race day</span><b id="kpiRace" class="small">–</b><em>target</em></div>
+      </div>
+      <div id="warnings"></div>
+
+      <article class="panel chart-panel">
+        <header>
+          <div>
+            <h2>Performance Management Chart</h2>
+            <p class="muted">Fitness (CTL, 42-day) · Fatigue (ATL, 7-day) · Form (TSB = CTL − ATL)</p>
+          </div>
+          <div id="pmcLegend" class="legend"></div>
+        </header>
+        <div id="pmcChart" class="chart"></div>
+      </article>
+
+      <div class="plan-grid">
+        <article class="panel weeks-panel">
+          <header><h2>Training calendar</h2><span class="muted">Click a session</span></header>
+          <div id="weeks" class="weeks"></div>
+        </article>
+
+        <aside class="side">
+          <article class="panel detail-panel" id="detailPanel">
+            <div id="detail"></div>
+          </article>
+
+          <article class="panel adapt-panel" id="adapt">
+            <header><h2>Live adaptation</h2><button class="btn ghost small" id="resetAdapt">Reset</button></header>
+            <div class="adapt-block">
+              <div class="subhead"><span>Illness days</span></div>
+              <div class="row">
+                <input id="illDate" type="date" />
+                <button class="btn small" id="addIll" type="button">Add</button>
+              </div>
+              <div id="illList" class="pills"></div>
+            </div>
+            <div class="adapt-block">
+              <div class="subhead"><span>Weekly availability</span></div>
+              <div class="row">
+                <select id="availWeek"></select>
+                <input id="availHours" type="number" min="0" max="30" step="0.5" placeholder="hours" />
+                <button class="btn small" id="applyAvail" type="button">Apply</button>
+              </div>
+            </div>
+            <div class="adapt-block">
+              <div class="subhead"><span>Max weekly ramp</span><span id="rampCapVal" class="kpi-inline">7%</span></div>
+              <input id="rampCap" type="range" min="2" max="15" step="1" value="7" />
+            </div>
+            <div id="adaptSummary" class="adapt-summary"></div>
+          </article>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>

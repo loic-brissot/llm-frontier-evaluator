@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "http_status": 200,
+  "url": "http://127.0.0.1:63020",
+  "server_mode": "static",
+  "load_time_ms": 5221.3,
+  "console_errors": [],
+  "console_warnings_count": 0,
+  "page_errors": [],
+  "failed_requests": [],
+  "critical_failures": [],
+  "dom": {
+    "title": "Apogee \u2014 Physiological planning studio",
+    "canvas_count": 0,
+    "visible_canvas_count": 0,
+    "canvas_obscured": false,
+    "loading_overlay": null,
+    "loading_status_text": "",
+    "intro_gate": null,
+    "svg_count": 1,
+    "webgl_context": false,
+    "text_length": 1244
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "loading_settle_ms": 0,
+  "verified_at": "2026-10-30T14:06:53.362Z",
+  "demo_url": "demos/adaptive-endurance-coach/2026-10-28-cursor-grok-4-7-high/index.html"
+}

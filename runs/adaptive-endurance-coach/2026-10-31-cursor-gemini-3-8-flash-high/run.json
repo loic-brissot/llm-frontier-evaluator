@@ -1,0 +1,435 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-31-cursor-gemini-3-8-flash-high",
+  "series_id": "adaptive-endurance-coach-cursor",
+  "prompt_id": "adaptive-endurance-coach",
+  "prompt_sha256": "e063f7eae123635edd93949fd72db2786565f11feb74211cad924bcb1309570c",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "google",
+    "name": "gemini-3.8-flash",
+    "context": null,
+    "reasoning": "high"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": "2026.10.19-6bbf2c4",
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-30T23:01:35.612Z",
+    "ended_at": "2026-10-30T23:16:22.676Z"
+  },
+  "tokens": {
+    "split_rule": "combined_output_as_visible",
+    "reasoning_tokens": 0,
+    "visible_tokens": 109042,
+    "raw": {
+      "type": "result",
+      "subtype": "success",
+      "duration_ms": 907469,
+      "duration_api_ms": 907469,
+      "is_error": false,
+      "result": "### PhysioStudio: Interactive Adaptive Training Planner & Physiological Simulator\n\nAn endurance sports-science studio application and physiological simulator built with **React**, **TypeScript**, **Tailwind CSS**, and **Vite**, implementing the exact mathematical formulations of Banister, Coggan, Daniels, and Critical Swim Speed.\n\n---\n\n### Core Architecture & Scientific Models\n\n#### 1. Banister Impulse-Response & Performance Management Chart (PMC)\n* **Chronic Training Load (CTL / Fitness)**: 42-day discrete EWMA\n  $$CTL_t = CTL_{t-1} + \\frac{TSS_t - CTL_{t-1}}{42}$$\n* **Acute Training Load (ATL / Fatigue)**: 7-day discrete EWMA\n  $$ATL_t = ATL_{t-1} + \\frac{TSS_t - ATL_{t-1}}{7}$$\n* **Training Stress Balance (TSB / Form)**:\n  $$TSB_t = CTL_t - ATL_t$$\n* **Ramp Rate & Safety Monitoring**: Rolling 7-day $\\Delta CTL$, categorized into *Optimal* ($<6$ CTL/week), *Moderate* ($6-8$), and *Excessive* ($>8$, injury/overtraining risk).\n* **Race Day Freshness Sweet Spot**: Highlights the $+10 \\text{ to } +25$ TSB target taper window on race day.\n\n#### 2. Coggan 7-Zone Power & Normalized Stress\n* **Zones**: Z1 Active Recovery ($<55\\%$), Z2 Endurance ($56\\text{--}75\\%$), Z3 Tempo ($76\\text{--}90\\%$), Z4 Threshold ($91\\text{--}105\\%$), Z5 $\\text{VO}_2\\text{max}$ ($106\\text{--}120\\%$), Z6 Anaerobic ($121\\text{--}150\\%$), Z7 Neuromuscular ($>150\\%$).\n* **Normalized Power (NP)**: $NP = \\left( \\frac{1}{N} \\sum_{i} P_i^4 \\right)^{1/4}$.\n* **Intensity Factor & Cycling Stress**: $IF = \\frac{NP}{FTP}$ and $TSS = \\frac{t_{\\text{sec}} \\cdot NP \\cdot IF}{FTP \\cdot 3600} \\times 100$.\n\n#### 3. Jack Daniels VDOT Running Model & rTSS\n* **Daniels-Gilbert Oxygen Cost Model**: \n  $$\\text{VO}_2 = -4.60 + 0.182258 \\cdot v + 0.000104 \\cdot v^2 \\quad (\\text{velocity } v \\text{ in m/min})$$\n  $$F = 0.8 + 0.1894393 \\cdot e^{-0.012778 \\cdot t} + 0.2989558 \\cdot e^{-0.1932605 \\cdot t} \\quad (\\text{time } t \\text{ in min})$$\n  $$VDOT = \\frac{\\text{VO}_2}{F}$$\n* **Pace Inversion**: Inverts target fractions of $VDOT$ using the quadratic root formula to derive exact Easy (E), Marathon (M), Threshold (T), Interval (I), and Repetition (R) paces in $\\text{min/km}$ and $\\text{min/mile}$.\n* **Running Stress (rTSS)**: $rTSS = \\frac{t_{\\text{sec}}}{3600} \\times \\left( \\frac{v}{TP} \\right)^2 \\times 100$.\n\n#### 4. Critical Swim Speed (CSS) & sTSS\n* **CSS Formula**: $CSS\\ (m/s) = \\frac{400 - 200}{T_{400} - T_{200}}$, computing threshold pace per $100\\text{m}$.\n* **Zones**: Z1 Recovery ($+10\\text{s}$), Z2 Aerobic Endurance ($+6\\text{s}$), Z3 Tempo ($+3\\text{s}$), Z4 CSS Threshold, Z5 Sprint ($-3\\text{s}$).\n* **Hydrodynamic Swim Stress (sTSS)**: Cubic intensity scaling $sTSS = IF^3 \\times \\text{hours} \\times 100$.\n\n#### 5. Foundational Weight Training & Cross-Training\n* Structured routines targeting posterior chain (trap-bar deadlifts, Bulgarian split squats), core anti-rotation (Pallof press, dead bugs), and tendon stiffness (eccentric calf raises, low-impact pogo hops) with duration-calibrated metabolic stress.\n\n---\n\n### Key Studio Capabilities\n\n1. **Athlete Baseline Studio (`AthleteProfileEditor.tsx`)**:\n   * Accepts weight, FTP ($W$ and $W/\\text{kg}$), VDOT or recent race times (5k, 10k, Half, Full), LTHR, Max HR, Resting HR, and $400\\text{m}/200\\text{m}$ swim time trials.\n   * Auto-computes all 4 individual zone systems with interactive visual spectrums.\n\n2. **Multi-Week Periodized Plan Generator (`periodization.ts`, `PlanConfigModal.tsx`)**:\n   * Generates tailored plans across 4 disciplines: **Triathlon** (Sprint to 140.6), **Running** (5k to Marathon), **Cycling** (Crit to Gran Fondo), and **Cross-Training** (Cycling + Running + Foundational Weight Training).\n   * Automatically sequences Base 1, Base 2, Build 1, Build 2, Peak, and Supercompensation Taper, inserting adaptation recovery deloads every 3rd or 4th week ($-40\\%$ TSS).\n\n3. **Performance Management Chart (`PerformanceManagementChart.tsx`)**:\n   * Interactive SVG engine with live crosshair scrubbing, hover telemetry HUD, curve toggles (CTL, ATL, TSB, Daily TSS bars), and optimal taper freshness highlight ($+10\\text{ to }+25$ TSB).\n   * **Dual-Curve Overlay**: Automatically renders the original planned baseline as dashed ghost curves against the solid neon adapted curves to reveal fitness divergence and race day impact.\n\n4. **Stepped Interval Block Profile & Exporters (`WorkoutIntervalViewer.tsx`)**:\n   * Visualizes every workout as a stepped interval profile with color-coded zone blocks, step durations, and exact target watts, pace, or heart rate.\n   * **RFC 5545 `.ics` Export**: Full calendar events with structured interval descriptions and 60-minute alarms.\n   * **Zwift `.zwo` XML Export**: Valid smart-trainer files with `<warmup>`, `<intervalsT>`, `<steadyState>`, and `<cooldown>` tags.\n\n5. **Live Plan Adaptation & Physiological Simulator (`LiveAdaptationSimulator.tsx`, `adaptation.ts`)**:\n   * Mark individual sessions as *Planned*, *Completed*, *Skipped* ($0\\text{ TSS}$), *Shortened* ($50\\%$), or *Over-reached* ($+35\\%$).\n   * Run simulation scenarios: **Acute Illness** (multi-day zero load), **Soft-Tissue Injury** (run deload), **Schedule Crunch** ($-20\\%\\text{ to }-50\\%$ weekly hours), or **Over-Reach Surge**.\n   * **Dynamic Recalibration Engine**: Recalculates remaining workouts, caps weekly ramp rate ($\\le 5.5\\text{--}6.0\\ \\Delta CTL/\\text{wk}$), adjusts volume while preserving interval quality, and ensures race day peak freshness ($TSB \\in [+10, +25]$).\n\n---\n\n### Verification & Testing\n\nAll 44 automated physiological and export test cases pass:\n* Coggan 7-zone thresholds, Normalized Power 4th-power weighting, and cycling TSS ($1\\text{h at FTP} = 100\\text{ TSS}$).\n* Daniels VDOT derivation from race times and inverse velocity pace solving.\n* CSS velocity, pace per 100m, and cubic sTSS calculation.\n* Banister 42-day/7-day EWMA discrete recurrence and rolling ramp rates.\n* Periodized generation across Triathlon, Running, Cycling, and Cross-Training.\n* Illness simulation, ramp rate capping, dual-curve overlay metrics, and race day TSB preservation ($+15.5\\text{ TSB}$).\n* RFC 5545 iCalendar (`.ics`) and Zwift (`.zwo`) XML compliance.",
+      "session_id": "eade7e44-ffd4-4ba1-8d20-57284e4b9e91",
+      "request_id": "65f773ca-e927-4e88-a258-36aadf813c50",
+      "usage": {
+        "inputTokens": 385284,
+        "outputTokens": 106146,
+        "cacheReadTokens": 4450400,
+        "cacheWriteTokens": 0
+      },
+      "hook_tokens": {
+        "source": "transcript_or_hook",
+        "model": "gemini-3.8-flash",
+        "input_tokens": 4835684,
+        "uncached_input_tokens": 385284,
+        "cache_read_tokens": 4450400,
+        "cache_write_tokens": 0,
+        "output_tokens": 106146,
+        "split_rule": "unavailable"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "gemini-3-8-flash",
+        "context_variant": null,
+        "long_context_applied": false,
+        "harness": "cursor",
+        "harness_token_rate_per_1m": "0.25",
+        "harness_surcharge_usd": "1.24",
+        "rates_per_1m_usd": {
+          "input": "0.75",
+          "cache_write": "0.00",
+          "cache_read": "0.075",
+          "output": "3.75"
+        },
+        "cache_tier": "5m",
+        "cache_tier_basis": "cursor_cost_column",
+        "cache_write_5m_tokens": 0,
+        "cache_write_1h_tokens": 0,
+        "estimated_cost_usd": "1.04",
+        "estimated_cost_with_harness_usd": "2.28"
+      },
+      "provider_usage": {
+        "type": "result",
+        "subtype": "success",
+        "duration_ms": 907469,
+        "duration_api_ms": 907469,
+        "is_error": false,
+        "result": "### PhysioStudio: Interactive Adaptive Training Planner & Physiological Simulator\n\nAn endurance sports-science studio application and physiological simulator built with **React**, **TypeScript**, **Tailwind CSS**, and **Vite**, implementing the exact mathematical formulations of Banister, Coggan, Daniels, and Critical Swim Speed.\n\n---\n\n### Core Architecture & Scientific Models\n\n#### 1. Banister Impulse-Response & Performance Management Chart (PMC)\n* **Chronic Training Load (CTL / Fitness)**: 42-day discrete EWMA\n  $$CTL_t = CTL_{t-1} + \\frac{TSS_t - CTL_{t-1}}{42}$$\n* **Acute Training Load (ATL / Fatigue)**: 7-day discrete EWMA\n  $$ATL_t = ATL_{t-1} + \\frac{TSS_t - ATL_{t-1}}{7}$$\n* **Training Stress Balance (TSB / Form)**:\n  $$TSB_t = CTL_t - ATL_t$$\n* **Ramp Rate & Safety Monitoring**: Rolling 7-day $\\Delta CTL$, categorized into *Optimal* ($<6$ CTL/week), *Moderate* ($6-8$), and *Excessive* ($>8$, injury/overtraining risk).\n* **Race Day Freshness Sweet Spot**: Highlights the $+10 \\text{ to } +25$ TSB target taper window on race day.\n\n#### 2. Coggan 7-Zone Power & Normalized Stress\n* **Zones**: Z1 Active Recovery ($<55\\%$), Z2 Endurance ($56\\text{--}75\\%$), Z3 Tempo ($76\\text{--}90\\%$), Z4 Threshold ($91\\text{--}105\\%$), Z5 $\\text{VO}_2\\text{max}$ ($106\\text{--}120\\%$), Z6 Anaerobic ($121\\text{--}150\\%$), Z7 Neuromuscular ($>150\\%$).\n* **Normalized Power (NP)**: $NP = \\left( \\frac{1}{N} \\sum_{i} P_i^4 \\right)^{1/4}$.\n* **Intensity Factor & Cycling Stress**: $IF = \\frac{NP}{FTP}$ and $TSS = \\frac{t_{\\text{sec}} \\cdot NP \\cdot IF}{FTP \\cdot 3600} \\times 100$.\n\n#### 3. Jack Daniels VDOT Running Model & rTSS\n* **Daniels-Gilbert Oxygen Cost Model**: \n  $$\\text{VO}_2 = -4.60 + 0.182258 \\cdot v + 0.000104 \\cdot v^2 \\quad (\\text{velocity } v \\text{ in m/min})$$\n  $$F = 0.8 + 0.1894393 \\cdot e^{-0.012778 \\cdot t} + 0.2989558 \\cdot e^{-0.1932605 \\cdot t} \\quad (\\text{time } t \\text{ in min})$$\n  $$VDOT = \\frac{\\text{VO}_2}{F}$$\n* **Pace Inversion**: Inverts target fractions of $VDOT$ using the quadratic root formula to derive exact Easy (E), Marathon (M), Threshold (T), Interval (I), and Repetition (R) paces in $\\text{min/km}$ and $\\text{min/mile}$.\n* **Running Stress (rTSS)**: $rTSS = \\frac{t_{\\text{sec}}}{3600} \\times \\left( \\frac{v}{TP} \\right)^2 \\times 100$.\n\n#### 4. Critical Swim Speed (CSS) & sTSS\n* **CSS Formula**: $CSS\\ (m/s) = \\frac{400 - 200}{T_{400} - T_{200}}$, computing threshold pace per $100\\text{m}$.\n* **Zones**: Z1 Recovery ($+10\\text{s}$), Z2 Aerobic Endurance ($+6\\text{s}$), Z3 Tempo ($+3\\text{s}$), Z4 CSS Threshold, Z5 Sprint ($-3\\text{s}$).\n* **Hydrodynamic Swim Stress (sTSS)**: Cubic intensity scaling $sTSS = IF^3 \\times \\text{hours} \\times 100$.\n\n#### 5. Foundational Weight Training & Cross-Training\n* Structured routines targeting posterior chain (trap-bar deadlifts, Bulgarian split squats), core anti-rotation (Pallof press, dead bugs), and tendon stiffness (eccentric calf raises, low-impact pogo hops) with duration-calibrated metabolic stress.\n\n---\n\n### Key Studio Capabilities\n\n1. **Athlete Baseline Studio (`AthleteProfileEditor.tsx`)**:\n   * Accepts weight, FTP ($W$ and $W/\\text{kg}$), VDOT or recent race times (5k, 10k, Half, Full), LTHR, Max HR, Resting HR, and $400\\text{m}/200\\text{m}$ swim time trials.\n   * Auto-computes all 4 individual zone systems with interactive visual spectrums.\n\n2. **Multi-Week Periodized Plan Generator (`periodization.ts`, `PlanConfigModal.tsx`)**:\n   * Generates tailored plans across 4 disciplines: **Triathlon** (Sprint to 140.6), **Running** (5k to Marathon), **Cycling** (Crit to Gran Fondo), and **Cross-Training** (Cycling + Running + Foundational Weight Training).\n   * Automatically sequences Base 1, Base 2, Build 1, Build 2, Peak, and Supercompensation Taper, inserting adaptation recovery deloads every 3rd or 4th week ($-40\\%$ TSS).\n\n3. **Performance Management Chart (`PerformanceManagementChart.tsx`)**:\n   * Interactive SVG engine with live crosshair scrubbing, hover telemetry HUD, curve toggles (CTL, ATL, TSB, Daily TSS bars), and optimal taper freshness highlight ($+10\\text{ to }+25$ TSB).\n   * **Dual-Curve Overlay**: Automatically renders the original planned baseline as dashed ghost curves against the solid neon adapted curves to reveal fitness divergence and race day impact.\n\n4. **Stepped Interval Block Profile & Exporters (`WorkoutIntervalViewer.tsx`)**:\n   * Visualizes every workout as a stepped interval profile with color-coded zone blocks, step durations, and exact target watts, pace, or heart rate.\n   * **RFC 5545 `.ics` Export**: Full calendar events with structured interval descriptions and 60-minute alarms.\n   * **Zwift `.zwo` XML Export**: Valid smart-trainer files with `<warmup>`, `<intervalsT>`, `<steadyState>`, and `<cooldown>` tags.\n\n5. **Live Plan Adaptation & Physiological Simulator (`LiveAdaptationSimulator.tsx`, `adaptation.ts`)**:\n   * Mark individual sessions as *Planned*, *Completed*, *Skipped* ($0\\text{ TSS}$), *Shortened* ($50\\%$), or *Over-reached* ($+35\\%$).\n   * Run simulation scenarios: **Acute Illness** (multi-day zero load), **Soft-Tissue Injury** (run deload), **Schedule Crunch** ($-20\\%\\text{ to }-50\\%$ weekly hours), or **Over-Reach Surge**.\n   * **Dynamic Recalibration Engine**: Recalculates remaining workouts, caps weekly ramp rate ($\\le 5.5\\text{--}6.0\\ \\Delta CTL/\\text{wk}$), adjusts volume while preserving interval quality, and ensures race day peak freshness ($TSB \\in [+10, +25]$).\n\n---\n\n### Verification & Testing\n\nAll 44 automated physiological and export test cases pass:\n* Coggan 7-zone thresholds, Normalized Power 4th-power weighting, and cycling TSS ($1\\text{h at FTP} = 100\\text{ TSS}$).\n* Daniels VDOT derivation from race times and inverse velocity pace solving.\n* CSS velocity, pace per 100m, and cubic sTSS calculation.\n* Banister 42-day/7-day EWMA discrete recurrence and rolling ramp rates.\n* Periodized generation across Triathlon, Running, Cycling, and Cross-Training.\n* Illness simulation, ramp rate capping, dual-curve overlay metrics, and race day TSB preservation ($+15.5\\text{ TSB}$).\n* RFC 5545 iCalendar (`.ics`) and Zwift (`.zwo`) XML compliance.",
+        "session_id": "eade7e44-ffd4-4ba1-8d20-57284e4b9e91",
+        "request_id": "65f773ca-e927-4e88-a258-36aadf813c50",
+        "usage": {
+          "inputTokens": 385284,
+          "outputTokens": 106146,
+          "cacheReadTokens": 4450400,
+          "cacheWriteTokens": 0
+        }
+      },
+      "usage_csv": {
+        "events_in_file": 1105,
+        "events_selected": 1,
+        "selection": "1 of 1105 events. Exact model match for gemini-3.8-flash. Events from 2026-10-30T23:01:35.612000+00:00 through 2026-10-30T23:16:22.676000+00:00.",
+        "files": [
+          "team-usage-events-2026-10-31.csv"
+        ],
+        "models": {
+          "gemini-3.8-flash-high": 1
+        },
+        "kinds": {
+          "Included": 1
+        },
+        "users": 0,
+        "fields": {
+          "cache_write_tokens": "Input (w/ Cache Write)",
+          "uncached_input_tokens": "Input (w/o Cache Write)",
+          "cache_read_tokens": "Cache Read",
+          "output_tokens": "Output Tokens",
+          "total_tokens": "Total Tokens"
+        },
+        "max_mode": {
+          "No": 1
+        },
+        "first_event_at": "2026-10-30T23:01:32.915Z",
+        "last_event_at": "2026-10-30T23:01:32.915Z",
+        "cache_read_tokens": 4455085,
+        "cache_write_tokens": 0,
+        "uncached_input_tokens": 392111,
+        "output_tokens": 109042,
+        "total_tokens": 4956238,
+        "total_tokens_checked": 1,
+        "total_tokens_mismatches": 0,
+        "total_tokens_check": "matches",
+        "cost": "1.02"
+      }
+    }
+  },
+  "model_time": {
+    "source": "wall_clock_minus_tool_time",
+    "generating_seconds": 823.8,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 887.1,
+        "tool_seconds_merged": 63.3,
+        "tool_seconds_summed": 63.3,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": 823.8,
+        "thinking_seconds": 533.0,
+        "thought_blocks": 36
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 18,
+      "failures": 3,
+      "by_tool": {
+        "Shell": {
+          "calls": 18,
+          "failures": 3
+        }
+      }
+    },
+    "files": {
+      "calls": 44,
+      "failures": 0,
+      "by_tool": {
+        "Write": {
+          "calls": 35,
+          "failures": 0
+        },
+        "Read": {
+          "calls": 9,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "other": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    }
+  },
+  "context_reread": {
+    "source": "cursor_usage_csv",
+    "cache_read_tokens": 4455085,
+    "cache_write_tokens": 0,
+    "uncached_input_tokens": 392111,
+    "raw": {
+      "selection": "1 of 1105 events. Exact model match for gemini-3.8-flash. Events from 2026-10-30T23:01:35.612000+00:00 through 2026-10-30T23:16:22.676000+00:00.",
+      "events_selected": 1,
+      "fields": {
+        "cache_write_tokens": "Input (w/ Cache Write)",
+        "uncached_input_tokens": "Input (w/o Cache Write)",
+        "cache_read_tokens": "Cache Read",
+        "output_tokens": "Output Tokens",
+        "total_tokens": "Total Tokens"
+      },
+      "cache_read_tokens": 4455085,
+      "cache_write_tokens": 0,
+      "uncached_input_tokens": 392111,
+      "total_tokens_check": "matches"
+    }
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": true,
+    "summary": ""
+  },
+  "observations": "No stop event recorded; capped run end time at the last non-idle tool/thought event.",
+  "verification": {
+    "runtime": {
+      "passed": true,
+      "http_status": 200,
+      "url": "http://127.0.0.1:58074",
+      "server_mode": "static",
+      "load_time_ms": 3854.29,
+      "console_errors": [],
+      "console_warnings_count": 0,
+      "page_errors": [],
+      "failed_requests": [],
+      "critical_failures": [],
+      "dom": {
+        "title": "PhysioStudio \u2014 Adaptive Endurance Planner & Physiological Simulator",
+        "canvas_count": 0,
+        "visible_canvas_count": 0,
+        "canvas_obscured": false,
+        "loading_overlay": null,
+        "loading_status_text": "",
+        "intro_gate": null,
+        "svg_count": 518,
+        "webgl_context": false,
+        "text_length": 20923
+      },
+      "screenshot_path": "artifacts/screenshot.png",
+      "loading_settle_ms": 0,
+      "verified_at": "2026-10-30T23:16:49.419Z",
+      "demo_url": "demos/adaptive-endurance-coach/2026-10-31-cursor-gemini-3-8-flash-high/index.html"
+    },
+    "data_pipeline": {
+      "prompt_id": "adaptive-endurance-coach",
+      "passed": true,
+      "authenticity": "domain_model_verified",
+      "score": 1.0,
+      "total_data_files": 3,
+      "total_records": 221,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "banister_ewma_model",
+          "description": "Banister impulse-response model constants (CTL 42d EWMA, ATL 7d EWMA, TSB = CTL - ATL)",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "tailwind.config.js",
+            "vite.config.ts",
+            "postcss.config.js",
+            "tests/verify-all.ts",
+            "src/App.tsx",
+            "src/main.tsx",
+            "src/index.css",
+            "src/types/athlete.ts",
+            "src/types/pmc.ts",
+            "src/types/plan.ts",
+            "src/exporters/zwoExporter.ts",
+            "src/exporters/icsExporter.ts",
+            "src/models/coggan.ts",
+            "src/models/adaptation.ts",
+            "src/models/daniels.ts",
+            "src/models/periodization.ts",
+            "src/models/heartrate.ts",
+            "src/models/swimming.ts",
+            "src/models/presets.ts",
+            "src/models/banister.ts",
+            "src/models/strength.ts",
+            "src/components/WorkoutIntervalViewer.tsx",
+            "src/components/CalendarPlanView.tsx",
+            "src/components/AthleteProfileEditor.tsx",
+            "src/components/PerformanceManagementChart.tsx",
+            "src/components/ZonesBreakdownModal.tsx",
+            "src/components/QuickStatsBanner.tsx",
+            "src/components/LiveAdaptationSimulator.tsx",
+            "src/components/PlanConfigModal.tsx"
+          ],
+          "detail": "Matched 29 file(s) with 1 observed records (min: 1)"
+        },
+        {
+          "id": "coggan_power_tss_model",
+          "description": "Coggan power zones & TSS formula (FTP, NP, IF, 3600s denominator)",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "tests/verify-all.ts",
+            "src/App.tsx",
+            "src/main.tsx",
+            "src/index.css",
+            "src/types/athlete.ts",
+            "src/types/pmc.ts",
+            "src/types/plan.ts",
+            "src/exporters/zwoExporter.ts",
+            "src/exporters/icsExporter.ts",
+            "src/models/coggan.ts",
+            "src/models/adaptation.ts",
+            "src/models/daniels.ts",
+            "src/models/periodization.ts",
+            "src/models/heartrate.ts",
+            "src/models/swimming.ts",
+            "src/models/presets.ts",
+            "src/models/banister.ts",
+            "src/models/strength.ts",
+            "src/components/WorkoutIntervalViewer.tsx",
+            "src/components/CalendarPlanView.tsx",
+            "src/components/AthleteProfileEditor.tsx",
+            "src/components/PerformanceManagementChart.tsx",
+            "src/components/ZonesBreakdownModal.tsx",
+            "src/components/QuickStatsBanner.tsx",
+            "src/components/LiveAdaptationSimulator.tsx",
+            "src/components/PlanConfigModal.tsx"
+          ],
+          "detail": "Matched 26 file(s) with 1 observed records (min: 1)"
+        },
+        {
+          "id": "daniels_vdot_css_model",
+          "description": "Daniels VDOT running zones & Critical Swim Speed formula (CSS, 400, 200)",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "index.html",
+            "tailwind.config.js",
+            "vite.config.ts",
+            "postcss.config.js",
+            "tests/verify-all.ts",
+            "src/App.tsx",
+            "src/main.tsx",
+            "src/index.css",
+            "src/types/athlete.ts",
+            "src/types/pmc.ts",
+            "src/types/plan.ts",
+            "src/exporters/zwoExporter.ts",
+            "src/exporters/icsExporter.ts",
+            "src/models/coggan.ts",
+            "src/models/adaptation.ts",
+            "src/models/daniels.ts",
+            "src/models/periodization.ts",
+            "src/models/heartrate.ts",
+            "src/models/swimming.ts",
+            "src/models/presets.ts",
+            "src/models/banister.ts",
+            "src/models/strength.ts",
+            "src/components/WorkoutIntervalViewer.tsx",
+            "src/components/CalendarPlanView.tsx",
+            "src/components/AthleteProfileEditor.tsx",
+            "src/components/PerformanceManagementChart.tsx",
+            "src/components/ZonesBreakdownModal.tsx",
+            "src/components/QuickStatsBanner.tsx",
+            "src/components/LiveAdaptationSimulator.tsx",
+            "src/components/PlanConfigModal.tsx"
+          ],
+          "detail": "Matched 30 file(s) with 1 observed records (min: 1)"
+        },
+        {
+          "id": "export_formats_support",
+          "description": "Calendar (.ics) and Zwift workout (.zwo) export implementation",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "tests/verify-all.ts",
+            "src/App.tsx",
+            "src/main.tsx",
+            "src/index.css",
+            "src/types/athlete.ts",
+            "src/types/pmc.ts",
+            "src/types/plan.ts",
+            "src/exporters/zwoExporter.ts",
+            "src/exporters/icsExporter.ts",
+            "src/models/coggan.ts",
+            "src/models/adaptation.ts",
+            "src/models/daniels.ts",
+            "src/models/periodization.ts",
+            "src/models/heartrate.ts",
+            "src/models/swimming.ts",
+            "src/models/presets.ts",
+            "src/models/banister.ts",
+            "src/models/strength.ts",
+            "src/components/WorkoutIntervalViewer.tsx",
+            "src/components/CalendarPlanView.tsx",
+            "src/components/AthleteProfileEditor.tsx",
+            "src/components/PerformanceManagementChart.tsx",
+            "src/components/ZonesBreakdownModal.tsx",
+            "src/components/QuickStatsBanner.tsx",
+            "src/components/LiveAdaptationSimulator.tsx",
+            "src/components/PlanConfigModal.tsx"
+          ],
+          "detail": "Matched 26 file(s) with 1 observed records (min: 1)"
+        },
+        {
+          "id": "endurance_disciplines",
+          "description": "Four endurance disciplines (triathlon, running, cycling, cross-training)",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "tests/verify-all.ts",
+            "src/App.tsx",
+            "src/main.tsx",
+            "src/index.css",
+            "src/types/athlete.ts",
+            "src/types/pmc.ts",
+            "src/types/plan.ts",
+            "src/exporters/zwoExporter.ts",
+            "src/exporters/icsExporter.ts",
+            "src/models/coggan.ts",
+            "src/models/adaptation.ts",
+            "src/models/daniels.ts",
+            "src/models/periodization.ts",
+            "src/models/heartrate.ts",
+            "src/models/swimming.ts",
+            "src/models/presets.ts",
+            "src/models/banister.ts",
+            "src/models/strength.ts",
+            "src/components/WorkoutIntervalViewer.tsx",
+            "src/components/CalendarPlanView.tsx",
+            "src/components/AthleteProfileEditor.tsx",
+            "src/components/PerformanceManagementChart.tsx",
+            "src/components/ZonesBreakdownModal.tsx",
+            "src/components/QuickStatsBanner.tsx",
+            "src/components/LiveAdaptationSimulator.tsx",
+            "src/components/PlanConfigModal.tsx"
+          ],
+          "detail": "Matched 26 file(s) with 1 observed records (min: 1)"
+        }
+      ],
+      "verified_at": "2026-10-30T23:16:53.465Z"
+    }
+  }
+}

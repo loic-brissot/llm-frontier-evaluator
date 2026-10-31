@@ -1,0 +1,113 @@
+{
+  "prompt_id": "adaptive-endurance-coach",
+  "passed": true,
+  "authenticity": "domain_model_verified",
+  "score": 0.8,
+  "total_data_files": 6,
+  "total_records": 177,
+  "synthetic_signals": [],
+  "checks": [
+    {
+      "id": "banister_ewma_model",
+      "description": "Banister impulse-response model constants (CTL 42d EWMA, ATL 7d EWMA, TSB = CTL - ATL)",
+      "passed": false,
+      "observed_records": 0,
+      "matched_files": [
+        "endurance-planner/tsconfig.node.json",
+        "endurance-planner/tsconfig.app.json"
+      ],
+      "detail": "Matched 2 file(s) but observed 0 records < min threshold 1"
+    },
+    {
+      "id": "coggan_power_tss_model",
+      "description": "Coggan power zones & TSS formula (FTP, NP, IF, 3600s denominator)",
+      "passed": true,
+      "observed_records": 1,
+      "matched_files": [
+        "endurance-planner/src/lib/planGenerator.ts",
+        "endurance-planner/src/lib/zones.ts",
+        "endurance-planner/src/lib/utils.ts",
+        "endurance-planner/src/lib/pmc.ts",
+        "endurance-planner/src/lib/types.ts",
+        "endurance-planner/src/lib/tss.ts",
+        "endurance-planner/src/store/AppContext.tsx"
+      ],
+      "detail": "Matched 7 file(s) with 1 observed records (min: 1)"
+    },
+    {
+      "id": "daniels_vdot_css_model",
+      "description": "Daniels VDOT running zones & Critical Swim Speed formula (CSS, 400, 200)",
+      "passed": true,
+      "observed_records": 1,
+      "matched_files": [
+        "endurance-planner/src/components/Shell.tsx",
+        "endurance-planner/src/components/PlanSettingsPanel.tsx",
+        "endurance-planner/src/components/ProfileEditor.tsx",
+        "endurance-planner/src/components/PlanView.tsx",
+        "endurance-planner/src/components/AdaptationPanel.tsx",
+        "endurance-planner/src/components/PmcChart.tsx",
+        "endurance-planner/src/components/IntervalProfile.tsx",
+        "endurance-planner/src/lib/exportIcs.ts",
+        "endurance-planner/src/lib/adaptation.ts",
+        "endurance-planner/src/lib/exportZwo.ts",
+        "endurance-planner/src/lib/planGenerator.ts",
+        "endurance-planner/src/lib/zones.ts",
+        "endurance-planner/src/lib/utils.ts",
+        "endurance-planner/src/lib/pmc.ts",
+        "endurance-planner/src/lib/types.ts",
+        "endurance-planner/src/lib/tss.ts",
+        "endurance-planner/src/store/AppContext.tsx"
+      ],
+      "detail": "Matched 17 file(s) with 1 observed records (min: 1)"
+    },
+    {
+      "id": "export_formats_support",
+      "description": "Calendar (.ics) and Zwift workout (.zwo) export implementation",
+      "passed": true,
+      "observed_records": 1,
+      "matched_files": [
+        "endurance-planner/src/components/PlanView.tsx",
+        "endurance-planner/src/components/AdaptationPanel.tsx",
+        "endurance-planner/src/components/PmcChart.tsx",
+        "endurance-planner/src/components/IntervalProfile.tsx",
+        "endurance-planner/src/lib/exportIcs.ts",
+        "endurance-planner/src/lib/adaptation.ts",
+        "endurance-planner/src/lib/exportZwo.ts",
+        "endurance-planner/src/lib/planGenerator.ts",
+        "endurance-planner/src/lib/zones.ts",
+        "endurance-planner/src/lib/utils.ts",
+        "endurance-planner/src/lib/pmc.ts",
+        "endurance-planner/src/lib/types.ts",
+        "endurance-planner/src/lib/tss.ts",
+        "endurance-planner/src/store/AppContext.tsx"
+      ],
+      "detail": "Matched 14 file(s) with 1 observed records (min: 1)"
+    },
+    {
+      "id": "endurance_disciplines",
+      "description": "Four endurance disciplines (triathlon, running, cycling, cross-training)",
+      "passed": true,
+      "observed_records": 1,
+      "matched_files": [
+        "endurance-planner/src/components/PlanSettingsPanel.tsx",
+        "endurance-planner/src/components/ProfileEditor.tsx",
+        "endurance-planner/src/components/PlanView.tsx",
+        "endurance-planner/src/components/AdaptationPanel.tsx",
+        "endurance-planner/src/components/PmcChart.tsx",
+        "endurance-planner/src/components/IntervalProfile.tsx",
+        "endurance-planner/src/lib/exportIcs.ts",
+        "endurance-planner/src/lib/adaptation.ts",
+        "endurance-planner/src/lib/exportZwo.ts",
+        "endurance-planner/src/lib/planGenerator.ts",
+        "endurance-planner/src/lib/zones.ts",
+        "endurance-planner/src/lib/utils.ts",
+        "endurance-planner/src/lib/pmc.ts",
+        "endurance-planner/src/lib/types.ts",
+        "endurance-planner/src/lib/tss.ts",
+        "endurance-planner/src/store/AppContext.tsx"
+      ],
+      "detail": "Matched 16 file(s) with 1 observed records (min: 1)"
+    }
+  ],
+  "verified_at": "2026-10-30T22:29:49.220Z"
+}

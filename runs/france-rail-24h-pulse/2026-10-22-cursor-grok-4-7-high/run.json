@@ -22,10 +22,68 @@
     "ended_at": "2026-10-22T16:10:34.109Z"
   },
   "tokens": {
-    "split_rule": "unavailable",
-    "reasoning_tokens": null,
-    "visible_tokens": null,
-    "raw": {}
+    "split_rule": "combined_output_as_visible",
+    "reasoning_tokens": 0,
+    "visible_tokens": 213348,
+    "raw": {
+      "usage_csv": {
+        "events_in_file": 1105,
+        "events_selected": 1,
+        "selection": "1 of 1105 events. grok-4.7-high, grok-4.7-high (Auto Balanced), grok-4.7-high (Auto Intelligence), grok-4.7-high-fast match run model Grok 4.7. Events from 2026-10-22T15:08:46.890000+00:00 through 2026-10-22T16:10:34.109000+00:00.",
+        "files": [
+          "team-usage-events-2026-10-31.csv"
+        ],
+        "models": {
+          "grok-4.7-high": 1
+        },
+        "kinds": {
+          "Included": 1
+        },
+        "users": 0,
+        "fields": {
+          "cache_write_tokens": "Input (w/ Cache Write)",
+          "uncached_input_tokens": "Input (w/o Cache Write)",
+          "cache_read_tokens": "Cache Read",
+          "output_tokens": "Output Tokens",
+          "total_tokens": "Total Tokens"
+        },
+        "max_mode": {
+          "No": 1
+        },
+        "first_event_at": "2026-10-22T15:08:44.853Z",
+        "last_event_at": "2026-10-22T15:08:44.853Z",
+        "cache_read_tokens": 9756544,
+        "cache_write_tokens": 0,
+        "uncached_input_tokens": 474796,
+        "output_tokens": 213348,
+        "total_tokens": 10444688,
+        "total_tokens_checked": 1,
+        "total_tokens_mismatches": 0,
+        "total_tokens_check": "matches",
+        "cost": "7"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "grok-4-7",
+        "context_variant": null,
+        "long_context_applied": false,
+        "harness": "cursor",
+        "harness_token_rate_per_1m": "0",
+        "harness_surcharge_usd": "0.00",
+        "rates_per_1m_usd": {
+          "input": "2.00",
+          "cache_write": "0.00",
+          "cache_read": "0.50",
+          "output": "6.00"
+        },
+        "cache_tier": "5m",
+        "cache_tier_basis": "cursor_cost_column",
+        "cache_write_5m_tokens": 0,
+        "cache_write_1h_tokens": 0,
+        "estimated_cost_usd": "7.11",
+        "estimated_cost_with_harness_usd": "7.11"
+      }
+    }
   },
   "model_time": {
     "source": "wall_clock_minus_tool_time",
@@ -97,11 +155,25 @@
     }
   },
   "context_reread": {
-    "source": "unavailable",
-    "cache_read_tokens": null,
-    "cache_write_tokens": null,
-    "uncached_input_tokens": null,
-    "raw": {}
+    "source": "cursor_usage_csv",
+    "cache_read_tokens": 9756544,
+    "cache_write_tokens": 0,
+    "uncached_input_tokens": 474796,
+    "raw": {
+      "selection": "1 of 1105 events. grok-4.7-high, grok-4.7-high (Auto Balanced), grok-4.7-high (Auto Intelligence), grok-4.7-high-fast match run model Grok 4.7. Events from 2026-10-22T15:08:46.890000+00:00 through 2026-10-22T16:10:34.109000+00:00.",
+      "events_selected": 1,
+      "fields": {
+        "cache_write_tokens": "Input (w/ Cache Write)",
+        "uncached_input_tokens": "Input (w/o Cache Write)",
+        "cache_read_tokens": "Cache Read",
+        "output_tokens": "Output Tokens",
+        "total_tokens": "Total Tokens"
+      },
+      "cache_read_tokens": 9756544,
+      "cache_write_tokens": 0,
+      "uncached_input_tokens": 474796,
+      "total_tokens_check": "matches"
+    }
   },
   "outcome": {
     "model_stopped": true,

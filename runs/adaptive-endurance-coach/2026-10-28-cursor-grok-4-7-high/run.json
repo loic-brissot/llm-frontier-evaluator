@@ -1,0 +1,332 @@
+{
+  "rules_version": 2,
+  "run_id": "2026-10-28-cursor-grok-4-7-high",
+  "series_id": "adaptive-endurance-coach-cursor",
+  "prompt_id": "adaptive-endurance-coach",
+  "prompt_sha256": "e063f7eae123635edd93949fd72db2786565f11feb74211cad924bcb1309570c",
+  "shot": "primary",
+  "parent_run_id": null,
+  "model": {
+    "provider": "xai",
+    "name": "Grok 4.7",
+    "context": null,
+    "reasoning": "high"
+  },
+  "harness": {
+    "name": "cursor",
+    "version": null,
+    "detail": ""
+  },
+  "wall_clock": {
+    "started_at": "2026-10-29T22:16:29.010Z",
+    "ended_at": "2026-10-29T23:14:36.068Z"
+  },
+  "tokens": {
+    "split_rule": "combined_output_as_visible",
+    "reasoning_tokens": 0,
+    "visible_tokens": 247426,
+    "raw": {
+      "provider_usage": {
+        "type": "thinking",
+        "subtype": "delta",
+        "text": " errors.",
+        "session_id": "32927a2f-e945-4f12-9e25-a984a10df58d",
+        "timestamp_ms": 1793315676068
+      },
+      "usage_csv": {
+        "events_in_file": 1105,
+        "events_selected": 1,
+        "selection": "1 of 1105 events. grok-4.7-high, grok-4.7-high (Auto Balanced), grok-4.7-high (Auto Intelligence), grok-4.7-high-fast match run model Grok 4.7. Events from 2026-10-29T22:16:29.010000+00:00 through 2026-10-29T23:14:36.068000+00:00.",
+        "files": [
+          "team-usage-events-2026-10-31.csv"
+        ],
+        "models": {
+          "grok-4.7-high": 1
+        },
+        "kinds": {
+          "Included": 1
+        },
+        "users": 0,
+        "fields": {
+          "cache_write_tokens": "Input (w/ Cache Write)",
+          "uncached_input_tokens": "Input (w/o Cache Write)",
+          "cache_read_tokens": "Cache Read",
+          "output_tokens": "Output Tokens",
+          "total_tokens": "Total Tokens"
+        },
+        "max_mode": {
+          "No": 1
+        },
+        "first_event_at": "2026-10-29T22:16:25.726Z",
+        "last_event_at": "2026-10-29T22:16:25.726Z",
+        "cache_read_tokens": 7967744,
+        "cache_write_tokens": 0,
+        "uncached_input_tokens": 363189,
+        "output_tokens": 247426,
+        "total_tokens": 8578359,
+        "total_tokens_checked": 1,
+        "total_tokens_mismatches": 0,
+        "total_tokens_check": "matches",
+        "cost": "6.1"
+      },
+      "pricing": {
+        "as_of": "2026-10-18",
+        "model_id": "grok-4-7",
+        "context_variant": null,
+        "long_context_applied": false,
+        "harness": "cursor",
+        "harness_token_rate_per_1m": "0",
+        "harness_surcharge_usd": "0.00",
+        "rates_per_1m_usd": {
+          "input": "2.00",
+          "cache_write": "0.00",
+          "cache_read": "0.50",
+          "output": "6.00"
+        },
+        "cache_tier": "5m",
+        "cache_tier_basis": "cursor_cost_column",
+        "cache_write_5m_tokens": 0,
+        "cache_write_1h_tokens": 0,
+        "estimated_cost_usd": "6.19",
+        "estimated_cost_with_harness_usd": "6.19"
+      }
+    }
+  },
+  "model_time": {
+    "source": "unavailable",
+    "generating_seconds": null,
+    "raw": {
+      "tool_events": {
+        "wall_seconds": 3487.1,
+        "tool_seconds_merged": null,
+        "tool_seconds_summed": 0.0,
+        "tools_without_duration": 0,
+        "wall_clock_minus_tool_seconds": null,
+        "thinking_seconds": null,
+        "thought_blocks": 0
+      }
+    }
+  },
+  "tool_calls": {
+    "shell": {
+      "calls": 20,
+      "failures": 1,
+      "by_tool": {
+        "Shell": {
+          "calls": 20,
+          "failures": 1
+        }
+      }
+    },
+    "files": {
+      "calls": 133,
+      "failures": 0,
+      "by_tool": {
+        "Glob": {
+          "calls": 1,
+          "failures": 0
+        },
+        "Edit": {
+          "calls": 81,
+          "failures": 0
+        },
+        "Read": {
+          "calls": 34,
+          "failures": 0
+        },
+        "Grep": {
+          "calls": 17,
+          "failures": 0
+        }
+      }
+    },
+    "visual_checks": {
+      "calls": 0,
+      "failures": 0,
+      "by_tool": {}
+    },
+    "web": {
+      "calls": 2,
+      "failures": 0,
+      "by_tool": {
+        "WebSearch": {
+          "calls": 2,
+          "failures": 0
+        }
+      }
+    },
+    "other": {
+      "calls": 2,
+      "failures": 0,
+      "by_tool": {
+        "GetMcpTools": {
+          "calls": 2,
+          "failures": 0
+        }
+      }
+    }
+  },
+  "context_reread": {
+    "source": "cursor_usage_csv",
+    "cache_read_tokens": 7967744,
+    "cache_write_tokens": 0,
+    "uncached_input_tokens": 363189,
+    "raw": {
+      "selection": "1 of 1105 events. grok-4.7-high, grok-4.7-high (Auto Balanced), grok-4.7-high (Auto Intelligence), grok-4.7-high-fast match run model Grok 4.7. Events from 2026-10-29T22:16:29.010000+00:00 through 2026-10-29T23:14:36.068000+00:00.",
+      "events_selected": 1,
+      "fields": {
+        "cache_write_tokens": "Input (w/ Cache Write)",
+        "uncached_input_tokens": "Input (w/o Cache Write)",
+        "cache_read_tokens": "Cache Read",
+        "output_tokens": "Output Tokens",
+        "total_tokens": "Total Tokens"
+      },
+      "cache_read_tokens": 7967744,
+      "cache_write_tokens": 0,
+      "uncached_input_tokens": 363189,
+      "total_tokens_check": "matches"
+    }
+  },
+  "outcome": {
+    "model_stopped": true,
+    "operator_saw_a_page": true,
+    "summary": ""
+  },
+  "observations": "other tools: GetMcpTools.",
+  "verification": {
+    "runtime": {
+      "passed": true,
+      "http_status": 200,
+      "url": "http://127.0.0.1:63020",
+      "server_mode": "static",
+      "load_time_ms": 5221.3,
+      "console_errors": [],
+      "console_warnings_count": 0,
+      "page_errors": [],
+      "failed_requests": [],
+      "critical_failures": [],
+      "dom": {
+        "title": "Apogee \u2014 Physiological planning studio",
+        "canvas_count": 0,
+        "visible_canvas_count": 0,
+        "canvas_obscured": false,
+        "loading_overlay": null,
+        "loading_status_text": "",
+        "intro_gate": null,
+        "svg_count": 1,
+        "webgl_context": false,
+        "text_length": 1244
+      },
+      "screenshot_path": "artifacts/screenshot.png",
+      "loading_settle_ms": 0,
+      "verified_at": "2026-10-30T14:06:53.362Z",
+      "demo_url": "demos/adaptive-endurance-coach/2026-10-28-cursor-grok-4-7-high/index.html"
+    },
+    "data_pipeline": {
+      "prompt_id": "adaptive-endurance-coach",
+      "passed": true,
+      "authenticity": "domain_model_verified",
+      "score": 1.0,
+      "total_data_files": 1,
+      "total_records": 1,
+      "synthetic_signals": [],
+      "checks": [
+        {
+          "id": "banister_ewma_model",
+          "description": "Banister impulse-response model constants (CTL 42d EWMA, ATL 7d EWMA, TSB = CTL - ATL)",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "css/studio.css",
+            "js/export.js",
+            "js/format.js",
+            "js/chart.js",
+            "js/plan.js",
+            "js/catalog.js",
+            "js/physio.js",
+            "js/app.js",
+            "js/workouts.js",
+            "tests/model.test.js"
+          ],
+          "detail": "Matched 10 file(s) with 1 observed records (min: 1)"
+        },
+        {
+          "id": "coggan_power_tss_model",
+          "description": "Coggan power zones & TSS formula (FTP, NP, IF, 3600s denominator)",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "js/format.js",
+            "js/chart.js",
+            "js/plan.js",
+            "js/catalog.js",
+            "js/physio.js",
+            "js/app.js",
+            "js/workouts.js",
+            "tests/model.test.js"
+          ],
+          "detail": "Matched 8 file(s) with 1 observed records (min: 1)"
+        },
+        {
+          "id": "daniels_vdot_css_model",
+          "description": "Daniels VDOT running zones & Critical Swim Speed formula (CSS, 400, 200)",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "index.html",
+            "css/studio.css",
+            "js/export.js",
+            "js/format.js",
+            "js/chart.js",
+            "js/plan.js",
+            "js/catalog.js",
+            "js/physio.js",
+            "js/app.js",
+            "js/workouts.js",
+            "tests/model.test.js"
+          ],
+          "detail": "Matched 11 file(s) with 1 observed records (min: 1)"
+        },
+        {
+          "id": "export_formats_support",
+          "description": "Calendar (.ics) and Zwift workout (.zwo) export implementation",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "js/export.js",
+            "js/format.js",
+            "js/chart.js",
+            "js/plan.js",
+            "js/catalog.js",
+            "js/physio.js",
+            "js/app.js",
+            "js/workouts.js",
+            "tests/model.test.js"
+          ],
+          "detail": "Matched 9 file(s) with 1 observed records (min: 1)"
+        },
+        {
+          "id": "endurance_disciplines",
+          "description": "Four endurance disciplines (triathlon, running, cycling, cross-training)",
+          "passed": true,
+          "observed_records": 1,
+          "matched_files": [
+            "index.html",
+            "css/studio.css",
+            "js/export.js",
+            "js/format.js",
+            "js/chart.js",
+            "js/plan.js",
+            "js/catalog.js",
+            "js/physio.js",
+            "js/app.js",
+            "js/workouts.js",
+            "tests/model.test.js"
+          ],
+          "detail": "Matched 11 file(s) with 1 observed records (min: 1)"
+        }
+      ],
+      "verified_at": "2026-10-30T14:06:58.807Z"
+    }
+  }
+}

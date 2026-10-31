@@ -567,10 +567,22 @@ def generate_showcase_index(
     index_html = output_dir / "index.html"
     demos_json = output_dir / "demos.json"
 
-    # Clean package records for manifest
-    clean_manifest = []
+    # Clean package records for manifest, merging with existing demos if present
+    existing_demos_map: dict[tuple[str, str], dict[str, Any]] = {}
+    if demos_json.is_file():
+        try:
+            prev_data = json.loads(demos_json.read_text(encoding="utf-8"))
+            for d in prev_data.get("demos") or []:
+                key = (str(d.get("prompt_id")), str(d.get("run_id")))
+                # Only preserve prior demos that actually exist on disk
+                if (output_dir / str(d.get("prompt_id")) / str(d.get("run_id")) / "index.html").is_file():
+                    existing_demos_map[key] = d
+        except Exception:
+            pass
+
     for pkg in packages:
-        clean_manifest.append({
+        key = (str(pkg["prompt_id"]), str(pkg["run_id"]))
+        existing_demos_map[key] = {
             "prompt_id": pkg["prompt_id"],
             "run_id": pkg["run_id"],
             "demo_url": f"{pkg['prompt_id']}/{pkg['run_id']}/index.html",
@@ -578,19 +590,23 @@ def generate_showcase_index(
             "total_bytes": pkg.get("total_bytes", 0),
             "verified": pkg.get("verified", False),
             "passed": (pkg.get("telemetry") or {}).get("passed", True) if pkg.get("telemetry") else None,
-        })
+        }
+
+    clean_manifest = sorted(
+        existing_demos_map.values(),
+        key=lambda d: (d.get("prompt_id", ""), d.get("run_id", "")),
+    )
     write_json(demos_json, {"demos": clean_manifest, "total_demos": len(clean_manifest)})
 
     # Build showcase HTML in the style of lassence.net/demos/benchmark/
     cards_html = []
-    for pkg in packages:
-        p_id = html.escape(pkg["prompt_id"])
-        r_id = html.escape(pkg["run_id"])
+    for pkg in clean_manifest:
+        p_id = html.escape(str(pkg["prompt_id"]))
+        r_id = html.escape(str(pkg["run_id"]))
         rel_link = f"{pkg['prompt_id']}/{pkg['run_id']}/index.html"
         size_kb = round(pkg.get("total_bytes", 0) / 1024, 1)
         files = pkg.get("file_count", 0)
-        telemetry = pkg.get("telemetry") or {}
-        passed = telemetry.get("passed")
+        passed = pkg.get("passed")
 
         status_badge = ""
         if passed is True:
@@ -618,8 +634,8 @@ def generate_showcase_index(
         """
         cards_html.append(card)
 
-    total_demos = len(packages)
-    total_mb = round(sum(p.get("total_bytes", 0) for p in packages) / (1024 * 1024), 2)
+    total_demos = len(clean_manifest)
+    total_mb = round(sum(p.get("total_bytes", 0) for p in clean_manifest) / (1024 * 1024), 2)
 
     showcase_content = f"""<!DOCTYPE html>
 <html lang="en">

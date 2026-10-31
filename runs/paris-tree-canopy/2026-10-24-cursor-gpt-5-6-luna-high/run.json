@@ -24,7 +24,7 @@
   "tokens": {
     "split_rule": "combined_output_as_visible",
     "reasoning_tokens": 0,
-    "visible_tokens": 19331,
+    "visible_tokens": 20135,
     "raw": {
       "type": "result",
       "subtype": "success",
@@ -65,11 +65,63 @@
           "output": "1.20"
         },
         "cache_tier": "5m",
-        "cache_tier_basis": "assumed",
+        "cache_tier_basis": "cursor_cost_column",
         "cache_write_5m_tokens": 33561,
         "cache_write_1h_tokens": 0,
         "estimated_cost_usd": "0.04",
         "estimated_cost_with_harness_usd": "0.10"
+      },
+      "provider_usage": {
+        "type": "result",
+        "subtype": "success",
+        "duration_ms": 170911,
+        "duration_api_ms": 170911,
+        "is_error": false,
+        "result": "I\u2019m going to build this as a self-contained front-end prototype in the empty workspace, with a polished atlas-style UI, real map interactions, Paris Open Data fetch attempts, and a resilient local dataset fallback so it still renders when external APIs are unavailable.Built the Paris urban tree canopy explorer in `/workspace`:\n\n- `index.html` \u2014 atlas-style layout and UI\n- `styles.css` \u2014 polished responsive visual system\n- `app.js` \u2014 Leaflet map, filters, clustering/density mode, tree details, remarkable tree showcase, district comparison, metrics, and source connectivity check\n\nValidated JavaScript syntax and confirmed the app serves successfully at `http://localhost:4173`.",
+        "session_id": "cdb65b75-dd73-4a1c-8810-a175e655e421",
+        "request_id": "a3601411-64fd-4b35-83ff-09e6731355eb",
+        "usage": {
+          "inputTokens": 27,
+          "outputTokens": 19331,
+          "cacheReadTokens": 186620,
+          "cacheWriteTokens": 33561
+        }
+      },
+      "usage_csv": {
+        "events_in_file": 1105,
+        "events_selected": 1,
+        "selection": "1 of 1105 events. Exact model match for GPT-5.6 Luna. Events from 2026-10-24T10:08:32.062000+00:00 through 2026-10-24T10:11:19.785000+00:00.",
+        "files": [
+          "team-usage-events-2026-10-31.csv"
+        ],
+        "models": {
+          "gpt-5.6-luna-high": 1
+        },
+        "kinds": {
+          "Included": 1
+        },
+        "users": 0,
+        "fields": {
+          "cache_write_tokens": "Input (w/ Cache Write)",
+          "uncached_input_tokens": "Input (w/o Cache Write)",
+          "cache_read_tokens": "Cache Read",
+          "output_tokens": "Output Tokens",
+          "total_tokens": "Total Tokens"
+        },
+        "max_mode": {
+          "No": 1
+        },
+        "first_event_at": "2026-10-24T10:08:29.655Z",
+        "last_event_at": "2026-10-24T10:08:29.655Z",
+        "cache_read_tokens": 192012,
+        "cache_write_tokens": 33561,
+        "uncached_input_tokens": 2277,
+        "output_tokens": 20135,
+        "total_tokens": 247985,
+        "total_tokens_checked": 1,
+        "total_tokens_mismatches": 0,
+        "total_tokens_check": "matches",
+        "cost": "0.04"
       }
     }
   },
@@ -134,19 +186,24 @@
     }
   },
   "context_reread": {
-    "source": "provider_cache_read",
-    "cache_read_tokens": 186620,
+    "source": "cursor_usage_csv",
+    "cache_read_tokens": 192012,
     "cache_write_tokens": 33561,
-    "uncached_input_tokens": 27,
+    "uncached_input_tokens": 2277,
     "raw": {
-      "source": "transcript_or_hook",
-      "model": "gpt-5.6-luna",
-      "input_tokens": 220208,
-      "uncached_input_tokens": 27,
-      "cache_read_tokens": 186620,
+      "selection": "1 of 1105 events. Exact model match for GPT-5.6 Luna. Events from 2026-10-24T10:08:32.062000+00:00 through 2026-10-24T10:11:19.785000+00:00.",
+      "events_selected": 1,
+      "fields": {
+        "cache_write_tokens": "Input (w/ Cache Write)",
+        "uncached_input_tokens": "Input (w/o Cache Write)",
+        "cache_read_tokens": "Cache Read",
+        "output_tokens": "Output Tokens",
+        "total_tokens": "Total Tokens"
+      },
+      "cache_read_tokens": 192012,
       "cache_write_tokens": 33561,
-      "output_tokens": 19331,
-      "split_rule": "unavailable"
+      "uncached_input_tokens": 2277,
+      "total_tokens_check": "matches"
     }
   },
   "outcome": {

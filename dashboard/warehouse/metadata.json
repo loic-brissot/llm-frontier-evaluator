@@ -1,10 +1,10 @@
 {
   "warehouse_version": "1.0.0",
-  "exported_at": "2026-10-31T09:24:06.001Z",
+  "exported_at": "2026-10-28T20:15:17.932Z",
   "counts": {
-    "fact_runs": 22,
+    "fact_runs": 26,
     "fact_tool_calls": 1960,
-    "fact_turns": 28,
+    "fact_turns": 32,
     "fact_thought_blocks": 838,
     "dim_models": 30,
     "dim_prompts": 8
@@ -15,8 +15,8 @@
     "csv"
   ],
   "paths": {
-    "parquet_dir": "/Users/lbrissot/repositories/llm-frontier-evaluator/.claude/worktrees/work/warehouse/parquet",
-    "duckdb_file": "/Users/lbrissot/repositories/llm-frontier-evaluator/.claude/worktrees/work/warehouse/benchmark.duckdb",
-    "csv_dir": "/Users/lbrissot/repositories/llm-frontier-evaluator/.claude/worktrees/work/warehouse/csv"
+    "parquet_dir": "/Users/lbrissot/repositories/llm-frontier-evaluator/warehouse/parquet",
+    "duckdb_file": "/Users/lbrissot/repositories/llm-frontier-evaluator/warehouse/benchmark.duckdb",
+    "csv_dir": "/Users/lbrissot/repositories/llm-frontier-evaluator/warehouse/csv"
   }
 }

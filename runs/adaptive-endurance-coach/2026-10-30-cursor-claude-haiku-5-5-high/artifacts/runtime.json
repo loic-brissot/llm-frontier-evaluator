@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "http_status": 200,
+  "url": "http://127.0.0.1:51786",
+  "server_mode": "static",
+  "load_time_ms": 4703.83,
+  "console_errors": [],
+  "console_warnings_count": 0,
+  "page_errors": [],
+  "failed_requests": [],
+  "critical_failures": [],
+  "dom": {
+    "title": "Endurance Studio \u00b7 Adaptive Training Planner",
+    "canvas_count": 0,
+    "visible_canvas_count": 0,
+    "canvas_obscured": false,
+    "loading_overlay": null,
+    "loading_status_text": "",
+    "intro_gate": null,
+    "svg_count": 2,
+    "webgl_context": false,
+    "text_length": 5948
+  },
+  "screenshot_path": "artifacts/screenshot.png",
+  "loading_settle_ms": 0,
+  "verified_at": "2026-10-30T20:25:02.660Z",
+  "demo_url": "demos/adaptive-endurance-coach/2026-10-30-cursor-claude-haiku-5-5-high/index.html"
+}
