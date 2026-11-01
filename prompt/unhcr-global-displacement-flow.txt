@@ -1,0 +1,17 @@
+Build an interactive global forced-displacement observatory and bilateral refugee corridor explorer powered by the United Nations High Commissioner for Refugees (UNHCR) Population Statistics Database.
+The goal is an exceptional visual result, as clear, humane and insightful as a flagship UN global trends atlas, not a mere technical demo.
+Expected result:
+
+* An interactive world map switches between Country of Origin view (where displaced people fled from) and Country of Asylum view (which countries host them), with bilateral flow arcs sized and colored by displaced population volume.
+* Clicking any country isolates its bilateral network on the map and in a linked Sankey / top-corridors breakdown, showing refugees under UNHCR mandate (`refugees`), asylum-seekers (`asylum_seekers`), internally displaced persons (`idps`), and other people in need of international protection (`oip`).
+* A 10-year timeline scrubber (2015 to 2024) lets the viewer step through annual origin and asylum trajectories and observe how global and national displacement totals evolve over time.
+* Interactive filters slice bilateral corridors by population category (Refugees, Asylum-Seekers, IDPs, Stateless), minimum corridor size, and geographic region.
+* A global summary dashboard tracks total forcibly displaced population, top 15 origin and asylum country leaderboards, and detailed country inspection cards.
+
+Available data sources (Open Data — UNHCR & European Commission GISCO, no API key required):
+
+* UNHCR Bilateral Corridors Snapshot (all origin-to-asylum pairs for 2024 in a single page): https://api.unhcr.org/population/v1/population/?limit=10000&year=2024&coo_all=true&coa_all=true
+* UNHCR 10-Year Country of Asylum Totals (2015–2024 annual time series by host country): https://api.unhcr.org/population/v1/population/?limit=10000&yearFrom=2015&yearTo=2024&coa_all=true
+* UNHCR 10-Year Country of Origin Totals (2015–2024 annual time series by origin country): https://api.unhcr.org/population/v1/population/?limit=10000&yearFrom=2015&yearTo=2024&coo_all=true
+* UNHCR Countries Reference Metadata: https://api.unhcr.org/population/v1/countries/?limit=500
+* GISCO World Countries 2024 GeoJSON boundaries: https://gisco-services.ec.europa.eu/distribution/v2/countries/geojson/CNTR_RG_20M_2024_4326.geojson

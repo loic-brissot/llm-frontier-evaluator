@@ -13,13 +13,19 @@ Runs for a prompt live in `runs/<prompt-id>/<run-id>/`, and a run record's
 | Prompt id | File | SHA-256 | Bytes | Final newline |
 | --- | --- | --- | --- | --- |
 | `adaptive-endurance-coach` | `adaptive-endurance-coach.txt` | `e063f7eae123635edd93949fd72db2786565f11feb74211cad924bcb1309570c` | 2439 | No |
+| `eu-energy-dependency-shock-simulator` | `eu-energy-dependency-shock-simulator.txt` | `208c775298eac9aaa675413a43f77ad7774d1381784e91dd0a5a09282ca0dbdb` | 3018 | No |
+| `eu-renewable-energy-tracker` | `eu-renewable-energy-tracker.txt` | `1049866eaecf6be9e23be1b7147f8bb505aea4f64a3b8c32264146bb8361f704` | 2056 | No |
 | `france-electricity-carbon-flow` | `france-electricity-carbon-flow.txt` | `57a1e54a95748b46db8e356d12fbf94d14e8fa6c99942c01acb5e033a728af70` | 2846 | No |
 | `france-rail-24h-pulse` | `france-rail-24h-pulse.txt` | `dc3e0e0cb69b87a3d6ce6c8acfb7953525d9af829bbd3c9a53bcb87f6d6955ca` | 2035 | No |
 | `france-road-accidents` | `france-road-accidents.txt` | `982eebe095732d52f4ca2e904d1cc284b76e9522d3f6f634c571f60ee96747a9` | 2378 | No |
 | `france-socio-electoral-atlas` | `france-socio-electoral-atlas.txt` | `c4e7a3e9c1b5ac5781adfd5e889577576acfa79c7dbf2b6e07b5387b2c173d63` | 3043 | No |
 | `paris-1910-flood-simulator` | `paris-1910-flood-simulator.txt` | `1c2103d2016d41e7263c8012c13ee555b6397ac5d8e4908e1b76a766ff49a9c3` | 2277 | No |
 | `paris-tree-canopy` | `paris-tree-canopy.txt` | `69f692b4adcfe21e0dbcab273537095a344735479a4309ab4a85b8a76288bfaf` | 2085 | No |
+| `unhcr-asylum-recognition-atlas` | `unhcr-asylum-recognition-atlas.txt` | `68d2fdf47a5efd13c1fcf80ac3bc33eb38cb56dda935b1d295398ac34f904343` | 2974 | No |
+| `unhcr-global-displacement-flow` | `unhcr-global-displacement-flow.txt` | `64e5e441e03d681dc2e06d2c0b0b16fc8022e3f221c78c23154483d43e0f3579` | 2311 | No |
 | `velib-realtime-flow` | `velib-realtime-flow.txt` | `c38f333f908f94ba80b5c085d818deeaffceb14e9beca9ce3123342a9aa9f440` | 2190 | No |
+| `who-global-burden-longevity-simulator` | `who-global-burden-longevity-simulator.txt` | `d9a884059e6f26ca92d980f02248fe7ae80f4b96e14fa10181666d440ed547a1` | 3567 | No |
+| `who-world-health-scorecard` | `who-world-health-scorecard.txt` | `8890f72b93bc4f3930ad61aa5b5b665d6c9ba7e363761389183346b8f9272e39` | 2584 | No |
 
 The hash is of the exact bytes. A final newline is a different prompt.
 

@@ -33,3 +33,4 @@ dashboard/results/
 *.duckdb
 *.duckdb.wal
 *.egg-info/
+.claude/

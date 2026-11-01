@@ -1,0 +1,17 @@
+Build an interactive Global Burden of Disease, Longevity Gap (HALE vs. Life Expectancy), and Cause-Elimination Life-Table Simulator joining WHO Global Health Estimates (GHE), WHO Life Expectancy & Healthy Life Expectancy (HALE) time series, and World Health Statistics health-system indicators.
+The goal is an exceptional visual result, as rigorous and illuminating as an epidemiological research studio, not a mere technical demo.
+Expected result:
+
+* A Global Epidemiological Transition Map & Longevity Explorer tracks Life Expectancy at birth (`WHOSIS_000001`), Healthy Life Expectancy (`WHOSIS_000002`), and the "Years Lived in Poor Health" gap (`LE - HALE`) from 2000 to the present across Male (`MLE`), Female (`FMLE`), and Both Sexes (`BTSX`).
+* A Hierarchical Disease Burden Breakdown (Treemap / Marimekko & Rank Chart) visualizes WHO Global Health Estimates (`GHE_FULL_FOCUS`) across Level 1 and Level 2 cause groups (Communicable/maternal/neonatal vs. Noncommunicable diseases such as Cardiovascular, Malignant neoplasms, Respiratory, Diabetes, Neurological vs. Injuries), switching between Death rate per 100k (`VAL_DTHS_RATE100K_NUMERIC`), DALYs (`VAL_DALY_RATE100K_NUMERIC`), Years of Life Lost (`VAL_YLL_RATE100K_NUMERIC`), and Years Lived with Disability (`VAL_YLD_RATE100K_NUMERIC`).
+* An interactive Cause-Deleted Longevity & Intervention Simulator lets the viewer select any country and simulate public-health interventions:
+  - Reduce specific Level-2 disease mortality/morbidity burdens (e.g., -30% Cardiovascular mortality, -50% Infectious/Neonatal mortality, -25% Unintentional injuries) or scale health workforce / UHC coverage (`UHC_INDEX_REPORTED`, `HWF_0001`),
+  - Dynamically estimates averted deaths, DALYs saved (YLL + YLD), and the projected gain in Life Expectancy and Healthy Life Expectancy (HALE) using Chiang/Sullivan cause-deleted life-table approximation.
+
+Available data sources (Open Data — World Health Organization xMart OData API & GISCO, no API key required):
+
+* WHO GHE Cause-Specific Deaths, DALYs, YLLs, and YLDs (`GHE_FULL_FOCUS`, Level 0–2 causes across all countries): https://xmart-api-public.who.int/DEX_CMS/GHE_FULL_FOCUS?$filter=DIM_AGEGROUP_CODE%20eq%20%27ALLAges%27%20and%20DIM_SEX_CODE%20eq%20%27BTSX%27%20and%20FLAG_LEVEL%20le%202&$select=DIM_COUNTRY_CODE,DIM_YEAR_CODE,DIM_GHECAUSE_CODE,DIM_GHECAUSE_TITLE,DIM_CAUSE_GROUP,FLAG_LEVEL,ATTR_POPULATION_NUMERIC,VAL_DTHS_RATE100K_NUMERIC,VAL_DTHS_COUNT_NUMERIC,VAL_DALY_RATE100K_NUMERIC,VAL_YLL_RATE100K_NUMERIC,VAL_YLD_RATE100K_NUMERIC
+* WHO GHO Life Expectancy at Birth Time Series (`WHOSIS_000001`, 2000–present by country and sex): https://xmart-api-public.who.int/GHO/FACT?$filter=INDICATOR_CODE%20eq%20%27WHOSIS_000001%27%20and%20LOCATION_TYPE%20eq%20%27COUNTRY%27&$select=INDICATOR_CODE,PERIOD_CODE,LOCATION_CODE,PARENT_LOCATION_CODE,DIMENSION_MEMBER_1,VALUE_NUMERIC,VALUE_LOW,VALUE_HIGH
+* WHO GHO Healthy Life Expectancy (HALE) Time Series (`WHOSIS_000002`, 2000–present by country and sex): https://xmart-api-public.who.int/GHO/FACT?$filter=INDICATOR_CODE%20eq%20%27WHOSIS_000002%27%20and%20LOCATION_TYPE%20eq%20%27COUNTRY%27&$select=INDICATOR_CODE,PERIOD_CODE,LOCATION_CODE,PARENT_LOCATION_CODE,DIMENSION_MEMBER_1,VALUE_NUMERIC,VALUE_LOW,VALUE_HIGH
+* WHO World Health Statistics 2026 Workforce & UHC Indicators (`WHS2026_DATADOWNLOAD`): https://xmart-api-public.who.int/DEX_CMS/WHS2026_DATADOWNLOAD
+* GISCO World Countries 2024 GeoJSON boundaries: https://gisco-services.ec.europa.eu/distribution/v2/countries/geojson/CNTR_RG_20M_2024_4326.geojson
