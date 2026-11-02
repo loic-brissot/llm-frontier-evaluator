@@ -1071,6 +1071,232 @@ class TestToolEvents(unittest.TestCase):
         self.assertFalse(deduped[0]["failed"])
         self.assertEqual(deduped[0]["duration"], 227.5)
 
+    def test_heredoc_relative_imports_and_inline_code_not_flagged(self):
+        # 1. Heredoc writing files with relative imports/paths must not trigger parent traversal violation
+        heredoc_commands = [
+            # Standard single-quoted EOF heredoc
+            (
+                "cat << 'EOF' > site/ui/matrix.js\n"
+                "import { h, s } from '../util.js';\n"
+                "import { ramp } from '../theme.js';\n"
+                "export const MODE = 1;\n"
+                "EOF"
+            ),
+            # Double-quoted delimiter heredoc
+            (
+                'cat > site/js/theme.js << "EOF"\n'
+                "export const base = '../styles';\n"
+                "EOF"
+            ),
+            # Unquoted delimiter heredoc
+            (
+                "cat << EOF > file.js\n"
+                "import foo from '../bar.js';\n"
+                "EOF"
+            ),
+            # Python heredoc updating imports
+            (
+                "python3 - <<'EOF'\n"
+                "p = 'site/app.js'\n"
+                "s = open(p).read().replace(\"from './data'\", \"from '../data'\")\n"
+                "open(p, 'w').write(s)\n"
+                "EOF"
+            ),
+            # Multiple sequential heredocs
+            (
+                "cat >> icons.js <<'EOF'\n"
+                "export const icon = '../icon.svg';\n"
+                "EOF\n"
+                "cat > ui/matrix.js <<'EOF'\n"
+                "import { h } from '../util.js';\n"
+                "EOF"
+            ),
+            # Heredoc with shell script containing directory traversal in script body
+            (
+                "cat > scripts/build/run_all.sh <<'EOF'\n"
+                "#!/bin/sh\n"
+                "cd \"$(dirname \"$0\")/../..\"\n"
+                "python3 scripts/fetch.py\n"
+                "EOF"
+            ),
+            # Inline scripts: python3 -c, node -e, etc.
+            "python3 -c \"import os; from ..module import thing\"",
+            "python3 -c 'import urllib; fetch(\"../data\")'",
+            "node -e 'const { a } = require(\"../util.js\");'",
+            "node --eval \"const x = require('../data.json');\"",
+        ]
+        for cmd in heredoc_commands:
+            event = {"tool_name": "Shell", "tool_input": {"command": cmd}}
+            reason = check_isolation_violation(event)
+            self.assertIsNone(reason, f"Expected no violation for heredoc/inline script: {cmd!r}, got: {reason}")
+
+        # Post-run audit_isolation must also be clean
+        records = [
+            {"hook_event_name": "postToolUse", "tool_name": "Shell", "tool_input": {"command": cmd}}
+            for cmd in heredoc_commands
+        ]
+        self.assertEqual(audit_isolation(records), [])
+
+    def test_workspace_subdirectory_relative_paths_allowed(self):
+        # Commands with relative paths that resolve inside /workspace when cwd is a subdir
+        subdir_cases = [
+            # cwd is /workspace/site/js, ../util.js resolves to /workspace/site/util.js
+            ({"command": "cat icons.js; head -3 ../util.js"}, "/workspace/site/js"),
+            # cwd is /workspace/site/js, ../../public/index.html resolves to /workspace/public/index.html
+            ({"command": "cat ../../public/index.html"}, "/workspace/site/js"),
+            # cwd is /workspace/data-raw/gtfs, ../rfn/rfn.geojson resolves to /workspace/data-raw/rfn/rfn.geojson
+            ({"command": "head -c 600 ../rfn/rfn.geojson"}, "/workspace/data-raw/gtfs"),
+            # cd .. from subdir moves up to /workspace/site (still inside workspace)
+            ({"command": "cd .. && ls"}, "/workspace/site/js"),
+            # cd inside command string changes directory before relative traversal
+            ({"command": "cd /workspace/pipeline && ls -la ../public/data"}, "/workspace"),
+            ({"command": "cd data/raw/gtfs && mkdir -p gtfs && cd gtfs && unzip -o ../gtfs.zip"}, "/workspace"),
+            ({"command": "cd data/raw/gtfs && cd ../../.. && ls"}, "/workspace"),
+            # Non-shell tool inputs with subdir cwd
+            ({"file_path": "../util.js"}, "/workspace/site/js"),
+            ({"target_file": "../../public/index.html"}, "/workspace/site/js"),
+        ]
+        for tool_input, cwd in subdir_cases:
+            event = {"tool_name": "Shell", "tool_input": tool_input, "cwd": cwd}
+            reason = check_isolation_violation(event)
+            self.assertIsNone(reason, f"Expected no violation for input {tool_input!r} with cwd {cwd}, got: {reason}")
+
+        records = [
+            {"hook_event_name": "postToolUse", "tool_name": "Shell", "tool_input": ti, "cwd": c}
+            for ti, c in subdir_cases
+        ]
+        self.assertEqual(audit_isolation(records), [])
+
+    def test_genuine_workspace_escapes_blocked(self):
+        # Legitimate parent escapes above the workspace root MUST still be blocked
+        escape_cases = [
+            # cd .. from root escapes /workspace
+            ({"command": "cd .."}, "/workspace"),
+            # cd .. from default root (empty or None cwd)
+            ({"command": "cd .."}, None),
+            ({"command": "cd .."}, ""),
+            # ../run.json from root escapes /workspace
+            ({"command": "cat ../run.json"}, "/workspace"),
+            ({"command": "head -n 1 ../run.json"}, None),
+            # cd ../../.. from 1-level subdir escapes /workspace
+            ({"command": "cd ../../.."}, "/workspace/site"),
+            # cd ../../../.. from 3-level subdir escapes /workspace
+            ({"command": "cd data/raw/gtfs && cd ../../../.. && ls"}, "/workspace"),
+            # cat ../../../run.json from 2-level subdir escapes /workspace
+            ({"command": "cat ../../../run.json"}, "/workspace/site/js"),
+            # Path directly containing /workspace/..
+            ({"command": "ls /workspace/.."}, "/workspace"),
+            ({"command": "ls /workspace/subdir/../.."}, "/workspace"),
+            # In-repo escape attempting to read AGENTS.md
+            ({"command": "cat ../../../AGENTS.md"}, "/workspace"),
+            # Non-shell file paths attempting parent traversal outside root
+            ({"file_path": "../run.json"}, "/workspace"),
+            ({"file_path": "/workspace/.."}, "/workspace"),
+            ({"path": "/workspace/subdir/../.."}, "/workspace"),
+            # Command initiating heredoc with output escaping workspace root
+            ({"command": "cat > ../escape.js <<'EOF'\nconst x = 1;\nEOF"}, "/workspace"),
+        ]
+        for tool_input, cwd in escape_cases:
+            event = {"tool_name": "Shell", "tool_input": tool_input}
+            if cwd is not None:
+                event["cwd"] = cwd
+            reason = check_isolation_violation(event)
+            self.assertIsNotNone(reason, f"Expected parent escape violation for {tool_input!r} with cwd {cwd}")
+            self.assertIn("Parent directory traversal", reason)
+
+        records = [
+            {"hook_event_name": "postToolUse", "tool_name": "Shell", "tool_input": ti, "cwd": c}
+            for ti, c in escape_cases
+        ]
+        breaches = audit_isolation(records)
+        self.assertEqual(len(breaches), len(escape_cases))
+        for b in breaches:
+            self.assertIn("attempted parent traversal", b)
+
+    def test_legacy_in_repo_workspace_paths(self):
+        repo_prefix = "/Users/lbrissot/repositories/llm-frontier-evaluator"
+        own_run_ws = f"{repo_prefix}/runs/france-rail-24h-pulse/2026-10-22-cursor-glm-5-3-high/workspace"
+        other_run_ws = f"{repo_prefix}/runs/france-road-accidents/2026-10-26-claude-code/workspace"
+
+        # 1. Allowed: accesses inside the run's own legacy workspace
+        allowed_records = [
+            {
+                "hook_event_name": "postToolUse",
+                "tool_name": "Write",
+                "tool_input": {"file_path": f"{own_run_ws}/index.html", "content": "<h1>Hello</h1>"},
+                "workspace_roots": [own_run_ws],
+            },
+            {
+                "hook_event_name": "postToolUse",
+                "tool_name": "Read",
+                "tool_input": {"path": f"{own_run_ws}/data/raw/geo.json"},
+                "workspace_roots": [own_run_ws],
+            },
+            {
+                "hook_event_name": "postToolUse",
+                "tool_name": "Shell",
+                "tool_input": {"command": f"cat {own_run_ws}/package.json"},
+                "workspace_roots": [own_run_ws],
+            },
+        ]
+        # Inferred from workspace_roots
+        self.assertEqual(audit_isolation(allowed_records), [])
+        # With explicit run_dir passed
+        run_dir = Path(own_run_ws).parent
+        self.assertEqual(audit_isolation(allowed_records, run_dir=run_dir), [])
+        # Inferred from record path strings even without workspace_roots
+        records_no_roots = [
+            {k: v for k, v in r.items() if k != "workspace_roots"}
+            for r in allowed_records
+        ]
+        self.assertEqual(audit_isolation(records_no_roots), [])
+
+        # 2. Blocked: accesses to any other part of llm-frontier-evaluator
+        blocked_records = [
+            # Frozen prompt file in repository
+            {
+                "hook_event_name": "postToolUse",
+                "tool_name": "Read",
+                "tool_input": {"file_path": f"{repo_prefix}/prompt/france-rail-24h-pulse.txt"},
+                "workspace_roots": [own_run_ws],
+            },
+            # Shared runner scripts
+            {
+                "hook_event_name": "postToolUse",
+                "tool_name": "Shell",
+                "tool_input": {"command": f"python3 {repo_prefix}/scripts/run_common.py"},
+                "workspace_roots": [own_run_ws],
+            },
+            # Run metadata run.json (lives outside workspace)
+            {
+                "hook_event_name": "postToolUse",
+                "tool_name": "Read",
+                "tool_input": {"file_path": f"{own_run_ws}/../run.json"},
+                "workspace_roots": [own_run_ws],
+            },
+            # Another run's workspace
+            {
+                "hook_event_name": "postToolUse",
+                "tool_name": "Read",
+                "tool_input": {"path": f"{other_run_ws}/index.html"},
+                "workspace_roots": [own_run_ws],
+            },
+            # Repository-wide search
+            {
+                "hook_event_name": "postToolUse",
+                "tool_name": "Grep",
+                "tool_input": {"pattern": "secret", "file_path": repo_prefix},
+                "workspace_roots": [own_run_ws],
+            },
+        ]
+        breaches = audit_isolation(blocked_records, run_dir=run_dir)
+        self.assertEqual(len(breaches), len(blocked_records))
+        for b in breaches:
+            self.assertTrue(
+                "referenced 'llm-frontier-evaluator'" in b
+                or "attempted parent traversal" in b
+            )
+
     def test_cursor_stream_glob_tool_call_supplements_hooks(self):
         hook_records = [
             {
@@ -1167,6 +1393,8 @@ class TestIsolationParity(unittest.TestCase):
         import tool_events
 
         func_names = [
+            "_strip_heredocs_and_inline_scripts",
+            "_has_parent_escape",
             "_collect_non_content_strings",
             "_strip_content_fields",
             "_extract_traversal_target",
@@ -1216,6 +1444,52 @@ class TestIsolationParity(unittest.TestCase):
             hook_res = self.hook_mod._strip_content_fields(item)
             self.assertEqual(te_res, hook_res, f"Mismatch for input {item!r}")
 
+    def test_strip_heredocs_and_inline_scripts_behavioral_parity(self):
+        import tool_events
+
+        test_scripts = [
+            "cat << 'EOF' > file.txt\nimport foo from '../bar.js';\nEOF",
+            'cat > file.txt << "EOF"\nline 1\nline 2 ../relative\nEOF',
+            "cat << EOF\nplain unquoted delimiter ../path\nEOF",
+            "python3 - <<'EOF'\nimport os\nfrom ..module import thing\nEOF",
+            "python3 -c \"import os; from ..module import thing\"",
+            "node -e 'const { a } = require(\"../util.js\");'",
+            "node --eval \"const x = require('../data.json');\"",
+            "cat > a.js <<'EOF'\n../1\nEOF\ncat > b.js <<'EOF'\n../2\nEOF",
+            "plain command without heredoc",
+        ]
+        for script in test_scripts:
+            te_res = tool_events._strip_heredocs_and_inline_scripts(script)
+            hook_res = self.hook_mod._strip_heredocs_and_inline_scripts(script)
+            self.assertEqual(te_res, hook_res, f"Mismatch for script {script!r}")
+
+    def test_has_parent_escape_behavioral_parity(self):
+        import tool_events
+
+        test_cases = [
+            ("cat icons.js; head -3 ../util.js", "/workspace/site/js", "/workspace"),
+            ("cat ../run.json", "/workspace", "/workspace"),
+            ("cd ..", "/workspace", "/workspace"),
+            ("cd ..", "/workspace/subdir", "/workspace"),
+            ("cd ../..", "/workspace/subdir", "/workspace"),
+            ("ls /workspace/..", "/workspace", "/workspace"),
+            ("cd /workspace/pipeline && ls -la ../public/data", "/workspace", "/workspace"),
+            ("seq 1..10", "/workspace", "/workspace"),
+            ("head -c 600 ../rfn/rfn.geojson", "/workspace/data-raw/gtfs", "/workspace"),
+            ("cd data/raw/gtfs && unzip -o ../gtfs.zip", "/workspace", "/workspace"),
+            ("cd data/raw/gtfs && cd ../../.. && ls", "/workspace", "/workspace"),
+            ("cd data/raw/gtfs && cd ../../../.. && ls", "/workspace", "/workspace"),
+            ("cat ../../../AGENTS.md", "/workspace", "/workspace"),
+        ]
+        for traversal_str, cwd, ws_root in test_cases:
+            te_res = tool_events._has_parent_escape(traversal_str, cwd=cwd, workspace_root=ws_root)
+            hook_res = self.hook_mod._has_parent_escape(traversal_str, cwd=cwd, workspace_root=ws_root)
+            self.assertEqual(
+                te_res,
+                hook_res,
+                f"Mismatch for traversal {traversal_str!r} cwd={cwd} ws_root={ws_root}",
+            )
+
     def test_extract_traversal_target_behavioral_parity(self):
         test_inputs = [
             {"path": "foo/bar.txt", "content": "../do-not-flag-traversal-in-content"},
@@ -1258,6 +1532,46 @@ class TestIsolationParity(unittest.TestCase):
             {"tool_input": '{"path": "relative/file.txt", "content": "../do-not-flag-traversal-in-content"}'},
             {"tool_input": '{"file_path": "../escape/attempt.txt", "content": "normal content"}'},
             {"tool_input": '{"target_directory": "../outside", "command": "find"}'},
+            # Heredoc relative imports
+            {
+                "tool_input": {
+                    "command": "cat << 'EOF' > ui/matrix.js\nimport { h } from '../util.js';\nEOF"
+                }
+            },
+            # Subdirectory relative path inside workspace
+            {
+                "tool_input": {"command": "cat icons.js; head -3 ../util.js"},
+                "cwd": "/workspace/site/js",
+            },
+            # Subdirectory genuine escape
+            {
+                "tool_input": {"command": "cat ../../../run.json"},
+                "cwd": "/workspace/site/js",
+            },
+            # Subdirectory cd .. within workspace
+            {
+                "tool_input": {"command": "cd .."},
+                "cwd": "/workspace/site/js",
+            },
+            # Root cd .. escape
+            {
+                "tool_input": {"command": "cd .."},
+                "cwd": "/workspace",
+            },
+            # In-repo legacy workspace path
+            {
+                "tool_input": {
+                    "file_path": "/repo/llm-frontier-evaluator/runs/france-rail/2026-10-19/workspace/index.html"
+                },
+                "workspace_roots": ["/repo/llm-frontier-evaluator/runs/france-rail/2026-10-19/workspace"],
+            },
+            # In-repo prompt probe access (blocked)
+            {
+                "tool_input": {
+                    "file_path": "/repo/llm-frontier-evaluator/prompt/france-rail.txt"
+                },
+                "workspace_roots": ["/repo/llm-frontier-evaluator/runs/france-rail/2026-10-19/workspace"],
+            },
         ]
         for event in test_events:
             te_res = check_isolation_violation(event)
@@ -1799,6 +2113,31 @@ class TestClaudeHookWorkspaceIsolation(unittest.TestCase):
         self.assertEqual(res.returncode, 2, res.stderr)
         records = [json.loads(line) for line in (self.workspace / ".claude" / "hook-events" / "s1.jsonl").read_text().splitlines()]
         self.assertEqual(records[0]["failure_type"], "isolation_blocked")
+
+    def test_allows_heredoc_relative_imports(self):
+        cmd = (
+            "cat << 'EOF' > ui/matrix.js\n"
+            "import { h } from '../util.js';\n"
+            "import { ramp } from '../theme.js';\n"
+            "EOF"
+        )
+        self.assertIsNone(self.check({"command": cmd}))
+        self.assertIsNone(self.hook.check_isolation_violation({"tool_input": {"command": cmd}}))
+
+    def test_allows_subdirectory_parent_navigation(self):
+        subdir = self.workspace / "site" / "js"
+        subdir.mkdir(parents=True)
+        # Relative path within workspace from subdir
+        self.assertIsNone(self.check({"command": "cat icons.js; head -3 ../util.js"}, cwd=subdir))
+        # cd .. within workspace from subdir
+        self.assertIsNone(self.check({"command": "cd .."}, cwd=subdir))
+
+    def test_blocks_subdirectory_excess_parent_navigation(self):
+        subdir = self.workspace / "site" / "js"
+        subdir.mkdir(parents=True)
+        # Going up 3 levels from 2-level subdir escapes the workspace
+        reason = self.check({"command": "cat ../../../run.json"}, cwd=subdir)
+        self.assertIn("Parent directory", reason or "")
 
     def test_post_tool_use_failure_is_logged_as_failed(self):
         record = self.hook.record_from({
