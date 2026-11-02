@@ -1216,6 +1216,9 @@ def _claude_session_records(transcript: list[dict]) -> list[dict]:
                 slot = {"id": key, "model": msg.get("model"), "content": [], "usage": {}, "_seen": set()}
                 messages[key] = slot
                 order.append(key)
+            t_stamp = entry.get("timestamp") or entry.get("logged_at")
+            if t_stamp and not slot.get("timestamp"):
+                slot["timestamp"] = t_stamp
             if isinstance(msg.get("usage"), dict):
                 _merge_usage(slot["usage"], msg["usage"])
             if isinstance(content, list):
@@ -1246,10 +1249,15 @@ def _claude_session_records(transcript: list[dict]) -> list[dict]:
         message = {"id": slot["id"], "content": blocks}
         if slot["usage"]:
             message["usage"] = slot["usage"]
+        if slot.get("timestamp"):
+            message["timestamp"] = slot["timestamp"]
         model = slot.get("model")
         if isinstance(model, str) and model and not model.startswith("<"):
             message["model"] = model
-        records.append({"type": "assistant", "message": message})
+        rec = {"type": "assistant", "message": message}
+        if slot.get("timestamp"):
+            rec["timestamp"] = slot["timestamp"]
+        records.append(rec)
     for block in results.values():
         records.append({"type": "user", "message": {"content": [block]}})
     return records

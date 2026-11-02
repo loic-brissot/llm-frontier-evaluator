@@ -13,15 +13,22 @@ import json
 from pathlib import Path
 
 from build_dashboard import extract_run_record, extract_tool_timeline, extract_turns
-from export_warehouse import extract_fact_runs, extract_fact_tool_calls, extract_fact_turns
+from export_warehouse import (
+    extract_fact_runs,
+    extract_fact_thought_blocks,
+    extract_fact_tool_calls,
+    extract_fact_turns,
+)
 from telemetry_extraction import (
     extract_normalized_run_metrics,
     extract_normalized_tool_calls,
+    extract_thought_blocks,
     extract_turn_curve,
     input_summary,
     safe_float,
     safe_int,
 )
+from tool_events import load_records
 
 
 def _setup_mock_run(
@@ -273,3 +280,278 @@ def test_normalized_run_metrics_across_consumers(tmp_path: Path) -> None:
     assert len(wh_runs) == 1
     assert wh_runs[0]["run_id"] == norm["run_id"]
     assert wh_runs[0]["tokens_total_output"] == norm["tokens_total_output"]
+
+
+def test_cursor_isolation_blocked_filtering(tmp_path: Path) -> None:
+    events = [
+        {
+            "hook_event_name": "preToolUse",
+            "tool_use_id": "call-blocked",
+            "tool_name": "Shell",
+            "logged_at": "2026-10-22T10:00:50.000Z",
+            "failed": True,
+            "failure_type": "isolation_blocked",
+            "error_message": "Parent directory traversal outside workspace is blocked by isolation policy",
+        },
+        {
+            "hook_event_name": "postToolUseFailure",
+            "tool_use_id": "call-blocked",
+            "tool_name": "Shell",
+            "logged_at": "2026-10-22T10:00:51.000Z",
+            "failed": True,
+            "failure_type": "isolation_blocked",
+            "error_message": "Parent directory traversal outside workspace is blocked by isolation policy",
+        },
+        {
+            "hook_event_name": "postToolUse",
+            "tool_use_id": "call-valid",
+            "tool_name": "Shell",
+            "logged_at": "2026-10-22T10:01:00.000Z",
+            "duration": 500,
+            "exit_code": 0,
+            "tool_input": {"command": "npm test"},
+        },
+    ]
+    run_dir = _setup_mock_run(tmp_path, hook_events=events)
+    calls = extract_normalized_tool_calls(run_dir)
+    assert len(calls) == 1
+    assert calls[0]["tool_use_id"] == "call-valid"
+    assert calls[0]["is_failed"] is False
+
+
+def test_claude_code_tool_calls_durations_and_failures(tmp_path: Path) -> None:
+    run_dir = tmp_path / "mock-claude" / "run-cc-001"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    run_json = {
+        "rules_version": 2,
+        "run_id": "run-cc-001",
+        "prompt_id": "mock-claude",
+        "shot": "primary",
+        "model": {"name": "Claude Sonnet 5.5", "provider": "anthropic", "reasoning": "high"},
+        "harness": {"name": "claude-code", "version": "2.1.310"},
+        "wall_clock": {
+            "started_at": "2026-10-25T12:00:00.000Z",
+            "ended_at": "2026-10-25T12:05:00.000Z",
+        },
+    }
+    (run_dir / "run.json").write_text(json.dumps(run_json), encoding="utf-8")
+
+    hook_events = [
+        # Normal call 1: Bash (duration 400ms)
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_use_id": "call-1",
+            "tool_name": "Bash",
+            "logged_at": "2026-10-25T12:00:10.000Z",
+            "tool_input": {"command": "ls -la"},
+        },
+        {
+            "hook_event_name": "PostToolUse",
+            "tool_use_id": "call-1",
+            "tool_name": "Bash",
+            "logged_at": "2026-10-25T12:00:10.400Z",
+            "tool_input": {"command": "ls -la"},
+            "tool_response": {"exitCode": 0, "stdout": "total 0"},
+        },
+        # Denied call 2: Isolation blocked
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_use_id": "call-denied",
+            "tool_name": "Bash",
+            "logged_at": "2026-10-25T12:00:20.000Z",
+            "failed": True,
+            "failure_type": "isolation_blocked",
+            "error_message": "Parent directory traversal outside workspace is blocked by isolation policy",
+            "tool_input": {"command": "cat ../secret"},
+        },
+        # Failed call 3: Write failure (duration 250ms)
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_use_id": "call-3",
+            "tool_name": "Write",
+            "logged_at": "2026-10-25T12:00:30.000Z",
+            "tool_input": {"path": "/workspace/app.js"},
+        },
+        {
+            "hook_event_name": "PostToolUseFailure",
+            "tool_use_id": "call-3",
+            "tool_name": "Write",
+            "logged_at": "2026-10-25T12:00:30.250Z",
+            "tool_input": {"path": "/workspace/app.js"},
+            "failed": True,
+        },
+    ]
+    hooks_dir = run_dir / "hook-events"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    (hooks_dir / "session.jsonl").write_text("\n".join(json.dumps(e) for e in hook_events), encoding="utf-8")
+
+    calls = extract_normalized_tool_calls(run_dir)
+    assert len(calls) == 2
+
+    assert calls[0]["call_index"] == 1
+    assert calls[0]["tool_use_id"] == "call-1"
+    assert calls[0]["tool_name"] == "Bash"
+    assert calls[0]["bucket"] == "shell"
+    assert calls[0]["duration_ms"] == 400.0
+    assert calls[0]["is_failed"] is False
+
+    assert calls[1]["call_index"] == 2
+    assert calls[1]["tool_use_id"] == "call-3"
+    assert calls[1]["tool_name"] == "Write"
+    assert calls[1]["bucket"] == "files"
+    assert calls[1]["duration_ms"] == 250.0
+    assert calls[1]["is_failed"] is True
+
+    # Consumers
+    dash_timeline = extract_tool_timeline(run_dir, "run-cc-001")
+    wh_calls = extract_fact_tool_calls([run_dir])
+    assert len(dash_timeline) == 2
+    assert len(wh_calls) == 2
+
+
+def test_claude_code_thought_blocks(tmp_path: Path) -> None:
+    run_dir = tmp_path / "mock-claude-thoughts" / "run-cc-002"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "run.json").write_text(json.dumps({"run_id": "run-cc-002"}), encoding="utf-8")
+
+    session_entries = [
+        {
+            "type": "assistant",
+            "uuid": "uuid-1",
+            "requestId": "req-1",
+            "timestamp": "2026-10-25T12:00:05.000Z",
+            "thinkingDurationMs": 1250,
+            "message": {
+                "id": "msg-1",
+                "content": [{"type": "thinking", "thinking": "Let me plan the layout..."}],
+            },
+        },
+        {
+            "type": "assistant",
+            "uuid": "uuid-2",
+            "requestId": "req-2",
+            "timestamp": "2026-10-25T12:00:25.000Z",
+            "thinkingDurationMs": 3500,
+            "message": {
+                "id": "msg-2",
+                "content": [{"type": "thinking", "thinking": "Now analyzing routes..."}],
+            },
+        },
+    ]
+    sessions_dir = run_dir / "claude-sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    (sessions_dir / "session.jsonl").write_text("\n".join(json.dumps(e) for e in session_entries), encoding="utf-8")
+
+    blocks = extract_thought_blocks(run_dir)
+    assert len(blocks) == 2
+    assert blocks[0]["block_index"] == 1
+    assert blocks[0]["generation_id"] == "uuid-1"
+    assert blocks[0]["duration_ms"] == 1250.0
+    assert blocks[0]["duration_seconds"] == 1.25
+
+    assert blocks[1]["block_index"] == 2
+    assert blocks[1]["generation_id"] == "uuid-2"
+    assert blocks[1]["duration_ms"] == 3500.0
+    assert blocks[1]["duration_seconds"] == 3.5
+
+    wh_blocks = extract_fact_thought_blocks([run_dir])
+    assert len(wh_blocks) == 2
+
+
+def test_claude_code_turn_curve_cache_read(tmp_path: Path) -> None:
+    run_dir = tmp_path / "mock-claude-turns" / "run-cc-003"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    run_json = {
+        "run_id": "run-cc-003",
+        "model": {"name": "claude-sonnet-5-5"},
+    }
+    (run_dir / "run.json").write_text(json.dumps(run_json), encoding="utf-8")
+
+    session_entries = [
+        {
+            "type": "assistant",
+            "timestamp": "2026-10-25T12:00:05.000Z",
+            "message": {
+                "id": "msg-1",
+                "model": "claude-sonnet-5-5",
+                "content": [{"type": "text", "text": "Turn 1"}],
+                "usage": {
+                    "input_tokens": 10,
+                    "cache_creation_input_tokens": 5000,
+                    "cache_read_input_tokens": 10000,
+                    "output_tokens": 200,
+                    "output_tokens_details": {"thinking_tokens": 50},
+                },
+            },
+        },
+        {
+            "type": "assistant",
+            "timestamp": "2026-10-25T12:00:35.000Z",
+            "message": {
+                "id": "msg-2",
+                "model": "claude-sonnet-5-5",
+                "content": [{"type": "text", "text": "Turn 2"}],
+                "usage": {
+                    "input_tokens": 5,
+                    "cache_creation_input_tokens": 1000,
+                    "cache_read_input_tokens": 15000,
+                    "output_tokens": 400,
+                    "output_tokens_details": {"thinking_tokens": 100},
+                },
+            },
+        },
+    ]
+    sessions_dir = run_dir / "claude-sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    (sessions_dir / "session.jsonl").write_text("\n".join(json.dumps(e) for e in session_entries), encoding="utf-8")
+
+    turns = extract_turn_curve(run_dir)
+    assert len(turns) == 2
+
+    assert turns[0]["turn_index"] == 1
+    assert turns[0]["input_tokens"] == 15010
+    assert turns[0]["uncached_input_tokens"] == 10
+    assert turns[0]["cache_write_tokens"] == 5000
+    assert turns[0]["cache_read_tokens"] == 10000
+    assert turns[0]["cumulative_cache_read_tokens"] == 10000
+    assert turns[0]["reasoning_tokens"] == 50
+    assert turns[0]["cache_hit_rate_pct"] == round(10000 / 15010 * 100.0, 1)
+
+    assert turns[1]["turn_index"] == 2
+    assert turns[1]["input_tokens"] == 16005
+    assert turns[1]["cache_read_tokens"] == 15000
+    assert turns[1]["cumulative_cache_read_tokens"] == 25000
+    assert turns[1]["reasoning_tokens"] == 100
+
+    dash_turns = extract_turns(run_dir, run_json)
+    wh_turns = extract_fact_turns([run_dir])
+    assert len(dash_turns) == 2
+    assert len(wh_turns) == 2
+
+
+def test_real_claude_code_run_telemetry() -> None:
+    real_run_dir = Path("runs/france-rail-24h-pulse/2026-10-25-claude-code-claude-sonnet-5-5-high")
+    records, _ = load_records(real_run_dir)
+    hook_events = list((real_run_dir / "hook-events").glob("*.jsonl")) if (real_run_dir / "hook-events").is_dir() else []
+    claude_sessions = list((real_run_dir / "claude-sessions").glob("*.jsonl")) if (real_run_dir / "claude-sessions").is_dir() else []
+    if not records and not hook_events and not claude_sessions:
+        # Untracked in CI git checkout due to .gitignore on hook-events/, claude-sessions/, and tool-events/
+        return
+
+    calls = extract_normalized_tool_calls(real_run_dir)
+    assert len(calls) == 99
+    assert all(c["duration_ms"] >= 0 for c in calls)
+    assert all(c["call_index"] == i + 1 for i, c in enumerate(calls))
+    # Verify isolation blocked call was excluded
+    assert not any("toolu_01V1Szk9pTegCYXHug7V1ELX" in c["tool_use_id"] for c in calls)
+
+    blocks = extract_thought_blocks(real_run_dir)
+    assert len(blocks) == 102
+    assert all(b["duration_ms"] > 0 for b in blocks)
+    assert all(b["block_index"] == i + 1 for i, b in enumerate(blocks))
+
+    turns = extract_turn_curve(real_run_dir)
+    assert len(turns) == 91
+    assert turns[0]["cache_read_tokens"] > 0
+    assert turns[-1]["cumulative_cache_read_tokens"] > turns[0]["cumulative_cache_read_tokens"]
+

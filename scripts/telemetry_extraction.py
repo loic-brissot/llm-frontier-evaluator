@@ -19,10 +19,12 @@ from finish_run import (
     read_usage_csv,
 )
 from tool_events import (
+    _claude_session_records,
     _dedupe_thoughts,
     _dedupe_tools,
     _duration,
     _extract_traversal_target,
+    _load_jsonl_dir,
     bucket_for,
     effective_tool_name,
     is_failed,
@@ -80,6 +82,7 @@ def extract_normalized_tool_calls(run_dir: Path, run_id: str | None = None) -> l
 
     Returns normalized tool call records containing tool_name, effective_tool_name,
     bucket, duration_ms, is_failed, exit_code, input_summary, logged_at, etc.
+    Excludes isolation_blocked denials across both harnesses.
     """
     if run_id is None:
         run_json = run_dir / "run.json"
@@ -92,11 +95,193 @@ def extract_normalized_tool_calls(run_dir: Path, run_id: str | None = None) -> l
             run_id = run_dir.name
 
     records, _ = load_records(run_dir)
+    hooks = _load_jsonl_dir(run_dir / "hook-events")
+    sessions = _load_jsonl_dir(run_dir / "claude-sessions")
+
+    # Collect isolation_blocked denials across both harnesses (Cursor and Claude Code)
+    denied_tids: set[str] = set()
+    for source in (records, hooks, sessions):
+        for rec in source:
+            tid = rec.get("tool_use_id") or rec.get("call_id") or rec.get("id")
+            fail_type = rec.get("failure_type")
+            hook_name = rec.get("hook_event_name")
+            err = str(rec.get("error_message") or rec.get("error") or "")
+
+            if fail_type == "isolation_blocked" and tid:
+                denied_tids.add(str(tid))
+            if hook_name in ("preToolUse", "PreToolUse") and fail_type == "isolation_blocked" and tid:
+                denied_tids.add(str(tid))
+            if ("blocked by isolation policy" in err or "Parent directory traversal outside workspace is blocked" in err) and tid:
+                denied_tids.add(str(tid))
+
+            msg = rec.get("message")
+            if isinstance(msg, dict):
+                content = msg.get("content")
+                if isinstance(content, list):
+                    for b in content:
+                        if isinstance(b, dict) and b.get("type") == "tool_result":
+                            res_c = str(b.get("content") or "")
+                            if "blocked by isolation policy" in res_c or "Parent directory traversal outside workspace is blocked" in res_c:
+                                b_tid = b.get("tool_use_id")
+                                if b_tid:
+                                    denied_tids.add(str(b_tid))
+
+    # Check if Claude Code logs exist
+    has_claude_hooks = any(h.get("hook_event_name") in ("PreToolUse", "PostToolUse", "PostToolUseFailure") for h in hooks)
+    has_claude_sessions = bool(sessions)
+    has_claude_stream = any(r.get("type") in ("assistant", "user") and isinstance(r.get("message"), dict) for r in records)
+
+    if has_claude_hooks or has_claude_sessions or has_claude_stream:
+        # 1. Gather Claude Code hook calls
+        pre_by_tid: dict[str, dict[str, Any]] = {}
+        post_by_tid: dict[str, dict[str, Any]] = {}
+        for h in hooks:
+            tid = h.get("tool_use_id")
+            if not tid or str(tid) in denied_tids:
+                continue
+            tid_str = str(tid)
+            h_name = h.get("hook_event_name")
+            if h_name == "PreToolUse" and not h.get("failed"):
+                pre_by_tid.setdefault(tid_str, h)
+            elif h_name in ("PostToolUse", "PostToolUseFailure"):
+                post_by_tid[tid_str] = h
+
+        # 2. Gather Claude Code session / stream transcript tool blocks
+        transcript_entries = list(sessions) if sessions else [r for r in records if r.get("type") in ("assistant", "user")]
+        used_by_tid: dict[str, dict[str, Any]] = {}
+        returned_by_tid: dict[str, dict[str, Any]] = {}
+        for e in transcript_entries:
+            msg = e.get("message") or {}
+            content = msg.get("content") or []
+            if e.get("type") == "assistant" and isinstance(content, list):
+                for b in content:
+                    if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("id"):
+                        tid_str = str(b["id"])
+                        if tid_str not in denied_tids and tid_str not in used_by_tid:
+                            used_by_tid[tid_str] = {"block": b, "entry": e}
+            elif e.get("type") == "user" and isinstance(content, list):
+                for b in content:
+                    if isinstance(b, dict) and b.get("type") == "tool_result" and b.get("tool_use_id"):
+                        tid_str = str(b["tool_use_id"])
+                        if tid_str not in denied_tids and tid_str not in returned_by_tid:
+                            returned_by_tid[tid_str] = {"block": b, "entry": e}
+
+        all_claude_tids = set(pre_by_tid) | set(post_by_tid) | set(used_by_tid)
+        raw_calls: list[dict[str, Any]] = []
+        for tid in all_claude_tids:
+            p = post_by_tid.get(tid) or pre_by_tid.get(tid)
+            t_name = p.get("tool_name") if p else None
+            if not t_name and tid in used_by_tid:
+                t_name = used_by_tid[tid]["block"].get("name")
+            t_name = str(t_name or "unknown").strip()
+
+            t_input = p.get("tool_input") if p else None
+            if t_input is None and tid in used_by_tid:
+                t_input = used_by_tid[tid]["block"].get("input")
+
+            # Duration: PreToolUse -> PostToolUse, else tool_use -> tool_result
+            dur_ms = 0.0
+            if tid in pre_by_tid and tid in post_by_tid:
+                t0 = parse_time(pre_by_tid[tid].get("logged_at"))
+                t1 = parse_time(post_by_tid[tid].get("logged_at"))
+                if t0 and t1:
+                    dur_ms = max(0.0, (t1 - t0).total_seconds() * 1000.0)
+            elif tid in used_by_tid and tid in returned_by_tid:
+                t0 = parse_time(used_by_tid[tid]["entry"].get("timestamp"))
+                t1 = parse_time(returned_by_tid[tid]["entry"].get("timestamp"))
+                if t0 and t1:
+                    dur_ms = max(0.0, (t1 - t0).total_seconds() * 1000.0)
+
+            logged_at = ""
+            if tid in post_by_tid:
+                logged_at = post_by_tid[tid].get("logged_at") or ""
+            elif tid in returned_by_tid:
+                logged_at = returned_by_tid[tid]["entry"].get("timestamp") or ""
+            elif tid in pre_by_tid:
+                logged_at = pre_by_tid[tid].get("logged_at") or ""
+            elif tid in used_by_tid:
+                logged_at = used_by_tid[tid]["entry"].get("timestamp") or ""
+
+            failed = False
+            exit_code = None
+            if tid in post_by_tid:
+                post_rec = post_by_tid[tid]
+                if post_rec.get("hook_event_name") == "PostToolUseFailure" or bool(post_rec.get("failed")):
+                    failed = True
+                resp = post_rec.get("tool_response")
+                if isinstance(resp, dict):
+                    if resp.get("is_error") is True:
+                        failed = True
+                    succ = resp.get("success")
+                    succ_code = succ.get("exitCode") if isinstance(succ, dict) else None
+                    code = resp.get("exitCode") or resp.get("exit_code") or succ_code
+                    if isinstance(code, int) and not isinstance(code, bool):
+                        exit_code = code
+                        if code != 0:
+                            failed = True
+            elif tid in returned_by_tid:
+                ret = returned_by_tid[tid]
+                b = ret["block"]
+                if b.get("is_error") is True:
+                    failed = True
+                tu_res = ret["entry"].get("toolUseResult")
+                if isinstance(tu_res, dict):
+                    if tu_res.get("interrupted") is True:
+                        failed = True
+                    code = tu_res.get("exitCode") or tu_res.get("exit_code")
+                    if isinstance(code, int) and not isinstance(code, bool):
+                        exit_code = code
+                        if code != 0:
+                            failed = True
+
+            eff_name = effective_tool_name(t_name, t_input)
+            bucket = bucket_for(t_name, t_input)
+            raw_calls.append({
+                "tool_use_id": tid,
+                "tool_name": t_name,
+                "effective_tool_name": eff_name,
+                "bucket": bucket,
+                "logged_at": logged_at,
+                "duration_ms": round(float(dur_ms), 1),
+                "exit_code": exit_code,
+                "is_failed": bool(failed),
+                "tool_input_summary": input_summary(t_input),
+            })
+
+        raw_calls.sort(
+            key=lambda x: parse_time(x.get("logged_at")) or datetime.min.replace(tzinfo=timezone.utc)
+        )
+        normalized: list[dict[str, Any]] = []
+        for idx, call in enumerate(raw_calls, start=1):
+            normalized.append({
+                "run_id": str(run_id),
+                "call_index": idx,
+                "tool_use_id": call["tool_use_id"],
+                "tool_name": call["tool_name"],
+                "effective_tool_name": call["effective_tool_name"],
+                "bucket": call["bucket"],
+                "logged_at": call["logged_at"],
+                "duration_ms": call["duration_ms"],
+                "exit_code": call["exit_code"],
+                "is_failed": call["is_failed"],
+                "tool_input_summary": call["tool_input_summary"],
+            })
+        return normalized
+
     if not records:
         return []
 
     selected_events: list[dict[str, Any]] = []
     for r in records:
+        tid = r.get("tool_use_id") or r.get("call_id") or r.get("id")
+        if tid and str(tid) in denied_tids:
+            continue
+        if r.get("failure_type") == "isolation_blocked":
+            continue
+        err = str(r.get("error_message") or r.get("error") or "")
+        if "blocked by isolation policy" in err or "Parent directory traversal outside workspace is blocked" in err:
+            continue
+
         hook = r.get("hook_event_name")
         rtype = r.get("type") or r.get("event_msg")
         if hook in {"postToolUse", "postToolUseFailure"}:
@@ -115,7 +300,7 @@ def extract_normalized_tool_calls(run_dir: Path, run_id: str | None = None) -> l
                         "duration": r.get("duration_ms") or r.get("duration") or v.get("duration"),
                         "exit_code": (
                             (v.get("result") or {}).get("success", {}).get("exitCode")
-                            if isinstance(v.get("result"), dict)
+                            if isinstance(v.get("result"), dict) and isinstance((v.get("result") or {}).get("success"), dict)
                             else None
                         ),
                         "failed": is_failed(r),
@@ -130,7 +315,7 @@ def extract_normalized_tool_calls(run_dir: Path, run_id: str | None = None) -> l
         or datetime.min.replace(tzinfo=timezone.utc)
     )
 
-    normalized: list[dict[str, Any]] = []
+    normalized_cursor: list[dict[str, Any]] = []
     for idx, rec in enumerate(deduped, start=1):
         t_name = str(rec.get("tool_name") or rec.get("name") or "unknown").strip()
         t_input = rec.get("tool_input")
@@ -149,7 +334,7 @@ def extract_normalized_tool_calls(run_dir: Path, run_id: str | None = None) -> l
             or f"{run_id}_call_{idx}"
         )
 
-        normalized.append({
+        normalized_cursor.append({
             "run_id": str(run_id),
             "call_index": idx,
             "tool_use_id": tool_use_id,
@@ -163,11 +348,11 @@ def extract_normalized_tool_calls(run_dir: Path, run_id: str | None = None) -> l
             "tool_input_summary": input_summary(t_input),
         })
 
-    return normalized
+    return normalized_cursor
 
 
 def extract_thought_blocks(run_dir: Path, run_id: str | None = None) -> list[dict[str, Any]]:
-    """Extract chronological thought blocks from afterAgentThought events."""
+    """Extract chronological thought blocks from afterAgentThought events or Claude Code logs."""
     if run_id is None:
         run_json = run_dir / "run.json"
         if run_json.is_file():
@@ -179,28 +364,91 @@ def extract_thought_blocks(run_dir: Path, run_id: str | None = None) -> list[dic
             run_id = run_dir.name
 
     records, _ = load_records(run_dir)
-    if not records:
-        return []
+    sessions = _load_jsonl_dir(run_dir / "claude-sessions")
 
+    # 1. Cursor hooks (afterAgentThought)
     thoughts = [r for r in records if r.get("hook_event_name") == "afterAgentThought"]
-    deduped = _dedupe_thoughts(thoughts)
-    deduped.sort(
-        key=lambda x: parse_time(x.get("logged_at") or x.get("timestamp"))
-        or datetime.min.replace(tzinfo=timezone.utc)
-    )
+    if thoughts:
+        deduped = _dedupe_thoughts(thoughts)
+        deduped.sort(
+            key=lambda x: parse_time(x.get("logged_at") or x.get("timestamp"))
+            or datetime.min.replace(tzinfo=timezone.utc)
+        )
 
-    blocks: list[dict[str, Any]] = []
-    for idx, rec in enumerate(deduped, start=1):
-        dur_ms = _duration(rec.get("duration_ms") or rec.get("duration")) or 0.0
-        blocks.append({
-            "run_id": str(run_id),
-            "block_index": idx,
-            "generation_id": str(rec.get("generation_id") or f"{run_id}_thought_{idx}"),
-            "logged_at": str(rec.get("logged_at") or rec.get("timestamp") or ""),
-            "duration_ms": float(dur_ms),
-            "duration_seconds": round(dur_ms / 1000.0, 3),
-        })
-    return blocks
+        blocks: list[dict[str, Any]] = []
+        for idx, rec in enumerate(deduped, start=1):
+            dur_ms = _duration(rec.get("duration_ms") or rec.get("duration")) or 0.0
+            blocks.append({
+                "run_id": str(run_id),
+                "block_index": idx,
+                "generation_id": str(rec.get("generation_id") or f"{run_id}_thought_{idx}"),
+                "logged_at": str(rec.get("logged_at") or rec.get("timestamp") or ""),
+                "duration_ms": float(dur_ms),
+                "duration_seconds": round(dur_ms / 1000.0, 3),
+            })
+        return blocks
+
+    # 2. Claude Code sessions or cli-stream
+    claude_entries = list(sessions) if sessions else [r for r in records if r.get("type") == "assistant"]
+    thinking_entries = []
+    seen_ids: set[str] = set()
+    previous: datetime | None = None
+
+    for r in claude_entries:
+        if r.get("type") != "assistant":
+            continue
+        when = parse_time(r.get("timestamp") or r.get("logged_at"))
+        dur_val = r.get("thinkingDurationMs") or r.get("thinking_duration_ms")
+        msg = r.get("message")
+        content = msg.get("content") if isinstance(msg, dict) else []
+        has_thinking_block = isinstance(content, list) and any(
+            isinstance(b, dict) and b.get("type") in ("thinking", "redacted_thinking")
+            for b in content
+        )
+
+        if dur_val is not None or has_thinking_block:
+            dur_ms = float(dur_val) if dur_val is not None else 0.0
+            if dur_ms == 0.0 and has_thinking_block and previous is not None and when is not None and when > previous:
+                dur_ms = (when - previous).total_seconds() * 1000.0
+
+            unique_id = str(r.get("uuid") or r.get("requestId") or r.get("request_id") or len(thinking_entries))
+            if unique_id in seen_ids:
+                continue
+            seen_ids.add(unique_id)
+
+            gen_id = str(
+                r.get("generation_id")
+                or r.get("uuid")
+                or r.get("requestId")
+                or r.get("request_id")
+                or f"{run_id}_thought_{len(thinking_entries)+1}"
+            )
+            thinking_entries.append({
+                "generation_id": gen_id,
+                "logged_at": str(r.get("timestamp") or r.get("logged_at") or ""),
+                "duration_ms": float(dur_ms),
+            })
+        if when is not None:
+            previous = when
+
+    if thinking_entries:
+        thinking_entries.sort(
+            key=lambda x: parse_time(x.get("logged_at")) or datetime.min.replace(tzinfo=timezone.utc)
+        )
+        blocks = []
+        for idx, rec in enumerate(thinking_entries, start=1):
+            dur_ms = rec["duration_ms"]
+            blocks.append({
+                "run_id": str(run_id),
+                "block_index": idx,
+                "generation_id": rec["generation_id"],
+                "logged_at": rec["logged_at"],
+                "duration_ms": float(dur_ms),
+                "duration_seconds": round(dur_ms / 1000.0, 3),
+            })
+        return blocks
+
+    return []
 
 
 def extract_turn_curve(run_dir: Path, run_data: dict[str, Any] | None = None) -> list[dict[str, Any]]:
@@ -307,23 +555,48 @@ def extract_turn_curve(run_dir: Path, run_data: dict[str, Any] | None = None) ->
             })
         return turns
 
-    # 2. Check for tool-events or jsonl turn records
+    # 2. Check for tool-events, claude-sessions, or jsonl turn records
     records, _ = load_records(run_dir)
+    sessions = _load_jsonl_dir(run_dir / "claude-sessions")
+
+    transcript_entries = list(sessions) if sessions else [r for r in records if r.get("type") in ("assistant", "user")]
     jsonl_turns: list[dict[str, Any]] = []
-    for r in records:
-        u = r.get("usage")
-        if isinstance(u, dict):
+
+    if transcript_entries and any(e.get("type") == "assistant" for e in transcript_entries):
+        session_records = _claude_session_records(transcript_entries)
+        for r in session_records:
+            if r.get("type") != "assistant":
+                continue
+            msg = r.get("message") if isinstance(r.get("message"), dict) else {}
+            u = r.get("usage") or msg.get("usage")
+            if not isinstance(u, dict):
+                continue
+
             cr = safe_int(u.get("cache_read_tokens") or u.get("cacheReadTokens") or u.get("cache_read_input_tokens")) or 0
             cw = safe_int(u.get("cache_write_tokens") or u.get("cacheWriteTokens") or u.get("cache_creation_input_tokens")) or 0
-            inp = safe_int(u.get("input_tokens") or u.get("inputTokens") or u.get("prompt_tokens")) or 0
-            unc = safe_int(u.get("uncached_input_tokens") or u.get("uncachedInputTokens")) or max(0, inp - cr - cw)
+            inp_field = safe_int(u.get("input_tokens") or u.get("inputTokens") or u.get("prompt_tokens")) or 0
+
+            if u.get("cache_creation_input_tokens") is not None or u.get("cache_read_input_tokens") is not None:
+                unc = safe_int(u.get("uncached_input_tokens") or u.get("uncachedInputTokens")) or inp_field
+                inp = unc + cr + cw
+            else:
+                unc = safe_int(u.get("uncached_input_tokens") or u.get("uncachedInputTokens")) or max(0, inp_field - cr - cw)
+                inp = max(inp_field, unc + cr + cw)
+
             out = safe_int(u.get("output_tokens") or u.get("outputTokens") or u.get("completion_tokens")) or 0
-            reas = safe_int(u.get("reasoning_tokens") or u.get("reasoningTokens") or u.get("thinking_tokens")) or 0
-            t_stamp = str(r.get("logged_at") or r.get("timestamp") or "")
+            reas = safe_int(
+                (u.get("output_tokens_details") or {}).get("thinking_tokens")
+                or u.get("thinking_tokens")
+                or u.get("reasoning_tokens")
+                or u.get("reasoningTokens")
+            ) or 0
+            t_stamp = str(r.get("timestamp") or msg.get("timestamp") or r.get("logged_at") or "")
+            model_slug = str(r.get("model") or msg.get("model") or (run_data.get("model") or {}).get("name") or "")
+
             jsonl_turns.append({
                 "timestamp": t_stamp,
-                "model_slug": str(r.get("model") or (run_data.get("model") or {}).get("name") or ""),
-                "input_tokens": unc + cr + cw,
+                "model_slug": model_slug,
+                "input_tokens": inp,
                 "uncached_input_tokens": unc,
                 "cache_read_tokens": cr,
                 "cache_write_tokens": cw,
@@ -331,6 +604,28 @@ def extract_turn_curve(run_dir: Path, run_data: dict[str, Any] | None = None) ->
                 "reasoning_tokens": reas,
                 "cost_usd": None,
             })
+    else:
+        for r in records:
+            u = r.get("usage")
+            if isinstance(u, dict):
+                cr = safe_int(u.get("cache_read_tokens") or u.get("cacheReadTokens") or u.get("cache_read_input_tokens")) or 0
+                cw = safe_int(u.get("cache_write_tokens") or u.get("cacheWriteTokens") or u.get("cache_creation_input_tokens")) or 0
+                inp = safe_int(u.get("input_tokens") or u.get("inputTokens") or u.get("prompt_tokens")) or 0
+                unc = safe_int(u.get("uncached_input_tokens") or u.get("uncachedInputTokens")) or max(0, inp - cr - cw)
+                out = safe_int(u.get("output_tokens") or u.get("outputTokens") or u.get("completion_tokens")) or 0
+                reas = safe_int(u.get("reasoning_tokens") or u.get("reasoningTokens") or u.get("thinking_tokens")) or 0
+                t_stamp = str(r.get("logged_at") or r.get("timestamp") or "")
+                jsonl_turns.append({
+                    "timestamp": t_stamp,
+                    "model_slug": str(r.get("model") or (run_data.get("model") or {}).get("name") or ""),
+                    "input_tokens": unc + cr + cw,
+                    "uncached_input_tokens": unc,
+                    "cache_read_tokens": cr,
+                    "cache_write_tokens": cw,
+                    "output_tokens": out,
+                    "reasoning_tokens": reas,
+                    "cost_usd": None,
+                })
 
     if jsonl_turns:
         jsonl_turns.sort(
