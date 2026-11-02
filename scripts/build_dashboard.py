@@ -980,6 +980,24 @@ def serve_dashboard(output_dir: Path, port: int = 8000) -> None:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             super().__init__(*args, directory=str(output_dir), **kwargs)
 
+        def translate_path(self, path: str) -> str:
+            translated = Path(super().translate_path(path))
+            if translated.exists():
+                return str(translated)
+            try:
+                rel = translated.relative_to(output_dir.resolve())
+            except ValueError:
+                return str(translated)
+            if rel.parts and rel.parts[0] == "demos":
+                for fallback_root in (
+                    ROOT / "site",
+                    ROOT.parent / "llm-frontier-evaluator-demos",
+                ):
+                    cand = fallback_root / rel
+                    if cand.exists():
+                        return str(cand)
+            return str(translated)
+
     # Allow port reuse
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("", port), Handler) as httpd:

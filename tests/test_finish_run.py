@@ -1325,6 +1325,46 @@ class TestInteractiveClaudeCodeFinish(unittest.TestCase):
         self.assertEqual(run["wall_clock"]["started_at"], "2026-10-25T09:00:00Z")
         self.assertIsNone(run["tokens"]["raw"]["claude_code"]["output_tokens"])
 
+    def test_maybe_package_and_publish_demo_packages_into_sister_repo(self):
+        from finish_run import maybe_package_and_publish_demo
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        tmp_path = Path(tmp.name)
+
+        run_dir = tmp_path / "runs" / "paris-tree-canopy" / "2026-11-02-cursor-test-high"
+        ws_dir = run_dir / "workspace"
+        ws_dir.mkdir(parents=True)
+        (ws_dir / "index.html").write_text("<html><body>Demo App</body></html>", encoding="utf-8")
+        (run_dir / "run.json").write_text(
+            json.dumps({
+                "rules_version": 2,
+                "verification": {"runtime": {"passed": True}},
+                "outcome": {"operator_saw_a_page": True},
+            }),
+            encoding="utf-8",
+        )
+
+        sister_repo = tmp_path / "llm-frontier-evaluator-demos"
+        res = maybe_package_and_publish_demo(
+            run_dir,
+            package_demo=True,
+            publish_repo=sister_repo,
+            push_demo=False,
+            interactive=False,
+        )
+        self.assertIsNotNone(res)
+        self.assertTrue((sister_repo / "demos" / "paris-tree-canopy" / "2026-11-02-cursor-test-high" / "index.html").is_file())
+        self.assertTrue((sister_repo / "index.html").is_file())
+        self.assertTrue((sister_repo / ".nojekyll").is_file())
+
+    def test_finish_run_parser_demo_flags(self):
+        parser = build_parser()
+        args = parser.parse_args(["--package-demo", "--push-demo", "--publish-repo"])
+        self.assertTrue(args.package_demo)
+        self.assertTrue(args.push_demo)
+        self.assertIsNotNone(args.publish_repo)
+
 
 if __name__ == "__main__":
     unittest.main()

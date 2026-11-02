@@ -9,18 +9,18 @@ This document describes the web delivery architecture of `llm-frontier-evaluator
 The evaluation harness measures process metrics (tokens, tool calls, model time) and artifacts (screenshots, probe scorecards). To make runs inspectable, the platform publishes:
 
 1. **Benchmark Explorer (`dashboard/`)**: A client-side visual dashboard with Pareto frontiers, multi-metric filtering, turn curves, and run inspection modals.
-2. **Interactive Web Showcase (`dashboard/demos/`)**: Self-contained static web applications compiled directly from `runs/<prompt-id>/<run-id>/workspace/` in the style of [lassence.net/demos/benchmark/](https://lassence.net/demos/benchmark/).
-3. **Analytical Data Downloads (`dashboard/warehouse/` and `dashboard/results/`)**: Downloadable Parquet files, embedded DuckDB databases, raw telemetry logs, and verification reports.
+2. **Interactive Web Showcase (`llm-frontier-evaluator-demos`)**: Self-contained static web applications compiled directly from `runs/<prompt-id>/<run-id>/workspace/` and hosted in the dedicated public sister repository [`loic-brissot/llm-frontier-evaluator-demos`](https://github.com/loic-brissot/llm-frontier-evaluator-demos) at [`https://loic-brissot.github.io/llm-frontier-evaluator-demos/`](https://loic-brissot.github.io/llm-frontier-evaluator-demos/) in the style of [lassence.net/demos/benchmark/](https://lassence.net/demos/benchmark/).
+3. **Analytical Data Downloads (`dashboard/warehouse/` and `dashboard/results/`)**: Downloadable CSV/Parquet files, embedded DuckDB databases, raw telemetry logs, and verification reports.
 
 ```
 runs/<prompt-id>/<run-id>/
-├── workspace/             ──(package_web_demos.py)──►  dashboard/demos/<prompt-id>/<run-id>/
-├── artifacts/             ──(build_dashboard.py)────►  dashboard/screenshots/ & dashboard/results/
-└── run.json               ──(build_dashboard.py)────►  dashboard/data.json
-                                                                  │
-                                                        (.github/workflows/deploy-pages.yml)
-                                                                  ▼
-                                                          GitHub Pages Site
+├── workspace/             ──(package_web_demos.py --publish-repo --push)──►  llm-frontier-evaluator-demos (GitHub Pages)
+├── artifacts/             ──(build_dashboard.py)──────────────────────────►  dashboard/screenshots/ & dashboard/results/
+└── run.json               ──(build_dashboard.py)──────────────────────────►  dashboard/data.json
+                                                                                        │
+                                                                  (.github/workflows/deploy-pages.yml)
+                                                                                        ▼
+                                                                        Main Dashboard GitHub Pages Site
 ```
 
 ---
@@ -29,7 +29,7 @@ runs/<prompt-id>/<run-id>/
 
 When an agent finishes building an application in `runs/<prompt-id>/<run-id>/workspace/`, that workspace often contains gigabytes of extraneous files (`node_modules/`, `.git/`, compilation caches, raw download archives). 
 
-`scripts/package_web_demos.py` compiles, strips, sanitizes, and exports each workspace into a self-contained static directory served under `dashboard/demos/<prompt-id>/<run-id>/`.
+`scripts/package_web_demos.py` compiles, strips, sanitizes, and exports each workspace into a self-contained static directory published to `../llm-frontier-evaluator-demos/demos/<prompt-id>/<run-id>/` (or a local `--output-dir`).
 
 ### Bundling Pipeline
 
@@ -50,23 +50,29 @@ For each targeted run directory:
    - Boots an ephemeral local HTTP server and runs headless Playwright browser checks against the static bundle.
    - Asserts HTTP 200, captures console errors, detects worker loading failures, and verifies DOM state.
 5. **Metadata Registration (`record_demo_url`)**:
-   - Writes the relative demo path (e.g. `demos/paris-tree-canopy/2026-10-24-cursor-claude-sonnet-5-5-high/index.html`) into:
+   - Writes the canonical or relative demo path into:
      - `runs/<prompt-id>/<run-id>/artifacts/runtime.json` (`demo_url`)
      - `runs/<prompt-id>/<run-id>/run.json` (`verification.runtime.demo_url`)
-6. **Multi-Run Showcase Gallery (`generate_showcase_index`)**:
-   - Compiles a standalone index at `dashboard/demos/index.html` and manifest `dashboard/demos/demos.json` displaying run cards, file sizes, and direct launch links.
+6. **Multi-Run Showcase Gallery & Sister-Repo Publishing (`generate_showcase_index`, `push_published_demos`)**:
+   - Compiles the standalone showcase index at both `index.html` and `demos/index.html`, writes `demos.json` and `.nojekyll`, and when `--push` (or `finish_run.py --push-demo`) is passed, commits and pushes the updated bundle to `loic-brissot/llm-frontier-evaluator-demos`.
 
 ### CLI Usage
 
 ```bash
-# Package all runs for a specific prompt
-uv run python3 scripts/package_web_demos.py --prompt paris-tree-canopy --output-dir dashboard/demos --update-dashboard
+# Package and push a single run's demo to ../llm-frontier-evaluator-demos
+uv run python3 scripts/package_web_demos.py \
+  --prompt paris-tree-canopy \
+  --run-id 2026-10-24-cursor-gemini-3-8-flash-high \
+  --publish-repo ../llm-frontier-evaluator-demos \
+  --push
 
-# Package a single run with verification smoke check
-uv run python3 scripts/package_web_demos.py --run-id 2026-10-24-cursor-gemini-3-8-flash-high --output-dir dashboard/demos --verify
-
-# Skip npm compilation and package only existing static assets
-uv run python3 scripts/package_web_demos.py --skip-build --output-dir dashboard/demos
+# Automatic packaging & push when concluding a run via finish_run.py
+uv run python3 scripts/finish_run.py \
+  --prompt paris-tree-canopy \
+  --run-id 2026-10-24-cursor-gemini-3-8-flash-high \
+  --verify \
+  --push-demo \
+  --non-interactive
 ```
 
 ---

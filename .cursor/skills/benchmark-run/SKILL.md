@@ -164,22 +164,33 @@ Optionally restrict to a specific prompt with `--prompt <prompt-id>`, or pass `-
    - `model_time`: Active model time (`wall_clock_minus_tool_time` on `rules_version` 2 from merged tool intervals, or `harness_model_time` / `sum_of_llm_request_durations`).
    - `tool_calls`: Bucketed counts (`shell`, `files`, `visual_checks`, `web`, `other`) following `docs/tool-buckets.md`.
    - `outcome`: Integrates `artifacts/runtime.json` to populate `operator_saw_a_page` and runtime metrics.
+4. **Live Web Demo Packaging & Sister-Repo Publishing (`llm-frontier-evaluator-demos`)**:
+   - When `../llm-frontier-evaluator-demos` exists and the run passes verification, `finish_run.py` automatically packages the static web bundle into `../llm-frontier-evaluator-demos/demos/<prompt-id>/<run-id>/`, updates `demos.json` and `index.html`, and records `demo_url` in `run.json` and `artifacts/runtime.json`.
+   - Pass `--push-demo` to `finish_run.py` (or run `uv run python3 scripts/package_web_demos.py --prompt <prompt-id> --run-id <run-id> --publish-repo ../llm-frontier-evaluator-demos --push`) to automatically commit and push the packaged demo to `loic-brissot/llm-frontier-evaluator-demos` on GitHub Pages.
 
 ---
 
 ### 5. Validation & Opening a `run/<prompt>-<model>` PR
 
-1. **Synchronize and check RESULTS.md comparison tables**:
+1. **Ensure live web demo is published (for passing runs)**:
+   ```bash
+   uv run python3 scripts/package_web_demos.py \
+     --prompt <prompt-id> \
+     --run-id <run-id> \
+     --publish-repo ../llm-frontier-evaluator-demos \
+     --push
+   ```
+2. **Synchronize and check RESULTS.md comparison tables**:
    ```bash
    python3 scripts/compare_runs.py --sync-results
    python3 scripts/compare_runs.py --check-results
    ```
-2. **Verify git status**: Ensure `workspace/` and `tool-events/` remain uncommitted/gitignored. Only commit `run.json`, `usage/`, `artifacts/`, and `RESULTS.md`.
-3. **Branch and Commit**:
+3. **Verify git status**: Ensure `workspace/` and `tool-events/` remain uncommitted/gitignored. Only commit `run.json`, `usage/`, `artifacts/`, and `RESULTS.md`.
+4. **Branch and Commit**:
    ```bash
    git checkout -b run/<prompt-id>-<model-slug>
    git add runs/<prompt-id>/<run-id>/run.json runs/<prompt-id>/<run-id>/usage/ runs/<prompt-id>/<run-id>/artifacts/ RESULTS.md
    git commit -m "run(<prompt-id>): record run <run-id>"
    ```
-4. **Open PR & Squash Merge**:
+5. **Open PR & Squash Merge**:
    Open a PR against `main` following `CONTRIBUTING.md` format (Goal, Main changes, Test procedure), wait for CI (`gh pr checks <num> --watch`), review diff, and merge with `gh pr merge <num> --squash --delete-branch`.

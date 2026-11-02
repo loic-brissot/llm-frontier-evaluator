@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -43,11 +44,13 @@ __all__ = [
     "COMMON_STATIC_SUBDIRS",
     "DEFAULT_DEMOS_BASE_URL",
     "DEFAULT_OUTPUT_DIR",
+    "DEFAULT_SISTER_REPO_DIR",
     "EphemeralStaticServer",
     "build_parser",
     "compile_workspace",
     "compute_demo_canonical_url",
     "compute_demo_relative_url",
+    "ensure_sister_repo_scaffold",
     "export_static_bundle",
     "find_static_source",
     "generate_showcase_index",
@@ -57,6 +60,7 @@ __all__ = [
     "make_code_paths_relative",
     "make_html_paths_relative",
     "package_run_demo",
+    "push_published_demos",
     "record_demo_url",
     "resolve_demo_url",
     "sanitize_bundle_html",
@@ -65,6 +69,7 @@ __all__ = [
 ]
 
 DEFAULT_OUTPUT_DIR = ROOT / "site" / "demos"
+DEFAULT_SISTER_REPO_DIR = ROOT.parent / "llm-frontier-evaluator-demos"
 DEFAULT_DEMOS_BASE_URL = "https://loic-brissot.github.io/llm-frontier-evaluator-demos"
 
 # Directories excluded when bundling static apps
@@ -485,6 +490,7 @@ def package_run_demo(
     skip_build: bool = False,
     port: int | None = None,
     timeout: float = 30.0,
+    update_run_records: bool = True,
 ) -> dict[str, Any]:
     """Package one run's web application into a self-contained static demo bundle."""
     prompt_id = run_dir.parent.name
@@ -536,7 +542,8 @@ def package_run_demo(
         )
 
     # 4. Record demo_url in artifacts/runtime.json and run.json
-    record_demo_url(run_dir, demo_url, telemetry=telemetry)
+    if update_run_records:
+        record_demo_url(run_dir, demo_url, telemetry=telemetry)
 
     return {
         "prompt_id": prompt_id,
@@ -554,61 +561,16 @@ def package_run_demo(
     }
 
 
-def generate_showcase_index(
-    output_dir: Path,
-    packages: list[dict[str, Any]],
-    demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
-    publish_repo: Path | None = None,
-) -> Path:
-    """Generate a multi-run web showcase gallery index.html and demos.json."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-    index_html = output_dir / "index.html"
-    demos_json = output_dir / "demos.json"
-
-    # Clean package records for manifest, merging with existing demos if present
-    existing_demos_map: dict[tuple[str, str], dict[str, Any]] = {}
-    if demos_json.is_file():
-        try:
-            prev_data = json.loads(demos_json.read_text(encoding="utf-8"))
-            for d in prev_data.get("demos") or []:
-                key = (str(d.get("prompt_id")), str(d.get("run_id")))
-                # Only preserve prior demos that actually exist on disk
-                if (output_dir / str(d.get("prompt_id")) / str(d.get("run_id")) / "index.html").is_file():
-                    existing_demos_map[key] = d
-        except Exception:
-            pass
-
-    for pkg in packages:
-        key = (str(pkg["prompt_id"]), str(pkg["run_id"]))
-        canonical_url = compute_demo_canonical_url(str(pkg["prompt_id"]), str(pkg["run_id"]), demos_base_url)
-        existing_demos_map[key] = {
-            "prompt_id": pkg["prompt_id"],
-            "run_id": pkg["run_id"],
-            "demo_url": f"{pkg['prompt_id']}/{pkg['run_id']}/index.html",
-            "canonical_url": canonical_url,
-            "file_count": pkg.get("file_count", 0),
-            "total_bytes": pkg.get("total_bytes", 0),
-            "verified": pkg.get("verified", False),
-            "passed": (pkg.get("telemetry") or {}).get("passed", True) if pkg.get("telemetry") else None,
-        }
-
-    clean_manifest = sorted(
-        existing_demos_map.values(),
-        key=lambda d: (d.get("prompt_id", ""), d.get("run_id", "")),
-    )
-    write_json(demos_json, {"demos": clean_manifest, "total_demos": len(clean_manifest)})
-
-    if publish_repo is not None:
-        pub_path = Path(publish_repo)
-        if pub_path.is_dir() and pub_path.resolve() != output_dir.resolve():
-            write_json(pub_path / "demos.json", {"demos": clean_manifest, "total_demos": len(clean_manifest)})
-
-    # Build showcase HTML in the style of lassence.net/demos/benchmark/
+def _render_showcase_html(
+    clean_manifest: list[dict[str, Any]],
+    link_prefix: str = "",
+) -> str:
+    """Render the multi-run web showcase gallery HTML with the given relative link prefix."""
     cards_html = []
     for pkg in clean_manifest:
         p_id = html.escape(str(pkg["prompt_id"]))
         r_id = html.escape(str(pkg["run_id"]))
-        rel_link = f"{pkg['prompt_id']}/{pkg['run_id']}/index.html"
+        rel_link = f"{link_prefix}{pkg['prompt_id']}/{pkg['run_id']}/index.html"
         size_kb = round(pkg.get("total_bytes", 0) / 1024, 1)
         files = pkg.get("file_count", 0)
         passed = pkg.get("passed")
@@ -642,7 +604,7 @@ def generate_showcase_index(
     total_demos = len(clean_manifest)
     total_mb = round(sum(p.get("total_bytes", 0) for p in clean_manifest) / (1024 * 1024), 2)
 
-    showcase_content = f"""<!DOCTYPE html>
+    return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -821,8 +783,196 @@ def generate_showcase_index(
 </body>
 </html>
 """
+
+
+def ensure_sister_repo_scaffold(
+    publish_repo: Path,
+    demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
+) -> None:
+    """Ensure the sister repository checkout has .nojekyll and README.md."""
+    pub_path = Path(publish_repo)
+    pub_path.mkdir(parents=True, exist_ok=True)
+    nojekyll_path = pub_path / ".nojekyll"
+    if not nojekyll_path.is_file():
+        nojekyll_path.write_text("", encoding="utf-8")
+
+    readme_path = pub_path / "README.md"
+    if not readme_path.is_file():
+        base = (demos_base_url or DEFAULT_DEMOS_BASE_URL).rstrip("/")
+        readme_content = f"""# LLM Frontier Evaluator — Hosted Web Demos (`llm-frontier-evaluator-demos`)
+
+This repository hosts self-contained static web application bundles built autonomously by frontier LLMs evaluated in [`loic-brissot/llm-frontier-evaluator`](https://github.com/loic-brissot/llm-frontier-evaluator).
+
+- **Live Demos Showcase Gallery**: [{base}/]({base}/)
+- **Main Benchmark Explorer Dashboard**: [https://loic-brissot.github.io/llm-frontier-evaluator/](https://loic-brissot.github.io/llm-frontier-evaluator/)
+- **Source & Evaluation Protocol**: [https://github.com/loic-brissot/llm-frontier-evaluator](https://github.com/loic-brissot/llm-frontier-evaluator)
+
+## Structure
+
+- `index.html` / `demos/index.html`: Multi-run interactive web showcase gallery.
+- `demos.json` / `demos/demos.json`: Manifest of packaged web application demos and metadata.
+- `demos/<prompt-id>/<run-id>/`: Self-contained static web application bundle for each benchmark run.
+
+## Publishing New Demos
+
+From the main `llm-frontier-evaluator` repository, package and push new run demos automatically or on demand:
+
+```bash
+# Package and push a single run's demo to this sister repository
+uv run python3 scripts/package_web_demos.py \\
+  --prompt <prompt-id> \\
+  --run-id <run-id> \\
+  --publish-repo ../llm-frontier-evaluator-demos \\
+  --push
+```
+"""
+        readme_path.write_text(readme_content, encoding="utf-8")
+
+
+def generate_showcase_index(
+    output_dir: Path,
+    packages: list[dict[str, Any]],
+    demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
+    publish_repo: Path | None = None,
+) -> Path:
+    """Generate a multi-run web showcase gallery index.html and demos.json."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    index_html = output_dir / "index.html"
+    demos_json = output_dir / "demos.json"
+
+    # Clean package records for manifest, merging with existing demos if present
+    existing_demos_map: dict[tuple[str, str], dict[str, Any]] = {}
+    if demos_json.is_file():
+        try:
+            prev_data = json.loads(demos_json.read_text(encoding="utf-8"))
+            for d in prev_data.get("demos") or []:
+                key = (str(d.get("prompt_id")), str(d.get("run_id")))
+                # Only preserve prior demos that actually exist on disk
+                if (output_dir / str(d.get("prompt_id")) / str(d.get("run_id")) / "index.html").is_file():
+                    existing_demos_map[key] = d
+        except Exception:
+            pass
+
+    # Also discover any existing bundle directories on disk under output_dir/<prompt_id>/<run_id>/index.html
+    for entry_html in sorted(output_dir.glob("*/*/index.html")):
+        if not entry_html.is_file():
+            continue
+        r_id = entry_html.parent.name
+        p_id = entry_html.parent.parent.name
+        key = (p_id, r_id)
+        if key not in existing_demos_map:
+            bundle_files = [f for f in entry_html.parent.rglob("*") if f.is_file()]
+            f_count = len(bundle_files)
+            t_bytes = sum(f.stat().st_size for f in bundle_files)
+            existing_demos_map[key] = {
+                "prompt_id": p_id,
+                "run_id": r_id,
+                "demo_url": f"{p_id}/{r_id}/index.html",
+                "canonical_url": compute_demo_canonical_url(p_id, r_id, demos_base_url),
+                "file_count": f_count,
+                "total_bytes": t_bytes,
+                "verified": False,
+                "passed": None,
+            }
+
+    for pkg in packages:
+        key = (str(pkg["prompt_id"]), str(pkg["run_id"]))
+        canonical_url = compute_demo_canonical_url(str(pkg["prompt_id"]), str(pkg["run_id"]), demos_base_url)
+        existing_demos_map[key] = {
+            "prompt_id": pkg["prompt_id"],
+            "run_id": pkg["run_id"],
+            "demo_url": f"{pkg['prompt_id']}/{pkg['run_id']}/index.html",
+            "canonical_url": canonical_url,
+            "file_count": pkg.get("file_count", 0),
+            "total_bytes": pkg.get("total_bytes", 0),
+            "verified": pkg.get("verified", False),
+            "passed": (pkg.get("telemetry") or {}).get("passed", True) if pkg.get("telemetry") else None,
+        }
+
+    clean_manifest = sorted(
+        existing_demos_map.values(),
+        key=lambda d: (d.get("prompt_id", ""), d.get("run_id", "")),
+    )
+    write_json(demos_json, {"demos": clean_manifest, "total_demos": len(clean_manifest)})
+
+    showcase_content = _render_showcase_html(clean_manifest, link_prefix="")
     index_html.write_text(showcase_content, encoding="utf-8")
+
+    if publish_repo is not None:
+        pub_path = Path(publish_repo)
+        ensure_sister_repo_scaffold(pub_path, demos_base_url=demos_base_url)
+        if pub_path.is_dir() and pub_path.resolve() != output_dir.resolve():
+            write_json(pub_path / "demos.json", {"demos": clean_manifest, "total_demos": len(clean_manifest)})
+            root_showcase = _render_showcase_html(clean_manifest, link_prefix="demos/")
+            (pub_path / "index.html").write_text(root_showcase, encoding="utf-8")
+
     return index_html
+
+
+def push_published_demos(
+    publish_repo: Path,
+    *,
+    commit_message: str | None = None,
+    remote: str = "origin",
+    branch: str = "main",
+) -> bool:
+    """Stage, commit, and push packaged demo changes in the sister repository."""
+    pub_path = Path(publish_repo).resolve()
+    if not (pub_path / ".git").exists():
+        print(f"Error: Sister repository '{pub_path}' is not a git repository.", file=sys.stderr)
+        return False
+
+    add_res = subprocess.run(
+        ["git", "add", "-A"],
+        cwd=pub_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if add_res.returncode != 0:
+        print(f"Error staging files in {pub_path}: {add_res.stderr}", file=sys.stderr)
+        return False
+
+    status_res = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=pub_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if status_res.returncode != 0:
+        print(f"Error checking git status in {pub_path}: {status_res.stderr}", file=sys.stderr)
+        return False
+
+    if not status_res.stdout.strip():
+        print(f"Sister repository ({pub_path}) is already up to date; nothing to commit.")
+        return True
+
+    msg = commit_message or "chore(demos): update packaged web demos"
+    commit_res = subprocess.run(
+        ["git", "commit", "-m", msg],
+        cwd=pub_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if commit_res.returncode != 0:
+        print(f"Error committing demos in {pub_path}: {commit_res.stderr}", file=sys.stderr)
+        return False
+
+    push_res = subprocess.run(
+        ["git", "push", remote, branch],
+        cwd=pub_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if push_res.returncode != 0:
+        print(f"Error pushing demos in {pub_path} to {remote}/{branch}: {push_res.stderr}", file=sys.stderr)
+        return False
+
+    print(f"Committed and pushed packaged demos to {remote}/{branch} in {pub_path}.")
+    return True
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -839,8 +989,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--publish-repo",
+        nargs="?",
+        const=DEFAULT_SISTER_REPO_DIR,
         type=Path,
-        help="Path to sister repository (llm-frontier-evaluator-demos) checkout for publishing static bundles.",
+        help=f"Path to sister repository (llm-frontier-evaluator-demos) checkout for publishing static bundles (default when flag is passed without path: {DEFAULT_SISTER_REPO_DIR}).",
+    )
+    parser.add_argument(
+        "--push",
+        action="store_true",
+        help="Commit and push packaged demo bundles in the sister repository (implies --publish-repo if not set).",
+    )
+    parser.add_argument(
+        "--commit-message",
+        default=None,
+        help="Custom git commit message when using --push.",
     )
     parser.add_argument(
         "--demos-base-url",
@@ -878,6 +1040,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Rebuild dashboard data.json to include published demo_url links.",
     )
+    parser.add_argument(
+        "--no-update-run-records",
+        action="store_true",
+        help="Skip updating run.json and artifacts/runtime.json when packaging existing runs.",
+    )
     return parser
 
 
@@ -885,9 +1052,12 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
 
+    if args.push and not args.publish_repo:
+        args.publish_repo = DEFAULT_SISTER_REPO_DIR
+
     if args.publish_repo:
         pub_path = Path(args.publish_repo)
-        pub_path.mkdir(parents=True, exist_ok=True)
+        ensure_sister_repo_scaffold(pub_path, demos_base_url=args.demos_base_url)
         if args.output_dir == DEFAULT_OUTPUT_DIR:
             args.output_dir = pub_path / "demos" if pub_path.name != "demos" else pub_path
         args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -966,6 +1136,7 @@ def main() -> int:
                 skip_build=args.skip_build,
                 port=args.port,
                 timeout=args.timeout,
+                update_run_records=not args.no_update_run_records,
             )
             packaged_results.append(res)
             print(
@@ -983,7 +1154,7 @@ def main() -> int:
             print(f"Error packaging {r_dir.parent.name}/{r_dir.name}: {exc}", file=sys.stderr)
             failed_count += 1
 
-    if packaged_results:
+    if packaged_results or args.publish_repo:
         showcase_path = generate_showcase_index(
             args.output_dir,
             packaged_results,
@@ -991,6 +1162,19 @@ def main() -> int:
             publish_repo=args.publish_repo,
         )
         print(f"Generated multi-run web showcase at: {showcase_path}")
+
+    if args.push and args.publish_repo and failed_count == 0:
+        default_msg = (
+            f"chore(demos): publish web demo for {packaged_results[0]['prompt_id']}/{packaged_results[0]['run_id']}"
+            if len(packaged_results) == 1
+            else f"chore(demos): update packaged web demos ({len(packaged_results)} bundles)"
+        )
+        pushed = push_published_demos(
+            args.publish_repo,
+            commit_message=args.commit_message or default_msg,
+        )
+        if not pushed:
+            failed_count += 1
 
     if args.update_dashboard and packaged_results:
         from build_dashboard import build_dashboard

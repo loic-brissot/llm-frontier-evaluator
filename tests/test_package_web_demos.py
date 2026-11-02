@@ -19,10 +19,12 @@ from unittest.mock import MagicMock, patch
 from build_dashboard import extract_run_record, validate_payload_schema
 from package_web_demos import (
     DEFAULT_DEMOS_BASE_URL,
+    DEFAULT_SISTER_REPO_DIR,
     build_parser,
     compile_workspace,
     compute_demo_canonical_url,
     compute_demo_relative_url,
+    ensure_sister_repo_scaffold,
     export_static_bundle,
     find_static_source,
     generate_showcase_index,
@@ -31,6 +33,7 @@ from package_web_demos import (
     make_code_paths_relative,
     make_html_paths_relative,
     package_run_demo,
+    push_published_demos,
     record_demo_url,
     resolve_demo_url,
     sanitize_bundle_html,
@@ -759,3 +762,73 @@ class TestCliParserAndExecution:
             exit_code = main()
             assert exit_code == 0
             assert json.loads(demos_json.read_text(encoding="utf-8")) == {"demos": [{"prompt_id": "p1"}]}
+
+    def test_parser_publish_repo_default_and_push_flags(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["--publish-repo", "--push", "--commit-message", "custom msg"])
+        assert args.publish_repo == DEFAULT_SISTER_REPO_DIR
+        assert args.push is True
+        assert args.commit_message == "custom msg"
+
+    def test_sister_repo_scaffold_and_root_showcase(self, tmp_path: Path) -> None:
+        sister_repo = tmp_path / "llm-frontier-evaluator-demos"
+        demos_dir = sister_repo / "demos"
+        existing_bundle = demos_dir / "existing-prompt" / "existing-run"
+        existing_bundle.mkdir(parents=True)
+        (existing_bundle / "index.html").write_text("<html>existing</html>", encoding="utf-8")
+
+        packages = [
+            {
+                "prompt_id": "new-prompt",
+                "run_id": "new-run",
+                "file_count": 2,
+                "total_bytes": 4096,
+                "verified": True,
+                "telemetry": {"passed": True},
+            }
+        ]
+        generate_showcase_index(demos_dir, packages, publish_repo=sister_repo)
+
+        assert (sister_repo / ".nojekyll").is_file()
+        assert (sister_repo / "README.md").is_file()
+        assert (sister_repo / "demos.json").is_file()
+        assert (sister_repo / "index.html").is_file()
+        assert (demos_dir / "index.html").is_file()
+
+        root_html = (sister_repo / "index.html").read_text(encoding="utf-8")
+        sub_html = (demos_dir / "index.html").read_text(encoding="utf-8")
+        assert 'href="demos/new-prompt/new-run/index.html"' in root_html
+        assert 'href="demos/existing-prompt/existing-run/index.html"' in root_html
+        assert 'href="new-prompt/new-run/index.html"' in sub_html
+
+        manifest = load_json(sister_repo / "demos.json")
+        assert manifest["total_demos"] == 2
+
+    def test_push_published_demos(self, tmp_path: Path) -> None:
+        sister_repo = tmp_path / "sister"
+        (sister_repo / ".git").mkdir(parents=True)
+        ensure_sister_repo_scaffold(sister_repo)
+
+        # 1. Dirty repo -> stages, commits, and pushes
+        with patch("package_web_demos.subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0, stdout="", stderr=""),  # git add -A
+                MagicMock(returncode=0, stdout="M demos.json\n", stderr=""),  # git status --porcelain
+                MagicMock(returncode=0, stdout="[main abc1234] initial publish\n", stderr=""),  # git commit
+                MagicMock(returncode=0, stdout="", stderr=""),  # git push
+            ]
+            assert push_published_demos(sister_repo, commit_message="initial publish") is True
+            assert mock_run.call_count == 4
+            assert mock_run.call_args_list[2][0][0] == ["git", "commit", "-m", "initial publish"]
+            assert mock_run.call_args_list[3][0][0] == ["git", "push", "origin", "main"]
+
+        # 2. Clean repo -> returns True without committing or pushing
+        with patch("package_web_demos.subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0, stdout="", stderr=""),  # git add -A
+                MagicMock(returncode=0, stdout="", stderr=""),  # git status --porcelain (clean)
+            ]
+            assert push_published_demos(sister_repo, commit_message="no-op") is True
+            assert mock_run.call_count == 2
+
+
