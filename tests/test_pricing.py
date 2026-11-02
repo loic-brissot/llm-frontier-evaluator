@@ -308,6 +308,94 @@ class TestPricing(unittest.TestCase):
             "Expected at least 2 Cursor runs with numeric usage_csv cost to be verified",
         )
 
+    def test_estimate_token_cost_with_submodels_and_server_tools(self):
+        model_usage = {
+            "claude-sonnet-5-5": {
+                "inputTokens": 218,
+                "outputTokens": 357673,
+                "cacheReadInputTokens": 32241350,
+                "cacheCreationInputTokens": 503234,
+                "webSearchRequests": 0,
+                "costUSD": 8.814237,
+            },
+            "claude-haiku-5-5": {
+                "inputTokens": 61444,
+                "outputTokens": 4555,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0,
+                "webSearchRequests": 4,
+                "costUSD": 0.048422,
+                "thinkingTokens": 1318,
+            },
+        }
+        cost = estimate_token_cost(
+            "Claude Sonnet 5.5",
+            uncached_input_tokens=218,
+            cache_write_tokens=503234,
+            cache_read_tokens=32241350,
+            output_tokens=357673,
+            harness="claude-code",
+            cache_write_1h_tokens=503234,
+            cache_tier_basis="usage_breakdown",
+            model_usage=model_usage,
+            server_tool_use={"web_search_requests": 0},
+        )
+        self.assertIsNotNone(cost)
+        self.assertEqual(cost["estimated_cost_usd"], "8.86")
+        self.assertIn("submodels", cost)
+        self.assertIn("claude-haiku-5-5", cost["submodels"])
+        haiku = cost["submodels"]["claude-haiku-5-5"]
+        self.assertEqual(haiku["model_id"], "claude-haiku-5-5")
+        self.assertEqual(haiku["uncached_input_tokens"], 61444)
+        self.assertEqual(haiku["output_tokens"], 4555)
+        self.assertEqual(haiku["thinking_tokens"], 1318)
+        self.assertEqual(haiku["web_search_requests"], 4)
+        self.assertEqual(haiku["estimated_cost_usd"], "0.05")
+        self.assertEqual(cost["web_search_requests"], 4)
+        self.assertEqual(cost["web_search_cost_usd"], "0.04")
+
+    def test_all_existing_claude_code_runs_have_reasoning_splits_and_valid_pricing(self):
+        root = Path(__file__).resolve().parent.parent
+        runs_dir = root / "runs"
+        claude_runs = []
+        for run_path in sorted(runs_dir.glob("*/*/run.json")):
+            try:
+                import json
+                data = json.loads(run_path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if (data.get("harness") or {}).get("name") == "claude-code":
+                claude_runs.append((run_path, data))
+
+        self.assertEqual(len(claude_runs), 6, "Expected exactly 6 claude-code runs")
+        for run_path, data in claude_runs:
+            tokens = data.get("tokens") or {}
+            self.assertEqual(
+                tokens.get("split_rule"),
+                "output_includes_reasoning",
+                f"run {run_path} split_rule is not output_includes_reasoning",
+            )
+            reasoning = tokens.get("reasoning_tokens")
+            visible = tokens.get("visible_tokens")
+            self.assertIsInstance(reasoning, int)
+            self.assertGreater(reasoning, 0, f"run {run_path} reasoning_tokens <= 0")
+            self.assertIsInstance(visible, int)
+            self.assertGreater(visible, 0, f"run {run_path} visible_tokens <= 0")
+
+            # Check hook_tokens also has the split
+            hook_tokens = (tokens.get("raw") or {}).get("hook_tokens") or {}
+            self.assertEqual(hook_tokens.get("split_rule"), "output_includes_reasoning")
+            self.assertEqual(hook_tokens.get("reasoning_tokens"), reasoning)
+            self.assertEqual(hook_tokens.get("visible_tokens"), visible)
+
+        # Check flood simulator has secondary model breakdown
+        flood_run = next(r for p, r in claude_runs if "paris-1910-flood-simulator" in str(p))
+        flood_pricing = (flood_run.get("tokens") or {}).get("raw", {}).get("pricing") or {}
+        self.assertEqual(flood_pricing.get("estimated_cost_usd"), "8.86")
+        self.assertIn("submodels", flood_pricing)
+        self.assertIn("claude-haiku-5-5", flood_pricing["submodels"])
+        self.assertEqual(flood_pricing.get("web_search_requests"), 4)
+
 
 if __name__ == "__main__":
     unittest.main()

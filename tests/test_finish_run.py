@@ -20,6 +20,7 @@ from finish_run import (
     default_csv_selection,
     discover_tmp_usage_csv,
     event_in_window,
+    extract_usage_fields,
     load_usage_json,
     models_match,
     observation_default,
@@ -933,6 +934,70 @@ class TestFinishRun(unittest.TestCase):
         self.assertEqual(hints.get("cache_read_tokens"), 6034510)
         self.assertEqual(hints.get("cache_write_tokens"), 0)
         self.assertEqual(hints.get("cache_source"), "provider_cache_read")
+
+    def test_extract_usage_fields_claude_code_thinking(self):
+        payload = {
+            "usage": {
+                "input_tokens": 92,
+                "cache_creation_input_tokens": 141955,
+                "cache_read_input_tokens": 4424173,
+                "output_tokens": 90742,
+                "output_tokens_details": {
+                    "thinking_tokens": 27108,
+                },
+                "cache_creation": {
+                    "ephemeral_1h_input_tokens": 141955,
+                    "ephemeral_5m_input_tokens": 0,
+                },
+            },
+            "modelUsage": {
+                "claude-opus-5-5": {
+                    "inputTokens": 92,
+                    "outputTokens": 90742,
+                    "thinkingTokens": 27108,
+                }
+            },
+        }
+        hints = extract_usage_fields(payload)
+        self.assertEqual(hints.get("output_tokens"), 90742)
+        self.assertEqual(hints.get("reasoning_tokens"), 27108)
+        self.assertEqual(hints.get("visible_tokens"), 63634)
+        self.assertEqual(hints.get("split_rule"), "output_includes_reasoning")
+        self.assertEqual(hints.get("uncached_input_tokens"), 92)
+        self.assertEqual(hints.get("cache_read_tokens"), 4424173)
+        self.assertEqual(hints.get("cache_write_tokens"), 141955)
+        self.assertEqual(hints.get("cache_write_1h_tokens"), 141955)
+        self.assertEqual(hints.get("cache_write_5m_tokens"), 0)
+
+    def test_extract_usage_fields_camel_case_and_model_usage(self):
+        payload = {
+            "outputTokens": 100000,
+            "outputTokensDetails": {
+                "thinkingTokens": 35000,
+            },
+        }
+        hints = extract_usage_fields(payload)
+        self.assertEqual(hints.get("output_tokens"), 100000)
+        self.assertEqual(hints.get("reasoning_tokens"), 35000)
+        self.assertEqual(hints.get("visible_tokens"), 65000)
+        self.assertEqual(hints.get("split_rule"), "output_includes_reasoning")
+
+        # Fallback to modelUsage.*.thinkingTokens if not in output_tokens_details
+        payload_no_details = {
+            "usage": {
+                "output_tokens": 80000,
+            },
+            "modelUsage": {
+                "claude-sonnet-5-5": {
+                    "thinkingTokens": 25000,
+                }
+            },
+        }
+        hints2 = extract_usage_fields(payload_no_details)
+        self.assertEqual(hints2.get("output_tokens"), 80000)
+        self.assertEqual(hints2.get("reasoning_tokens"), 25000)
+        self.assertEqual(hints2.get("visible_tokens"), 55000)
+        self.assertEqual(hints2.get("split_rule"), "output_includes_reasoning")
 
     def test_load_usage_json_and_prepare_hints_from_tool_events(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -420,16 +420,43 @@ def is_int(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
-def suggest_metrics(usage: dict | None) -> dict:
+def extract_usage_fields(usage: dict | None) -> dict:
+    """Extract token counts, cache breakdown, and reasoning split from usage dictionaries.
+
+    Supports camelCase and snake_case keys across Anthropic Claude Code, OpenAI,
+    and Cursor Agent payloads:
+    - input_tokens / inputTokens / prompt_tokens
+    - cache_read_input_tokens / cacheReadInputTokens / cache_read_tokens / cacheReadTokens
+    - cache_creation_input_tokens / cacheCreationInputTokens / cache_write_tokens / cacheWriteTokens
+    - output_tokens / outputTokens / completion_tokens
+    - output_tokens_details.thinking_tokens / modelUsage.*.thinkingTokens
+    """
     hints: dict[str, object] = {}
     if not usage:
         return hints
 
     usage_block = usage.get("usage") if isinstance(usage.get("usage"), dict) else usage
+    model_usage = usage.get("modelUsage") or usage.get("model_usage")
+    if not isinstance(model_usage, dict) and isinstance(usage_block, dict):
+        model_usage = usage_block.get("modelUsage") or usage_block.get("model_usage")
+    if not isinstance(model_usage, dict):
+        model_usage = None
 
     reasoning = dig(usage_block, "completion_tokens_details", "reasoning_tokens")
     if reasoning is None:
+        reasoning = dig(usage_block, "completionTokensDetails", "reasoningTokens")
+    if reasoning is None:
+        reasoning = dig(usage_block, "output_tokens_details", "thinking_tokens")
+    if reasoning is None:
+        reasoning = dig(usage_block, "output_tokens_details", "thinkingTokens")
+    if reasoning is None:
+        reasoning = dig(usage_block, "outputTokensDetails", "thinkingTokens")
+    if reasoning is None:
+        reasoning = dig(usage_block, "outputTokensDetails", "thinking_tokens")
+    if reasoning is None:
         reasoning = dig(usage_block, "output_tokens_details", "reasoning_tokens")
+    if reasoning is None:
+        reasoning = dig(usage_block, "outputTokensDetails", "reasoningTokens")
     if reasoning is None:
         reasoning = dig(usage_block, "reasoning_tokens")
     if reasoning is None:
@@ -438,6 +465,23 @@ def suggest_metrics(usage: dict | None) -> dict:
         reasoning = dig(usage_block, "thinking_tokens")
     if reasoning is None:
         reasoning = dig(usage_block, "thinkingTokens")
+    if reasoning is None and model_usage:
+        th_tot = 0
+        found_th = False
+        for m_data in model_usage.values():
+            if isinstance(m_data, dict):
+                val = dig(m_data, "thinkingTokens")
+                if val is None:
+                    val = dig(m_data, "thinking_tokens")
+                if val is None:
+                    val = dig(m_data, "reasoningTokens")
+                if val is None:
+                    val = dig(m_data, "reasoning_tokens")
+                if is_int(val):
+                    th_tot += val
+                    found_th = True
+        if found_th:
+            reasoning = th_tot
 
     completion = dig(usage_block, "completion_tokens")
     if completion is None:
@@ -455,6 +499,11 @@ def suggest_metrics(usage: dict | None) -> dict:
                 "output_includes_reasoning from completion_tokens "
                 "and completion_tokens_details.reasoning_tokens"
             )
+        elif dig(usage_block, "output_tokens_details", "thinking_tokens") is not None:
+            hints["split_field_note"] = (
+                "output_includes_reasoning from output_tokens "
+                "and output_tokens_details.thinking_tokens"
+            )
         elif dig(usage_block, "outputTokens") is not None:
             hints["split_field_note"] = (
                 "output_includes_reasoning from outputTokens"
@@ -462,7 +511,7 @@ def suggest_metrics(usage: dict | None) -> dict:
         else:
             hints["split_field_note"] = (
                 "output_includes_reasoning from output_tokens "
-                "and output_tokens_details.reasoning_tokens"
+                "and reasoning/thinking token details"
             )
     elif is_int(dig(usage_block, "reasoning_tokens")) and is_int(dig(usage_block, "visible_tokens")):
         hints["split_rule"] = "harness_pre_split"
@@ -488,6 +537,9 @@ def suggest_metrics(usage: dict | None) -> dict:
         cache_read = dig(usage_block, "cacheReadTokens")
         cache_field = "cacheReadTokens"
     if cache_read is None:
+        cache_read = dig(usage_block, "cacheReadInputTokens")
+        cache_field = "cacheReadInputTokens"
+    if cache_read is None:
         cache_read = dig(usage_block, "prompt_tokens_details", "cached_tokens")
         cache_field = "prompt_tokens_details.cached_tokens"
     if is_int(cache_read):
@@ -503,16 +555,39 @@ def suggest_metrics(usage: dict | None) -> dict:
     if cache_write is None:
         cache_write = dig(usage_block, "cacheWriteTokens")
         cache_write_field = "cacheWriteTokens"
+    if cache_write is None:
+        cache_write = dig(usage_block, "cacheCreationInputTokens")
+        cache_write_field = "cacheCreationInputTokens"
     if is_int(cache_write):
         hints["cache_write_tokens"] = cache_write
         hints["cache_write_field"] = cache_write_field
+
+    cache_creation = dig(usage_block, "cache_creation")
+    if not isinstance(cache_creation, dict):
+        cache_creation = dig(usage_block, "cacheCreation")
+    if isinstance(cache_creation, dict):
+        cw_5m = dig(cache_creation, "ephemeral_5m_input_tokens")
+        if cw_5m is None:
+            cw_5m = dig(cache_creation, "ephemeral5mInputTokens")
+        cw_1h = dig(cache_creation, "ephemeral_1h_input_tokens")
+        if cw_1h is None:
+            cw_1h = dig(cache_creation, "ephemeral1hInputTokens")
+        if is_int(cw_5m):
+            hints["cache_write_5m_tokens"] = cw_5m
+        if is_int(cw_1h):
+            hints["cache_write_1h_tokens"] = cw_1h
 
     uncached = dig(usage_block, "uncached_input_tokens")
     uncached_field = "uncached_input_tokens"
     if uncached is None:
         uncached = dig(usage_block, "uncachedInputTokens")
         uncached_field = "uncachedInputTokens"
-    if uncached is None and (dig(usage_block, "cacheReadTokens") is not None or dig(usage_block, "cacheWriteTokens") is not None):
+    if uncached is None and (
+        dig(usage_block, "cacheReadTokens") is not None
+        or dig(usage_block, "cacheWriteTokens") is not None
+        or dig(usage_block, "cache_read_input_tokens") is not None
+        or dig(usage_block, "cache_creation_input_tokens") is not None
+    ):
         uncached = dig(usage_block, "inputTokens") if dig(usage_block, "inputTokens") is not None else dig(usage_block, "input_tokens")
         uncached_field = "inputTokens" if dig(usage_block, "inputTokens") is not None else "input_tokens"
     if is_int(uncached):
@@ -526,6 +601,14 @@ def suggest_metrics(usage: dict | None) -> dict:
         input_tokens = dig(usage_block, "prompt_tokens")
     if is_int(input_tokens):
         hints["input_tokens"] = input_tokens
+
+    return hints
+
+
+def suggest_metrics(usage: dict | None) -> dict:
+    if not usage:
+        return {}
+    hints = extract_usage_fields(usage)
 
     generating_seconds = usage.get("generating_seconds")
     time_field = "generating_seconds"
@@ -1667,6 +1750,10 @@ def apply_claude_stream_totals(run: dict, summary: ToolEventSummary, hints: dict
         run["tokens"]["raw"]["claude_code"]["cache_write_5m_tokens"] = summary.cache_write_5m_tokens
     if summary.cache_write_1h_tokens is not None:
         run["tokens"]["raw"]["claude_code"]["cache_write_1h_tokens"] = summary.cache_write_1h_tokens
+    if summary.reasoning_tokens is not None:
+        run["tokens"]["raw"]["claude_code"]["reasoning_tokens"] = summary.reasoning_tokens
+    if summary.visible_tokens is not None:
+        run["tokens"]["raw"]["claude_code"]["visible_tokens"] = summary.visible_tokens
     if summary.interactive_source:
         claude_raw = run["tokens"]["raw"]["claude_code"]
         claude_raw["source"] = "interactive:" + summary.interactive_source
@@ -1801,6 +1888,9 @@ def apply_pricing_estimate(run: dict, summary: ToolEventSummary | None = None) -
     model_name = str(model_info.get("name") or "")
     context = model_info.get("context")
     harness_name = str((run.get("harness") or {}).get("name") or "")
+    model_usage = raw.get("modelUsage") or raw.get("model_usage")
+    usage_block = raw.get("usage") if isinstance(raw.get("usage"), dict) else {}
+    server_tool_use = usage_block.get("server_tool_use") or raw.get("server_tool_use")
 
     estimate = estimate_token_cost(
         model_name,
@@ -1813,6 +1903,8 @@ def apply_pricing_estimate(run: dict, summary: ToolEventSummary | None = None) -
         cache_write_5m_tokens=cw_5m_int,
         cache_write_1h_tokens=cw_1h_int,
         cache_tier_basis=cache_tier_basis,
+        model_usage=model_usage if isinstance(model_usage, dict) else None,
+        server_tool_use=server_tool_use if isinstance(server_tool_use, dict) else None,
     )
     if estimate is not None:
         run["tokens"].setdefault("raw", {})["pricing"] = estimate

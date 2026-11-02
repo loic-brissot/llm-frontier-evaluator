@@ -7,7 +7,7 @@
     "total_series": 14,
     "total_models": 17,
     "total_tokens_generated": 3395523,
-    "total_estimated_cost_usd": 118.21
+    "total_estimated_cost_usd": 118.26
   },
   "prompts": [
     {
@@ -17317,14 +17317,14 @@
         "source": "harness_model_time"
       },
       "tokens": {
-        "reasoning": 0,
-        "visible": 231387,
+        "reasoning": 101478,
+        "visible": 129909,
         "total_output": 231387,
         "input": 18268961,
         "uncached_input": 182,
         "cache_read": 17940768,
         "cache_write": 328011,
-        "split_rule": "combined_output_as_visible"
+        "split_rule": "output_includes_reasoning"
       },
       "cost": {
         "estimated_usd": 5.42,
@@ -18108,14 +18108,14 @@
         "source": "harness_model_time"
       },
       "tokens": {
-        "reasoning": 0,
-        "visible": 321479,
+        "reasoning": 147647,
+        "visible": 173832,
         "total_output": 321479,
         "input": 39325609,
         "uncached_input": 274,
         "cache_read": 38867787,
         "cache_write": 457548,
-        "split_rule": "combined_output_as_visible"
+        "split_rule": "output_includes_reasoning"
       },
       "cost": {
         "estimated_usd": 8.93,
@@ -18277,14 +18277,14 @@
         "source": "harness_model_time"
       },
       "tokens": {
-        "reasoning": 0,
-        "visible": 90742,
+        "reasoning": 27108,
+        "visible": 63634,
         "total_output": 90742,
         "input": 4566220,
         "uncached_input": 92,
         "cache_read": 4424173,
         "cache_write": 141955,
-        "split_rule": "combined_output_as_visible"
+        "split_rule": "output_includes_reasoning"
       },
       "cost": {
         "estimated_usd": 3.84,
@@ -25732,18 +25732,18 @@
         "source": "harness_model_time"
       },
       "tokens": {
-        "reasoning": 0,
-        "visible": 357673,
+        "reasoning": 179613,
+        "visible": 178060,
         "total_output": 357673,
         "input": 32744802,
         "uncached_input": 218,
         "cache_read": 32241350,
         "cache_write": 503234,
-        "split_rule": "combined_output_as_visible"
+        "split_rule": "output_includes_reasoning"
       },
       "cost": {
-        "estimated_usd": 8.81,
-        "estimated_with_harness_usd": 8.81,
+        "estimated_usd": 8.86,
+        "estimated_with_harness_usd": 8.86,
         "billed_usd": null,
         "rates": {
           "input": "2.00",
@@ -32170,14 +32170,14 @@
         "source": "harness_model_time"
       },
       "tokens": {
-        "reasoning": 0,
-        "visible": 194570,
+        "reasoning": 72593,
+        "visible": 121977,
         "total_output": 194570,
         "input": 12030241,
         "uncached_input": 134,
         "cache_read": 11741282,
         "cache_write": 288825,
-        "split_rule": "combined_output_as_visible"
+        "split_rule": "output_includes_reasoning"
       },
       "cost": {
         "estimated_usd": 4.28,
@@ -32349,14 +32349,14 @@
         "source": "harness_model_time"
       },
       "tokens": {
-        "reasoning": 0,
-        "visible": 104892,
+        "reasoning": 21095,
+        "visible": 83797,
         "total_output": 104892,
         "input": 8108451,
         "uncached_input": 142,
         "cache_read": 7926559,
         "cache_write": 181750,
-        "split_rule": "combined_output_as_visible"
+        "split_rule": "output_includes_reasoning"
       },
       "cost": {
         "estimated_usd": 5.14,

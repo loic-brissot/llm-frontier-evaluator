@@ -22,9 +22,9 @@
     "ended_at": "2026-10-25T23:07:04.010Z"
   },
   "tokens": {
-    "split_rule": "combined_output_as_visible",
-    "reasoning_tokens": 0,
-    "visible_tokens": 231387,
+    "split_rule": "output_includes_reasoning",
+    "reasoning_tokens": 101478,
+    "visible_tokens": 129909,
     "raw": {
       "duration_api_ms": 1615683,
       "stop_reason": "end_turn",
@@ -122,7 +122,7 @@
       "num_turns": 102,
       "subtype": "success",
       "api_error_status": null,
-      "result": "The atlas is built and works. It's a static site in `/workspace/app` with the data bundle already in `app/data/` (about 11 MB). I haven't committed anything.\n\nTo run it, use `npm start` and open http://localhost:8080. Python 3 is needed for the server, and `file://` won't work.\n\n## What you get\n\n- **Live traffic**: about 9,300 scheduled rail trips on a weekday move along the real track. Colour and size show the category (TGV pink and large, Intercit\u00e9s amber, TER cyan and small), with comet trails. The timeline scrubs and plays from 1\u00d7 to 1800\u00d7. The legend toggles a category on click, isolates it on shift-click and highlights it on hover.\n- **Accessibility**: click any station and every other station is coloured by shortest rail travel time (<1 h, 1\u20132 h, 2\u20133 h, 3\u20135 h, >5 h). Transfers (at least 5 minutes plus the wait for the next train) and short walks between nearby stations are included. The fastest-journey tree is drawn on the rails, and hovering a station shows its itinerary. The departure time is the timeline clock.\n- **Corridor flow**: line weight and brightness scale with the number of trains over 24 hours. You can filter by category, switch to \"accumulating to the clock\", hover a line for its category split, and click a top corridor to zoom to it.\n- **Statistics**: active trains by category at the clock time, a 24-hour traffic profile that you can hover and click to scrub, and the busiest stations.\n- **Details**: a train shows its stop-by-stop timetable, the route on the map and the connections at each stop (other departures 5\u201390 minutes after arrival), plus a Follow camera. A station shows its hourly profile and a departures/arrivals board, and you can click through to any train. Search is on `/`.\n- **Days**: Tuesday 17 Nov 2026, Saturday 14 Nov and Sunday 15 Nov, from the SNCF GTFS feed valid until 31 March 2027. Trips past midnight wrap onto the next morning.\n\n## Things to know\n\n- **Train paths are inferred.** The feed has no route shapes, so each stop-to-stop leg is routed along the track geometry (TGV prefers high-speed lines). The median path is 1.07 times the straight-line distance. 259 of 7,658 legs are drawn as straight lines, mostly abroad. A train may occasionally sit on a parallel track.\n- **Travel times start from the first departure by default.** Counting the wait for the first train put only 53 stations under one hour from Lyon, which hid the structure. A \"Include wait for 1st train\" toggle adds it back.\n- **The feed covers TGV, Intercit\u00e9s and TER only.** It has no Transilien or RER, and there are no delays or real-time positions. Only three representative days are bundled.\n- **Category colours are deliberately luminous** so they glow on the dark map. They pass the colour-separation checks for colour-blind viewers and the contrast check, but fail the chart-fill lightness band.\n- **Performance** was only tested in a software-only headless Chromium, where it holds 60 fps once the panel backdrop blur is off. I haven't seen it on a real GPU.\n\nI tested it with a Playwright script using real mouse and keyboard events (all pass) and a data check of about 104,000 train positions (none invalid). `npm run data:fetch` then `npm run data:build` rebuilds the data from the sources; the build needs numpy, scipy, shapely and pyproj. The README has the details.",
+      "result": "The atlas is built and works. It's a static site in `/workspace/app` with the data bundle already in `app/data/` (about 11 MB). I haven't committed anything.\n\nTo run it, use `npm start` and open http://localhost:8080. Python 3 is needed for the server, and `file://` won't work.\n\n## What you get\n\n- **Live traffic**: about 9,300 scheduled rail trips on a weekday move along the real track. Colour and size show the category (TGV pink and large, Intercités amber, TER cyan and small), with comet trails. The timeline scrubs and plays from 1× to 1800×. The legend toggles a category on click, isolates it on shift-click and highlights it on hover.\n- **Accessibility**: click any station and every other station is coloured by shortest rail travel time (<1 h, 1–2 h, 2–3 h, 3–5 h, >5 h). Transfers (at least 5 minutes plus the wait for the next train) and short walks between nearby stations are included. The fastest-journey tree is drawn on the rails, and hovering a station shows its itinerary. The departure time is the timeline clock.\n- **Corridor flow**: line weight and brightness scale with the number of trains over 24 hours. You can filter by category, switch to \"accumulating to the clock\", hover a line for its category split, and click a top corridor to zoom to it.\n- **Statistics**: active trains by category at the clock time, a 24-hour traffic profile that you can hover and click to scrub, and the busiest stations.\n- **Details**: a train shows its stop-by-stop timetable, the route on the map and the connections at each stop (other departures 5–90 minutes after arrival), plus a Follow camera. A station shows its hourly profile and a departures/arrivals board, and you can click through to any train. Search is on `/`.\n- **Days**: Tuesday 17 Nov 2026, Saturday 14 Nov and Sunday 15 Nov, from the SNCF GTFS feed valid until 31 March 2027. Trips past midnight wrap onto the next morning.\n\n## Things to know\n\n- **Train paths are inferred.** The feed has no route shapes, so each stop-to-stop leg is routed along the track geometry (TGV prefers high-speed lines). The median path is 1.07 times the straight-line distance. 259 of 7,658 legs are drawn as straight lines, mostly abroad. A train may occasionally sit on a parallel track.\n- **Travel times start from the first departure by default.** Counting the wait for the first train put only 53 stations under one hour from Lyon, which hid the structure. A \"Include wait for 1st train\" toggle adds it back.\n- **The feed covers TGV, Intercités and TER only.** It has no Transilien or RER, and there are no delays or real-time positions. Only three representative days are bundled.\n- **Category colours are deliberately luminous** so they glow on the dark map. They pass the colour-separation checks for colour-blind viewers and the contrast check, but fail the chart-fill lightness band.\n- **Performance** was only tested in a software-only headless Chromium, where it holds 60 fps once the panel backdrop blur is off. I haven't seen it on a real GPU.\n\nI tested it with a Playwright script using real mouse and keyboard events (all pass) and a data check of about 104,000 train positions (none invalid). `npm run data:fetch` then `npm run data:build` rebuilds the data from the sources; the build needs numpy, scipy, shapely and pyproj. The README has the details.",
       "ttft_ms": 1682,
       "type": "result",
       "duration_ms": 1911559,
@@ -156,7 +156,9 @@
         "cache_read_tokens": 17940768,
         "output_tokens": 231387,
         "duration_api_seconds": 1615.7,
-        "total_cost_usd": 5.4204
+        "total_cost_usd": 5.4204,
+        "reasoning_tokens": 101478,
+        "visible_tokens": 129909
       },
       "hook_tokens": {
         "source": "transcript_or_hook",
@@ -166,7 +168,9 @@
         "cache_read_tokens": 17940768,
         "cache_write_tokens": 328011,
         "output_tokens": 231387,
-        "split_rule": "unavailable"
+        "split_rule": "output_includes_reasoning",
+        "reasoning_tokens": 101478,
+        "visible_tokens": 129909
       },
       "pricing": {
         "as_of": "2026-10-18",
@@ -294,7 +298,7 @@
       "failed_requests": [],
       "critical_failures": [],
       "dom": {
-        "title": "Atlas ferroviaire \u00b7 French passenger rail, 24 hours",
+        "title": "Atlas ferroviaire · French passenger rail, 24 hours",
         "canvas_count": 3,
         "visible_canvas_count": 3,
         "canvas_obscured": false,
@@ -342,7 +346,7 @@
         },
         {
           "id": "gtfs_timetables_trips_dataset",
-          "description": "GTFS schedules or processed timetables/trips for TGV, Intercit\u00e9s, TER",
+          "description": "GTFS schedules or processed timetables/trips for TGV, Intercités, TER",
           "passed": true,
           "observed_records": 570045,
           "matched_files": [

@@ -310,6 +310,9 @@ def format_local_cost(run: dict) -> str:
         cache_tier_basis = "assumed"
 
     model_info = run.get("model") or {}
+    model_usage = raw.get("modelUsage") or raw.get("model_usage")
+    usage_block = raw.get("usage") if isinstance(raw.get("usage"), dict) else {}
+    server_tool_use = usage_block.get("server_tool_use") or raw.get("server_tool_use")
     est = estimate_token_cost(
         str(model_info.get("name") or ""),
         uncached_input_tokens=uncached_input,
@@ -321,6 +324,8 @@ def format_local_cost(run: dict) -> str:
         cache_write_5m_tokens=cw_5m_int,
         cache_write_1h_tokens=cw_1h_int,
         cache_tier_basis=cache_tier_basis,
+        model_usage=model_usage if isinstance(model_usage, dict) else None,
+        server_tool_use=server_tool_use if isinstance(server_tool_use, dict) else None,
     )
     if est is None:
         return "n/a"

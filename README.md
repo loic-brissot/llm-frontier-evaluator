@@ -100,7 +100,7 @@ Rows compare only inside one series, so each series has its own table ([`docs/pr
 
 | Model | Harness | Output tokens (k) | Model time (min, tools excluded) | Tool calls (✓ / ✗) | Context re-read (M cached tokens) | Est. cost (USD) | Verification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Claude Sonnet 5.5 high | Claude Code | 358k | 43.1 min<br>29.1 min thinking | 169 ✓<br>8 ✗ | 32.2M | $8.81 | UI ✓<br>Data 6/6 ✓<br>146k records<br>[Live Demo](demos/paris-1910-flood-simulator/2026-10-26-claude-code-claude-sonnet-5-5-high-2/index.html) |
+| Claude Sonnet 5.5 high | Claude Code | 358k | 43.1 min<br>29.1 min thinking | 169 ✓<br>8 ✗ | 32.2M | $8.86 | UI ✓<br>Data 6/6 ✓<br>146k records<br>[Live Demo](demos/paris-1910-flood-simulator/2026-10-26-claude-code-claude-sonnet-5-5-high-2/index.html) |
 
 ### `paris-tree-canopy`
 
