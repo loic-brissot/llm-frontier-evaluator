@@ -3,9 +3,10 @@ id: TASK-99
 title: >-
   Extract per-turn token curves, tool call timelines, and thought blocks for
   Claude Code runs in telemetry_extraction.py
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-31 09:33'
+updated_date: '2026-11-02 00:49'
 labels: []
 milestone: m-9
 dependencies: []
@@ -24,7 +25,7 @@ Consequently, in the analytical warehouse and dashboard (fact_tool_calls.csv, fa
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 extract_normalized_tool_calls() in scripts/telemetry_extraction.py extracts tool calls, durations (PreToolUse -> PostToolUse or tool_use -> tool_result), and failure status for Claude Code runs and excludes isolation_blocked denials across both harnesses
-- [ ] #2 extract_thought_blocks() and extract_turn_curve() extract per-block thinking durations and per-turn token/cache-read curves from claude-sessions/*.jsonl (and cli-stream.jsonl) for Claude Code runs
-- [ ] #3 Unit tests verify non-empty tool timelines, thought blocks, and multi-turn cache curves for Claude Code runs, and dashboard/ and dashboard/warehouse/ are rebuilt
+- [x] #1 extract_normalized_tool_calls() in scripts/telemetry_extraction.py extracts tool calls, durations (PreToolUse -> PostToolUse or tool_use -> tool_result), and failure status for Claude Code runs and excludes isolation_blocked denials across both harnesses
+- [x] #2 extract_thought_blocks() and extract_turn_curve() extract per-block thinking durations and per-turn token/cache-read curves from claude-sessions/*.jsonl (and cli-stream.jsonl) for Claude Code runs
+- [x] #3 Unit tests verify non-empty tool timelines, thought blocks, and multi-turn cache curves for Claude Code runs, and dashboard/ and dashboard/warehouse/ are rebuilt
 <!-- AC:END -->

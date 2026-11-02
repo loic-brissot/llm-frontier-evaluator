@@ -1,13 +1,13 @@
 {
   "warehouse_version": "1.0.0",
-  "exported_at": "2026-10-28T20:15:17.932Z",
+  "exported_at": "2026-11-02T00:46:19.546Z",
   "counts": {
-    "fact_runs": 26,
-    "fact_tool_calls": 1960,
-    "fact_turns": 32,
-    "fact_thought_blocks": 838,
+    "fact_runs": 28,
+    "fact_tool_calls": 775,
+    "fact_turns": 423,
+    "fact_thought_blocks": 1333,
     "dim_models": 30,
-    "dim_prompts": 8
+    "dim_prompts": 14
   },
   "formats": [
     "parquet",
