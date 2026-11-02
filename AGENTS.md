@@ -32,9 +32,9 @@ UV_CACHE_DIR=/tmp/uv-cache UV_TOOL_DIR=/tmp/uv-tools uvx --index-url https://pyp
 uv run python3 -m unittest discover -s tests -v
 uv run pytest
 
-# Benchmark run consistency and README table validation
+# Benchmark run consistency and RESULTS.md table validation
 uv run python3 scripts/compare_runs.py
-uv run python3 scripts/compare_runs.py --check-readme
+uv run python3 scripts/compare_runs.py --check-results
 ```
 
 ## Subagent PR Review, Squash-Merge, and Release Workflow

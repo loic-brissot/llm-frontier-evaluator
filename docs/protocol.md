@@ -68,10 +68,10 @@ Run `python3 scripts/finish_run.py --prompt <prompt-id> --run-id <run-id>`. `fin
 3. Run automated headless verification with `python3 scripts/verify_run.py` (or `finish_run.py --verify`). The verification script inspects `workspace/` without mutating any workspace files, launches the app or static server (package script, including scripts that hardcode their port; or static `dist/`/`build/`/root), presses an intro-screen "Enter"/"Start" button once if the app is gated behind one, records HTTP status, console errors, uncaught exceptions, and DOM/WebGL state, runs data pipeline verification (`python3 scripts/probe_data.py`), saves standard screenshots to `runs/<prompt-id>/<run-id>/artifacts/screenshot.png`, runtime telemetry to `artifacts/runtime.json`, and data pipeline scorecard to `artifacts/data_pipeline.json`.
 4. Complete `run.json` from the export. Use `docs/metrics.md`. `finish_run.py` automatically loads `artifacts/runtime.json` to pre-fill `outcome.operator_saw_a_page` and stores both `verification.runtime` and `verification.data_pipeline`.
 5. Classify each tool with `docs/tool-buckets.md`. `finish_run.py` reads `tool-events/` when that directory has records.
-6. Run `python3 scripts/compare_runs.py`. Use `--check-readme` to verify `README.md` comparison tables match all run records, or `--sync-readme` to update `README.md` in place.
+6. Run `python3 scripts/compare_runs.py`. Use `--check-results` to verify `RESULTS.md` comparison tables match all run records, or `--sync-results` to update `RESULTS.md` in place (aliases `--check-readme` and `--sync-readme` are supported).
 7. Commit `run.json`, `artifacts/`, and the usage export.
 
-`.gitignore` omits `workspace/`, `tool-events/`, `claude-sessions/` and `hook-events/`. A Cursor run and a Claude Code run commit the same set: `run.json`, `artifacts/` and `usage/` (plus the dashboard and README tables derived from them); the raw logs and the workspace stay local. Keep downloaded open data and generated geometry in `workspace/`. Keep the ODbL attribution with that data.
+`.gitignore` omits `workspace/`, `tool-events/`, `claude-sessions/` and `hook-events/`. A Cursor run and a Claude Code run commit the same set: `run.json`, `artifacts/` and `usage/` (plus the dashboard and RESULTS.md tables derived from them); the raw logs and the workspace stay local. Keep downloaded open data and generated geometry in `workspace/`. Keep the ODbL attribution with that data.
 
 ## Follow-up
 

@@ -102,8 +102,8 @@ After performing catalog maintenance, run the complete suite of verification too
 # Check prompt catalog hashes and model pricing consistency
 uv run python3 scripts/compare_runs.py
 
-# Check README comparison table sync
-uv run python3 scripts/compare_runs.py --check-readme
+# Check RESULTS.md comparison table sync
+uv run python3 scripts/compare_runs.py --check-results
 
 # Run unit tests
 uv run python3 -m unittest discover -s tests -v
