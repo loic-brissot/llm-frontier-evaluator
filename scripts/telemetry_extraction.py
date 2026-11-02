@@ -77,6 +77,30 @@ def input_summary(tool_input: Any) -> str:
     return str(raw).strip()[:250]
 
 
+def get_effective_pipeline_score(pipeline_data: dict[str, Any] | None) -> float:
+    """Return effective data pipeline score respecting operator_override.
+
+    If operator_override.score is explicitly set, return that score.
+    If operator_override.passed is True (without explicit score), return 1.0.
+    Otherwise, return the raw data_pipeline score (or 0.0).
+    """
+    if not pipeline_data or not isinstance(pipeline_data, dict):
+        return 0.0
+    op_override = (
+        pipeline_data.get("operator_override")
+        if isinstance(pipeline_data.get("operator_override"), dict)
+        else {}
+    )
+    if op_override.get("score") is not None:
+        score_val = safe_float(op_override.get("score"))
+        if score_val is not None:
+            return score_val
+    if op_override.get("passed") is True:
+        return 1.0
+    score_val = safe_float(pipeline_data.get("score"))
+    return score_val if score_val is not None else 0.0
+
+
 def extract_normalized_tool_calls(run_dir: Path, run_id: str | None = None) -> list[dict[str, Any]]:
     """Extract chronological deduplicated tool calls from hook events / transcripts.
 
@@ -792,31 +816,88 @@ def extract_normalized_run_metrics(run_dir: Path) -> dict[str, Any] | None:
     tot_calls = shell_calls + files_calls + visual_calls + web_calls + other_calls
     tot_fails = shell_fails + files_fails + visual_fails + web_fails + other_fails
 
-    # Verification artifacts
+    # Verification artifacts and run.json verification merge
     runtime_art = run_dir / "artifacts" / "runtime.json"
     pipeline_art = run_dir / "artifacts" / "data_pipeline.json"
 
     runtime_data: dict[str, Any] = {}
     if runtime_art.is_file():
         try:
-            runtime_data = json.loads(runtime_art.read_text(encoding="utf-8"))
+            loaded_rt = json.loads(runtime_art.read_text(encoding="utf-8"))
+            if isinstance(loaded_rt, dict):
+                runtime_data = loaded_rt
         except (OSError, json.JSONDecodeError):
             runtime_data = {}
-    if not runtime_data:
-        runtime_data = (run.get("verification") or {}).get("runtime") or {}
 
     pipeline_data: dict[str, Any] = {}
     if pipeline_art.is_file():
         try:
-            pipeline_data = json.loads(pipeline_art.read_text(encoding="utf-8"))
+            loaded_pl = json.loads(pipeline_art.read_text(encoding="utf-8"))
+            if isinstance(loaded_pl, dict):
+                pipeline_data = loaded_pl
         except (OSError, json.JSONDecodeError):
             pipeline_data = {}
-    if not pipeline_data:
-        pipeline_data = (run.get("verification") or {}).get("data_pipeline") or {}
 
-    runtime_pass = bool(runtime_data.get("passed", False))
-    pipeline_pass = bool(pipeline_data.get("passed", False))
+    ver_block = run.get("verification") if isinstance(run.get("verification"), dict) else {}
+    run_runtime = ver_block.get("runtime") if isinstance(ver_block.get("runtime"), dict) else {}
+    run_pipeline = ver_block.get("data_pipeline") if isinstance(ver_block.get("data_pipeline"), dict) else {}
+
+    if run_runtime:
+        if isinstance(runtime_data.get("operator_override"), dict) and isinstance(run_runtime.get("operator_override"), dict):
+            merged_override = {**runtime_data["operator_override"], **run_runtime["operator_override"]}
+            runtime_data = {**runtime_data, **run_runtime, "operator_override": merged_override}
+        else:
+            runtime_data = {**runtime_data, **run_runtime}
+
+    if run_pipeline:
+        if isinstance(pipeline_data.get("operator_override"), dict) and isinstance(run_pipeline.get("operator_override"), dict):
+            merged_override = {**pipeline_data["operator_override"], **run_pipeline["operator_override"]}
+            pipeline_data = {**pipeline_data, **run_pipeline, "operator_override": merged_override}
+        else:
+            pipeline_data = {**pipeline_data, **run_pipeline}
+
+    # Evaluate runtime_pass: run.json operator_override and passed flags are authoritative
+    runtime_override = (
+        runtime_data.get("operator_override")
+        if isinstance(runtime_data.get("operator_override"), dict)
+        else {}
+    )
+    if runtime_override.get("passed") is not None:
+        runtime_pass = bool(runtime_override.get("passed"))
+    elif "passed" in run_runtime and run_runtime["passed"] is not None:
+        runtime_pass = bool(run_runtime["passed"])
+    else:
+        runtime_pass = bool(runtime_data.get("passed", False))
+    runtime_data["passed"] = runtime_pass
+
+    # Evaluate pipeline_pass: run.json operator_override and passed flags are authoritative
+    pipeline_override = (
+        pipeline_data.get("operator_override")
+        if isinstance(pipeline_data.get("operator_override"), dict)
+        else {}
+    )
+    if pipeline_override.get("passed") is not None:
+        pipeline_pass = bool(pipeline_override.get("passed"))
+    elif "passed" in run_pipeline and run_pipeline["passed"] is not None:
+        pipeline_pass = bool(run_pipeline["passed"])
+    else:
+        pipeline_pass = bool(pipeline_data.get("passed", False))
+    pipeline_data["passed"] = pipeline_pass
+
     overall_pass = runtime_pass and pipeline_pass
+
+    # Top-level verification passed or operator_override in run.json is authoritative
+    top_override = (
+        ver_block.get("operator_override")
+        if isinstance(ver_block.get("operator_override"), dict)
+        else {}
+    )
+    if top_override.get("passed") is not None:
+        overall_pass = bool(top_override.get("passed"))
+    elif "passed" in ver_block and ver_block["passed"] is not None:
+        overall_pass = bool(ver_block["passed"])
+    elif "passed" in run and run["passed"] is not None:
+        overall_pass = bool(run["passed"])
 
     return {
         "run_id": run_id,

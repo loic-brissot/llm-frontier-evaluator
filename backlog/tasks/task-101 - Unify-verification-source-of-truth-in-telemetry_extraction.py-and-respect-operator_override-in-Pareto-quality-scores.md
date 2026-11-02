@@ -3,9 +3,10 @@ id: TASK-101
 title: >-
   Unify verification source-of-truth in telemetry_extraction.py and respect
   operator_override in Pareto quality scores
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-31 09:33'
+updated_date: '2026-11-02 01:36'
 labels: []
 milestone: m-9
 dependencies: []
@@ -24,7 +25,7 @@ Moreover, in scripts/build_dashboard.py and scripts/export_warehouse.py (view_ru
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 extract_normalized_run_metrics() merges run.json[verification] with artifacts/*.json so operator_override and top-level passed flags in run.json are always authoritative
-- [ ] #2 build_dashboard.py and export_warehouse.py treat data_pipeline checks overridden via operator_override.passed = true (or explicit operator_override.score) as full score (1.0) when computing quality_score and cost_per_quality_point, with unit tests
-- [ ] #3 Dashboard and warehouse artifacts are rebuilt and verified in sync with README.md
+- [x] #1 extract_normalized_run_metrics() merges run.json[verification] with artifacts/*.json so operator_override and top-level passed flags in run.json are always authoritative
+- [x] #2 build_dashboard.py and export_warehouse.py treat data_pipeline checks overridden via operator_override.passed = true (or explicit operator_override.score) as full score (1.0) when computing quality_score and cost_per_quality_point, with unit tests
+- [x] #3 Dashboard and warehouse artifacts are rebuilt and verified in sync with README.md
 <!-- AC:END -->

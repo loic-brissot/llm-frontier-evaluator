@@ -187,13 +187,19 @@ def format_verification_readme(run: dict) -> str:
 
     items: list[str] = []
     if rt is not None:
-        rt_icon = "✓" if rt.get("passed") else "✗"
+        rt_passed = rt.get("passed")
+        if isinstance(rt.get("operator_override"), dict) and "passed" in rt["operator_override"]:
+            rt_passed = rt["operator_override"]["passed"]
+        rt_icon = "✓" if rt_passed else "✗"
         items.append(f"UI {rt_icon}")
     if dp is not None:
         checks = dp.get("checks") if isinstance(dp.get("checks"), list) else []
         passed_checks = sum(1 for c in checks if isinstance(c, dict) and c.get("passed"))
         total_checks = len(checks)
-        dp_icon = "✓" if dp.get("passed") else "⚠"
+        dp_passed = dp.get("passed")
+        if isinstance(dp.get("operator_override"), dict) and "passed" in dp["operator_override"]:
+            dp_passed = dp["operator_override"]["passed"]
+        dp_icon = "✓" if dp_passed else "⚠"
         if total_checks > 0:
             items.append(f"Data {passed_checks}/{total_checks} {dp_icon}")
         else:
