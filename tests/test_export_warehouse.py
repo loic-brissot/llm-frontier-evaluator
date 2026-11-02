@@ -102,6 +102,7 @@ class TestExportWarehouse(unittest.TestCase):
         cost_usd: float = 2.50,
         has_tool_events: bool = True,
         has_usage_csv: bool = False,
+        operator_override: dict | None = None,
     ) -> Path:
         run_dir = self.runs_dir / prompt_id / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
@@ -167,6 +168,8 @@ class TestExportWarehouse(unittest.TestCase):
                 },
             },
         }
+        if operator_override is not None:
+            run_json["verification"]["data_pipeline"]["operator_override"] = operator_override
         (run_dir / "run.json").write_text(json.dumps(run_json), encoding="utf-8")
 
         if has_tool_events:
@@ -475,6 +478,59 @@ class TestExportWarehouse(unittest.TestCase):
             self.assertEqual(beta_stat[2], 0)  # runtime_passed was False
             self.assertIsNone(beta_stat[3])  # NULL cost per successful run
 
+            con.close()
+
+    def test_operator_override_data_pipeline_score_and_views(self):
+        # Run with pipeline_score = 0.67 and operator_override passed = True
+        run_dir = self._create_mock_run(
+            "mock-prompt-1",
+            "run-override-1",
+            model_name="Model Alpha",
+            pipeline_score=0.67,
+            cost_usd=2.00,
+            has_tool_events=True,
+            operator_override={"passed": True, "reason": "probe false negative"},
+        )
+        # Run with explicit score override
+        self._create_mock_run(
+            "mock-prompt-1",
+            "run-override-2",
+            model_name="Model Beta",
+            pipeline_score=0.50,
+            cost_usd=3.40,
+            has_tool_events=True,
+            operator_override={"score": 0.85, "passed": True},
+        )
+
+        runs = extract_fact_runs([run_dir])
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(runs[0]["data_pipeline_score"], 1.0)
+
+        out_dir = self.base_dir / "override_warehouse"
+        export_warehouse(
+            runs_dir=self.runs_dir,
+            reference_dir=self.ref_dir,
+            prompts_dir=self.prompts_dir,
+            output_dir=out_dir,
+            export_format="duckdb",
+            verbose=False,
+        )
+
+        if duckdb is not None:
+            con = duckdb.connect(str(out_dir / "benchmark.duckdb"))
+            rows = con.execute(
+                "SELECT run_id, data_pipeline_score, cost_per_score_point_usd FROM view_run_cost_efficiency WHERE run_id IN ('run-override-1', 'run-override-2') ORDER BY run_id"
+            ).fetchall()
+            self.assertEqual(len(rows), 2)
+            # run-override-1 has score 1.0 and cost 2.00 -> cost_per_score_point = 2.00
+            self.assertEqual(rows[0][0], "run-override-1")
+            self.assertEqual(rows[0][1], 1.0)
+            self.assertEqual(rows[0][2], 2.00)
+
+            # run-override-2 has score 0.85 and cost 3.40 -> cost_per_score_point = 3.40 / 0.85 = 4.00
+            self.assertEqual(rows[1][0], "run-override-2")
+            self.assertEqual(rows[1][1], 0.85)
+            self.assertEqual(rows[1][2], 4.00)
             con.close()
 
     def test_export_format_parquet_only(self):

@@ -8803,7 +8803,13 @@
           "dom": null,
           "critical_failures": [
             "No workspace server found or started"
-          ]
+          ],
+          "operator_override": {
+            "verifier_passed": false,
+            "passed": true,
+            "at": "2026-10-28",
+            "reason": "Smoke test false negative: the app is built in site/ and served by the model; the verifier only looks for a server at the workspace root."
+          }
         },
         "data_pipeline": {
           "passed": true,
@@ -12380,7 +12386,13 @@
           "dom": null,
           "critical_failures": [
             "No workspace server found or started"
-          ]
+          ],
+          "operator_override": {
+            "verifier_passed": false,
+            "passed": true,
+            "at": "2026-10-28",
+            "reason": "Smoke test false negative: the app is built in web/ and served by the model; the verifier only looks for a server at the workspace root."
+          }
         },
         "data_pipeline": {
           "passed": true,
@@ -19071,7 +19083,7 @@
         },
         "data_pipeline": {
           "passed": true,
-          "score": 0.67,
+          "score": 1.0,
           "authenticity": "partial_or_filtered",
           "total_records": 7993,
           "checks": [
@@ -19111,11 +19123,17 @@
               "detail": "Matched 2 file(s) with 43 observed records (min: 20)"
             }
           ],
-          "synthetic_signals": []
+          "synthetic_signals": [],
+          "operator_override": {
+            "verifier_passed": false,
+            "passed": true,
+            "at": "2026-10-28",
+            "reason": "Probe false negative: the ~220k tree inventory ships as gzipped binary (data/trees.bin.gz), which the probe cannot count."
+          }
         }
       },
       "screenshot_path": "screenshots/paris-tree-canopy/2026-10-26-claude-code-claude-sonnet-5-5-high-3.png",
-      "demo_url": "demos/paris-tree-canopy/2026-10-26-claude-code-claude-sonnet-5-5-high/index.html",
+      "demo_url": "demos/paris-tree-canopy/2026-10-26-claude-code-claude-sonnet-5-5-high-3/index.html",
       "results_paths": {
         "run_json": "results/paris-tree-canopy/2026-10-26-claude-code-claude-sonnet-5-5-high-3/run.json",
         "runtime_json": "results/paris-tree-canopy/2026-10-26-claude-code-claude-sonnet-5-5-high-3/artifacts/runtime.json",
@@ -19142,7 +19160,7 @@
         "is_pareto_series": true,
         "is_pareto_global": false,
         "is_pareto_successful": true,
-        "quality_score": 0.67,
+        "quality_score": 1.0,
         "is_pareto_successful_series": true,
         "is_pareto_successful_global": false
       }
@@ -19256,11 +19274,17 @@
           },
           "critical_failures": [
             "Persistent loading overlay detected (#app): intro control 'Remarkable trees only 183 heritage trees' clicked but the overlay stayed visible"
-          ]
+          ],
+          "operator_override": {
+            "verifier_passed": false,
+            "passed": true,
+            "at": "2026-10-28",
+            "reason": "Smoke test false negative: the intro-gate heuristic clicked the 'Remarkable trees only' filter toggle, which is not an intro overlay; the app renders."
+          }
         },
         "data_pipeline": {
           "passed": true,
-          "score": 0.67,
+          "score": 1.0,
           "authenticity": "partial_or_filtered",
           "total_records": 33634,
           "checks": [
@@ -19310,11 +19334,17 @@
               "detail": "Matched 1 file(s) with 20 observed records (min: 20)"
             }
           ],
-          "synthetic_signals": []
+          "synthetic_signals": [],
+          "operator_override": {
+            "verifier_passed": false,
+            "passed": true,
+            "at": "2026-10-28",
+            "reason": "Probe false negative: the ~220k tree inventory ships as packed binary (public/data/trees.bin), which the probe cannot count."
+          }
         }
       },
       "screenshot_path": "screenshots/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium-2.png",
-      "demo_url": "demos/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium/index.html",
+      "demo_url": "demos/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium-2/index.html",
       "results_paths": {
         "run_json": "results/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium-2/run.json",
         "runtime_json": "results/paris-tree-canopy/2026-10-26-claude-code-claude-opus-5-5-medium-2/artifacts/runtime.json",
@@ -19341,7 +19371,7 @@
         "is_pareto_series": true,
         "is_pareto_global": false,
         "is_pareto_successful": true,
-        "quality_score": 0.67,
+        "quality_score": 1.0,
         "is_pareto_successful_series": true,
         "is_pareto_successful_global": false
       }

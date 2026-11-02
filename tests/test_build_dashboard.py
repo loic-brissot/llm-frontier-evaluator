@@ -89,6 +89,70 @@ class TestExtractRunRecord:
         assert rec["tool_calls"]["failure_rate_pct"] == 20.0
         assert rec["verification"]["passed"] is False  # No artifacts
 
+    def test_extract_run_record_operator_override_quality_score(self, tmp_path: Path) -> None:
+        run_dir = tmp_path / "prompt-1" / "2026-10-26-override-run"
+        run_dir.mkdir(parents=True)
+        run_json = {
+            "rules_version": 2,
+            "run_id": "2026-10-26-override-run",
+            "series_id": "prompt-1-default",
+            "prompt_id": "prompt-1",
+            "shot": "primary",
+            "model": {"name": "Test Model", "provider": "test"},
+            "harness": {"name": "cursor", "version": "1.0"},
+            "verification": {
+                "runtime": {"passed": True},
+                "data_pipeline": {
+                    "passed": True,
+                    "score": 0.67,
+                    "operator_override": {
+                        "verifier_passed": False,
+                        "passed": True,
+                        "reason": "Packed binary dataset probe false negative",
+                    },
+                },
+                "passed": True,
+            },
+        }
+        (run_dir / "run.json").write_text(json.dumps(run_json), encoding="utf-8")
+
+        rec = extract_run_record(run_dir)
+        assert rec is not None
+        assert rec["verification"]["passed"] is True
+        assert rec["verification"]["data_pipeline"]["score"] == 1.0
+        assert rec["pareto"]["quality_score"] == 1.0
+
+    def test_extract_run_record_explicit_override_score(self, tmp_path: Path) -> None:
+        run_dir = tmp_path / "prompt-1" / "2026-10-26-override-score-run"
+        run_dir.mkdir(parents=True)
+        run_json = {
+            "rules_version": 2,
+            "run_id": "2026-10-26-override-score-run",
+            "series_id": "prompt-1-default",
+            "prompt_id": "prompt-1",
+            "shot": "primary",
+            "model": {"name": "Test Model", "provider": "test"},
+            "harness": {"name": "cursor", "version": "1.0"},
+            "verification": {
+                "runtime": {"passed": True},
+                "data_pipeline": {
+                    "passed": True,
+                    "score": 0.50,
+                    "operator_override": {
+                        "score": 0.85,
+                        "passed": True,
+                    },
+                },
+                "passed": True,
+            },
+        }
+        (run_dir / "run.json").write_text(json.dumps(run_json), encoding="utf-8")
+
+        rec = extract_run_record(run_dir)
+        assert rec is not None
+        assert rec["verification"]["data_pipeline"]["score"] == 0.85
+        assert rec["pareto"]["quality_score"] == 0.85
+
 
 class TestParetoFrontier:
     """Test multi-objective, series-scoped, and global Pareto frontier logic."""

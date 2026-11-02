@@ -30,6 +30,7 @@ from telemetry_extraction import (
     extract_normalized_run_metrics,
     extract_normalized_tool_calls,
     extract_turn_curve,
+    get_effective_pipeline_score,
     input_summary,
     safe_float,
     safe_int,
@@ -209,7 +210,7 @@ def extract_run_record(run_dir: Path) -> dict[str, Any] | None:
     turns = extract_turns(run_dir, run)
 
     # Compute individual quality score for Pareto calculation
-    pipeline_score = _safe_float(pipeline_data.get("score")) or 0.0
+    pipeline_score = get_effective_pipeline_score(pipeline_data)
     if overall_pass:
         quality_score = pipeline_score
     elif pipeline_pass and not runtime_pass:
@@ -218,6 +219,30 @@ def extract_run_record(run_dir: Path) -> dict[str, Any] | None:
         quality_score = round(pipeline_score * 0.5, 3)
     else:
         quality_score = round(max(0.0, pipeline_score * 0.25), 3)
+
+    runtime_ver: dict[str, Any] = {
+        "passed": runtime_pass,
+        "http_status": _safe_int(runtime_data.get("http_status")),
+        "load_time_ms": _safe_float(runtime_data.get("load_time_ms")),
+        "page_errors": runtime_data.get("page_errors", []),
+        "console_errors": runtime_data.get("console_errors", []),
+        "console_warnings_count": _safe_int(runtime_data.get("console_warnings_count")) or 0,
+        "dom": runtime_data.get("dom", {}),
+        "critical_failures": runtime_data.get("critical_failures", []),
+    }
+    if "operator_override" in runtime_data:
+        runtime_ver["operator_override"] = runtime_data["operator_override"]
+
+    data_pipeline_ver: dict[str, Any] = {
+        "passed": pipeline_pass,
+        "score": pipeline_score,
+        "authenticity": str(pipeline_data.get("authenticity", "")),
+        "total_records": _safe_int(pipeline_data.get("total_records")) or 0,
+        "checks": pipeline_data.get("checks", []),
+        "synthetic_signals": pipeline_data.get("synthetic_signals", []),
+    }
+    if "operator_override" in pipeline_data:
+        data_pipeline_ver["operator_override"] = pipeline_data["operator_override"]
 
     return {
         "run_id": run_id,
@@ -275,24 +300,8 @@ def extract_run_record(run_dir: Path) -> dict[str, Any] | None:
         },
         "verification": {
             "passed": overall_pass,
-            "runtime": {
-                "passed": runtime_pass,
-                "http_status": _safe_int(runtime_data.get("http_status")),
-                "load_time_ms": _safe_float(runtime_data.get("load_time_ms")),
-                "page_errors": runtime_data.get("page_errors", []),
-                "console_errors": runtime_data.get("console_errors", []),
-                "console_warnings_count": _safe_int(runtime_data.get("console_warnings_count")) or 0,
-                "dom": runtime_data.get("dom", {}),
-                "critical_failures": runtime_data.get("critical_failures", []),
-            },
-            "data_pipeline": {
-                "passed": pipeline_pass,
-                "score": pipeline_score,
-                "authenticity": str(pipeline_data.get("authenticity", "")),
-                "total_records": _safe_int(pipeline_data.get("total_records")) or 0,
-                "checks": pipeline_data.get("checks", []),
-                "synthetic_signals": pipeline_data.get("synthetic_signals", []),
-            },
+            "runtime": runtime_ver,
+            "data_pipeline": data_pipeline_ver,
         },
         "screenshot_path": screenshot_rel,
         "demo_url": demo_url,

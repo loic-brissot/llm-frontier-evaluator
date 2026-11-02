@@ -26,6 +26,7 @@ from telemetry_extraction import (
     extract_normalized_tool_calls,
     extract_thought_blocks,
     extract_turn_curve,
+    get_effective_pipeline_score,
     input_summary,
 )
 
@@ -608,7 +609,7 @@ def extract_fact_runs(run_dirs: list[Path]) -> list[dict[str, Any]]:
             "runtime_http_status": _safe_int(runtime.get("http_status")) if runtime.get("http_status") is not None else None,
             "runtime_load_time_ms": _safe_float(runtime.get("load_time_ms")) if runtime.get("load_time_ms") is not None else None,
             "data_pipeline_passed": norm["data_pipeline_passed"],
-            "data_pipeline_score": _safe_float(pipeline.get("score")),
+            "data_pipeline_score": get_effective_pipeline_score(pipeline),
             "data_pipeline_authenticity": str(pipeline.get("authenticity", "")),
             "data_pipeline_total_records": _safe_int(pipeline.get("total_records")),
             "is_successful": norm["is_successful"],

@@ -24,6 +24,7 @@ from telemetry_extraction import (
     extract_normalized_tool_calls,
     extract_thought_blocks,
     extract_turn_curve,
+    get_effective_pipeline_score,
     input_summary,
     safe_float,
     safe_int,
@@ -554,4 +555,123 @@ def test_real_claude_code_run_telemetry() -> None:
     assert len(turns) == 91
     assert turns[0]["cache_read_tokens"] > 0
     assert turns[-1]["cumulative_cache_read_tokens"] > turns[0]["cumulative_cache_read_tokens"]
+
+
+def test_get_effective_pipeline_score() -> None:
+    # 1. No pipeline data
+    assert get_effective_pipeline_score(None) == 0.0
+    assert get_effective_pipeline_score({}) == 0.0
+
+    # 2. Raw score without override
+    assert get_effective_pipeline_score({"score": 0.67}) == 0.67
+    assert get_effective_pipeline_score({"score": 1.0}) == 1.0
+
+    # 3. Override passed = True defaults to 1.0
+    assert get_effective_pipeline_score({"score": 0.67, "operator_override": {"passed": True}}) == 1.0
+    assert get_effective_pipeline_score({"score": 0.0, "operator_override": {"passed": True}}) == 1.0
+
+    # 4. Override explicit score takes precedence
+    assert get_effective_pipeline_score({"score": 0.5, "operator_override": {"score": 0.85, "passed": True}}) == 0.85
+    assert get_effective_pipeline_score({"score": 0.5, "operator_override": {"score": "0.9"}}) == 0.9
+
+
+def test_extract_normalized_run_metrics_merges_artifacts_and_run_json(tmp_path: Path) -> None:
+    run_dir = tmp_path / "prompt-1" / "run-merge-test"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    art_dir = run_dir / "artifacts"
+    art_dir.mkdir(parents=True, exist_ok=True)
+
+    # Artifacts have failing checks
+    (art_dir / "runtime.json").write_text(
+        json.dumps({
+            "passed": False,
+            "http_status": 200,
+            "load_time_ms": 1500.0,
+            "critical_failures": ["Intro gate failed to click"],
+        }),
+        encoding="utf-8",
+    )
+    (art_dir / "data_pipeline.json").write_text(
+        json.dumps({
+            "passed": False,
+            "score": 0.67,
+            "authenticity": "real_data",
+            "total_records": 100,
+            "checks": [{"id": "chk1", "passed": False}],
+        }),
+        encoding="utf-8",
+    )
+
+    # run.json overrides runtime and data_pipeline via operator_override
+    run_json = {
+        "rules_version": 2,
+        "run_id": "run-merge-test",
+        "prompt_id": "prompt-1",
+        "series_id": "prompt-1-default",
+        "shot": "primary",
+        "model": {"name": "Test Model", "provider": "test"},
+        "harness": {"name": "cursor", "version": "1.0"},
+        "verification": {
+            "runtime": {
+                "operator_override": {
+                    "verifier_passed": False,
+                    "passed": True,
+                    "reason": "Intro gate false positive",
+                },
+            },
+            "data_pipeline": {
+                "operator_override": {
+                    "verifier_passed": False,
+                    "passed": True,
+                    "reason": "Binary packed format probe false negative",
+                },
+            },
+            "passed": True,
+        },
+    }
+    (run_dir / "run.json").write_text(json.dumps(run_json), encoding="utf-8")
+
+    norm = extract_normalized_run_metrics(run_dir)
+    assert norm is not None
+    assert norm["runtime_passed"] is True
+    assert norm["data_pipeline_passed"] is True
+    assert norm["is_successful"] is True
+
+    # Artifact details preserved
+    assert norm["runtime_data"]["load_time_ms"] == 1500.0
+    assert norm["data_pipeline_data"]["total_records"] == 100
+    assert norm["data_pipeline_data"]["checks"][0]["id"] == "chk1"
+
+    # Operator overrides present in merged data
+    assert norm["runtime_data"]["operator_override"]["passed"] is True
+    assert norm["data_pipeline_data"]["operator_override"]["passed"] is True
+
+
+def test_extract_normalized_run_metrics_top_level_passed_authority(tmp_path: Path) -> None:
+    run_dir = tmp_path / "prompt-1" / "run-top-passed-test"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    art_dir = run_dir / "artifacts"
+    art_dir.mkdir(parents=True, exist_ok=True)
+
+    # Artifacts pass
+    (art_dir / "runtime.json").write_text(json.dumps({"passed": True}), encoding="utf-8")
+    (art_dir / "data_pipeline.json").write_text(json.dumps({"passed": True, "score": 1.0}), encoding="utf-8")
+
+    # But run.json verification explicitly marks passed = False
+    run_json = {
+        "rules_version": 2,
+        "run_id": "run-top-passed-test",
+        "prompt_id": "prompt-1",
+        "verification": {
+            "passed": False,
+        },
+    }
+    (run_dir / "run.json").write_text(json.dumps(run_json), encoding="utf-8")
+
+    norm = extract_normalized_run_metrics(run_dir)
+    assert norm is not None
+    assert norm["runtime_passed"] is True
+    assert norm["data_pipeline_passed"] is True
+    assert norm["is_successful"] is False
+
 
