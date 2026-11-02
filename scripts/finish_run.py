@@ -2437,7 +2437,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--usage-export", type=Path, help="Harness usage export file or directory.")
     parser.add_argument("--backfill-usage", type=Path, help="Batch backfill usage CSV export across all matching runs.")
     parser.add_argument("--no-update-readme", action="store_true", help="Skip updating README.md after batch backfill.")
-    parser.add_argument("--no-update-dashboard", action="store_true", help="Skip updating dashboard/data.json and index.html after run completion or backfill.")
+    parser.add_argument("--no-update-dashboard", action="store_true", help="Skip updating dashboard/data.json after run completion or backfill.")
     parser.add_argument("--skip-usage-copy", action="store_true", help="Only scrub files already in usage/.")
     parser.add_argument("--skip-metrics", action="store_true", help="Skip run.json prompts.")
     parser.add_argument("--compare-only", action="store_true", help="Only run compare_runs.py.")

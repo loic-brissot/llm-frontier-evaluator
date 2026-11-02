@@ -53,7 +53,7 @@ jobs:
         run: uv run python3 scripts/export_warehouse.py --output-dir dashboard/warehouse || true
 
       - name: Build dashboard
-        run: uv run python3 scripts/build_dashboard.py --production
+        run: uv run python3 scripts/build_dashboard.py --production --in-place
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

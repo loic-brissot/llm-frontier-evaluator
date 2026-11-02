@@ -37,6 +37,13 @@ class TestDeployPagesWorkflow:
         assert "actions/upload-pages-artifact" in content
         assert "path: dashboard" in content
         assert "actions/deploy-pages" in content
+        assert "build_dashboard.py --production --in-place" in content
+
+    def test_ci_workflow_builds_and_checks_dashboard(self) -> None:
+        ci_path = ROOT / ".github" / "workflows" / "ci.yml"
+        ci_content = ci_path.read_text(encoding="utf-8")
+        assert "uv run python3 scripts/build_dashboard.py\n" in ci_content
+        assert "uv run python3 scripts/build_dashboard.py --check" in ci_content
 
 
 class TestDashboardHtmlAndMeta:
@@ -62,6 +69,18 @@ class TestDashboardHtmlAndMeta:
         assert 'id="loading-overlay"' in html
         assert 'class="loading-overlay"' in html
         assert 'class="loading-spinner"' in html
+
+    def test_clean_template_index_html(self) -> None:
+        html = HTML_PATH.read_text(encoding="utf-8")
+        assert "window.BENCHMARK_DATA = null;" in html
+        match = re.search(
+            r'<script id="benchmark-data" type="application/json">\s*(.*?)\s*</script>',
+            html,
+            re.DOTALL,
+        )
+        assert match is not None
+        # Clean source template must not commit the 20,000-line embedded JSON payload
+        assert match.group(1).strip() == ""
 
 
 class TestDashboardStyles:
@@ -97,6 +116,7 @@ class TestDashboardAppDecoupledFetchingAndUrlSync:
         assert "hideLoading()" in js
         # Fallback to embedded script tag
         assert "getEmbeddedData()" in js
+        assert "window.BENCHMARK_DATA" in js
         assert "document.getElementById('benchmark-data')" in js
 
     def test_url_parameters_synchronization(self) -> None:

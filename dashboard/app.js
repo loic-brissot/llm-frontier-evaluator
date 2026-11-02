@@ -83,6 +83,9 @@
   }
 
   function getEmbeddedData() {
+    if (typeof window !== 'undefined' && window.BENCHMARK_DATA) {
+      return window.BENCHMARK_DATA;
+    }
     const embeddedScript = document.getElementById('benchmark-data');
     if (embeddedScript && embeddedScript.textContent.trim().length > 0) {
       try {

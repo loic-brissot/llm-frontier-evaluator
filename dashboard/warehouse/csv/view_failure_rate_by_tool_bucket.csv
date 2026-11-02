@@ -1,6 +1,0 @@
-bucket,total_calls,failed_calls,failure_rate_pct
-other,3,1,33.33
-shell,1084,88,8.12
-visual_checks,251,6,2.39
-files,931,2,0.21
-web,6,0,0.0

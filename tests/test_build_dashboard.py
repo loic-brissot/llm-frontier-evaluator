@@ -9,9 +9,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import re
+import shutil
 from typing import Any
 
 from build_dashboard import (
+    DASHBOARD_DIR,
     DEFAULT_DEMOS_BASE_URL,
     PRICING_TIERS,
     build_dashboard,
@@ -486,6 +488,38 @@ class TestCliAndBuild:
         empty_dir = tmp_path / "empty"
         empty_dir.mkdir()
         assert check_dashboard_sync(runs_dir=RUNS_DIR, output_dir=empty_dir) == 1
+
+    def test_check_flag_passes_without_data_json(self, tmp_path: Path) -> None:
+        out_dir = tmp_path / "dashboard_no_data"
+        out_dir.mkdir()
+        # Copy clean template index.html without data.json
+        shutil.copy2(DASHBOARD_DIR / "index.html", out_dir / "index.html")
+        assert not (out_dir / "data.json").is_file()
+        assert check_dashboard_sync(runs_dir=RUNS_DIR, output_dir=out_dir) == 0
+
+    def test_build_dashboard_default_preserves_clean_template(self, tmp_path: Path) -> None:
+        # Simulate building to DASHBOARD_DIR without in_place
+        template_content = (DASHBOARD_DIR / "index.html").read_text(encoding="utf-8")
+        assert "window.BENCHMARK_DATA = null;" in template_content
+        ret = build_dashboard(runs_dir=RUNS_DIR, output_dir=DASHBOARD_DIR, in_place=False)
+        assert ret == 0
+        after_content = (DASHBOARD_DIR / "index.html").read_text(encoding="utf-8")
+        assert after_content == template_content
+
+    def test_build_dashboard_in_place_flag(self, tmp_path: Path) -> None:
+        out_dir = tmp_path / "dashboard_in_place"
+        out_dir.mkdir()
+        shutil.copy2(DASHBOARD_DIR / "index.html", out_dir / "index.html")
+        ret = build_dashboard(runs_dir=RUNS_DIR, output_dir=out_dir, in_place=True)
+        assert ret == 0
+        html = (out_dir / "index.html").read_text(encoding="utf-8")
+        assert '<script id="benchmark-data" type="application/json">\n{' in html
+
+    def test_cli_flags_out_dir_and_in_place(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["--out-dir", "custom_dist", "--in-place"])
+        assert args.output_dir == Path("custom_dist")
+        assert args.in_place is True
 
     def test_missing_runs_dir(self, tmp_path: Path) -> None:
         missing_runs = tmp_path / "nonexistent_runs"

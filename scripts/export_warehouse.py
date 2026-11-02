@@ -856,6 +856,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--output-dir",
+        "--out-dir",
+        dest="output_dir",
         type=Path,
         default=DEFAULT_WAREHOUSE_DIR,
         help="Target warehouse directory (default: warehouse/)",

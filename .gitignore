@@ -29,11 +29,18 @@ warehouse/*
 !warehouse/README.md
 dashboard/warehouse/*.duckdb*
 dashboard/warehouse/parquet/
+dashboard/warehouse/csv/
+dashboard/warehouse/metadata.json
 dashboard/results/
 *.duckdb
 *.duckdb.wal
 *.egg-info/
 .claude/
+
+# Compiled dashboard build artifacts
+dashboard/data.json
+dashboard/screenshots/
+dist/
 
 # Compiled web application demo bundles (hosted in sister repository llm-frontier-evaluator-demos)
 site/
