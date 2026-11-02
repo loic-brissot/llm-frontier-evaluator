@@ -496,6 +496,25 @@ class TestVerifyRun(unittest.TestCase):
             self.assertFalse(is_uncompiled_source_html(root_html))
             self.assertEqual(select_static_dir(workspace), workspace)
 
+    def test_select_static_dir_discovers_common_subdirectories(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            workspace.mkdir()
+
+            for sub in ("web", "site", "public", "app", "www", "frontend", "client"):
+                sub_dir = workspace / sub
+                sub_dir.mkdir(parents=True)
+                (sub_dir / "index.html").write_text("<html><body>Static app</body></html>")
+                self.assertEqual(select_static_dir(workspace), sub_dir)
+                (sub_dir / "index.html").unlink()
+                sub_dir.rmdir()
+
+            # Test compiled dist inside subdirectory
+            client_dist = workspace / "client" / "dist"
+            client_dist.mkdir(parents=True)
+            (client_dist / "index.html").write_text("<html><body>Client bundle</body></html>")
+            self.assertEqual(select_static_dir(workspace), client_dist)
+
     def test_serve_run_helper(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             run_dir = Path(tmpdir) / "runs" / "test-prompt" / "test-run"
@@ -916,6 +935,10 @@ class TestVerifyRun(unittest.TestCase):
         self.assertIn("visibleCanvasCount", DOM_INSPECTION_SCRIPT)
         self.assertIn("canvasObscured", DOM_INSPECTION_SCRIPT)
         self.assertIn("elementFromPoint", DOM_INSPECTION_SCRIPT)
+        self.assertIn("isRootOrMainApp", DOM_INSPECTION_SCRIPT)
+        self.assertIn("isActualModalOrOverlay", DOM_INSPECTION_SCRIPT)
+        self.assertIn("app", DOM_INSPECTION_SCRIPT)
+        self.assertIn("root", DOM_INSPECTION_SCRIPT)
 
     def test_dom_inspection_script_detects_explicit_init_markers(self):
         self.assertIn("#loading-screen", DOM_INSPECTION_SCRIPT)
@@ -1054,6 +1077,31 @@ PROGRESS_THEN_GATE_HTML = """<!doctype html>
       b.onclick = () => document.getElementById('loader').classList.add('done');
     }
   }, 150);
+</script>
+</body></html>
+"""
+
+ROOT_APP_HTML = """<!doctype html>
+<html><head><meta charset="utf-8"><title>Paris Canopy Atlas</title>
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; }
+  #app { width: 100%; height: 100%; position: relative; }
+  #filters { position: absolute; top: 10px; left: 10px; z-index: 5; background: #fff; padding: 8px; }
+  canvas { width: 100%; height: 100%; display: block; }
+</style></head><body>
+<div id="app">
+  <div id="filters">
+    <button id="remarkable-btn">Remarkable trees only 183 heritage trees</button>
+    <button id="reset-btn">Reset filters</button>
+    <span>Chargement des couches / loading layers...</span>
+  </div>
+  <canvas id="map" width="800" height="600"></canvas>
+</div>
+<script>
+  const c = document.getElementById('map');
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#2b8a3e';
+  ctx.fillRect(0, 0, 800, 600);
 </script>
 </body></html>
 """
@@ -1369,6 +1417,14 @@ class TestIntroGateBrowser(unittest.TestCase):
         self.assertTrue(telemetry["passed"])
         self.assertTrue(telemetry["dom"]["intro_gate"]["dismissed"])
         self.assertGreater(telemetry["loading_settle_ms"], 0)
+
+    def test_root_app_container_is_never_classified_as_intro_gate_or_overlay(self):
+        telemetry = self._run(ROOT_APP_HTML)
+        self.assertEqual(telemetry["critical_failures"], [])
+        self.assertTrue(telemetry["passed"])
+        self.assertIsNone(telemetry["dom"]["loading_overlay"])
+        self.assertIsNone(telemetry["dom"]["intro_gate"])
+        self.assertEqual(telemetry["dom"]["visible_canvas_count"], 1)
 
 
 if __name__ == "__main__":

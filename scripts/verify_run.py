@@ -44,6 +44,9 @@ def is_uncompiled_source_html(html_path: Path) -> bool:
         return False
 
 
+COMMON_STATIC_SUBDIRS = ("web", "site", "public", "app", "www", "frontend", "client")
+
+
 def select_static_dir(workspace_dir: Path) -> Path | None:
     if (workspace_dir / "dist" / "index.html").is_file():
         return workspace_dir / "dist"
@@ -52,6 +55,17 @@ def select_static_dir(workspace_dir: Path) -> Path | None:
     root_html = workspace_dir / "index.html"
     if root_html.is_file() and not is_uncompiled_source_html(root_html):
         return workspace_dir
+    for sub in COMMON_STATIC_SUBDIRS:
+        sub_dir = workspace_dir / sub
+        if not sub_dir.is_dir():
+            continue
+        if (sub_dir / "dist" / "index.html").is_file():
+            return sub_dir / "dist"
+        if (sub_dir / "build" / "index.html").is_file():
+            return sub_dir / "build"
+        sub_html = sub_dir / "index.html"
+        if sub_html.is_file() and not is_uncompiled_source_html(sub_html):
+            return sub_dir
     return None
 
 
@@ -492,8 +506,59 @@ DOM_INSPECTION_SCRIPT = """
                 return String(h);
             } catch (e) { return ''; }
         };
+
+        const isRootOrMainApp = (el) => {
+            if (!el || el === document.body || el === document.documentElement) return true;
+            const tag = (el.tagName || '').toLowerCase();
+            if (tag === 'body' || tag === 'html' || tag === 'main') return true;
+            const id = (el.id || '').toLowerCase();
+            if (id === 'app' || id === 'root' || id === '__next' || id === 'application') return true;
+            if (el.parentElement === document.body && (id === 'container' || id === 'wrapper' || id === 'layout' || id === 'content' || id === 'page')) return true;
+
+            const hasCanvas = el.querySelector('canvas') !== null;
+            const hasMap = el.querySelector('.leaflet-container, .maplibregl-map, .mapboxgl-map, [class*="map-container"], [id*="map"]') !== null;
+            const svgCount = el.querySelectorAll('svg').length;
+            const controlCount = el.querySelectorAll('button, input, select, textarea, [role="button"], [role="tab"], [role="slider"]').length;
+
+            if ((hasCanvas || hasMap || svgCount >= 2) && controlCount >= 2) {
+                return true;
+            }
+            if (controlCount >= 3) {
+                return true;
+            }
+            if ((hasCanvas || hasMap) && (el.parentElement === document.body || el.parentElement === document.documentElement)) {
+                return true;
+            }
+            return false;
+        };
+
+        const isActualModalOrOverlay = (el) => {
+            if (!el || isRootOrMainApp(el)) return false;
+            const tag = (el.tagName || '').toLowerCase();
+            if (tag === 'dialog') return true;
+            const role = (el.getAttribute('role') || '').toLowerCase();
+            if (role === 'dialog' || role === 'alertdialog') return true;
+            const id = (el.id || '').toLowerCase();
+            const cls = (typeof el.className === 'string' ? el.className : (el.getAttribute('class') || '')).toLowerCase();
+            const combined = id + ' ' + cls;
+            const overlayPattern = /(?:modal|dialog|overlay|backdrop|splash|loader|loading|preloader|curtain|gate|lightbox|popup)/i;
+            if (overlayPattern.test(combined)) return true;
+            if (el.getAttribute('data-loading') === 'true' || el.getAttribute('aria-busy') === 'true') return true;
+
+            const style = window.getComputedStyle(el);
+            const pos = style.position;
+            const zIndex = parseInt(style.zIndex, 10);
+            if ((pos === 'fixed' || pos === 'absolute') && (!isNaN(zIndex) && zIndex >= 10)) {
+                const nonOverlayPattern = /(?:header|navbar|nav|sidebar|toolbar|footer|menu|panel|legend|controls|filters)/i;
+                if (!nonOverlayPattern.test(combined)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
         const recordGate = (el, ctrl) => {
-            if (introGate) return;
+            if (introGate || isRootOrMainApp(el) || !isActualModalOrOverlay(el)) return;
             const cls = typeof el.className === 'string' ? el.className : '';
             introGateEl = el;
             introGate = {
@@ -511,6 +576,7 @@ DOM_INSPECTION_SCRIPT = """
         let loadingStatusText = '';
         try {
             for (const el of Array.from(document.querySelectorAll(initIdSelector))) {
+                if (isRootOrMainApp(el) || !isActualModalOrOverlay(el)) continue;
                 if (introGateEl && introGateEl.contains(el)) continue;
                 const style = window.getComputedStyle(el);
                 if (style.display === 'none' || style.visibility === 'hidden') continue;
@@ -546,6 +612,7 @@ DOM_INSPECTION_SCRIPT = """
         for (const el of allElements) {
             try {
                 if (introGateEl && introGateEl.contains(el)) continue;
+                if (isRootOrMainApp(el) || !isActualModalOrOverlay(el)) continue;
                 const style = window.getComputedStyle(el);
                 if (style.display === 'none' || style.visibility === 'hidden') continue;
                 const opacity = parseFloat(style.opacity || '1');
@@ -597,6 +664,10 @@ DOM_INSPECTION_SCRIPT = """
                 let curr = document.elementFromPoint(vw / 2, vh / 2);
                 while (curr && curr !== document.body && curr !== document.documentElement) {
                     if (introGateEl && introGateEl.contains(curr)) break;
+                    if (isRootOrMainApp(curr) || !isActualModalOrOverlay(curr)) {
+                        curr = curr.parentElement;
+                        continue;
+                    }
                     const style = window.getComputedStyle(curr);
                     if (style.display !== 'none' && style.visibility !== 'hidden' && parseFloat(style.opacity || '1') > 0.05) {
                         const rect = curr.getBoundingClientRect();
@@ -638,6 +709,10 @@ DOM_INSPECTION_SCRIPT = """
                             let anc = topEl;
                             while (anc && anc !== document.body && anc !== document.documentElement) {
                                 if (introGateEl && introGateEl.contains(anc)) break;
+                                if (isRootOrMainApp(anc) || !isActualModalOrOverlay(anc)) {
+                                    anc = anc.parentElement;
+                                    continue;
+                                }
                                 const aid = anc.id || '';
                                 const aclass = typeof anc.className === 'string' ? anc.className : '';
                                 const atext = (anc.innerText || anc.textContent || '').trim();

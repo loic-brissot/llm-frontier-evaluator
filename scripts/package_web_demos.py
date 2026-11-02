@@ -28,6 +28,7 @@ from run_common import (
     write_json,
 )
 from verify_run import (
+    COMMON_STATIC_SUBDIRS,
     EphemeralStaticServer,
     is_uncompiled_source_html,
     run_playwright_telemetry,
@@ -278,9 +279,23 @@ def find_static_source(
     if root_html.is_file():
         return workspace_dir, "raw_static"
 
-    # 5. Check subdirectories for compiled or buildable apps (e.g. workspace/paris-trees, workspace/client)
-    for child in workspace_dir.iterdir():
-        if not child.is_dir() or child.name.startswith((".", "node_modules")):
+    # 5. Check common subdirectories for static apps (web/, site/, public/, app/, www/, frontend/, client/)
+    for sub in COMMON_STATIC_SUBDIRS:
+        sub_dir = workspace_dir / sub
+        if not sub_dir.is_dir():
+            continue
+        child_res, child_mode = find_static_source(
+            sub_dir,
+            try_compile=try_compile,
+            base_url=base_url,
+            timeout=timeout,
+        )
+        if child_res is not None:
+            return child_res, f"{sub}/{child_mode}"
+
+    # 6. Check remaining subdirectories for compiled or buildable apps (e.g. workspace/paris-trees)
+    for child in sorted(workspace_dir.iterdir()):
+        if not child.is_dir() or child.name.startswith((".", "node_modules")) or child.name in COMMON_STATIC_SUBDIRS:
             continue
         child_res, child_mode = find_static_source(
             child,

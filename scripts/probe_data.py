@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import gzip
 import json
 import re
 import sqlite3
@@ -54,7 +55,18 @@ DATA_EXTENSIONS = {
     ".db",
     ".duckdb",
     ".bin",
+    ".gz",
 }
+
+GZ_DATA_EXTENSIONS = (
+    ".json.gz",
+    ".geojson.gz",
+    ".jsonl.gz",
+    ".csv.gz",
+    ".tsv.gz",
+    ".txt.gz",
+    ".bin.gz",
+)
 
 CODE_EXTENSIONS = {
     ".js",
@@ -109,10 +121,11 @@ def is_excluded_txt_file(path: Path) -> bool:
 
 def is_tabular_txt_file(path: Path) -> bool:
     name_lower = path.name.lower()
-    if name_lower in GTFS_TXT_FILES:
+    if name_lower in GTFS_TXT_FILES or any(name_lower.startswith(g) for g in GTFS_TXT_FILES):
         return True
     try:
-        with path.open("r", encoding="utf-8", errors="ignore") as f:
+        opener = gzip.open(path, "rt", encoding="utf-8", errors="ignore") if name_lower.endswith(".gz") else path.open("r", encoding="utf-8", errors="ignore")
+        with opener as f:
             first_line = None
             line_count = 0
             for line in f:
@@ -165,9 +178,320 @@ def count_json_records(data: Any, max_depth: int = 4) -> int:
     return max_count
 
 
+COUNT_KEYS = (
+    "count",
+    "records",
+    "total",
+    "num_records",
+    "total_records",
+    "num_rows",
+    "rows",
+    "total_rows",
+    "record_count",
+    "length",
+    "size",
+    "n_records",
+    "numrecords",
+    "totalrecords",
+    "n",
+)
+
+RECORD_SIZE_KEYS = (
+    "record_size",
+    "record_bytes",
+    "bytes_per_record",
+    "stride",
+    "item_size",
+    "itemsize",
+)
+
+
+def find_companion_metadata_file(path: Path) -> Path | None:
+    parent = path.parent
+    name_lower = path.name.lower()
+    if name_lower.endswith(".bin.gz"):
+        stem = path.name[:-7]
+    elif name_lower.endswith(".gz"):
+        stem = path.name[:-3]
+    else:
+        stem = path.stem
+
+    candidates = [
+        parent / f"{stem}.json",
+        parent / f"{stem}.meta.json",
+        parent / f"{stem}_meta.json",
+        parent / f"{stem}.metadata.json",
+        parent / f"{stem}_metadata.json",
+        parent / f"{stem}-meta.json",
+        parent / f"{stem}-metadata.json",
+        parent / f"{stem}.header.json",
+        parent / f"{stem}_header.json",
+        parent / f"{path.name}.json",
+        parent / f"{path.name}.meta.json",
+        parent / "meta.json",
+        parent / "metadata.json",
+        parent / "manifest.json",
+        parent / "header.json",
+        parent / "schema.json",
+    ]
+    for c in candidates:
+        if c.is_file():
+            return c
+    return None
+
+
+def _extract_count_from_obj(obj: Any, target_stem: str | None = None) -> int:
+    if isinstance(obj, (int, float)) and not isinstance(obj, bool):
+        return int(obj)
+
+    if isinstance(obj, dict):
+        if target_stem:
+            stem_lower = target_stem.lower()
+            for k, v in obj.items():
+                k_lower = k.lower()
+                if k_lower == stem_lower or k_lower in (
+                    f"{stem_lower}_count",
+                    f"num_{stem_lower}",
+                    f"total_{stem_lower}",
+                    f"{stem_lower}_records",
+                ):
+                    if isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0:
+                        return int(v)
+                    if isinstance(v, (dict, list)):
+                        cnt = _extract_count_from_obj(v, target_stem)
+                        if cnt > 0:
+                            return cnt
+
+        for k in COUNT_KEYS:
+            for dk, dv in obj.items():
+                if dk.lower() == k and isinstance(dv, (int, float)) and not isinstance(dv, bool) and dv > 0:
+                    return int(dv)
+
+        if target_stem:
+            stem_lower = target_stem.lower()
+            for dk, dv in obj.items():
+                if stem_lower in dk.lower() and isinstance(dv, (dict, list)):
+                    cnt = _extract_count_from_obj(dv, target_stem)
+                    if cnt > 0:
+                        return cnt
+
+        for ck in ("metadata", "header", "dataset", "datasets", "info", "summary", "data"):
+            if ck in obj and isinstance(obj[ck], (dict, list)):
+                cnt = _extract_count_from_obj(obj[ck], target_stem)
+                if cnt > 0:
+                    return cnt
+
+    elif isinstance(obj, list):
+        if target_stem:
+            stem_lower = target_stem.lower()
+            for item in obj:
+                if isinstance(item, dict):
+                    name_field = str(
+                        item.get("name")
+                        or item.get("file")
+                        or item.get("id")
+                        or item.get("table")
+                        or item.get("dataset")
+                        or ""
+                    )
+                    if stem_lower in name_field.lower():
+                        cnt = _extract_count_from_obj(item, target_stem)
+                        if cnt > 0:
+                            return cnt
+        if len(obj) == 1 and isinstance(obj[0], (dict, list)):
+            return _extract_count_from_obj(obj[0], target_stem)
+
+    return 0
+
+
+def _extract_record_size_from_obj(obj: Any, target_stem: str | None = None) -> int:
+    if isinstance(obj, dict):
+        for k in RECORD_SIZE_KEYS:
+            for dk, dv in obj.items():
+                if dk.lower() == k and isinstance(dv, (int, float)) and not isinstance(dv, bool) and dv > 0:
+                    return int(dv)
+        for ck in ("metadata", "header", "dataset", "info"):
+            if ck in obj and isinstance(obj[ck], dict):
+                sz = _extract_record_size_from_obj(obj[ck], target_stem)
+                if sz > 0:
+                    return sz
+    return 0
+
+
+def extract_record_count_from_metadata(meta_path: Path, binary_path: Path) -> int:
+    try:
+        with meta_path.open("r", encoding="utf-8", errors="ignore") as f:
+            data = json.load(f)
+    except Exception:
+        return 0
+
+    name_lower = binary_path.name.lower()
+    if name_lower.endswith(".bin.gz"):
+        stem = binary_path.name[:-7]
+    elif name_lower.endswith(".gz"):
+        stem = binary_path.name[:-3]
+    else:
+        stem = binary_path.stem
+
+    count = _extract_count_from_obj(data, stem)
+    if count > 0:
+        return count
+
+    record_size = _extract_record_size_from_obj(data, stem)
+    if record_size > 0:
+        file_size = 0
+        if name_lower.endswith(".gz"):
+            try:
+                with gzip.open(binary_path, "rb") as f:
+                    chunk = f.read(65536)
+                    if len(chunk) < 65536:
+                        file_size = len(chunk)
+            except Exception:
+                pass
+        else:
+            file_size = binary_path.stat().st_size
+        if file_size > 0:
+            return file_size // record_size
+
+    return 0
+
+
+def extract_record_count_from_binary_header(header: bytes, file_size: int = 0) -> int:
+    if len(header) < 4:
+        return 0
+
+    # 1. P3DB format: magic (4B: 'P3DB'), version (uint32), num_records (uint32 LE at 8:12)
+    if len(header) >= 12 and header[:4] == b"P3DB":
+        return int.from_bytes(header[8:12], byteorder="little")
+
+    # 2. Embedded JSON header in binary (e.g. starts with b'{')
+    if header.startswith(b"{"):
+        try:
+            brace_depth = 0
+            json_end = -1
+            for i, b in enumerate(header[:65536]):
+                if b == ord(b"{"):
+                    brace_depth += 1
+                elif b == ord(b"}"):
+                    brace_depth -= 1
+                    if brace_depth == 0:
+                        json_end = i + 1
+                        break
+            if json_end > 0:
+                header_json = json.loads(header[:json_end].decode("utf-8", errors="ignore"))
+                cnt = _extract_count_from_obj(header_json)
+                if cnt > 0:
+                    return cnt
+        except Exception:
+            pass
+
+    # Length-prefixed JSON header: uint32 LE or BE length followed by JSON bytes
+    for bo in ("little", "big"):
+        hlen = int.from_bytes(header[:4], byteorder=bo)
+        if 4 < 4 + hlen <= min(len(header), 65536):
+            try:
+                candidate = header[4 : 4 + hlen].decode("utf-8", errors="ignore").strip()
+                if candidate.startswith("{") and candidate.endswith("}"):
+                    header_json = json.loads(candidate)
+                    cnt = _extract_count_from_obj(header_json)
+                    if cnt > 0:
+                        return cnt
+            except Exception:
+                pass
+
+    # 3. Known magic prefixes (BIN1, PACK, DATA, TREE, ATLS, GEOM, BINA, PNT1, RECS)
+    if len(header) >= 8:
+        magic4 = header[:4]
+        if magic4 in (b"BIN1", b"PACK", b"DATA", b"TREE", b"ATLS", b"GEOM", b"BINA", b"PNT1", b"RECS") or (
+            magic4.isalnum() and all(32 <= b < 127 for b in magic4)
+        ):
+            cnt = int.from_bytes(header[4:8], byteorder="little")
+            if 0 < cnt <= 100_000_000:
+                if file_size > 8 and (file_size - 8) % cnt == 0:
+                    return cnt
+                if len(header) >= 12:
+                    cnt2 = int.from_bytes(header[8:12], byteorder="little")
+                    if 0 < cnt2 <= 100_000_000 and (file_size <= 12 or (file_size - 12) % cnt2 == 0):
+                        return cnt2
+                return cnt
+
+    # 4. Binary header with count and stride matching file_size
+    if file_size > 0:
+        VALID_STRIDES = {1, 2, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 72, 80, 96, 128, 256}
+        for offset in (0, 4, 8, 12, 16):
+            if offset + 4 <= len(header):
+                for bo in ("little", "big"):
+                    cnt = int.from_bytes(header[offset : offset + 4], byteorder=bo)
+                    if 20 <= cnt <= 100_000_000:
+                        payload = file_size - (offset + 4)
+                        if payload > 0 and payload % cnt == 0:
+                            stride = payload // cnt
+                            if stride in VALID_STRIDES:
+                                return cnt
+                        for hdr_len in (16, 32, 64, 128, 256):
+                            if file_size > hdr_len:
+                                payload = file_size - hdr_len
+                                if payload > 0 and payload % cnt == 0:
+                                    stride = payload // cnt
+                                    if stride in VALID_STRIDES:
+                                        return cnt
+
+    return 0
+
+
+def count_binary_records(path: Path, is_gzipped: bool = False) -> int:
+    companion = find_companion_metadata_file(path)
+    if companion:
+        cnt = extract_record_count_from_metadata(companion, path)
+        if cnt > 0:
+            return cnt
+
+    try:
+        if is_gzipped:
+            with gzip.open(path, "rb") as f:
+                header = f.read(65536)
+            file_size = len(header) if len(header) < 65536 else 0
+        else:
+            file_size = path.stat().st_size
+            with path.open("rb") as f:
+                header = f.read(65536)
+
+        cnt = extract_record_count_from_binary_header(header, file_size=file_size)
+        if cnt > 0:
+            return cnt
+    except Exception:
+        pass
+
+    return 0
+
+
 def count_records_in_file(path: Path) -> int:
+    name_lower = path.name.lower()
     ext = path.suffix.lower()
-    if ext in (".json", ".geojson"):
+
+    if name_lower.endswith((".json.gz", ".geojson.gz")):
+        try:
+            with gzip.open(path, "rt", encoding="utf-8", errors="ignore") as f:
+                data = json.load(f)
+            return count_json_records(data)
+        except Exception:
+            return 0
+    elif name_lower.endswith(".jsonl.gz"):
+        try:
+            with gzip.open(path, "rt", encoding="utf-8", errors="ignore") as f:
+                return sum(1 for line in f if line.strip())
+        except Exception:
+            return 0
+    elif name_lower.endswith((".csv.gz", ".tsv.gz", ".txt.gz")):
+        try:
+            with gzip.open(path, "rt", encoding="utf-8", errors="ignore") as f:
+                non_empty = sum(1 for line in f if line.strip())
+                return max(0, non_empty - 1)
+        except Exception:
+            return 0
+    elif name_lower.endswith(".bin.gz"):
+        return count_binary_records(path, is_gzipped=True)
+    elif ext in (".json", ".geojson"):
         try:
             with path.open("r", encoding="utf-8", errors="ignore") as f:
                 data = json.load(f)
@@ -238,14 +562,20 @@ def count_records_in_file(path: Path) -> int:
         except Exception:
             return 0
     elif ext == ".bin":
+        return count_binary_records(path, is_gzipped=False)
+    elif ext == ".gz":
         try:
-            with path.open("rb") as f:
-                header = f.read(16)
-                if len(header) >= 12 and header[:4] == b"P3DB":
-                    # P3DB format: magic (4B), version (uint32), num_records (uint32)
-                    return int.from_bytes(header[8:12], byteorder="little")
+            with gzip.open(path, "rt", encoding="utf-8", errors="ignore") as f:
+                head = f.read(1024)
+            if head.strip().startswith(("{", "[")):
+                with gzip.open(path, "rt", encoding="utf-8", errors="ignore") as f:
+                    return count_json_records(json.load(f))
+            else:
+                with gzip.open(path, "rt", encoding="utf-8", errors="ignore") as f:
+                    lines = sum(1 for line in f if line.strip())
+                return max(0, lines - 1)
         except Exception:
-            return 0
+            return count_binary_records(path, is_gzipped=True)
     return 0
 
 
@@ -279,17 +609,46 @@ def scan_workspace(workspace_dir: Path) -> dict[str, Any]:
 
         rel_path = str(path.relative_to(workspace_dir))
         ext = path.suffix.lower()
+        name_lower = path.name.lower()
+        for comp in GZ_DATA_EXTENSIONS:
+            if name_lower.endswith(comp):
+                ext = comp
+                break
 
         if ext == ".txt" and (is_excluded_txt_file(path) or not is_tabular_txt_file(path)):
             continue
 
-        if ext in DATA_EXTENSIONS:
+        if ext in DATA_EXTENSIONS or name_lower.endswith(GZ_DATA_EXTENSIONS):
             records = count_records_in_file(path)
             content_snippet = ""
             top_level_keys: dict[str, dict[str, Any]] = {}
             try:
                 if ext in (".json", ".geojson", ".jsonl", ".csv", ".tsv", ".txt"):
                     content_snippet = path.read_text(encoding="utf-8", errors="ignore")[:50000]
+                elif name_lower.endswith((".json.gz", ".geojson.gz", ".jsonl.gz", ".csv.gz", ".tsv.gz", ".txt.gz")):
+                    with gzip.open(path, "rt", encoding="utf-8", errors="ignore") as f:
+                        content_snippet = f.read(50000)
+                elif ext == ".bin" or name_lower.endswith(".bin.gz"):
+                    snippet_parts: list[str] = []
+                    companion = find_companion_metadata_file(path)
+                    if companion:
+                        try:
+                            snippet_parts.append(companion.read_text(encoding="utf-8", errors="ignore")[:40000])
+                        except Exception:
+                            pass
+                    try:
+                        if name_lower.endswith(".bin.gz"):
+                            with gzip.open(path, "rb") as f:
+                                raw_hdr = f.read(16384)
+                        else:
+                            with path.open("rb") as f:
+                                raw_hdr = f.read(16384)
+                        strings = re.findall(rb"[a-zA-Z0-9_\-]{3,}", raw_hdr)
+                        if strings:
+                            snippet_parts.append(" ".join(s.decode("ascii", errors="ignore") for s in strings[:100]))
+                    except Exception:
+                        pass
+                    content_snippet = " ".join(snippet_parts)[:50000]
                 elif ext == ".parquet":
                     try:
                         import pyarrow.parquet as pq
@@ -329,9 +688,13 @@ def scan_workspace(workspace_dir: Path) -> dict[str, Any]:
                             con.close()
                     except Exception:
                         pass
-                if ext in (".json", ".geojson"):
-                    with path.open("r", encoding="utf-8", errors="ignore") as f:
-                        json_data = json.load(f)
+                if ext in (".json", ".geojson") or name_lower.endswith((".json.gz", ".geojson.gz")):
+                    if name_lower.endswith((".json.gz", ".geojson.gz")):
+                        with gzip.open(path, "rt", encoding="utf-8", errors="ignore") as f:
+                            json_data = json.load(f)
+                    else:
+                        with path.open("r", encoding="utf-8", errors="ignore") as f:
+                            json_data = json.load(f)
                     if isinstance(json_data, dict) and json_data.get("type") != "FeatureCollection":
                         for k, v in json_data.items():
                             if isinstance(v, (list, dict)):
@@ -431,7 +794,11 @@ def check_spatial_bbox(path: Path, bbox: list[float]) -> bool:
     """Check if GeoJSON or JSON coordinates fall inside bounding box [min_lon, min_lat, max_lon, max_lat]."""
     min_lon, min_lat, max_lon, max_lat = bbox
     try:
-        data = json.loads(path.read_text(encoding="utf-8", errors="ignore"))
+        if path.name.lower().endswith(".gz"):
+            with gzip.open(path, "rt", encoding="utf-8", errors="ignore") as f:
+                data = json.load(f)
+        else:
+            data = json.loads(path.read_text(encoding="utf-8", errors="ignore"))
         coords: list[tuple[float, float]] = []
 
         def extract_coords(obj: Any) -> None:

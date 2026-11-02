@@ -3,9 +3,10 @@ id: TASK-100
 title: >-
   Eliminate smoke-test and data-probe false negatives on subdirectory static
   apps, root #app containers, and binary/gzipped datasets
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-31 09:33'
+updated_date: '2026-11-02 01:14'
 labels: []
 milestone: m-9
 dependencies: []
@@ -25,7 +26,7 @@ Four of the six Claude Code runs required manual operator_override in run.json d
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 select_static_dir() in verify_run.py and find_static_source() in package_web_demos.py discover static entrypoints in common subdirectories (web/, site/, public/, app/, www/) when root/dist/build have no index.html
-- [ ] #2 DOM_INSPECTION_SCRIPT in verify_run.py never classifies a root container that already wraps a visible rendered canvas/map and interactive UI controls as a stuck loading overlay or intro_gate
-- [ ] #3 probe_data.py supports .gz-compressed data files (.json.gz, .geojson.gz, .csv.gz, .bin.gz) and packed .bin datasets with companion metadata/header counts, with unit tests for all three fixes
+- [x] #1 select_static_dir() in verify_run.py and find_static_source() in package_web_demos.py discover static entrypoints in common subdirectories (web/, site/, public/, app/, www/) when root/dist/build have no index.html
+- [x] #2 DOM_INSPECTION_SCRIPT in verify_run.py never classifies a root container that already wraps a visible rendered canvas/map and interactive UI controls as a stuck loading overlay or intro_gate
+- [x] #3 probe_data.py supports .gz-compressed data files (.json.gz, .geojson.gz, .csv.gz, .bin.gz) and packed .bin datasets with companion metadata/header counts, with unit tests for all three fixes
 <!-- AC:END -->
