@@ -563,6 +563,92 @@ def _nonneg_int(value: object) -> int | None:
     return None
 
 
+def _extract_thinking_tokens(
+    usage: dict | None,
+    model_usage: dict | None = None,
+    primary_model: str | None = None,
+) -> int | None:
+    """Extract thinking/reasoning token count from usage or modelUsage dicts.
+
+    Supports snake_case and camelCase keys:
+    - usage.output_tokens_details.thinking_tokens / thinkingTokens / reasoning_tokens / reasoningTokens
+    - usage.outputTokensDetails.thinking_tokens / thinkingTokens / ...
+    - usage.completion_tokens_details.reasoning_tokens / ...
+    - usage.thinking_tokens / thinkingTokens / reasoning_tokens / reasoningTokens
+    - modelUsage.<model>.thinkingTokens / thinking_tokens
+    """
+    if isinstance(usage, dict):
+        for details_key in (
+            "output_tokens_details",
+            "outputTokensDetails",
+            "completion_tokens_details",
+            "completionTokensDetails",
+        ):
+            details = usage.get(details_key)
+            if isinstance(details, dict):
+                val = _nonneg_int(
+                    _first_present(
+                        details,
+                        "thinking_tokens",
+                        "thinkingTokens",
+                        "reasoning_tokens",
+                        "reasoningTokens",
+                    )
+                )
+                if val is not None:
+                    return val
+
+        val = _nonneg_int(
+            _first_present(
+                usage,
+                "thinking_tokens",
+                "thinkingTokens",
+                "reasoning_tokens",
+                "reasoningTokens",
+                "reasoning_output_tokens",
+            )
+        )
+        if val is not None:
+            return val
+
+    if isinstance(model_usage, dict):
+        if primary_model and primary_model in model_usage:
+            m_data = model_usage[primary_model]
+            if isinstance(m_data, dict):
+                val = _nonneg_int(
+                    _first_present(
+                        m_data,
+                        "thinkingTokens",
+                        "thinking_tokens",
+                        "reasoningTokens",
+                        "reasoning_tokens",
+                    )
+                )
+                if val is not None:
+                    return val
+
+        tot = 0
+        found = False
+        for m_data in model_usage.values():
+            if isinstance(m_data, dict):
+                val = _nonneg_int(
+                    _first_present(
+                        m_data,
+                        "thinkingTokens",
+                        "thinking_tokens",
+                        "reasoningTokens",
+                        "reasoning_tokens",
+                    )
+                )
+                if val is not None:
+                    tot += val
+                    found = True
+        if found:
+            return tot
+
+    return None
+
+
 def _apply_stop_tokens(summary: ToolEventSummary, stop_record: dict | None) -> None:
     """Extract cumulative turn token counts from the selected stop record."""
     if not isinstance(stop_record, dict):
@@ -599,21 +685,7 @@ def _apply_stop_tokens(summary: ToolEventSummary, stop_record: dict | None) -> N
     output_tokens = _nonneg_int(
         _first_present(u, "output_tokens", "outputTokens", "completion_tokens")
     )
-    reasoning = _nonneg_int(
-        _first_present(
-            u,
-            "reasoning_tokens",
-            "reasoningTokens",
-            "thinking_tokens",
-            "thinkingTokens",
-            "reasoning_output_tokens",
-        )
-        or (
-            u.get("output_tokens_details", {}).get("reasoning_tokens")
-            if isinstance(u.get("output_tokens_details"), dict)
-            else None
-        )
-    )
+    reasoning = _extract_thinking_tokens(u)
 
     if all(val is None for val in (input_tokens, uncached_input, output_tokens, cache_read, cache_write)):
         return
@@ -820,13 +892,14 @@ def _apply_claude_stream_totals(summary: ToolEventSummary, records: list[dict]) 
 
     A finished attempt is read from its ``result`` event (per-process totals). An attempt that stalled or was
     killed has no ``result``, so its assistant usage is summed once per Anthropic message id (stream-json
-    repeats a message's usage on every content block). Claude reports no reasoning-token count, so the
-    output total carries no split.
+    repeats a message's usage on every content block).
     """
     totals = dict.fromkeys(CLAUDE_USAGE_FIELDS, 0)
     tot_cw_5m = 0
     tot_cw_1h = 0
     has_cw_breakdown = False
+    tot_reasoning = 0
+    has_reasoning = False
     api_ms = 0.0
     cost = 0.0
     has_cost = False
@@ -841,8 +914,14 @@ def _apply_claude_stream_totals(summary: ToolEventSummary, records: list[dict]) 
         if results:
             result = results[-1]
             usage = result.get("usage") if isinstance(result.get("usage"), dict) else {}
+            model_usage = result.get("modelUsage") or result.get("model_usage")
+            model_usage = model_usage if isinstance(model_usage, dict) else None
             for key, field_name in CLAUDE_USAGE_FIELDS.items():
                 totals[key] += _nonneg_int(usage.get(field_name)) or 0
+            th = _extract_thinking_tokens(usage, model_usage, summary.model_slug)
+            if th is not None:
+                has_reasoning = True
+                tot_reasoning += th
             cc = usage.get("cache_creation") if isinstance(usage.get("cache_creation"), dict) else {}
             if "ephemeral_5m_input_tokens" in cc or "ephemeral_1h_input_tokens" in cc:
                 has_cw_breakdown = True
@@ -865,6 +944,10 @@ def _apply_claude_stream_totals(summary: ToolEventSummary, records: list[dict]) 
             for usage in by_message.values():
                 for key, field_name in CLAUDE_USAGE_FIELDS.items():
                     totals[key] += _nonneg_int(usage.get(field_name)) or 0
+                th = _extract_thinking_tokens(usage, None, summary.model_slug)
+                if th is not None:
+                    has_reasoning = True
+                    tot_reasoning += th
                 cc = usage.get("cache_creation") if isinstance(usage.get("cache_creation"), dict) else {}
                 if "ephemeral_5m_input_tokens" in cc or "ephemeral_1h_input_tokens" in cc:
                     has_cw_breakdown = True
@@ -889,7 +972,12 @@ def _apply_claude_stream_totals(summary: ToolEventSummary, records: list[dict]) 
     summary.output_tokens = totals["output_tokens"]
     summary.input_tokens = totals["uncached_input_tokens"] + totals["cache_write_tokens"] + totals["cache_read_tokens"]
     summary.token_turns = attempts
-    summary.split_rule = "unavailable"
+    if has_reasoning and summary.output_tokens is not None:
+        summary.reasoning_tokens = tot_reasoning
+        summary.visible_tokens = max(0, summary.output_tokens - tot_reasoning)
+        summary.split_rule = "output_includes_reasoning"
+    else:
+        summary.split_rule = "unavailable"
     summary.thought_blocks = thought_blocks
     if api_ms > 0:
         summary.api_duration_seconds = round(api_ms / 1000.0, 1)
@@ -1092,6 +1180,19 @@ def _merge_usage(target: dict, usage: dict) -> None:
             target[field_name] = value
         elif value is not None:
             target.setdefault(field_name, value)
+    th = _extract_thinking_tokens(usage)
+    if th is not None:
+        target_details = target.setdefault("output_tokens_details", {})
+        if not isinstance(target_details, dict):
+            target_details = {}
+            target["output_tokens_details"] = target_details
+        curr = _nonneg_int(target_details.get("thinking_tokens")) or _nonneg_int(target.get("thinking_tokens")) or 0
+        if th > curr:
+            target_details["thinking_tokens"] = th
+            target["thinking_tokens"] = th
+        else:
+            target_details.setdefault("thinking_tokens", th)
+            target.setdefault("thinking_tokens", th)
 
 
 def _claude_session_records(transcript: list[dict]) -> list[dict]:
@@ -1463,16 +1564,7 @@ def _process_transcript_records(
             "outputTokens",
             "completion_tokens",
         )
-        reasoning = _first_present(
-            u,
-            "reasoning_tokens",
-            "reasoningTokens",
-            "thinking_tokens",
-            "thinkingTokens",
-            "reasoning_output_tokens",
-        )
-        if reasoning is None and isinstance(u.get("output_tokens_details"), dict):
-            reasoning = u["output_tokens_details"].get("reasoning_tokens")
+        reasoning = _extract_thinking_tokens(u)
 
         uncached_input = _nonneg_int(uncached_input)
         cache_read = _nonneg_int(cache_read)
@@ -1572,17 +1664,7 @@ def _process_transcript_records(
                     "completion_tokens",
                 )
                 out = _nonneg_int(out) or 0
-                reas = _first_present(
-                    u,
-                    "reasoning_tokens",
-                    "reasoningTokens",
-                    "thinking_tokens",
-                    "thinkingTokens",
-                    "reasoning_output_tokens",
-                )
-                if reas is None and isinstance(u.get("output_tokens_details"), dict):
-                    reas = u["output_tokens_details"].get("reasoning_tokens")
-                reas = _nonneg_int(reas) or 0
+                reas = _nonneg_int(_extract_thinking_tokens(u)) or 0
 
                 un_in = inp
                 if (
@@ -2107,6 +2189,8 @@ def apply_claude_transcript_token_fallback(summary: ToolEventSummary, run_dir: P
     tot_cw_1h = 0
     has_cw_breakdown = False
     has_usage = False
+    tot_reasoning = 0
+    has_reasoning = False
     for r in records:
         usage = r["message"].get("usage")
         if not isinstance(usage, dict):
@@ -2114,6 +2198,10 @@ def apply_claude_transcript_token_fallback(summary: ToolEventSummary, run_dir: P
         has_usage = True
         for key, field_name in CLAUDE_USAGE_FIELDS.items():
             totals[key] += _nonneg_int(usage.get(field_name)) or 0
+        th = _extract_thinking_tokens(usage)
+        if th is not None:
+            has_reasoning = True
+            tot_reasoning += th
         cc = usage.get("cache_creation") if isinstance(usage.get("cache_creation"), dict) else {}
         if "ephemeral_5m_input_tokens" in cc or "ephemeral_1h_input_tokens" in cc:
             has_cw_breakdown = True
@@ -2129,6 +2217,10 @@ def apply_claude_transcript_token_fallback(summary: ToolEventSummary, run_dir: P
     summary.cache_read_tokens = totals["cache_read_tokens"]
     summary.output_tokens = totals["output_tokens"]
     summary.input_tokens = totals["uncached_input_tokens"] + totals["cache_write_tokens"] + totals["cache_read_tokens"]
+    if has_reasoning and summary.output_tokens is not None:
+        summary.reasoning_tokens = tot_reasoning
+        summary.visible_tokens = max(0, summary.output_tokens - tot_reasoning)
+        summary.split_rule = "output_includes_reasoning"
     summary.notes = [n for n in summary.notes if "ended without a result event" not in n]
     summary.notes.append(
         f"{summary.claude_attempts_without_result} of {summary.claude_attempts} claude-code attempt(s) ended without a "

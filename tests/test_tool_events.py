@@ -13,15 +13,18 @@ from tool_events import (
     CONTENT_KEYS,
     ToolEventSummary,
     UNKNOWN_TOOL_FAILURE,
+    _apply_claude_stream_totals,
     _apply_stop_tokens,
     _collect_non_content_strings,
     _dedupe_thoughts,
     _dedupe_tools,
     _extract_traversal_target,
+    _merge_usage,
     _merged_seconds,
     _process_transcript_records,
     _strip_content_fields,
     _tool_intervals,
+    apply_claude_transcript_token_fallback,
     audit_isolation,
     bucket_for,
     check_isolation_violation,
@@ -1355,6 +1358,119 @@ class TestClaudeCodeTelemetry(unittest.TestCase):
         summary = summarize_run(self.run_dir)
         self.assertEqual(summary.tools_without_duration, 1)
         self.assertIsNone(summary.model_time_seconds)
+
+    def test_claude_stream_totals_thinking_tokens_output_details(self):
+        summary = ToolEventSummary()
+        summary.model_slug = "claude-sonnet-5-5"
+        records = [
+            {"type": "system", "subtype": "init"},
+            {"type": "assistant", "message": {"id": "msg-1", "content": []}},
+            {
+                "type": "result",
+                "subtype": "success",
+                "usage": {
+                    "input_tokens": 100,
+                    "cache_creation_input_tokens": 500,
+                    "cache_read_input_tokens": 1000,
+                    "output_tokens": 2000,
+                    "output_tokens_details": {
+                        "thinking_tokens": 800,
+                    },
+                },
+            },
+        ]
+        _apply_claude_stream_totals(summary, records)
+        self.assertEqual(summary.output_tokens, 2000)
+        self.assertEqual(summary.reasoning_tokens, 800)
+        self.assertEqual(summary.visible_tokens, 1200)
+        self.assertEqual(summary.split_rule, "output_includes_reasoning")
+
+    def test_claude_stream_totals_model_usage_thinking_tokens(self):
+        summary = ToolEventSummary()
+        summary.model_slug = "claude-opus-5-5"
+        records = [
+            {"type": "system", "subtype": "init"},
+            {"type": "assistant", "message": {"id": "msg-1", "content": []}},
+            {
+                "type": "result",
+                "subtype": "success",
+                "usage": {
+                    "input_tokens": 10,
+                    "cache_creation_input_tokens": 20,
+                    "cache_read_input_tokens": 30,
+                    "output_tokens": 500,
+                },
+                "modelUsage": {
+                    "claude-opus-5-5": {
+                        "inputTokens": 10,
+                        "outputTokens": 500,
+                        "thinkingTokens": 150,
+                    }
+                },
+            },
+        ]
+        _apply_claude_stream_totals(summary, records)
+        self.assertEqual(summary.output_tokens, 500)
+        self.assertEqual(summary.reasoning_tokens, 150)
+        self.assertEqual(summary.visible_tokens, 350)
+        self.assertEqual(summary.split_rule, "output_includes_reasoning")
+
+    def test_claude_merge_usage_thinking_tokens(self):
+        target = {}
+        usage1 = {
+            "input_tokens": 10,
+            "output_tokens": 100,
+            "output_tokens_details": {"thinking_tokens": 40},
+        }
+        _merge_usage(target, usage1)
+        self.assertEqual(target.get("thinking_tokens"), 40)
+        self.assertEqual(target.get("output_tokens_details", {}).get("thinking_tokens"), 40)
+
+        # Merge larger thinking tokens
+        usage2 = {
+            "output_tokens": 200,
+            "output_tokens_details": {"thinking_tokens": 90},
+        }
+        _merge_usage(target, usage2)
+        self.assertEqual(target.get("thinking_tokens"), 90)
+        self.assertEqual(target.get("output_tokens_details", {}).get("thinking_tokens"), 90)
+
+    def test_claude_transcript_fallback_extracts_thinking_tokens(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_dir = Path(tmpdir)
+            sessions_dir = run_dir / "claude-sessions"
+            sessions_dir.mkdir(parents=True)
+            entries = [
+                {
+                    "type": "assistant",
+                    "sessionId": "s-1",
+                    "timestamp": "2026-10-25T10:00:00Z",
+                    "message": {
+                        "id": "m-1",
+                        "content": [{"type": "text", "text": "hello"}],
+                        "usage": {
+                            "input_tokens": 50,
+                            "cache_creation_input_tokens": 100,
+                            "cache_read_input_tokens": 200,
+                            "output_tokens": 300,
+                            "output_tokens_details": {"thinking_tokens": 120},
+                        },
+                    },
+                }
+            ]
+            (sessions_dir / "session.jsonl").write_text("".join(json.dumps(e) + "\n" for e in entries), encoding="utf-8")
+
+            summary = ToolEventSummary()
+            summary.claude_attempts = 1
+            summary.claude_attempts_without_result = 1
+            summary.output_tokens = 20  # smaller snapshot from stream
+
+            applied = apply_claude_transcript_token_fallback(summary, run_dir)
+            self.assertTrue(applied)
+            self.assertEqual(summary.output_tokens, 300)
+            self.assertEqual(summary.reasoning_tokens, 120)
+            self.assertEqual(summary.visible_tokens, 180)
+            self.assertEqual(summary.split_rule, "output_includes_reasoning")
 
 
 from run_common import prompt_path  # noqa: E402

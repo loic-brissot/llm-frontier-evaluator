@@ -22,9 +22,9 @@
     "ended_at": "2026-10-26T23:02:54.281Z"
   },
   "tokens": {
-    "split_rule": "combined_output_as_visible",
-    "reasoning_tokens": 0,
-    "visible_tokens": 104892,
+    "split_rule": "output_includes_reasoning",
+    "reasoning_tokens": 21095,
+    "visible_tokens": 83797,
     "raw": {
       "duration_api_ms": 971480,
       "stop_reason": "end_turn",
@@ -113,7 +113,7 @@
       "num_turns": 81,
       "subtype": "success",
       "api_error_status": null,
-      "result": "I've built the Paris Canopy Atlas in `/workspace`. It's a single-page web app (Vite, MapLibre and deck.gl) that loads all 220,112 municipal trees and the 183 remarkable trees in the browser. I checked it in a headless browser on both the dev server and the production build. That run covered city and street zooms, the arrondissement, genus, species-search and remarkable filters, the 3D view, the district choropleth, the tree and heritage-tree detail cards, and all three panel tabs. It wasn't tested on a phone-sized screen.\n\n**Run it:** `npm install && npm run dev`, then open http://localhost:5173. `npm run build` gives a static site in `dist/`.\n\n**What it does**\n- **Map:** zoomed out, trees are grouped into green density hexagons, with an optional 3D view; clicking a hexagon zooms into it. Past about zoom 15 they fade into individual trees, sized by height and coloured by family, genus or height. Clicking a legend entry shows only that group. Remarkable trees have gold star badges at every zoom. If a filter leaves fewer than 2,500 trees, they're shown as individual points at any zoom.\n- **Filters:**\n  - arrondissement (1er\u201320e, the two Bois, and the cemeteries outside Paris);\n  - setting (streets, parks and squares, cemeteries, schools and other facilities);\n  - genus or species search in Latin or French, plus quick buttons for Platanus, Aesculus, Tilia, Sophora, Celtis and others;\n  - height and circumference sliders;\n  - a one-click remarkable-trees toggle.\n\n  Filtering takes about 6 ms.\n- **Urban forest panel:**\n  - summary tiles: tree count, genera, species, a diversity index, median and mean height and circumference, street-tree share;\n  - charts: top 12 species, family breakdown, height and circumference histograms, stage of development, trees per hectare by arrondissement.\n\n  All of it follows the active filters.\n- **Remarkable trees:**\n  - cards for all 183 trees with photo, French and Latin names, planting year and age, height, girth and criteria (landscape, botanical, symbolic, historic);\n  - the full story behind each tree and \"Show on map\", which flies to it;\n  - record holders: oldest is a 1602 false acacia, tallest a 45 m plane tree, widest girth 740 cm.\n- **Districts:** a sortable table of trees per hectare, the street/park/cemetery/facility mix, species count, a diversity score and the top genus. It can also shade the map by any of these.\n- **Tree card:** French name, Latin name and cultivar, family, height, circumference, trunk diameter, stage of development, address, district, setting and coordinates. It also says how the tree's height compares with others of its species (e.g. \"taller than 57% of the 18,832 horse chestnuts\"), and links to Street View and OpenStreetMap.\n\n**Things you should know**\n- **The data ships with the app:** about 7 MB in `public/data/`. `npm run fetch-data` then `npm run data` re-downloads and rebuilds it. The inventory has no botanical family, so I added a genus-to-family table myself; a handful of genera with one or two trees each fall under \"Other\".\n- **MapLibre is pinned to version 5:** version 6 doesn't work with deck.gl's map integration.\n- **Colour limits:** two of the eight category colours (pink and red) are hard to tell apart when many points are mixed on the map. The legend's click-to-isolate is there to cover that.\n- **External services needed:** the basemap (CARTO) and the remarkable-tree photos (Ville de Paris servers) are loaded live.\n- **Density for the 12e and 16e** leaves out the Bois de Vincennes and Bois de Boulogne, which get their own rows. The Jardin du Luxembourg is empty because the Senate manages it, so it isn't in the city's inventory.\n\nNothing is committed yet; say if you want me to commit it.",
+      "result": "I've built the Paris Canopy Atlas in `/workspace`. It's a single-page web app (Vite, MapLibre and deck.gl) that loads all 220,112 municipal trees and the 183 remarkable trees in the browser. I checked it in a headless browser on both the dev server and the production build. That run covered city and street zooms, the arrondissement, genus, species-search and remarkable filters, the 3D view, the district choropleth, the tree and heritage-tree detail cards, and all three panel tabs. It wasn't tested on a phone-sized screen.\n\n**Run it:** `npm install && npm run dev`, then open http://localhost:5173. `npm run build` gives a static site in `dist/`.\n\n**What it does**\n- **Map:** zoomed out, trees are grouped into green density hexagons, with an optional 3D view; clicking a hexagon zooms into it. Past about zoom 15 they fade into individual trees, sized by height and coloured by family, genus or height. Clicking a legend entry shows only that group. Remarkable trees have gold star badges at every zoom. If a filter leaves fewer than 2,500 trees, they're shown as individual points at any zoom.\n- **Filters:**\n  - arrondissement (1er–20e, the two Bois, and the cemeteries outside Paris);\n  - setting (streets, parks and squares, cemeteries, schools and other facilities);\n  - genus or species search in Latin or French, plus quick buttons for Platanus, Aesculus, Tilia, Sophora, Celtis and others;\n  - height and circumference sliders;\n  - a one-click remarkable-trees toggle.\n\n  Filtering takes about 6 ms.\n- **Urban forest panel:**\n  - summary tiles: tree count, genera, species, a diversity index, median and mean height and circumference, street-tree share;\n  - charts: top 12 species, family breakdown, height and circumference histograms, stage of development, trees per hectare by arrondissement.\n\n  All of it follows the active filters.\n- **Remarkable trees:**\n  - cards for all 183 trees with photo, French and Latin names, planting year and age, height, girth and criteria (landscape, botanical, symbolic, historic);\n  - the full story behind each tree and \"Show on map\", which flies to it;\n  - record holders: oldest is a 1602 false acacia, tallest a 45 m plane tree, widest girth 740 cm.\n- **Districts:** a sortable table of trees per hectare, the street/park/cemetery/facility mix, species count, a diversity score and the top genus. It can also shade the map by any of these.\n- **Tree card:** French name, Latin name and cultivar, family, height, circumference, trunk diameter, stage of development, address, district, setting and coordinates. It also says how the tree's height compares with others of its species (e.g. \"taller than 57% of the 18,832 horse chestnuts\"), and links to Street View and OpenStreetMap.\n\n**Things you should know**\n- **The data ships with the app:** about 7 MB in `public/data/`. `npm run fetch-data` then `npm run data` re-downloads and rebuilds it. The inventory has no botanical family, so I added a genus-to-family table myself; a handful of genera with one or two trees each fall under \"Other\".\n- **MapLibre is pinned to version 5:** version 6 doesn't work with deck.gl's map integration.\n- **Colour limits:** two of the eight category colours (pink and red) are hard to tell apart when many points are mixed on the map. The legend's click-to-isolate is there to cover that.\n- **External services needed:** the basemap (CARTO) and the remarkable-tree photos (Ville de Paris servers) are loaded live.\n- **Density for the 12e and 16e** leaves out the Bois de Vincennes and Bois de Boulogne, which get their own rows. The Jardin du Luxembourg is empty because the Senate manages it, so it isn't in the city's inventory.\n\nNothing is committed yet; say if you want me to commit it.",
       "ttft_ms": 2532,
       "type": "result",
       "duration_ms": 1650591,
@@ -147,7 +147,9 @@
         "cache_read_tokens": 7926559,
         "output_tokens": 104892,
         "duration_api_seconds": 971.5,
-        "total_cost_usd": 5.1377
+        "total_cost_usd": 5.1377,
+        "reasoning_tokens": 21095,
+        "visible_tokens": 83797
       },
       "hook_tokens": {
         "source": "transcript_or_hook",
@@ -157,7 +159,9 @@
         "cache_read_tokens": 7926559,
         "cache_write_tokens": 181750,
         "output_tokens": 104892,
-        "split_rule": "unavailable"
+        "split_rule": "output_includes_reasoning",
+        "reasoning_tokens": 21095,
+        "visible_tokens": 83797
       },
       "pricing": {
         "as_of": "2026-10-18",
@@ -283,7 +287,7 @@
         "Persistent loading overlay detected (#app): intro control 'Remarkable trees only 183 heritage trees' clicked but the overlay stayed visible"
       ],
       "dom": {
-        "title": "Paris Canopy Atlas \u00b7 The municipal trees of Paris",
+        "title": "Paris Canopy Atlas · The municipal trees of Paris",
         "canvas_count": 1,
         "visible_canvas_count": 1,
         "canvas_obscured": false,
@@ -292,7 +296,7 @@
         "intro_gate": {
           "detected": true,
           "selector": "#app",
-          "text": "Paris Canopy Atlas\n\nThe municipal trees of Paris \u2014 an interactive biodiversity explorer\n\n220,112\nTREES\n201\nGENERA\n799\nSPECIES\n183\nREMARKABLE\nRemarkable trees only\n183 heritage trees\nARRONDISSEMENT\ncli",
+          "text": "Paris Canopy Atlas\n\nThe municipal trees of Paris — an interactive biodiversity explorer\n\n220,112\nTREES\n201\nGENERA\n799\nSPECIES\n183\nREMARKABLE\nRemarkable trees only\n183 heritage trees\nARRONDISSEMENT\ncli",
           "control_selector": "#filters > div:nth-of-type(1) > button:nth-of-type(1)",
           "control_text": "Remarkable trees only\n183 heritage trees",
           "clicked": true,

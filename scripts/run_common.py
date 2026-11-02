@@ -916,6 +916,13 @@ def lookup_model_pricing(
     }
 
 
+def _first_present(mapping: dict, *keys: str) -> object | None:
+    for key in keys:
+        if key in mapping and mapping[key] is not None:
+            return mapping[key]
+    return None
+
+
 def estimate_token_cost(
     model_name: str,
     *,
@@ -930,6 +937,9 @@ def estimate_token_cost(
     cache_write_5m_tokens: int | Decimal | None = None,
     cache_write_1h_tokens: int | Decimal | None = None,
     cache_tier_basis: str | None = None,
+    model_usage: dict[str, dict] | None = None,
+    server_tool_use: dict | None = None,
+    web_search_requests: int | None = None,
 ) -> dict | None:
     """Compute estimated USD cost from public per-1M-token rates and harness surcharges."""
     u = Decimal(uncached_input_tokens or 0)
@@ -971,6 +981,7 @@ def estimate_token_cost(
     )
     if rates is None:
         return None
+    primary_model_id = rates["model_id"]
     million = Decimal(1_000_000)
     base_cost = (
         u * rates["input"]
@@ -980,10 +991,173 @@ def estimate_token_cost(
         + out * rates["output"]
     ) / million
     harness_surcharge = (total_tokens * rates["harness_token_rate_per_1m"]) / million
-    total_cost_with_harness = base_cost + harness_surcharge
 
-    est_base = base_cost.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    est_surcharge = harness_surcharge.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    # Account for secondary models in modelUsage
+    submodels: dict[str, dict] = {}
+    submodels_base_cost = Decimal("0")
+    submodels_harness_surcharge = Decimal("0")
+    submodels_web_searches = 0
+
+    if isinstance(model_usage, dict):
+        for sec_key, sec_val in model_usage.items():
+            if not isinstance(sec_val, dict):
+                continue
+            is_primary = False
+            if (
+                slugify(sec_key) == slugify(primary_model_id)
+                or slugify(sec_key) == slugify(model_name)
+                or sec_key == rates.get("model_id")
+            ):
+                is_primary = True
+            else:
+                sec_rates_check = lookup_model_pricing(sec_key, harness=harness)
+                if sec_rates_check and sec_rates_check["model_id"] == primary_model_id:
+                    is_primary = True
+            if is_primary:
+                continue
+
+            sec_u = Decimal(
+                _first_present(
+                    sec_val,
+                    "uncached_input_tokens",
+                    "uncachedInputTokens",
+                    "input_tokens",
+                    "inputTokens",
+                )
+                or 0
+            )
+            sec_cw = Decimal(
+                _first_present(
+                    sec_val,
+                    "cache_creation_input_tokens",
+                    "cacheCreationInputTokens",
+                    "cache_write_tokens",
+                    "cacheWriteTokens",
+                )
+                or 0
+            )
+            sec_cr = Decimal(
+                _first_present(
+                    sec_val,
+                    "cache_read_input_tokens",
+                    "cacheReadInputTokens",
+                    "cache_read_tokens",
+                    "cacheReadTokens",
+                )
+                or 0
+            )
+            sec_out = Decimal(
+                _first_present(
+                    sec_val,
+                    "output_tokens",
+                    "outputTokens",
+                    "completion_tokens",
+                )
+                or 0
+            )
+            sec_th = _first_present(
+                sec_val,
+                "thinking_tokens",
+                "thinkingTokens",
+                "reasoning_tokens",
+                "reasoningTokens",
+            )
+            sec_cc = sec_val.get("cache_creation") or sec_val.get("cacheCreation") or {}
+            sec_cw_5m = Decimal(
+                (sec_cc.get("ephemeral_5m_input_tokens") or sec_cc.get("ephemeral5mInputTokens") or sec_val.get("cache_write_5m_tokens") or 0)
+            )
+            sec_cw_1h = Decimal(
+                (sec_cc.get("ephemeral_1h_input_tokens") or sec_cc.get("ephemeral1hInputTokens") or sec_val.get("cache_write_1h_tokens") or 0)
+            )
+            if sec_cw > sec_cw_5m + sec_cw_1h:
+                sec_cw_5m += sec_cw - (sec_cw_5m + sec_cw_1h)
+            if sec_cw == 0 and sec_cw_5m + sec_cw_1h > 0:
+                sec_cw = sec_cw_5m + sec_cw_1h
+            if sec_cw_5m == 0 and sec_cw_1h == 0 and sec_cw > 0:
+                sec_cw = sec_cw_5m
+
+            sec_web_search = int(
+                _first_present(sec_val, "web_search_requests", "webSearchRequests") or 0
+            )
+            submodels_web_searches += sec_web_search
+
+            sec_rates = lookup_model_pricing(sec_key, harness=harness)
+            if sec_rates is not None:
+                sec_cw_5m_rate = sec_rates["cache_write"]
+                sec_cw_1h_rate = sec_rates.get("cache_write_1h", sec_cw_5m_rate)
+                sec_base_tokens = (
+                    sec_u * sec_rates["input"]
+                    + sec_cw_5m * sec_cw_5m_rate
+                    + sec_cw_1h * sec_cw_1h_rate
+                    + sec_cr * sec_rates["cache_read"]
+                    + sec_out * sec_rates["output"]
+                ) / million
+                sec_tot_tokens = sec_u + sec_cw + sec_cr + sec_out
+                sec_surcharge = (sec_tot_tokens * sec_rates["harness_token_rate_per_1m"]) / million
+                sec_web_cost = Decimal(sec_web_search) * Decimal("0.01")
+                sec_total = sec_base_tokens + sec_web_cost
+
+                submodels_base_cost += sec_total
+                submodels_harness_surcharge += sec_surcharge
+
+                sec_rates_dict = {
+                    "input": str(sec_rates["input"]),
+                    "cache_write": str(sec_rates["cache_write"]),
+                    "cache_read": str(sec_rates["cache_read"]),
+                    "output": str(sec_rates["output"]),
+                }
+                if (
+                    str(sec_rates.get("provider", "")).lower() == "anthropic"
+                    or sec_rates.get("cache_write_1h") != sec_rates.get("cache_write")
+                ):
+                    sec_rates_dict["cache_write_1h"] = str(sec_rates["cache_write_1h"])
+
+                sub_entry = {
+                    "model_id": sec_rates["model_id"],
+                    "uncached_input_tokens": int(sec_u),
+                    "cache_write_tokens": int(sec_cw),
+                    "cache_read_tokens": int(sec_cr),
+                    "output_tokens": int(sec_out),
+                    "rates_per_1m_usd": sec_rates_dict,
+                    "estimated_cost_usd": str(sec_total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+                }
+                if sec_th is not None and isinstance(sec_th, int) and not isinstance(sec_th, bool):
+                    sub_entry["thinking_tokens"] = sec_th
+                if sec_web_search > 0:
+                    sub_entry["web_search_requests"] = sec_web_search
+                submodels[sec_key] = sub_entry
+
+    top_web_search = 0
+    if isinstance(server_tool_use, dict):
+        val = server_tool_use.get("web_search_requests") or server_tool_use.get("webSearchRequests")
+        if isinstance(val, int) and not isinstance(val, bool):
+            top_web_search = val
+    if web_search_requests is not None and isinstance(web_search_requests, int) and not isinstance(web_search_requests, bool):
+        top_web_search = max(top_web_search, web_search_requests)
+
+    primary_web_search = 0
+    if isinstance(model_usage, dict):
+        for k, v in model_usage.items():
+            if (
+                slugify(k) == slugify(primary_model_id)
+                or slugify(k) == slugify(model_name)
+                or k == primary_model_id
+            ) and isinstance(v, dict):
+                ws = v.get("webSearchRequests") or v.get("web_search_requests")
+                if isinstance(ws, int) and not isinstance(ws, bool):
+                    primary_web_search += ws
+
+    known_model_web_searches = submodels_web_searches + primary_web_search
+    extra_web_searches = max(0, top_web_search - known_model_web_searches)
+    total_web_searches = known_model_web_searches + extra_web_searches
+    extra_web_cost = Decimal(primary_web_search + extra_web_searches) * Decimal("0.01")
+
+    total_base_cost = base_cost + submodels_base_cost + extra_web_cost
+    total_surcharge = harness_surcharge + submodels_harness_surcharge
+    total_cost_with_harness = total_base_cost + total_surcharge
+
+    est_base = total_base_cost.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    est_surcharge = total_surcharge.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     est_total = total_cost_with_harness.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     rates_per_1m = {
@@ -998,7 +1172,7 @@ def estimate_token_cost(
     ):
         rates_per_1m["cache_write_1h"] = str(rates["cache_write_1h"])
 
-    return {
+    res = {
         "as_of": rates["as_of"],
         "model_id": rates["model_id"],
         "context_variant": rates.get("context_variant"),
@@ -1014,4 +1188,11 @@ def estimate_token_cost(
         "estimated_cost_usd": str(est_base),
         "estimated_cost_with_harness_usd": str(est_total),
     }
+    if submodels:
+        res["submodels"] = submodels
+    if total_web_searches > 0:
+        res["web_search_requests"] = total_web_searches
+        res["web_search_cost_usd"] = str((Decimal(total_web_searches) * Decimal("0.01")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+    return res
 

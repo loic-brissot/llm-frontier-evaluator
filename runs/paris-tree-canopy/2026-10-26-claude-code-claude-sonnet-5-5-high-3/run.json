@@ -22,9 +22,9 @@
     "ended_at": "2026-10-26T20:30:36.675Z"
   },
   "tokens": {
-    "split_rule": "combined_output_as_visible",
-    "reasoning_tokens": 0,
-    "visible_tokens": 194570,
+    "split_rule": "output_includes_reasoning",
+    "reasoning_tokens": 72593,
+    "visible_tokens": 121977,
     "raw": {
       "duration_api_ms": 1324020,
       "stop_reason": "end_turn",
@@ -113,7 +113,7 @@
       "num_turns": 86,
       "subtype": "success",
       "api_error_status": null,
-      "result": "Canop\u00e9e is built: a static site in `/workspace` with no build step and no API key. It covers everything you asked for. I tested it in headless Chromium only, not in Firefox or Safari. Nothing is committed.\n\nTo run it: `python3 -m http.server 8000` in `/workspace`, then open `localhost:8000`. The browser needs network access for the basemap tiles and the heritage photos.\n\n**What's there**\n- **Map**\n  - Zoomed out, trees are aggregated into hexagonal bins coloured by dominant genus or mean value.\n  - From about zoom 14.5 these crossfade into individual trees drawn as crowns to scale, based on recorded height.\n  - Colour by genus, height, girth or development stage; the genus legend also works as a filter.\n  - Remarkable trees carry gold star badges at every zoom.\n  - A drawn frame costs a few milliseconds even at the densest zoom.\n- **Filters:** one row above every view covers arrondissement (1er to 20e plus the two Bois and outside Paris), genus and species search, setting, height and circumference ranges, and stage. A one-click \"Remarkable only\" toggle sits in the same row.\n- **Detail card**\n  - Every tree shows its French name, genus, species and cultivar, height, circumference, stage, address and exact coordinates. It also compares the tree with others of its species.\n  - Heritage trees add a photo, the official citation, criteria, planting year or age, and a fact-sheet link.\n- **Analytics:** counts, mean and median height and girth, a diversity index, top species with a table view, genus mix, distributions, and density by arrondissement. A \"resilience check\" compares dominance against the 10-20-30 rule of thumb.\n- **Heritage:** cards plus a planting-year timeline. \"Locate on map\" flies to the tree.\n- **Districts:** a choropleth with five switchable metrics. A table contrasts street trees with parks and squares, including species variety.\n- **Themes and screens:** light and dark themes, and layouts that work down to phone size.\n\n**How I checked it**\n- Filter counts match the raw CSV exactly: Celtis 5,210, Celtis in the 13e 953, trees at least 20 m tall 14,196.\n- A few filter changes and mouse picks were driven through the real UI. There were no console errors apart from MapLibre cancelling tile requests.\n- Every view was screenshotted in light, dark and mobile.\n\n**Data problems I found and handled** (all documented in the README)\n- The 12e and 16e outlines include the Bois de Vincennes and Boulogne, but the inventory lists those trees separately. Left alone, those two districts would look about half as dense as they are, so density uses their area without the Bois.\n- About 25,000 trees sit outside Paris and about 18,000 in the Bois. They are kept as separate groups, not mixed into the 20 arrondissements.\n- Zero means \"not recorded\" in the source, and it contains a 112 m \"tree\" that I treat as an entry error.\n\n**Limitations**\n- **Planting dates:** only 77 of the 182 distinct heritage trees have one. For the rest, the card shows an age estimated from girth, and always labels it as an estimate.\n- **\"Canopy density\":** it is trees per hectare, not measured canopy cover, and the labels say so.\n- **Colour by genus:** the palette passes the validator for neighbouring hues, but on a map any two colours can touch. The legend, hover names and detail card always spell out the genus, so colour is never the only cue.\n- **Family and language:** the data has no botanical family, so colouring is by genus. The interface is in English with French tree names.\n\nThe README covers the data pipeline and design decisions. `scripts/qa/` holds the test harnesses, so you can rerun the checks.",
+      "result": "Canopée is built: a static site in `/workspace` with no build step and no API key. It covers everything you asked for. I tested it in headless Chromium only, not in Firefox or Safari. Nothing is committed.\n\nTo run it: `python3 -m http.server 8000` in `/workspace`, then open `localhost:8000`. The browser needs network access for the basemap tiles and the heritage photos.\n\n**What's there**\n- **Map**\n  - Zoomed out, trees are aggregated into hexagonal bins coloured by dominant genus or mean value.\n  - From about zoom 14.5 these crossfade into individual trees drawn as crowns to scale, based on recorded height.\n  - Colour by genus, height, girth or development stage; the genus legend also works as a filter.\n  - Remarkable trees carry gold star badges at every zoom.\n  - A drawn frame costs a few milliseconds even at the densest zoom.\n- **Filters:** one row above every view covers arrondissement (1er to 20e plus the two Bois and outside Paris), genus and species search, setting, height and circumference ranges, and stage. A one-click \"Remarkable only\" toggle sits in the same row.\n- **Detail card**\n  - Every tree shows its French name, genus, species and cultivar, height, circumference, stage, address and exact coordinates. It also compares the tree with others of its species.\n  - Heritage trees add a photo, the official citation, criteria, planting year or age, and a fact-sheet link.\n- **Analytics:** counts, mean and median height and girth, a diversity index, top species with a table view, genus mix, distributions, and density by arrondissement. A \"resilience check\" compares dominance against the 10-20-30 rule of thumb.\n- **Heritage:** cards plus a planting-year timeline. \"Locate on map\" flies to the tree.\n- **Districts:** a choropleth with five switchable metrics. A table contrasts street trees with parks and squares, including species variety.\n- **Themes and screens:** light and dark themes, and layouts that work down to phone size.\n\n**How I checked it**\n- Filter counts match the raw CSV exactly: Celtis 5,210, Celtis in the 13e 953, trees at least 20 m tall 14,196.\n- A few filter changes and mouse picks were driven through the real UI. There were no console errors apart from MapLibre cancelling tile requests.\n- Every view was screenshotted in light, dark and mobile.\n\n**Data problems I found and handled** (all documented in the README)\n- The 12e and 16e outlines include the Bois de Vincennes and Boulogne, but the inventory lists those trees separately. Left alone, those two districts would look about half as dense as they are, so density uses their area without the Bois.\n- About 25,000 trees sit outside Paris and about 18,000 in the Bois. They are kept as separate groups, not mixed into the 20 arrondissements.\n- Zero means \"not recorded\" in the source, and it contains a 112 m \"tree\" that I treat as an entry error.\n\n**Limitations**\n- **Planting dates:** only 77 of the 182 distinct heritage trees have one. For the rest, the card shows an age estimated from girth, and always labels it as an estimate.\n- **\"Canopy density\":** it is trees per hectare, not measured canopy cover, and the labels say so.\n- **Colour by genus:** the palette passes the validator for neighbouring hues, but on a map any two colours can touch. The legend, hover names and detail card always spell out the genus, so colour is never the only cue.\n- **Family and language:** the data has no botanical family, so colouring is by genus. The interface is in English with French tree names.\n\nThe README covers the data pipeline and design decisions. `scripts/qa/` holds the test harnesses, so you can rerun the checks.",
       "ttft_ms": 1486,
       "type": "result",
       "duration_ms": 1595151,
@@ -147,7 +147,9 @@
         "cache_read_tokens": 11741282,
         "output_tokens": 194570,
         "duration_api_seconds": 1324.0,
-        "total_cost_usd": 4.2754
+        "total_cost_usd": 4.2754,
+        "reasoning_tokens": 72593,
+        "visible_tokens": 121977
       },
       "hook_tokens": {
         "source": "transcript_or_hook",
@@ -157,7 +159,9 @@
         "cache_read_tokens": 11741282,
         "cache_write_tokens": 288825,
         "output_tokens": 194570,
-        "split_rule": "unavailable"
+        "split_rule": "output_includes_reasoning",
+        "reasoning_tokens": 72593,
+        "visible_tokens": 121977
       },
       "pricing": {
         "as_of": "2026-10-18",
@@ -289,7 +293,7 @@
       "failed_requests": [],
       "critical_failures": [],
       "dom": {
-        "title": "Canop\u00e9e \u2014 Atlas of Paris's urban forest",
+        "title": "Canopée — Atlas of Paris's urban forest",
         "canvas_count": 2,
         "visible_canvas_count": 2,
         "canvas_obscured": false,

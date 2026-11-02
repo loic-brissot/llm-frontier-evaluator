@@ -22,9 +22,9 @@
     "ended_at": "2026-10-26T07:59:00.244Z"
   },
   "tokens": {
-    "split_rule": "combined_output_as_visible",
-    "reasoning_tokens": 0,
-    "visible_tokens": 357673,
+    "split_rule": "output_includes_reasoning",
+    "reasoning_tokens": 179613,
+    "visible_tokens": 178060,
     "raw": {
       "duration_api_ms": 2588784,
       "stop_reason": "end_turn",
@@ -113,7 +113,7 @@
           "tool_name": "Bash",
           "tool_use_id": "toolu_01EZH59mbMLGNYWBGqyGuRiw",
           "tool_input": {
-            "command": "python3 - <<'EOF'\n# ---------------- shaders: far boost\np='src/gl/shaders.js'\ns=open(p).read()\ns=s.replace(\"uniform float uExposure;\\nuniform sampler2D tShadow;\",\"uniform float uExposure;\\nuniform float uFar;          // 0 (close) .. 1 (overview): flooded areas are emphasised from a distance\\nuniform sampler2D tShadow;\")\ns=s.replace(\"    float tint = roof ? 0.82 : 0.08;\",\"    float tint = roof ? 0.82 : mix(0.08, 0.42, uFar);\")\ns=s.replace(\"    c += sev * (roof ? 0.18 : 0.0) * (1.0 - under);\",\"    c += sev * (roof ? 0.18 : 0.10 * uFar) * (1.0 - under);\")\ns=s.replace(\"  c += uShallow * uGlow * (0.26 * open + 0.04) * (1.0 - isRiver) * (1.0 - 0.55 * dd);\",\"  c += uShallow * uGlow * (0.26 * open + 0.04) * (1.0 + 1.2 * uFar) * (1.0 - isRiver) * (1.0 - 0.55 * dd);\")\ns=s.replace(\"  float alpha = mix(mix(0.62, 0.93, dd), 0.97, isRiver) * mask;\",\"  float alpha = mix(mix(0.62, 0.93, dd), 0.97, isRiver) * mask;\\n  alpha = mix(alpha, max(alpha, 0.92 * mask), uFar * (1.0 - isRiver));\")\nopen(p,'w').write(s)\np='src/city.js'\ns=open(p).read()\ns=s.replace(\"      uExposure: { value: 1.15 },\\n      tShadow:\",\"      uExposure: { value: 1.15 }, uFar: { value: 0 },\\n      tShadow:\")\ns=s.replace(\"    this.stU.uPoleH.value = 70;\\n    this.updateShadow();\",\"    this.stU.uPoleH.value = 70;\\n    { const k = Math.min(1, Math.max(0, (dist - 3500) / 11500)); this.shared.uFar.value = k * k * (3 - 2 * k); }\\n    this.updateShadow();\")\nopen(p,'w').write(s)\n\n# ---------------- html\np='index.html'\ns=open(p).read()\ns=s.replace('<title>Paris under water','<link rel=\"icon\" href=\"data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 64 64\\'%3E%3Crect width=\\'64\\' height=\\'64\\' rx=\\'14\\' fill=\\'%230b1424\\'/%3E%3Cpath d=\\'M8 30c8-8 14 8 24 0s16-8 24 0v24H8z\\' fill=\\'%233dd6ff\\'/%3E%3Cpath d=\\'M14 28V14h8v10M26 28V8h10v16M40 28V16h10v12\\' fill=\\'%23ffb347\\'/%3E%3C/svg%3E\" />\\n<title>Paris under water',1)\ns=s.replace('''      <label class=\"switch\"><input type=\"checkbox\" id=\"lyStations\" checked /><span></span><b data-i=\"stationsLayer\"></b></label>''','''      <label class=\"switch\"><input type=\"checkbox\" id=\"lyStations\" checked /><span></span><b data-i=\"stationsLayer\"></b></label>\n      <div class=\"st-legend\"><span><i class=\"ok\"></i><em data-i=\"stateOk\"></em></span><span><i class=\"alert\"></i><em data-i=\"stateAlert\"></em></span><span><i class=\"flooded\"></i><em data-i=\"stateFlooded\"></em></span></div>''')\ns=s.replace('''        <label class=\"range\"><span data-i=\"ppriOpacity\"></span>''','''        <div class=\"ppri-cmp\" id=\"ppriCmp\"></div>\n        <label class=\"range\"><span data-i=\"ppriOpacity\"></span>''')\nopen(p,'w').write(s)\n\n# ---------------- css\np='src/styles.css'\ns=open(p).read()\ns=s.replace(\".ppri-legend[hidden] { display: none; }\",\"\"\".ppri-cmp { margin: 8px 0 4px; padding: 8px 10px; border-radius: 10px; background: var(--bar-bg); font-size: 11.5px; line-height: 1.5; color: var(--muted); }\n.ppri-cmp b { color: var(--ink); font-variant-numeric: tabular-nums; }\n.ppri-cmp .bar { height: 5px; border-radius: 3px; background: var(--panel-solid); margin: 6px 0 4px; overflow: hidden; }\n.ppri-cmp .bar i { display: block; height: 100%; background: linear-gradient(90deg, #1b8fd6, #3dd6ff); width: 0; }\n.st-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 4px 42px; font-size: 11px; color: var(--muted); }\n.st-legend span { display: inline-flex; align-items: center; gap: 5px; } .st-legend em { font-style: normal; }\n.st-legend i { width: 9px; height: 9px; border-radius: 50%; background: #e8f2ff; border: 1.5px solid #0b1424; box-shadow: 0 0 0 1px var(--line); }\n.st-legend i.alert { background: #ffb82b; } .st-legend i.flooded { background: #ff3d52; }\"\"\")\nopen(p,'w').write(s)\n\n# ---------------- i18n\np='src/i18n.js'\ns=open(p).read()\ns=s.replace(\"    ppriOpacity: 'Overlay opacity',\",\"\"\"    ppriOpacity: 'Overlay fill opacity',\n    ppriIn: (ha, p) => `Flooded inside the zones: <b>${ha} ha</b> \u2014 <b>${p}%</b> of the zoned land`,\n    ppriOut: (ha) => `Flooded outside the zones: <b>${ha} ha</b> (includes streets, which the PPRI polygons mostly leave out)`,\"\"\")\ns=s.replace(\"    ppriOpacity: 'Opacit\u00e9 de la couche',\",\"\"\"    ppriOpacity: 'Opacit\u00e9 du remplissage',\n    ppriIn: (ha, p) => `Inond\u00e9 dans les zones : <b>${ha} ha</b> \u2014 <b>${p} %</b> de la surface zon\u00e9e`,\n    ppriOut: (ha) => `Inond\u00e9 hors zones : <b>${ha} ha</b> (inclut les rues, que les polygones du PPRI laissent le plus souvent de c\u00f4t\u00e9)`,\"\"\")\nopen(p,'w').write(s)\n\n# ---------------- ui\np='src/ui.js'\ns=open(p).read()\ns=s.replace(\"    updateArrChart(idx);\\n    if (state.stationsOpen)\",\"\"\"    if (!$('#ppriLegend').hidden) {\n      const inside = stats.ppri[(m * 2) * NL + idx], outside = stats.ppri[(m * 2 + 1) * NL + idx];\n      $('#ppriCmp').innerHTML = `<div>${t('ppriIn')(nf(inside, inside >= 100 ? 0 : 1), nf((inside / meta.counts.ppriLandHa) * 100, 0))}</div><div class=\"bar\"><i style=\"width:${Math.min(100, (inside / meta.counts.ppriLandHa) * 100)}%\"></i></div><div>${t('ppriOut')(nf(outside, outside >= 100 ? 0 : 1))}</div>`;\n    }\n    updateArrChart(idx);\n    if (state.stationsOpen)\"\"\")\ns=s.replace(\"    const on = e.target.checked; $('#ppriLegend').hidden = !on;\",\"    const on = e.target.checked; $('#ppriLegend').hidden = !on; update();\")\nopen(p,'w').write(s)\nEOF\ncd /tmp/pw && node ppri.mjs night \"{x:150,z:600,dist:9000,az:0.2,polar:1.0}\" ppri4 \"8.62\" && echo ok"
+            "command": "python3 - <<'EOF'\n# ---------------- shaders: far boost\np='src/gl/shaders.js'\ns=open(p).read()\ns=s.replace(\"uniform float uExposure;\\nuniform sampler2D tShadow;\",\"uniform float uExposure;\\nuniform float uFar;          // 0 (close) .. 1 (overview): flooded areas are emphasised from a distance\\nuniform sampler2D tShadow;\")\ns=s.replace(\"    float tint = roof ? 0.82 : 0.08;\",\"    float tint = roof ? 0.82 : mix(0.08, 0.42, uFar);\")\ns=s.replace(\"    c += sev * (roof ? 0.18 : 0.0) * (1.0 - under);\",\"    c += sev * (roof ? 0.18 : 0.10 * uFar) * (1.0 - under);\")\ns=s.replace(\"  c += uShallow * uGlow * (0.26 * open + 0.04) * (1.0 - isRiver) * (1.0 - 0.55 * dd);\",\"  c += uShallow * uGlow * (0.26 * open + 0.04) * (1.0 + 1.2 * uFar) * (1.0 - isRiver) * (1.0 - 0.55 * dd);\")\ns=s.replace(\"  float alpha = mix(mix(0.62, 0.93, dd), 0.97, isRiver) * mask;\",\"  float alpha = mix(mix(0.62, 0.93, dd), 0.97, isRiver) * mask;\\n  alpha = mix(alpha, max(alpha, 0.92 * mask), uFar * (1.0 - isRiver));\")\nopen(p,'w').write(s)\np='src/city.js'\ns=open(p).read()\ns=s.replace(\"      uExposure: { value: 1.15 },\\n      tShadow:\",\"      uExposure: { value: 1.15 }, uFar: { value: 0 },\\n      tShadow:\")\ns=s.replace(\"    this.stU.uPoleH.value = 70;\\n    this.updateShadow();\",\"    this.stU.uPoleH.value = 70;\\n    { const k = Math.min(1, Math.max(0, (dist - 3500) / 11500)); this.shared.uFar.value = k * k * (3 - 2 * k); }\\n    this.updateShadow();\")\nopen(p,'w').write(s)\n\n# ---------------- html\np='index.html'\ns=open(p).read()\ns=s.replace('<title>Paris under water','<link rel=\"icon\" href=\"data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 64 64\\'%3E%3Crect width=\\'64\\' height=\\'64\\' rx=\\'14\\' fill=\\'%230b1424\\'/%3E%3Cpath d=\\'M8 30c8-8 14 8 24 0s16-8 24 0v24H8z\\' fill=\\'%233dd6ff\\'/%3E%3Cpath d=\\'M14 28V14h8v10M26 28V8h10v16M40 28V16h10v12\\' fill=\\'%23ffb347\\'/%3E%3C/svg%3E\" />\\n<title>Paris under water',1)\ns=s.replace('''      <label class=\"switch\"><input type=\"checkbox\" id=\"lyStations\" checked /><span></span><b data-i=\"stationsLayer\"></b></label>''','''      <label class=\"switch\"><input type=\"checkbox\" id=\"lyStations\" checked /><span></span><b data-i=\"stationsLayer\"></b></label>\n      <div class=\"st-legend\"><span><i class=\"ok\"></i><em data-i=\"stateOk\"></em></span><span><i class=\"alert\"></i><em data-i=\"stateAlert\"></em></span><span><i class=\"flooded\"></i><em data-i=\"stateFlooded\"></em></span></div>''')\ns=s.replace('''        <label class=\"range\"><span data-i=\"ppriOpacity\"></span>''','''        <div class=\"ppri-cmp\" id=\"ppriCmp\"></div>\n        <label class=\"range\"><span data-i=\"ppriOpacity\"></span>''')\nopen(p,'w').write(s)\n\n# ---------------- css\np='src/styles.css'\ns=open(p).read()\ns=s.replace(\".ppri-legend[hidden] { display: none; }\",\"\"\".ppri-cmp { margin: 8px 0 4px; padding: 8px 10px; border-radius: 10px; background: var(--bar-bg); font-size: 11.5px; line-height: 1.5; color: var(--muted); }\n.ppri-cmp b { color: var(--ink); font-variant-numeric: tabular-nums; }\n.ppri-cmp .bar { height: 5px; border-radius: 3px; background: var(--panel-solid); margin: 6px 0 4px; overflow: hidden; }\n.ppri-cmp .bar i { display: block; height: 100%; background: linear-gradient(90deg, #1b8fd6, #3dd6ff); width: 0; }\n.st-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 4px 42px; font-size: 11px; color: var(--muted); }\n.st-legend span { display: inline-flex; align-items: center; gap: 5px; } .st-legend em { font-style: normal; }\n.st-legend i { width: 9px; height: 9px; border-radius: 50%; background: #e8f2ff; border: 1.5px solid #0b1424; box-shadow: 0 0 0 1px var(--line); }\n.st-legend i.alert { background: #ffb82b; } .st-legend i.flooded { background: #ff3d52; }\"\"\")\nopen(p,'w').write(s)\n\n# ---------------- i18n\np='src/i18n.js'\ns=open(p).read()\ns=s.replace(\"    ppriOpacity: 'Overlay opacity',\",\"\"\"    ppriOpacity: 'Overlay fill opacity',\n    ppriIn: (ha, p) => `Flooded inside the zones: <b>${ha} ha</b> — <b>${p}%</b> of the zoned land`,\n    ppriOut: (ha) => `Flooded outside the zones: <b>${ha} ha</b> (includes streets, which the PPRI polygons mostly leave out)`,\"\"\")\ns=s.replace(\"    ppriOpacity: 'Opacité de la couche',\",\"\"\"    ppriOpacity: 'Opacité du remplissage',\n    ppriIn: (ha, p) => `Inondé dans les zones : <b>${ha} ha</b> — <b>${p} %</b> de la surface zonée`,\n    ppriOut: (ha) => `Inondé hors zones : <b>${ha} ha</b> (inclut les rues, que les polygones du PPRI laissent le plus souvent de côté)`,\"\"\")\nopen(p,'w').write(s)\n\n# ---------------- ui\np='src/ui.js'\ns=open(p).read()\ns=s.replace(\"    updateArrChart(idx);\\n    if (state.stationsOpen)\",\"\"\"    if (!$('#ppriLegend').hidden) {\n      const inside = stats.ppri[(m * 2) * NL + idx], outside = stats.ppri[(m * 2 + 1) * NL + idx];\n      $('#ppriCmp').innerHTML = `<div>${t('ppriIn')(nf(inside, inside >= 100 ? 0 : 1), nf((inside / meta.counts.ppriLandHa) * 100, 0))}</div><div class=\"bar\"><i style=\"width:${Math.min(100, (inside / meta.counts.ppriLandHa) * 100)}%\"></i></div><div>${t('ppriOut')(nf(outside, outside >= 100 ? 0 : 1))}</div>`;\n    }\n    updateArrChart(idx);\n    if (state.stationsOpen)\"\"\")\ns=s.replace(\"    const on = e.target.checked; $('#ppriLegend').hidden = !on;\",\"    const on = e.target.checked; $('#ppriLegend').hidden = !on; update();\")\nopen(p,'w').write(s)\nEOF\ncd /tmp/pw && node ppri.mjs night \"{x:150,z:600,dist:9000,az:0.2,polar:1.0}\" ppri4 \"8.62\" && echo ok"
           }
         }
       ],
@@ -149,7 +149,7 @@
       "num_turns": 183,
       "subtype": "success",
       "api_error_status": null,
-      "result": "The Paris flood simulator is built and works end to end in `/workspace`. I verified it in headless Chromium on a software renderer, so I have not measured speed on a real GPU. `npm run dev` serves it, `npm run build` makes a static site in `dist/`, and `npm test` runs 50 checks on the generated data (all pass). Nothing is committed.\n\n## What it does\n\n- **Buildings:** 125,502 buildings in inner Paris rise from their real ground altitude to their real height, with the two Bois cut out. About 2,200 footprints under 5 m\u00b2 are dropped.\n- **Slider:** 0\u201310 m on the Pont d'Austerlitz gauge in 1 cm steps, with keyboard control, \u00b11/\u00b110 cm buttons and a Rise button.\n  - Markers for 2018 (+5.84), 2016 (+6.10), 1955 (+7.12) and 1910 (+8.62) are clickable, and Rise pauses on each one.\n  - A flooded-area curve runs behind the slider track.\n- **Water and highlighting:** the 3D water, flooded streets and building colours (by water depth) update in the same frame, with shadows. Buildings tint by depth at their footprint.\n- **Stations:** 295 metro, RER, rail and tram stop areas are plotted. Each is open, within 50 cm of water, or flooded, based on street level at the station.\n- **Counters:** flooded hectares, affected buildings (total and per arrondissement as a chart or table), flooded stations by mode with a searchable list, and maximum water depth.\n- **PPRI overlay:** regulatory zones draped over the 3D water. A live readout shows how much of the zoned land the model floods and how much it floods outside.\n- **Extras:** night and day themes, EN/FR, viewpoints, hover tooltips, a shareable URL for the level, and a phone layout.\n\n## Accuracy\n\nAt +8.62 m the model floods about 1,080 ha and 12,687 buildings. It reaches 61% of the PPRI-zoned area, with an overlap score (IoU) of 0.50 against the PPRI zones. PPRI polygons cover whole blocks rather than streets, so a perfect model would not score 1.\n\nSome constants are my estimates:\n- **Gauge zero:** 25.99 m NGF, from a 1910 flood mark of 34.610 m beside the bridge.\n- **River slope:** the Seine falls 0.20 m/km downstream. One 1910 mark implies about 0.22; the PPRI agreement is flat from 0.10 to 0.20.\n- **Lower quays:** their flooding between +1.2 and +2.7 m is indicative, since no open dataset exists for them.\n\nIt is a still-water end-state model, so it shows where water ends up, not how fast it gets there. The README lists all limits.\n\n## Things you didn't ask for\n\n- **Connected vs any low point:** the default floods only ground connected to the river. An \"any low point\" toggle also floods isolated low ground, as sewers and the metro did in 1910.\n- **Two extra data sources:** I used the City of Paris green-spaces layer for the Bois outlines and parks, and OpenStreetMap (via Overpass) for bridge outlines. Both are display-only, and the OSM credit is in the footer.\n- **Bridges are schematic:** deck heights are interpolated between the quays with a small arch. They are not part of any flood figure.\n- **Missing data:** the Luxembourg garden is not in the City layer, so it shows as bare ground.\n\nThe project notes are in `README.md`, including how to regenerate the data with `npm run data -- /path/to/python`.",
+      "result": "The Paris flood simulator is built and works end to end in `/workspace`. I verified it in headless Chromium on a software renderer, so I have not measured speed on a real GPU. `npm run dev` serves it, `npm run build` makes a static site in `dist/`, and `npm test` runs 50 checks on the generated data (all pass). Nothing is committed.\n\n## What it does\n\n- **Buildings:** 125,502 buildings in inner Paris rise from their real ground altitude to their real height, with the two Bois cut out. About 2,200 footprints under 5 m² are dropped.\n- **Slider:** 0–10 m on the Pont d'Austerlitz gauge in 1 cm steps, with keyboard control, ±1/±10 cm buttons and a Rise button.\n  - Markers for 2018 (+5.84), 2016 (+6.10), 1955 (+7.12) and 1910 (+8.62) are clickable, and Rise pauses on each one.\n  - A flooded-area curve runs behind the slider track.\n- **Water and highlighting:** the 3D water, flooded streets and building colours (by water depth) update in the same frame, with shadows. Buildings tint by depth at their footprint.\n- **Stations:** 295 metro, RER, rail and tram stop areas are plotted. Each is open, within 50 cm of water, or flooded, based on street level at the station.\n- **Counters:** flooded hectares, affected buildings (total and per arrondissement as a chart or table), flooded stations by mode with a searchable list, and maximum water depth.\n- **PPRI overlay:** regulatory zones draped over the 3D water. A live readout shows how much of the zoned land the model floods and how much it floods outside.\n- **Extras:** night and day themes, EN/FR, viewpoints, hover tooltips, a shareable URL for the level, and a phone layout.\n\n## Accuracy\n\nAt +8.62 m the model floods about 1,080 ha and 12,687 buildings. It reaches 61% of the PPRI-zoned area, with an overlap score (IoU) of 0.50 against the PPRI zones. PPRI polygons cover whole blocks rather than streets, so a perfect model would not score 1.\n\nSome constants are my estimates:\n- **Gauge zero:** 25.99 m NGF, from a 1910 flood mark of 34.610 m beside the bridge.\n- **River slope:** the Seine falls 0.20 m/km downstream. One 1910 mark implies about 0.22; the PPRI agreement is flat from 0.10 to 0.20.\n- **Lower quays:** their flooding between +1.2 and +2.7 m is indicative, since no open dataset exists for them.\n\nIt is a still-water end-state model, so it shows where water ends up, not how fast it gets there. The README lists all limits.\n\n## Things you didn't ask for\n\n- **Connected vs any low point:** the default floods only ground connected to the river. An \"any low point\" toggle also floods isolated low ground, as sewers and the metro did in 1910.\n- **Two extra data sources:** I used the City of Paris green-spaces layer for the Bois outlines and parks, and OpenStreetMap (via Overpass) for bridge outlines. Both are display-only, and the OSM credit is in the footer.\n- **Bridges are schematic:** deck heights are interpolated between the quays with a small arch. They are not part of any flood figure.\n- **Missing data:** the Luxembourg garden is not in the City layer, so it shows as bare ground.\n\nThe project notes are in `README.md`, including how to regenerate the data with `npm run data -- /path/to/python`.",
       "ttft_ms": 1395,
       "type": "result",
       "duration_ms": 3664371,
@@ -197,7 +197,9 @@
         "cache_read_tokens": 32241350,
         "output_tokens": 357673,
         "duration_api_seconds": 2588.8,
-        "total_cost_usd": 8.8627
+        "total_cost_usd": 8.8627,
+        "reasoning_tokens": 179613,
+        "visible_tokens": 178060
       },
       "hook_tokens": {
         "source": "transcript_or_hook",
@@ -207,7 +209,9 @@
         "cache_read_tokens": 32241350,
         "cache_write_tokens": 503234,
         "output_tokens": 357673,
-        "split_rule": "unavailable"
+        "split_rule": "output_includes_reasoning",
+        "reasoning_tokens": 179613,
+        "visible_tokens": 178060
       },
       "pricing": {
         "as_of": "2026-10-18",
@@ -228,8 +232,29 @@
         "cache_tier_basis": "usage_breakdown",
         "cache_write_5m_tokens": 0,
         "cache_write_1h_tokens": 503234,
-        "estimated_cost_usd": "8.81",
-        "estimated_cost_with_harness_usd": "8.81"
+        "estimated_cost_usd": "8.86",
+        "estimated_cost_with_harness_usd": "8.86",
+        "submodels": {
+          "claude-haiku-5-5": {
+            "model_id": "claude-haiku-5-5",
+            "uncached_input_tokens": 61444,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 4555,
+            "rates_per_1m_usd": {
+              "input": "0.10",
+              "cache_write": "0.125",
+              "cache_read": "0.01",
+              "output": "0.50",
+              "cache_write_1h": "0.20"
+            },
+            "estimated_cost_usd": "0.05",
+            "thinking_tokens": 1318,
+            "web_search_requests": 4
+          }
+        },
+        "web_search_requests": 4,
+        "web_search_cost_usd": "0.04"
       }
     }
   },
@@ -348,7 +373,7 @@
       "failed_requests": [],
       "critical_failures": [],
       "dom": {
-        "title": "Paris under water \u2014 interactive flood simulator",
+        "title": "Paris under water — interactive flood simulator",
         "canvas_count": 1,
         "visible_canvas_count": 1,
         "canvas_obscured": false,
@@ -357,7 +382,7 @@
         "intro_gate": {
           "detected": true,
           "selector": "#loader",
-          "text": "INTERACTIVE ATLAS \u00b7 SEINE \u00b7 PARIS INTRA-MUROS\nParis under water\n125,000 building footprints \u00b7 5 m ground model\nEnter the simulation\nDrag to orbit \u00b7 scroll to zoom \u00b7 right-drag to pan",
+          "text": "INTERACTIVE ATLAS · SEINE · PARIS INTRA-MUROS\nParis under water\n125,000 building footprints · 5 m ground model\nEnter the simulation\nDrag to orbit · scroll to zoom · right-drag to pan",
           "control_selector": "#enterBtn",
           "control_text": "Enter the simulation",
           "clicked": true,
@@ -415,7 +440,7 @@
         },
         {
           "id": "stations_dataset",
-          "description": "\u00cele-de-France metro and rail stations (emplacement-des-gares-idf)",
+          "description": "Île-de-France metro and rail stations (emplacement-des-gares-idf)",
           "passed": true,
           "observed_records": 1582,
           "matched_files": [
