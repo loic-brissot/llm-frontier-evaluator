@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import json
+import posixpath
 import re
 import sys
 from datetime import datetime, timezone
@@ -48,6 +49,95 @@ CONTENT_KEYS = {
 }
 
 
+def _strip_heredocs_and_inline_scripts(text: str) -> str:
+    text = re.sub(
+        r'''(?:\b(?:python[0-9.]*|node|ruby|perl|bash|sh)\s+(?:-[a-zA-Z]*[ce]|--eval)\s+)(?:'[^']*'|"(?:[^"\\]|\\.)*")''',
+        "",
+        text,
+        flags=re.DOTALL,
+    )
+    lines = text.splitlines(keepends=True)
+    cleaned_lines: list[str] = []
+    in_heredoc = False
+    delimiter = ""
+    heredoc_pattern = re.compile(
+        r"(?<!<)<<-?\s*(?:'([^']+)'|\"([^\"]+)\"|\\([A-Za-z0-9_]+)|([A-Za-z0-9_]+))"
+    )
+    for line in lines:
+        if in_heredoc:
+            if line.strip() == delimiter:
+                in_heredoc = False
+                cleaned_lines.append(line)
+        else:
+            cleaned_lines.append(line)
+            m = heredoc_pattern.search(line)
+            if m:
+                delimiter = m.group(1) or m.group(2) or m.group(3) or m.group(4)
+                in_heredoc = True
+    return "".join(cleaned_lines)
+
+
+def _has_parent_escape(
+    traversal_str: str,
+    cwd: str | None = None,
+    workspace_root: str | None = None,
+) -> bool:
+    ws_root = (workspace_root or "/workspace").replace("\\", "/").rstrip("/")
+    if cwd and cwd.strip():
+        c = cwd.strip().replace("\\", "/")
+        if c.startswith("/"):
+            session_cwd = posixpath.normpath(c)
+        else:
+            session_cwd = posixpath.normpath(posixpath.join(ws_root, c))
+    else:
+        session_cwd = ws_root
+
+    if not re.search(r'(?:^|[/\\:= \t\'"])\.\.(?:[/\\:= \t\'"]|$)', traversal_str) and not re.search(
+        r"\.\.(?:/|\\(?![\"']))", traversal_str
+    ):
+        return False
+
+    current_dir = session_cwd
+    segments = re.split(r"&&|\|\||[;\n|]", traversal_str)
+    for seg in segments:
+        seg = seg.strip()
+        if not seg:
+            continue
+        cd_match = re.search(r"\bcd\s+([^\s;&|]+)", seg)
+        if cd_match:
+            raw_target = cd_match.group(1).strip("\"'()")
+            target_posix = raw_target.replace("\\", "/")
+            if target_posix.startswith("/"):
+                resolved_cd = posixpath.normpath(target_posix)
+            else:
+                resolved_cd = posixpath.normpath(posixpath.join(current_dir, target_posix))
+            if not (resolved_cd == ws_root or resolved_cd.startswith(ws_root + "/")):
+                return True
+            current_dir = resolved_cd
+            seg = seg[: cd_match.start()] + seg[cd_match.end() :]
+
+        tokens = re.findall(r'''[^\s"']+|"[^"]*"|'[^']*' ''', seg)
+        for token in tokens:
+            t = token.strip().strip("\"'()")
+            if "=" in t and not t.startswith("-"):
+                t = t.split("=", 1)[1].strip("\"'()")
+            t_posix = t.replace("\\", "/")
+            if (
+                t_posix == ".."
+                or t_posix.startswith("../")
+                or "/../" in t_posix
+                or t_posix.endswith("/..")
+                or t_posix.startswith("..\\")
+            ):
+                if t_posix.startswith("/"):
+                    resolved_p = posixpath.normpath(t_posix)
+                else:
+                    resolved_p = posixpath.normpath(posixpath.join(current_dir, t_posix))
+                if not (resolved_p == ws_root or resolved_p.startswith(ws_root + "/")):
+                    return True
+    return False
+
+
 def _collect_non_content_strings(value: object) -> list[str]:
     strings: list[str] = []
     if isinstance(value, dict):
@@ -79,27 +169,33 @@ def _strip_content_fields(value: object) -> object:
 def _extract_traversal_target(tool_input: object) -> str:
     """Return string representation of tool_input excluding file body content fields."""
     if isinstance(tool_input, (dict, list)):
-        return " ".join(_collect_non_content_strings(tool_input))
-    text = str(tool_input)
-    stripped = text.lstrip()
-    if stripped.startswith(("{", "[")):
-        try:
-            parsed = json.loads(stripped)
-            if isinstance(parsed, (dict, list)):
-                return " ".join(_collect_non_content_strings(parsed))
-        except json.JSONDecodeError:
-            matches = re.findall(
-                r'"(?:file_path|path|target_file|target_directory|directory|command|pattern|glob_pattern)"\s*:\s*"((?:[^"\\]|\\.)*)"',
-                stripped,
-            )
-            if matches:
-                cleaned = [re.sub(r'\\(["\'])', r'\1', m) for m in matches]
-                return " ".join(cleaned)
-            return re.sub(r'\\(["\'])', r'\1', text)
-    return text
+        raw = " ".join(_collect_non_content_strings(tool_input))
+    else:
+        text = str(tool_input)
+        stripped = text.lstrip()
+        if stripped.startswith(("{", "[")):
+            try:
+                parsed = json.loads(stripped)
+                if isinstance(parsed, (dict, list)):
+                    raw = " ".join(_collect_non_content_strings(parsed))
+                else:
+                    raw = text
+            except json.JSONDecodeError:
+                matches = re.findall(
+                    r'"(?:file_path|path|target_file|target_directory|directory|command|pattern|glob_pattern)"\s*:\s*"((?:[^"\\]|\\.)*)"',
+                    stripped,
+                )
+                if matches:
+                    cleaned = [re.sub(r'\\(["\'])', r'\1', m) for m in matches]
+                    raw = " ".join(cleaned)
+                else:
+                    raw = re.sub(r'\\(["\'])', r'\1', text)
+        else:
+            raw = text
+    return _strip_heredocs_and_inline_scripts(raw)
 
 
-def check_isolation_violation(event: dict) -> str | None:
+def check_isolation_violation(event: dict, own_workspace: str | Path | None = None) -> str | None:
     tool_input = event.get("tool_input")
     if tool_input is None:
         return None
@@ -111,13 +207,36 @@ def check_isolation_violation(event: dict) -> str | None:
 
     traversal_str = _extract_traversal_target(tool_input)
 
-    if "llm-frontier-evaluator" in input_str:
+    cwd_val = event.get("cwd")
+    cwd_str = str(cwd_val) if cwd_val else None
+
+    if own_workspace is None:
+        roots = event.get("workspace_roots")
+        if isinstance(roots, list):
+            for r in roots:
+                if isinstance(r, str) and "llm-frontier-evaluator" in r and r.replace("\\", "/").rstrip("/").endswith("/workspace"):
+                    own_workspace = r.replace("\\", "/").rstrip("/")
+                    break
+
+    check_str = input_str
+    ws_root = "/workspace"
+    if own_workspace:
+        own_str = str(own_workspace).replace("\\", "/").rstrip("/")
+        ws_root = own_str
+        check_str = re.sub(re.escape(own_str) + r'(?=[/"\'\s\\]|$)', "/allowed_workspace", input_str.replace("\\", "/"))
+    elif cwd_str:
+        m_fw = re.match(r"(.*?/(?:frontier-workspace-[A-Za-z0-9._-]+|workspace))(?=/|$)", cwd_str.replace("\\", "/"))
+        if m_fw:
+            ws_root = m_fw.group(1)
+
+    if "llm-frontier-evaluator" in check_str:
         return "Access to llm-frontier-evaluator is blocked by isolation policy"
-    if "prompt-probes.json" in input_str:
+    if "prompt-probes.json" in check_str:
         return "Access to prompt-probes.json is blocked by isolation policy"
-    if "verify_run.py" in input_str:
+    if "verify_run.py" in check_str:
         return "Access to verify_run.py is blocked by isolation policy"
-    if "../run.json" in input_str or re.search(r"\.\.(?:/|\\(?![\"']))", traversal_str):
+
+    if _has_parent_escape(traversal_str, cwd=cwd_str, workspace_root=ws_root):
         return "Parent directory traversal outside workspace is blocked by isolation policy"
 
     return None
