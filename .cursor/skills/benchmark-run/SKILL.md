@@ -169,16 +169,16 @@ Optionally restrict to a specific prompt with `--prompt <prompt-id>`, or pass `-
 
 ### 5. Validation & Opening a `run/<prompt>-<model>` PR
 
-1. **Synchronize and check README comparison tables**:
+1. **Synchronize and check RESULTS.md comparison tables**:
    ```bash
-   python3 scripts/compare_runs.py --sync-readme
-   python3 scripts/compare_runs.py --check-readme
+   python3 scripts/compare_runs.py --sync-results
+   python3 scripts/compare_runs.py --check-results
    ```
-2. **Verify git status**: Ensure `workspace/` and `tool-events/` remain uncommitted/gitignored. Only commit `run.json`, `usage/`, `artifacts/`, and `README.md`.
+2. **Verify git status**: Ensure `workspace/` and `tool-events/` remain uncommitted/gitignored. Only commit `run.json`, `usage/`, `artifacts/`, and `RESULTS.md`.
 3. **Branch and Commit**:
    ```bash
    git checkout -b run/<prompt-id>-<model-slug>
-   git add runs/<prompt-id>/<run-id>/run.json runs/<prompt-id>/<run-id>/usage/ runs/<prompt-id>/<run-id>/artifacts/ README.md
+   git add runs/<prompt-id>/<run-id>/run.json runs/<prompt-id>/<run-id>/usage/ runs/<prompt-id>/<run-id>/artifacts/ RESULTS.md
    git commit -m "run(<prompt-id>): record run <run-id>"
    ```
 4. **Open PR & Squash Merge**:

@@ -26,6 +26,7 @@ from compare_runs import (
     model_label,
     readme_row,
     sync_readme,
+    sync_results,
     round_half_up,
     format_tokens,
     format_minutes,
@@ -36,7 +37,7 @@ from compare_runs import (
     check_reference,
     check_prompt,
     check_pricing,
-    README_PATH,
+    RESULTS_PATH,
 )
 
 
@@ -141,18 +142,20 @@ class TestCompareRuns(unittest.TestCase):
         self.assertEqual(cells_nonzero[6], "56 13✗")
 
     def test_check_readme_passes_on_current_readme(self):
-        # Verify sync_readme(check_only=True) returns True on the repository README.md
+        # Verify sync_results(check_only=True) and sync_readme(check_only=True) return True on RESULTS.md
         captured_output = io.StringIO()
         sys.stdout = captured_output
         try:
-            result = sync_readme(check_only=True)
+            result_results = sync_results(check_only=True)
+            result_readme = sync_readme(check_only=True)
         finally:
             sys.stdout = sys.__stdout__
-        self.assertTrue(result)
+        self.assertTrue(result_results)
+        self.assertTrue(result_readme)
 
     def test_check_readme_detects_drift_when_cell_differs(self):
-        # Create a temporary copy of README.md and introduce drift in a table cell
-        original_content = README_PATH.read_text(encoding="utf-8")
+        # Create a temporary copy of RESULTS.md and introduce drift in a table cell
+        original_content = RESULTS_PATH.read_text(encoding="utf-8")
         # Tamper with a cell in the local series table (e.g. change a dollar figure to $999.99)
         first_price = re.search(r"\$\d+\.\d{2}", original_content)
         target = first_price.group(0) if first_price else "$1.76"
@@ -160,40 +163,50 @@ class TestCompareRuns(unittest.TestCase):
         self.assertNotEqual(original_content, tampered_content)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            tmp_readme = Path(tmpdir) / "README.md"
-            tmp_readme.write_text(tampered_content, encoding="utf-8")
+            tmp_results = Path(tmpdir) / "RESULTS.md"
+            tmp_results.write_text(tampered_content, encoding="utf-8")
 
             # Capture stdout to verify diff output
             captured_output = io.StringIO()
             sys.stdout = captured_output
             try:
-                result = sync_readme(check_only=True, readme_path=tmp_readme)
+                result = sync_results(check_only=True, results_path=tmp_results)
             finally:
                 sys.stdout = sys.__stdout__
 
             self.assertFalse(result)
             output = captured_output.getvalue()
-            self.assertIn("README.md comparison tables are out of sync", output)
+            self.assertIn("RESULTS.md comparison tables are out of sync", output)
             self.assertIn("$999.99", output)
             self.assertIn(target, output)
 
-            # Test that --sync-readme repairs the tampered README
+            # Test that sync_results repairs the tampered RESULTS.md
             captured_sync = io.StringIO()
             sys.stdout = captured_sync
             try:
-                sync_result = sync_readme(check_only=False, readme_path=tmp_readme)
+                sync_result = sync_results(check_only=False, results_path=tmp_results)
             finally:
                 sys.stdout = sys.__stdout__
             self.assertTrue(sync_result)
 
-            # Now check_only should pass on tmp_readme
+            # Now check_only should pass on tmp_results
             captured_pass = io.StringIO()
             sys.stdout = captured_pass
             try:
-                pass_result = sync_readme(check_only=True, readme_path=tmp_readme)
+                pass_result = sync_results(check_only=True, results_path=tmp_results)
             finally:
                 sys.stdout = sys.__stdout__
             self.assertTrue(pass_result)
+
+    def test_results_live_demo_urls_are_absolute(self):
+        content = RESULTS_PATH.read_text(encoding="utf-8")
+        demo_links = re.findall(r"\[Live Demo\]\(([^)]+)\)", content)
+        self.assertGreater(len(demo_links), 0, "RESULTS.md should contain live demo links")
+        for link in demo_links:
+            self.assertTrue(
+                link.startswith("https://loic-brissot.github.io/llm-frontier-evaluator-demos/demos/"),
+                f"Demo link {link} must be an absolute URL to hosted live demos",
+            )
 
     def test_readme_comparisons_subsections_and_columns(self):
         self.assertNotIn("Prompt", LOCAL_TABLE_HEADER)

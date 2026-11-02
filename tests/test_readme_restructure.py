@@ -3,6 +3,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 README_PATH = REPO_ROOT / "README.md"
+RESULTS_PATH = REPO_ROOT / "RESULTS.md"
+CONTRIBUTING_PATH = REPO_ROOT / "CONTRIBUTING.md"
 SKILL_PATH = REPO_ROOT / ".cursor" / "skills" / "benchmark-run" / "SKILL.md"
 DESIGN_DOC_PATH = REPO_ROOT / "docs" / "design-run-isolation.md"
 PROTOCOL_PATH = REPO_ROOT / "docs" / "protocol.md"
@@ -64,29 +66,49 @@ class TestReadmeRestructure(unittest.TestCase):
         self.assertIn("-launch.sh", content)
         self.assertIn("finish_run.py --prompt", content)
 
-        # Table sync instructions
-        self.assertIn("python3 scripts/compare_runs.py --sync-readme", content)
-        self.assertIn("python3 scripts/compare_runs.py --check-readme", content)
+        # Maintainer table sync instructions relocated to CONTRIBUTING.md
+        self.assertTrue(CONTRIBUTING_PATH.is_file())
+        contributing_content = CONTRIBUTING_PATH.read_text(encoding="utf-8")
+        self.assertIn("scripts/compare_runs.py --sync-results", contributing_content)
+        self.assertIn("scripts/compare_runs.py --check-results", contributing_content)
 
-    def test_readme_comparisons_and_protocol_recap(self):
-        """Ensure README.md contains per-prompt subsections under Comparisons with screenshots and a Protocol recap."""
-        content = README_PATH.read_text(encoding="utf-8")
-        self.assertIn("## Comparisons", content)
-        self.assertIn("### `france-electricity-carbon-flow`", content)
-        self.assertIn("### `france-rail-24h-pulse`", content)
-        self.assertIn("### `france-road-accidents`", content)
-        self.assertIn("### `paris-1910-flood-simulator`", content)
-        self.assertNotIn("| Prompt |", content)
-        self.assertNotIn("| Outcome |", content)
+    def test_results_and_readme_split(self):
+        """Ensure RESULTS.md holds per-series comparisons and screenshots while README.md holds findings and catalog."""
+        self.assertTrue(RESULTS_PATH.is_file(), "RESULTS.md must exist")
+        results_content = RESULTS_PATH.read_text(encoding="utf-8")
+
+        # RESULTS.md contains comparisons and screenshots
+        self.assertIn("## Comparisons", results_content)
+        self.assertIn("### `france-electricity-carbon-flow`", results_content)
+        self.assertIn("### `france-rail-24h-pulse`", results_content)
+        self.assertIn("### `france-road-accidents`", results_content)
+        self.assertIn("### `paris-1910-flood-simulator`", results_content)
         self.assertIn(
             "![france-rail-24h-pulse — Claude Opus 5.5 300k high (2026-10-19-cursor-claude-opus-5-5-high-300k-high)](runs/france-rail-24h-pulse/2026-10-19-cursor-claude-opus-5-5-high-300k-high/artifacts/screenshot.png)",
-            content,
+            results_content,
         )
-        self.assertIn("## Protocol", content)
-        self.assertIn("Single-prompt, zero-intervention execution", content)
-        self.assertIn("Clean-room isolation", content)
-        self.assertIn("Token & cost accounting", content)
-        self.assertIn("Model time & tool telemetry", content)
+        self.assertIn("https://loic-brissot.github.io/llm-frontier-evaluator-demos/demos/", results_content)
+
+        # README.md contains executive findings, prominent links, compact table, and protocol recap
+        readme_content = README_PATH.read_text(encoding="utf-8")
+        self.assertIn("## Executive Findings", readme_content)
+        self.assertIn("## Benchmark Results & Explorers", readme_content)
+        self.assertIn("RESULTS.md", readme_content)
+        self.assertIn("https://loic-brissot.github.io/llm-frontier-evaluator/", readme_content)
+        self.assertIn("## Prompts", readme_content)
+        self.assertIn("| Prompt | Type | Description | Key Datasets & Probes | Runs |", readme_content)
+        self.assertIn("[`france-road-accidents`](prompt/france-road-accidents.txt)", readme_content)
+
+        # Bulk per-series tables are omitted from README.md
+        self.assertNotIn("## Comparisons", readme_content)
+        self.assertNotIn("Local series `paris-1910-flood-simulator-cursor`", readme_content)
+
+        # Protocol recap checks in README.md
+        self.assertIn("## Protocol", readme_content)
+        self.assertIn("Single-prompt, zero-intervention execution", readme_content)
+        self.assertIn("Clean-room isolation", readme_content)
+        self.assertIn("Token & cost accounting", readme_content)
+        self.assertIn("Model time & tool telemetry", readme_content)
 
     def test_context_flag_documented_across_docs(self):
         """AC #3: Ensure context flag policy is documented with explicit example on GUI."""

@@ -31,9 +31,11 @@ from run_common import (
     PRICING_PATH,
     PROMPTS_DIR,
     README_PATH,
+    RESULTS_PATH,
     ROOT,
     UNKNOWN_REASONING,
     _readme_lock,
+    _results_lock,
     canonical_harness,
     discover_run_dirs,
     estimate_run_cost,
@@ -45,6 +47,7 @@ from run_common import (
 )
 
 readme_lock = _readme_lock
+results_lock = _results_lock
 
 REFERENCE_PATH = ROOT / "reference" / "2026-10-11-lassence.json"
 HARNESS_LABELS = {
@@ -792,13 +795,25 @@ def local_row(run: dict) -> tuple[list[str], list[str]]:
     return [run["prompt_id"], run["series_id"], run["harness"]["name"], label, token_cell, time_cell, tool_cell, cache_cell, cost_cell], notes
 
 
-def readme_row(
+RESULTS_HEADER = """# Benchmark Results
+
+Full per-series comparison tables, screenshots, and hosted live demo links for the LLM Frontier Evaluator benchmark runs across all evaluated prompts and agent harnesses.
+
+- **Interactive Web Dashboard & Pareto Frontier Explorer**: [loic-brissot.github.io/llm-frontier-evaluator](https://loic-brissot.github.io/llm-frontier-evaluator/)
+- **Hosted Live Demos Showcase**: [loic-brissot.github.io/llm-frontier-evaluator-demos](https://loic-brissot.github.io/llm-frontier-evaluator-demos/)
+- **Benchmark Tool & Methodology Overview**: [`README.md`](README.md)
+- **Evaluation Protocol**: [`docs/protocol.md`](docs/protocol.md)
+- **Metrics & Tool Buckets**: [`docs/metrics.md`](docs/metrics.md) | [`docs/tool-buckets.md`](docs/tool-buckets.md)
+"""
+
+
+def results_row(
     run: dict,
     demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
-    prefer_local: bool = True,
+    prefer_local: bool = False,
     root_dir: Path = ROOT,
 ) -> str:
-    """Format one local primary run as a Markdown table row for README.md."""
+    """Format one local primary run as a Markdown table row for RESULTS.md."""
     cells, _ = local_row(run)
     _prompt_id, _series_id, harness_name, label, token_cell, _time_cell, _tool_cell, cache_cell, cost_cell = cells
     harness_display = harness_label(harness_name)
@@ -831,6 +846,9 @@ def readme_row(
     return f"| {label} | {harness_display} | {token_cell} | {time_cell} | {tool_cell} | {cache_cell} | {cost_cell} | {ver_cell} |"
 
 
+readme_row = results_row
+
+
 def _row_key(markdown_row: str) -> tuple[str, str] | None:
     stripped = markdown_row.strip()
     if not (stripped.startswith("|") and stripped.endswith("|")):
@@ -841,11 +859,11 @@ def _row_key(markdown_row: str) -> tuple[str, str] | None:
     return parts[0], parts[1]
 
 
-def generate_readme_comparisons(
-    readme_path: Path = README_PATH,
+def generate_results_comparisons(
+    results_path: Path = RESULTS_PATH,
     reference_path: Path = REFERENCE_PATH,
     demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
-    prefer_local: bool = True,
+    prefer_local: bool = False,
     root_dir: Path = ROOT,
 ) -> str:
     lines = [
@@ -947,7 +965,7 @@ def generate_readme_comparisons(
             missing_tokens = False
             for run in runs:
                 lines.append(
-                    readme_row(
+                    results_row(
                         run,
                         demos_base_url=demos_base_url,
                         prefer_local=prefer_local,
@@ -966,78 +984,137 @@ def generate_readme_comparisons(
     return "\n".join(lines)
 
 
-def sync_readme(
-    check_only: bool = False,
-    readme_path: Path = README_PATH,
+def generate_readme_comparisons(
+    readme_path: Path = RESULTS_PATH,
     reference_path: Path = REFERENCE_PATH,
     demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
-    prefer_local: bool = True,
+    prefer_local: bool = False,
+    root_dir: Path = ROOT,
+) -> str:
+    """Backward-compatible alias for generate_results_comparisons."""
+    return generate_results_comparisons(
+        results_path=readme_path,
+        reference_path=reference_path,
+        demos_base_url=demos_base_url,
+        prefer_local=prefer_local,
+        root_dir=root_dir,
+    )
+
+
+def sync_results(
+    check_only: bool = False,
+    results_path: Path = RESULTS_PATH,
+    reference_path: Path = REFERENCE_PATH,
+    demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
+    prefer_local: bool = False,
     root_dir: Path = ROOT,
 ) -> bool:
-    if not readme_path.is_file():
+    if not results_path.is_file():
         if check_only:
-            print(f"Error: {readme_path} does not exist", file=sys.stderr)
-        return False
+            print(f"Error: {results_path} does not exist", file=sys.stderr)
+            return False
+        expected_block = generate_results_comparisons(
+            results_path=results_path,
+            reference_path=reference_path,
+            demos_base_url=demos_base_url,
+            prefer_local=prefer_local,
+            root_dir=root_dir,
+        )
+        new_content = f"{RESULTS_HEADER.strip()}\n\n{expected_block.strip()}\n"
+        with _results_lock(results_path):
+            results_path.write_text(new_content, encoding="utf-8")
+        print(f"Created {results_path.name} with comparison tables.")
+        return True
 
-    with (nullcontext() if check_only else _readme_lock(readme_path)):
-        expected_block = generate_readme_comparisons(
-            readme_path,
-            reference_path,
+    with (nullcontext() if check_only else _results_lock(results_path)):
+        expected_block = generate_results_comparisons(
+            results_path=results_path,
+            reference_path=reference_path,
             demos_base_url=demos_base_url,
             prefer_local=prefer_local,
             root_dir=root_dir,
         )
 
-        readme_content = readme_path.read_text(encoding="utf-8")
-        readme_lines = readme_content.splitlines()
+        results_content = results_path.read_text(encoding="utf-8")
+        results_lines = results_content.splitlines()
 
         try:
-            comp_idx = next(i for i, line in enumerate(readme_lines) if line.strip() == "## Comparisons")
+            comp_idx = next(i for i, line in enumerate(results_lines) if line.strip() == "## Comparisons")
         except StopIteration:
             if check_only:
-                print("Error: '## Comparisons' heading not found in README.md", file=sys.stderr)
-            return False
+                print(f"Error: '## Comparisons' heading not found in {results_path.name}", file=sys.stderr)
+                return False
+            new_lines = results_lines + ["", ""] + expected_block.strip().splitlines()
+            new_content = "\n".join(new_lines).rstrip() + "\n"
+            results_path.write_text(new_content, encoding="utf-8")
+            print(f"Added comparison tables to {results_path.name}.")
+            return True
 
-        section_end = len(readme_lines)
-        for idx in range(comp_idx + 1, len(readme_lines)):
-            if readme_lines[idx].startswith("## "):
+        section_end = len(results_lines)
+        for idx in range(comp_idx + 1, len(results_lines)):
+            if results_lines[idx].startswith("## "):
                 section_end = idx
                 break
 
-        existing_block = "\n".join(readme_lines[comp_idx:section_end]).strip()
+        existing_block = "\n".join(results_lines[comp_idx:section_end]).strip()
         target_block = expected_block.strip()
 
         if existing_block == target_block:
             if check_only:
-                print("README.md comparison tables are in sync with run records.")
+                print(f"{results_path.name} comparison tables are in sync with run records.")
             else:
-                print("README.md comparison tables are already in sync.")
+                print(f"{results_path.name} comparison tables are already in sync.")
             return True
 
         if check_only:
-            print("README.md comparison tables are out of sync with run records:")
+            print(f"{results_path.name} comparison tables are out of sync with run records:")
             diff = difflib.unified_diff(
                 existing_block.splitlines(keepends=True),
                 target_block.splitlines(keepends=True),
-                fromfile="README.md (current)",
-                tofile="README.md (expected)",
+                fromfile=f"{results_path.name} (current)",
+                tofile=f"{results_path.name} (expected)",
             )
             for line in diff:
                 sys.stdout.write(line)
             return False
 
-        new_lines = readme_lines[:comp_idx] + target_block.splitlines() + [""] + readme_lines[section_end:]
+        new_lines = results_lines[:comp_idx] + target_block.splitlines() + [""] + results_lines[section_end:]
         new_content = "\n".join(new_lines).rstrip() + "\n"
-        readme_path.write_text(new_content, encoding="utf-8")
-        print("Updated README.md comparison tables.")
+        results_path.write_text(new_content, encoding="utf-8")
+        print(f"Updated {results_path.name} comparison tables.")
         return True
 
 
-def update_readme_comparisons(run: dict, readme_path: Path = README_PATH) -> bool:
-    """Insert or update comparison tables in README.md."""
-    if run.get("shot") == "follow-up" or not readme_path.is_file():
+def sync_readme(
+    check_only: bool = False,
+    readme_path: Path | None = None,
+    reference_path: Path = REFERENCE_PATH,
+    demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
+    prefer_local: bool = False,
+    root_dir: Path = ROOT,
+) -> bool:
+    """Backward-compatible alias for sync_results."""
+    target_path = RESULTS_PATH if readme_path is None else readme_path
+    return sync_results(
+        check_only=check_only,
+        results_path=target_path,
+        reference_path=reference_path,
+        demos_base_url=demos_base_url,
+        prefer_local=prefer_local,
+        root_dir=root_dir,
+    )
+
+
+def update_results_comparisons(run: dict, results_path: Path = RESULTS_PATH) -> bool:
+    """Insert or update comparison tables in RESULTS.md."""
+    if run.get("shot") == "follow-up" or not results_path.is_file():
         return False
-    return sync_readme(check_only=False, readme_path=readme_path)
+    return sync_results(check_only=False, results_path=results_path)
+
+
+def update_readme_comparisons(run: dict, readme_path: Path = RESULTS_PATH) -> bool:
+    """Backward-compatible alias for update_results_comparisons."""
+    return update_results_comparisons(run, results_path=readme_path)
 
 
 def print_table(headers: list[str], rows: list[list[str]]) -> None:
@@ -1101,9 +1178,14 @@ def main() -> int:
         help="Only check and print runs for this prompt id (directory under runs/).",
     )
     parser.add_argument(
+        "--check-results",
+        action="store_true",
+        help="Check if RESULTS.md comparison tables match run records.",
+    )
+    parser.add_argument(
         "--check-readme",
         action="store_true",
-        help="Check if README.md comparison tables match run records.",
+        help="Check if RESULTS.md comparison tables match run records (backward-compatible alias for --check-results).",
     )
     parser.add_argument(
         "--check-prompts",
@@ -1111,11 +1193,16 @@ def main() -> int:
         help="Check if frozen prompt hashes and metadata match prompt/README.md and probes.",
     )
     parser.add_argument(
+        "--sync-results",
+        "--update-results",
+        action="store_true",
+        help="Update RESULTS.md comparison tables to match run records.",
+    )
+    parser.add_argument(
         "--sync-readme",
         "--update-readme",
-        dest="sync_readme",
         action="store_true",
-        help="Update README.md comparison tables to match run records.",
+        help="Update RESULTS.md comparison tables to match run records (backward-compatible alias for --sync-results).",
     )
     parser.add_argument(
         "--demos-base-url",
@@ -1181,17 +1268,20 @@ def main() -> int:
     local_errors.extend(check_series_versions(valid))
     local_errors.extend(check_unique_run_ids(valid))
 
-    if args.check_readme or args.sync_readme:
+    check_results_mode = args.check_results or args.check_readme
+    sync_results_mode = args.sync_results or args.sync_readme
+
+    if check_results_mode or sync_results_mode:
         all_errors = errors + local_errors
         if all_errors:
             print("Errors:")
             for line in all_errors:
                 print(f"- {line}")
             return 1
-        success = sync_readme(
-            check_only=args.check_readme,
+        success = sync_results(
+            check_only=check_results_mode and not sync_results_mode,
             demos_base_url=args.demos_base_url,
-            prefer_local=not args.production,
+            prefer_local=False,
         )
         return 0 if success else 1
 

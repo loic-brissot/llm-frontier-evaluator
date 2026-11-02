@@ -3,9 +3,10 @@ id: TASK-106
 title: >-
   Split README.md (benchmark tool & executive summary) from RESULTS.md
   (auto-synced per-series comparison tables)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-01 23:59'
+updated_date: '2026-11-02 03:45'
 labels: []
 milestone: m-10
 dependencies:
@@ -29,7 +30,7 @@ Split the documentation into two focused surfaces (coordinating with `TASK-72`):
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 scripts/compare_runs.py generates and validates full per-series comparison tables and screenshots in RESULTS.md with working absolute URLs to hosted live demos
-- [ ] #2 README.md is restructured into a concise tool and findings overview with a single compact Prompt Catalog table, links to RESULTS.md and the live web explorer, and a unified quickstart
-- [ ] #3 CI workflows (.github/workflows/ci.yml) and unit tests (tests/test_compare_runs.py, tests/test_readme_restructure.py) are updated and passing
+- [x] #1 scripts/compare_runs.py generates and validates full per-series comparison tables and screenshots in RESULTS.md with working absolute URLs to hosted live demos
+- [x] #2 README.md is restructured into a concise tool and findings overview with a single compact Prompt Catalog table, links to RESULTS.md and the live web explorer, and a unified quickstart
+- [x] #3 CI workflows (.github/workflows/ci.yml) and unit tests (tests/test_compare_runs.py, tests/test_readme_restructure.py) are updated and passing
 <!-- AC:END -->

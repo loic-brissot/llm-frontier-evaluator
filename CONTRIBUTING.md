@@ -31,9 +31,43 @@ UV_CACHE_DIR=/tmp/uv-cache UV_TOOL_DIR=/tmp/uv-tools uvx --index-url https://pyp
 uv run python3 -m unittest discover -s tests -v
 uv run pytest
 
-# Benchmark run consistency and README sync check
+# Benchmark run consistency and RESULTS.md comparison tables sync check
 uv run python3 scripts/compare_runs.py
-uv run python3 scripts/compare_runs.py --check-readme
+uv run python3 scripts/compare_runs.py --check-results
+```
+
+## Maintainer workflows
+
+### Synchronizing comparison tables (`RESULTS.md`)
+
+After completing or updating runs, regenerate or verify the per-series comparison tables in `RESULTS.md`:
+
+```bash
+# Update RESULTS.md comparison tables to match run records
+uv run python3 scripts/compare_runs.py --sync-results
+
+# Verify RESULTS.md comparison tables are in sync with run records (CI check)
+uv run python3 scripts/compare_runs.py --check-results
+
+# Note: --sync-readme and --check-readme remain supported as backward-compatible aliases.
+```
+
+### Batch backfilling billing usage exports
+
+To batch backfill token counts and list-price costs from Cursor dashboard billing CSVs across matching runs:
+
+```bash
+uv run python3 scripts/finish_run.py --backfill-usage ~/.cursor/usage-exports/
+```
+
+### Static dashboard bundle generation
+
+```bash
+# Build dashboard data payload and static bundle
+uv run python3 scripts/build_dashboard.py
+
+# Verify dashboard is in sync with run records
+uv run python3 scripts/build_dashboard.py --check
 ```
 
 ## Pull request format

@@ -25,6 +25,7 @@ except ImportError:  # Non-POSIX (e.g., Windows)
 
 ROOT = Path(__file__).resolve().parents[1]
 README_PATH = ROOT / "README.md"
+RESULTS_PATH = ROOT / "RESULTS.md"
 RUNS_DIR = ROOT / "runs"
 TEMPLATES_DIR = ROOT / "templates"
 PROMPTS_DIR = ROOT / "prompt"
@@ -106,6 +107,14 @@ def readme_lock(readme_path: Path | str = README_PATH):
 
 
 _readme_lock = readme_lock
+
+
+def results_lock(results_path: Path | str = RESULTS_PATH):
+    """Exclusive file lock for synchronizing benchmark results comparisons."""
+    return readme_lock(results_path)
+
+
+_results_lock = results_lock
 
 # The run schema is the single source for enums and defaults below.
 RUN_SCHEMA: dict = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
