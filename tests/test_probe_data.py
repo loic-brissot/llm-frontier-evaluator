@@ -1,3 +1,4 @@
+import gzip
 import json
 import tempfile
 import unittest
@@ -658,6 +659,202 @@ class TestProbeData(unittest.TestCase):
             self.assertEqual(scorecard["score"], 1.0)
             self.assertEqual(scorecard["total_data_files"], 2)
             self.assertEqual(scorecard["total_records"], 5200 + 95)
+
+    def test_gzipped_json_and_geojson_counting_and_probing(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            data_dir = workspace / "data"
+            data_dir.mkdir(parents=True)
+
+            # 1. GeoJSON.gz
+            trees = {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": {"type": "Point", "coordinates": [2.34, 48.85]},
+                        "properties": {
+                            "genre": "Platanus",
+                            "espece": "acerifolia",
+                            "hauteur": 15,
+                            "circonference": 120,
+                        },
+                    }
+                ]
+                * 1500,
+            }
+            trees_path = data_dir / "trees.geojson.gz"
+            with gzip.open(trees_path, "wt", encoding="utf-8") as f:
+                json.dump(trees, f)
+
+            self.assertEqual(count_records_in_file(trees_path), 1500)
+
+            # 2. JSON.gz
+            remarkable = [{"remarquable": True, "id": i} for i in range(50)]
+            rem_path = data_dir / "remarkable.json.gz"
+            with gzip.open(rem_path, "wt", encoding="utf-8") as f:
+                json.dump(remarkable, f)
+
+            self.assertEqual(count_records_in_file(rem_path), 50)
+
+            # 3. GeoJSON.gz arrondissements
+            arrondissements = {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "properties": {"c_ar": i, "nom": f"Arrondissement {i}"},
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [
+                                [
+                                    [2.3, 48.8],
+                                    [2.4, 48.8],
+                                    [2.4, 48.9],
+                                    [2.3, 48.9],
+                                    [2.3, 48.8],
+                                ]
+                            ],
+                        },
+                    }
+                    for i in range(1, 21)
+                ],
+            }
+            arr_path = data_dir / "arrondissements.geojson.gz"
+            with gzip.open(arr_path, "wt", encoding="utf-8") as f:
+                json.dump(arrondissements, f)
+
+            self.assertEqual(count_records_in_file(arr_path), 20)
+
+            # End to end probe_workspace
+            scorecard = probe_workspace("paris-tree-canopy", workspace)
+            self.assertTrue(scorecard["passed"])
+            self.assertEqual(scorecard["authenticity"], "real_open_data")
+            self.assertEqual(scorecard["score"], 1.0)
+            self.assertEqual(scorecard["total_records"], 1500 + 50 + 20)
+
+    def test_gzipped_csv_and_jsonl_counting(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            data_dir = workspace / "data"
+            data_dir.mkdir(parents=True)
+
+            # CSV.gz
+            csv_lines = ["Num_Acc,grav,dep"] + [f"2024{i},3,75" for i in range(3000)]
+            csv_path = data_dir / "accidents.csv.gz"
+            with gzip.open(csv_path, "wt", encoding="utf-8") as f:
+                f.write("\n".join(csv_lines))
+
+            self.assertEqual(count_records_in_file(csv_path), 3000)
+
+            # JSONL.gz
+            jsonl_lines = [json.dumps({"id": i, "value": i * 2}) for i in range(800)]
+            jsonl_path = data_dir / "data.jsonl.gz"
+            with gzip.open(jsonl_path, "wt", encoding="utf-8") as f:
+                f.write("\n".join(jsonl_lines))
+
+            self.assertEqual(count_records_in_file(jsonl_path), 800)
+
+    def test_packed_binary_with_companion_metadata(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            data_dir = workspace / "public" / "data"
+            data_dir.mkdir(parents=True)
+
+            # Binary payload of 220,112 records
+            bin_path = data_dir / "trees.bin"
+            bin_path.write_bytes(b"\x00" * 1024)
+
+            # Companion metadata declaring 220,112 records with required markers
+            meta_path = data_dir / "trees.json"
+            meta = {
+                "count": 220112,
+                "fields": ["genre", "espece", "hauteur", "circonference"],
+            }
+            meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+            self.assertEqual(count_records_in_file(bin_path), 220112)
+
+            scan = scan_workspace(workspace)
+            bin_entry = next(f for f in scan["data_files"] if f["rel_path"] == "public/data/trees.bin")
+            self.assertEqual(bin_entry["records"], 220112)
+            self.assertIn("hauteur", bin_entry["snippet"])
+            self.assertIn("circonference", bin_entry["snippet"])
+
+    def test_packed_binary_gz_with_companion_meta_json(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            data_dir = workspace / "data"
+            data_dir.mkdir(parents=True)
+
+            # data/trees.bin.gz
+            bin_gz_path = data_dir / "trees.bin.gz"
+            with gzip.open(bin_gz_path, "wb") as f:
+                f.write(b"\x00" * 512)
+
+            # data/meta.json with nested trees object
+            meta_path = data_dir / "meta.json"
+            meta = {
+                "trees": {
+                    "count": 220112,
+                    "columns": ["genre", "espece", "hauteur", "circonference"],
+                }
+            }
+            meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+            self.assertEqual(count_records_in_file(bin_gz_path), 220112)
+
+    def test_packed_binary_with_header_bytes_and_formats(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            data_dir = workspace / "data"
+            data_dir.mkdir(parents=True)
+
+            # 1. P3DB format
+            p3db_path = data_dir / "p3db.bin"
+            p3db_header = b"P3DB" + (1).to_bytes(4, "little") + (5000).to_bytes(4, "little") + b"\x00" * 4
+            p3db_path.write_bytes(p3db_header + b"\x00" * 100)
+            self.assertEqual(count_records_in_file(p3db_path), 5000)
+
+            # 2. Embedded JSON header in binary
+            emb_json_path = data_dir / "embedded.bin"
+            json_header = b'{"records": 12500, "fields": ["id", "val"]}\n'
+            emb_json_path.write_bytes(json_header + b"\x00" * 200)
+            self.assertEqual(count_records_in_file(emb_json_path), 12500)
+
+            # 3. Magic prefix (e.g. TREE) + uint32 record count
+            magic_path = data_dir / "magic.bin"
+            num_recs = 8000
+            rec_stride = 16
+            magic_header = b"TREE" + num_recs.to_bytes(4, "little")
+            magic_path.write_bytes(magic_header + b"\x00" * (num_recs * rec_stride))
+            self.assertEqual(count_records_in_file(magic_path), 8000)
+
+            # 4. Binary with count + stride matching file size
+            stride_path = data_dir / "stride.bin"
+            num_stride_recs = 2500
+            stride_path.write_bytes(num_stride_recs.to_bytes(4, "little") + b"\x00" * (num_stride_recs * 32))
+            self.assertEqual(count_records_in_file(stride_path), 2500)
+
+            # 5. Gzipped binary with embedded JSON header
+            gz_bin_path = data_dir / "compressed_embedded.bin.gz"
+            with gzip.open(gz_bin_path, "wb") as f:
+                f.write(b'{"count": 7500}\n' + b"\x00" * 100)
+            self.assertEqual(count_records_in_file(gz_bin_path), 7500)
+
+    def test_corrupt_gzipped_and_binary_files_gracefully_handled(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir) / "workspace"
+            data_dir = workspace / "data"
+            data_dir.mkdir(parents=True)
+
+            corrupt_gz = data_dir / "corrupt.json.gz"
+            corrupt_gz.write_bytes(b"not a valid gzip file")
+            self.assertEqual(count_records_in_file(corrupt_gz), 0)
+
+            corrupt_bin = data_dir / "unknown.bin"
+            corrupt_bin.write_bytes(b"\x01\x02\x03\x04")
+            self.assertEqual(count_records_in_file(corrupt_bin), 0)
 
 
 if __name__ == "__main__":

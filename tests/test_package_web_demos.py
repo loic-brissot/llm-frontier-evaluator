@@ -243,6 +243,38 @@ class TestFindStaticSource:
         assert src_dir is None
         assert mode == "none"
 
+    def test_finds_common_subdirectories(self, tmp_path: Path) -> None:
+        for sub in ("web", "site", "public", "app", "www", "frontend", "client"):
+            sub_dir = tmp_path / sub
+            sub_dir.mkdir(parents=True, exist_ok=True)
+            html_file = sub_dir / "index.html"
+            html_file.write_text(f"<html><body>{sub}</body></html>", encoding="utf-8")
+            src_dir, mode = find_static_source(tmp_path, try_compile=False)
+            assert src_dir == tmp_path / sub
+            assert mode == f"{sub}/static_root"
+            # Cleanup for next iteration
+            html_file.unlink()
+            sub_dir.rmdir()
+
+    def test_finds_site_and_subdirectories_individually(self, tmp_path: Path) -> None:
+        for sub in ("site", "public", "app", "www", "frontend", "client"):
+            sub_dir = tmp_path / sub
+            sub_dir.mkdir(parents=True)
+            (sub_dir / "index.html").write_text(f"<html><body>{sub}</body></html>", encoding="utf-8")
+            src_dir, mode = find_static_source(tmp_path, try_compile=False)
+            assert src_dir == sub_dir
+            assert mode == f"{sub}/static_root"
+            (sub_dir / "index.html").unlink()
+            sub_dir.rmdir()
+
+    def test_subdirectory_compiled_dist_and_build(self, tmp_path: Path) -> None:
+        web_dist = tmp_path / "web" / "dist"
+        web_dist.mkdir(parents=True)
+        (web_dist / "index.html").write_text("<html><body>Compiled in web/dist</body></html>", encoding="utf-8")
+        src_dir, mode = find_static_source(tmp_path, try_compile=False)
+        assert src_dir == web_dist
+        assert mode == "web/dist"
+
 
 class TestExportStaticBundle:
     """Test exporting self-contained stripped bundles."""
