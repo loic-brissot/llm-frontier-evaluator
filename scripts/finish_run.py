@@ -31,7 +31,7 @@ from run_common import (
     SPLIT_RULES,
     TIME_SOURCES,
     UNKNOWN_REASONING,
-    estimate_token_cost,
+    estimate_run_cost,
     preferred_python,
     reasoning_levels_for_harness,
     discover_run_dirs,
@@ -1813,101 +1813,9 @@ def apply_logged_tokens(run: dict, summary: ToolEventSummary, hints: dict) -> No
 
 def apply_pricing_estimate(run: dict, summary: ToolEventSummary | None = None) -> None:
     """Compute public list-price cost estimate from recorded tokens and store in tokens.raw.pricing."""
-    tokens = run.get("tokens") or {}
-    raw = tokens.get("raw") if isinstance(tokens.get("raw"), dict) else {}
-    cache = run.get("context_reread") or {}
-
-    output_tokens: int | None = None
-    if isinstance(tokens.get("reasoning_tokens"), int) and isinstance(tokens.get("visible_tokens"), int):
-        output_tokens = tokens["reasoning_tokens"] + tokens["visible_tokens"]
-    if output_tokens is None:
-        csv_block = raw.get("usage_csv") if isinstance(raw.get("usage_csv"), dict) else {}
-        hook_block = raw.get("hook_tokens") if isinstance(raw.get("hook_tokens"), dict) else {}
-        for candidate in (
-            csv_block.get("output_tokens"),
-            hook_block.get("output_tokens"),
-            raw.get("output_tokens"),
-            raw.get("completion_tokens"),
-            summary.output_tokens if summary else None,
-        ):
-            if is_int(candidate):
-                output_tokens = candidate
-                break
-
-    cache_read = cache.get("cache_read_tokens") if is_int(cache.get("cache_read_tokens")) else 0
-    cache_write = cache.get("cache_write_tokens") if is_int(cache.get("cache_write_tokens")) else 0
-    uncached_input = cache.get("uncached_input_tokens") if is_int(cache.get("uncached_input_tokens")) else 0
-
-    if output_tokens is None and cache_read == 0 and uncached_input == 0:
-        return
-
-    # Extract 5m / 1h cache-write token split if available
-    cache_creation = (raw.get("usage") if isinstance(raw.get("usage"), dict) else {}).get("cache_creation")
-    if not isinstance(cache_creation, dict):
-        cache_creation = {}
-    claude_code_block = raw.get("claude_code") if isinstance(raw.get("claude_code"), dict) else {}
-    hook_tokens_block = raw.get("hook_tokens") if isinstance(raw.get("hook_tokens"), dict) else {}
-
-    cw_5m = None
-    cw_1h = None
-    if "ephemeral_5m_input_tokens" in cache_creation or "ephemeral_1h_input_tokens" in cache_creation:
-        cw_5m = cache_creation.get("ephemeral_5m_input_tokens")
-        cw_1h = cache_creation.get("ephemeral_1h_input_tokens")
-    elif "cache_write_5m_tokens" in claude_code_block or "cache_write_1h_tokens" in claude_code_block:
-        cw_5m = claude_code_block.get("cache_write_5m_tokens")
-        cw_1h = claude_code_block.get("cache_write_1h_tokens")
-    elif "cache_write_5m_tokens" in hook_tokens_block or "cache_write_1h_tokens" in hook_tokens_block:
-        cw_5m = hook_tokens_block.get("cache_write_5m_tokens")
-        cw_1h = hook_tokens_block.get("cache_write_1h_tokens")
-    elif summary and (summary.cache_write_5m_tokens is not None or summary.cache_write_1h_tokens is not None):
-        cw_5m = summary.cache_write_5m_tokens
-        cw_1h = summary.cache_write_1h_tokens
-
-    cw_5m_int = int(cw_5m) if is_int(cw_5m) else None
-    cw_1h_int = int(cw_1h) if is_int(cw_1h) else None
-
-    # Determine cache_tier_basis
-    csv_block = raw.get("usage_csv") if isinstance(raw.get("usage_csv"), dict) else {}
-    cost_val = csv_block.get("cost")
-    has_numeric_cost = False
-    if cost_val is not None:
-        try:
-            float(str(cost_val))
-            has_numeric_cost = True
-        except ValueError:
-            has_numeric_cost = False
-
-    if cw_5m_int is not None or cw_1h_int is not None:
-        cache_tier_basis = "usage_breakdown"
-    elif has_numeric_cost:
-        cache_tier_basis = "cursor_cost_column"
-    else:
-        cache_tier_basis = "assumed"
-
-    model_info = run.get("model") or {}
-    model_name = str(model_info.get("name") or "")
-    context = model_info.get("context")
-    harness_name = str((run.get("harness") or {}).get("name") or "")
-    model_usage = raw.get("modelUsage") or raw.get("model_usage")
-    usage_block = raw.get("usage") if isinstance(raw.get("usage"), dict) else {}
-    server_tool_use = usage_block.get("server_tool_use") or raw.get("server_tool_use")
-
-    estimate = estimate_token_cost(
-        model_name,
-        uncached_input_tokens=uncached_input,
-        cache_write_tokens=cache_write,
-        cache_read_tokens=cache_read,
-        output_tokens=output_tokens or 0,
-        context=context if isinstance(context, str) else None,
-        harness=harness_name,
-        cache_write_5m_tokens=cw_5m_int,
-        cache_write_1h_tokens=cw_1h_int,
-        cache_tier_basis=cache_tier_basis,
-        model_usage=model_usage if isinstance(model_usage, dict) else None,
-        server_tool_use=server_tool_use if isinstance(server_tool_use, dict) else None,
-    )
-    if estimate is not None:
-        run["tokens"].setdefault("raw", {})["pricing"] = estimate
+    _, _, estimate = estimate_run_cost(run, summary)
+    if estimate:
+        run.setdefault("tokens", {}).setdefault("raw", {})["pricing"] = estimate
         msg = (
             f"Estimated public API cost ({estimate['model_id']} as of {estimate['as_of']}): "
             f"${estimate['estimated_cost_usd']}"
@@ -1917,29 +1825,85 @@ def apply_pricing_estimate(run: dict, summary: ToolEventSummary | None = None) -
         print(msg)
 
 
+TELEMETRY_NOTE_PATTERNS = [
+    r"Ignored \d+ extra conversation\(s\) in tool-events log \([^)]+\)\.?",
+    r"Multiple conversations found in tool-events log \([^)]+\)\.?",
+    r"\d+ transcript/tool-event lines were not JSON objects\.?",
+    r"Could not read [^.]*\.",
+    r"[^.]+ was not valid JSON\.",
+    r"\d+ claude-code tool calls had no start/end pair[^.]*\.",
+    r"run\.json prompt_sha256 does not match[^.]*\.",
+    r"No submitted prompt was found in hook-events/ or claude-sessions/[^.]*\.",
+    r"A second prompt was logged in [^.]*\.",
+    r"The prompt in the [^.]*\.",
+    r"Interactive intervention:[^.]*\.",
+    r"Interactive claude-code run:[^.]*\.",
+    r"Isolation hook denied \d+ tool call\(s\):\s*(?:[A-Za-z0-9_]+ denied: [^;.]+(?:;\s*)?)+\.?",
+    r"Isolation audit flagged \d+ potential contamination event\(s\):\s*(?:[A-Za-z0-9_]+ (?:referenced '[^']+'|attempted parent traversal \('[^']+'\))(?:, )?)+\.?",
+    r"The run finished with stop status [^.]*\.?",
+    r"No stop event recorded; capped run end time at the last non-idle tool/thought event\.?",
+    r"No stop event, so wall clock was not taken from the log\.?",
+    r"Tool counts use the first prompt and the first stop\.?",
+    r"No prompt event, so tool counts include every logged call\.?",
+    r"The logged prompt was truncated[^.]*\.?",
+    r"The logged prompt bytes differ from prompt/[^.]+\.txt\.?",
+    r"\d+ tool events had no tool name and were not counted\.?",
+    r"The log contains more than one Cursor version\.?",
+    r"The log contains more than one effort value\.?",
+    r"Tool-event log is missing[^.]*\.?",
+    r"Tool-event log contains no [^.]*\.?",
+    r"The log effort is [^.]*; run\.json keeps [^.]*\.?",
+    r"\d+ tool events had no duration, so model time was not taken from the log\.?",
+    r"Claude attempt \d+ ended without a result event[^.]*\.?",
+    r"other tools:\s*[^.]+\.?",
+]
+
+
 def observation_default(run: dict, summary: ToolEventSummary, *, include_other: bool) -> str:
+    """Build default observations by updating machine telemetry notes while preserving human notes."""
     existing = run.get("observations") if isinstance(run.get("observations"), str) else ""
-    # Strip any stale "other tools: ..." note if other_tools is empty or not included
-    if not (include_other and summary.other_tools):
-        existing = re.sub(r"\s*other tools:\s*[^.]+\.", "", existing).strip()
 
     extra = list(summary.notes)
     if include_other and summary.other_tools:
         extra.append("other tools: " + ", ".join(summary.other_tools) + ".")
-    if not extra:
-        return existing
-    new_notes: list[str] = []
+
+    machine_notes: list[str] = []
     for note in extra:
         note_str = note.strip()
-        if not note_str:
-            continue
-        if note_str in existing or note_str in new_notes:
-            continue
-        new_notes.append(note_str)
-    if not new_notes:
-        return existing
-    note_text = " ".join(new_notes)
-    return f"{existing} {note_text}".strip() if existing else note_text
+        if note_str and note_str not in machine_notes:
+            machine_notes.append(note_str)
+
+    if not existing:
+        return " ".join(machine_notes)
+
+    all_pats = list(TELEMETRY_NOTE_PATTERNS)
+    for n in machine_notes:
+        all_pats.append(re.escape(n) + r"\.?")
+
+    first_match_pos = len(existing)
+    for pat in all_pats:
+        for m in re.finditer(pat, existing):
+            if m.start() < first_match_pos:
+                first_match_pos = m.start()
+
+    rem = existing
+    for pat in all_pats:
+        rem = re.sub(pat, "", rem)
+
+    rem = re.sub(r"^\s*\.\s*", "", rem)
+    rem = re.sub(r"\s*\.\s*$", ".", rem)
+    rem = re.sub(r"\s+", " ", rem).strip()
+
+    machine_text = " ".join(machine_notes)
+    if not rem:
+        return machine_text
+    if not machine_text:
+        return rem
+
+    human_start = existing.find(rem[:20]) if len(rem) >= 20 else existing.find(rem)
+    if human_start >= first_match_pos and first_match_pos < len(existing):
+        return f"{machine_text} {rem}".strip()
+    return f"{rem} {machine_text}".strip()
 
 
 def complete_run_json(

@@ -1363,33 +1363,50 @@ class TestToolEvents(unittest.TestCase):
 class TestIsolationParity(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        script_path = (
+        cursor_path = (
             Path(__file__).resolve().parent.parent
             / "templates"
             / "cursor"
             / "hooks"
             / "log-tool-event.py"
         )
-        spec = importlib.util.spec_from_file_location("log_tool_event_parity", script_path)
-        cls.hook_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(cls.hook_mod)
+        claude_path = (
+            Path(__file__).resolve().parent.parent
+            / "templates"
+            / "claude"
+            / "hooks"
+            / "log-tool-event.py"
+        )
+        spec_cursor = importlib.util.spec_from_file_location("log_tool_event_cursor_parity", cursor_path)
+        cls.cursor_hook_mod = importlib.util.module_from_spec(spec_cursor)
+        spec_cursor.loader.exec_module(cls.cursor_hook_mod)
+
+        spec_claude = importlib.util.spec_from_file_location("log_tool_event_claude_parity", claude_path)
+        cls.claude_hook_mod = importlib.util.module_from_spec(spec_claude)
+        spec_claude.loader.exec_module(cls.claude_hook_mod)
+
+        cls.hook_mod = cls.cursor_hook_mod
+        cls.hooks = [("cursor", cls.cursor_hook_mod), ("claude", cls.claude_hook_mod)]
 
     def test_content_keys_constant_parity(self):
-        self.assertEqual(CONTENT_KEYS, self.hook_mod.CONTENT_KEYS)
         expected = {
             "content",
             "contents",
             "new_string",
             "old_string",
+            "new_source",
             "streamContent",
             "patch",
             "diff",
         }
         self.assertEqual(CONTENT_KEYS, expected)
+        for name, mod in self.hooks:
+            with self.subTest(template=name):
+                self.assertEqual(CONTENT_KEYS, mod.CONTENT_KEYS)
 
     def test_isolation_functions_ast_and_source_parity(self):
         # Enforce that isolation utility functions maintain identical syntax trees
-        # between standalone log-tool-event.py hook and scripts/tool_events.py.
+        # between standalone log-tool-event.py hooks (Cursor & Claude) and scripts/tool_events.py.
         import tool_events
 
         func_names = [
@@ -1402,22 +1419,23 @@ class TestIsolationParity(unittest.TestCase):
         ]
         for name in func_names:
             src_tool_events = inspect.getsource(getattr(tool_events, name))
-            src_hook = inspect.getsource(getattr(self.hook_mod, name))
-
             ast_tool_events = ast.dump(ast.parse(src_tool_events), include_attributes=False)
-            ast_hook = ast.dump(ast.parse(src_hook), include_attributes=False)
 
-            self.assertEqual(
-                ast_tool_events,
-                ast_hook,
-                f"AST mismatch between tool_events.{name} and log-tool-event.{name}. "
-                "Ensure changes to isolation utilities are synchronized.",
-            )
+            for t_name, hook_mod in self.hooks:
+                with self.subTest(func=name, template=t_name):
+                    src_hook = inspect.getsource(getattr(hook_mod, name))
+                    ast_hook = ast.dump(ast.parse(src_hook), include_attributes=False)
+                    self.assertEqual(
+                        ast_tool_events,
+                        ast_hook,
+                        f"AST mismatch between tool_events.{name} and {t_name} log-tool-event.{name}. "
+                        "Ensure changes to isolation utilities are synchronized.",
+                    )
 
     def test_collect_non_content_strings_behavioral_parity(self):
         test_inputs = [
             {"command": "pytest", "path": "test.py", "content": "ignored content"},
-            {"contents": "ignore", "nested": {"new_string": "ignore", "real": "keep"}},
+            {"contents": "ignore", "nested": {"new_string": "ignore", "new_source": "ignore", "real": "keep"}},
             ["string_a", {"patch": "ignore", "diff": "ignore", "key": "string_b"}],
             {"streamContent": "skip", "number": 42, "flag": True, "none": None},
             "plain string",
@@ -1428,12 +1446,14 @@ class TestIsolationParity(unittest.TestCase):
         ]
         for item in test_inputs:
             te_res = _collect_non_content_strings(item)
-            hook_res = self.hook_mod._collect_non_content_strings(item)
-            self.assertEqual(te_res, hook_res, f"Mismatch for input {item!r}")
+            for t_name, hook_mod in self.hooks:
+                with self.subTest(input=item, template=t_name):
+                    hook_res = hook_mod._collect_non_content_strings(item)
+                    self.assertEqual(te_res, hook_res, f"Mismatch for input {item!r} in {t_name}")
 
     def test_strip_content_fields_behavioral_parity(self):
         test_inputs = [
-            {"command": "pytest", "content": "stripped", "contents": "stripped"},
+            {"command": "pytest", "content": "stripped", "contents": "stripped", "new_source": "stripped"},
             {"nested": {"patch": "stripped", "keep": 123}},
             [{"diff": "stripped", "action": "test"}, "scalar"],
             "not a dict",
@@ -1441,8 +1461,10 @@ class TestIsolationParity(unittest.TestCase):
         ]
         for item in test_inputs:
             te_res = _strip_content_fields(item)
-            hook_res = self.hook_mod._strip_content_fields(item)
-            self.assertEqual(te_res, hook_res, f"Mismatch for input {item!r}")
+            for t_name, hook_mod in self.hooks:
+                with self.subTest(input=item, template=t_name):
+                    hook_res = hook_mod._strip_content_fields(item)
+                    self.assertEqual(te_res, hook_res, f"Mismatch for input {item!r} in {t_name}")
 
     def test_strip_heredocs_and_inline_scripts_behavioral_parity(self):
         import tool_events
@@ -1460,8 +1482,10 @@ class TestIsolationParity(unittest.TestCase):
         ]
         for script in test_scripts:
             te_res = tool_events._strip_heredocs_and_inline_scripts(script)
-            hook_res = self.hook_mod._strip_heredocs_and_inline_scripts(script)
-            self.assertEqual(te_res, hook_res, f"Mismatch for script {script!r}")
+            for t_name, hook_mod in self.hooks:
+                with self.subTest(script=script, template=t_name):
+                    hook_res = hook_mod._strip_heredocs_and_inline_scripts(script)
+                    self.assertEqual(te_res, hook_res, f"Mismatch for script {script!r} in {t_name}")
 
     def test_has_parent_escape_behavioral_parity(self):
         import tool_events
@@ -1483,12 +1507,14 @@ class TestIsolationParity(unittest.TestCase):
         ]
         for traversal_str, cwd, ws_root in test_cases:
             te_res = tool_events._has_parent_escape(traversal_str, cwd=cwd, workspace_root=ws_root)
-            hook_res = self.hook_mod._has_parent_escape(traversal_str, cwd=cwd, workspace_root=ws_root)
-            self.assertEqual(
-                te_res,
-                hook_res,
-                f"Mismatch for traversal {traversal_str!r} cwd={cwd} ws_root={ws_root}",
-            )
+            for t_name, hook_mod in self.hooks:
+                with self.subTest(traversal=traversal_str, template=t_name):
+                    hook_res = hook_mod._has_parent_escape(traversal_str, cwd=cwd, workspace_root=ws_root)
+                    self.assertEqual(
+                        te_res,
+                        hook_res,
+                        f"Mismatch for traversal {traversal_str!r} cwd={cwd} ws_root={ws_root} in {t_name}",
+                    )
 
     def test_extract_traversal_target_behavioral_parity(self):
         test_inputs = [
@@ -1504,8 +1530,10 @@ class TestIsolationParity(unittest.TestCase):
         ]
         for item in test_inputs:
             te_res = _extract_traversal_target(item)
-            hook_res = self.hook_mod._extract_traversal_target(item)
-            self.assertEqual(te_res, hook_res, f"Mismatch for input {item!r}")
+            for t_name, hook_mod in self.hooks:
+                with self.subTest(input=item, template=t_name):
+                    hook_res = hook_mod._extract_traversal_target(item)
+                    self.assertEqual(te_res, hook_res, f"Mismatch for input {item!r} in {t_name}")
 
     def test_check_isolation_violation_behavioral_parity(self):
         test_events = [
@@ -1527,6 +1555,7 @@ class TestIsolationParity(unittest.TestCase):
             {"tool_input": {"path": "patch.diff", "patch": "--- ../old\n+++ ../new"}},
             {"tool_input": {"path": "data.py", "contents": "path = '../data/source.csv'"}},
             {"tool_input": {"file": "doc.md", "new_string": "../relative/import", "old_string": "simple/import"}},
+            {"tool_input": {"file": "nb.ipynb", "new_source": "import ../relative"}},
             {"tool_input": {"file": "stream.txt", "streamContent": "traversal in stream ../test"}},
             {"tool_input": {"diff": "diff --git a/foo b/foo\n+ ../parent/path"}},
             {"tool_input": '{"path": "relative/file.txt", "content": "../do-not-flag-traversal-in-content"}'},
@@ -1575,12 +1604,14 @@ class TestIsolationParity(unittest.TestCase):
         ]
         for event in test_events:
             te_res = check_isolation_violation(event)
-            hook_res = self.hook_mod.check_isolation_violation(event)
-            self.assertEqual(
-                te_res,
-                hook_res,
-                f"Mismatch for event {event!r}: tool_events={te_res!r}, hook={hook_res!r}",
-            )
+            for t_name, hook_mod in self.hooks:
+                with self.subTest(event=event, template=t_name):
+                    hook_res = hook_mod.check_isolation_violation(event)
+                    self.assertEqual(
+                        te_res,
+                        hook_res,
+                        f"Mismatch for event {event!r}: tool_events={te_res!r}, {t_name}_hook={hook_res!r}",
+                    )
 
 
 

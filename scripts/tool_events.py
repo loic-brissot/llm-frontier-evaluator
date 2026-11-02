@@ -126,6 +126,7 @@ CONTENT_KEYS = {
     "contents",
     "new_string",
     "old_string",
+    "new_source",
     "streamContent",
     "patch",
     "diff",
@@ -1997,6 +1998,7 @@ def _process_transcript_records(
         summary.notes.append(
             f"Isolation audit flagged {len(summary.isolation_breaches)} potential contamination event(s): "
             + ", ".join(summary.isolation_breaches)
+            + "."
         )
     return summary
 
@@ -2290,6 +2292,7 @@ def _summarize_cursor_hook_records(
         summary.notes.append(
             f"Isolation audit flagged {len(summary.isolation_breaches)} potential contamination event(s): "
             + ", ".join(summary.isolation_breaches)
+            + "."
         )
     if start is not None and end is not None:
         _apply_timing(summary, tools, thoughts, start, end)

@@ -3,9 +3,10 @@ id: TASK-103
 title: >-
   Consolidate duplicated hook isolation logic, run cost estimation helpers, and
   idempotent observation notes
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-10-31 09:33'
+updated_date: '2026-11-02 02:34'
 labels: []
 milestone: m-9
 dependencies: []
@@ -25,7 +26,7 @@ Three areas of code duplication and state drift exist across scripts/ and templa
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Parity tests enforce identical isolation violation rules across scripts/tool_events.py, templates/cursor/hooks/log-tool-event.py, and templates/claude/hooks/log-tool-event.py
-- [ ] #2 A single estimate_run_cost(run, summary=None) helper in scripts/run_common.py is shared by finish_run.py and compare_runs.py
-- [ ] #3 observation_default() in finish_run.py replaces stale machine-generated telemetry notes idempotently while preserving human/operator notes, and cleans up duplicated machine notes in existing run.json records
+- [x] #1 Parity tests enforce identical isolation violation rules across scripts/tool_events.py, templates/cursor/hooks/log-tool-event.py, and templates/claude/hooks/log-tool-event.py
+- [x] #2 A single estimate_run_cost(run, summary=None) helper in scripts/run_common.py is shared by finish_run.py and compare_runs.py
+- [x] #3 observation_default() in finish_run.py replaces stale machine-generated telemetry notes idempotently while preserving human/operator notes, and cleans up duplicated machine notes in existing run.json records
 <!-- AC:END -->
