@@ -249,6 +249,20 @@ def reasoning_levels_for_harness(harness: str) -> tuple[str, ...]:
         canonical_harness(harness), DEFAULT_REASONING_LEVELS
     )
 
+
+def normalize_cache_setting(val: bool | str | None) -> bool | None:
+    """Normalize a cache setting into True, False, or None."""
+    if val is None:
+        return None
+    if isinstance(val, bool):
+        return val
+    s = str(val).strip().lower()
+    if s in ("off", "false", "no", "0", "disable", "disabled", "no-cache", "nocache", "none"):
+        return False
+    if s in ("on", "true", "yes", "1", "enable", "enabled", "cache"):
+        return True
+    raise ValueError(f"Invalid cache setting '{val}'. Expected 'on', 'off', 'true', or 'false'.")
+
 SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"sk-[A-Za-z0-9_-]{20,}"), "sk-[REDACTED]"),
     (re.compile(r"Bearer\s+[A-Za-z0-9._\-+/=]+", re.I), "Bearer [REDACTED]"),

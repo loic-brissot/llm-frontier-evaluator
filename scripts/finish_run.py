@@ -47,6 +47,7 @@ from run_common import (
 from tool_events import ToolEventSummary, summarize_run
 from verify_run import verify_run
 from probe_data import probe_run
+from harnesses import get_harness_adapter
 import shutil
 
 
@@ -2015,6 +2016,9 @@ def complete_run_json(
             effective_paths.append(candidate_path)
     hints = prepare_hints(run, effective_paths, interactive=interactive, run_dir=run_dir)
     store_usage_raw(run, hints)
+    harness_name = str((run.get("harness") or {}).get("name") or "cursor")
+    adapter = get_harness_adapter(harness_name)
+    adapter.apply_stream_totals(run, tool_summary, hints, usage_paths)
     apply_claude_stream_totals(run, tool_summary, hints, usage_paths)
     apply_logged_tokens(run, tool_summary, hints)
     apply_logged_time(run, tool_summary, hints)

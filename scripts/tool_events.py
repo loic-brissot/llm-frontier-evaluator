@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from harnesses import get_harness_adapter
 from run_common import BUCKETS, DEFAULT_PROMPT_ID, prompt_path
 
 TOOL_HOOKS = {"postToolUse", "postToolUseFailure"}
@@ -2294,6 +2295,7 @@ def _summarize_cursor_hook_records(
             + ", ".join(summary.isolation_breaches)
             + "."
         )
+    _ = get_harness_adapter("cursor")
     if start is not None and end is not None:
         _apply_timing(summary, tools, thoughts, start, end)
     return summary

@@ -20,7 +20,7 @@ from unittest.mock import MagicMock
 from run_common import (
     DEFAULT_PROMPT_ID,
     ROOT,
-    STAGING_PARENT as _COMMON_STAGING_PARENT,
+    STAGING_PARENT,
     canonical_harness,
     default_series_id,
     find_run_dir,
@@ -28,30 +28,38 @@ from run_common import (
     is_cursor_harness,
     load_env_credentials,
     load_pricing,
+    normalize_cache_setting,
     preferred_python,
     prompt_path,
-    reasoning_levels_for_harness,
     require_prompt_id,
     slugify,
     staging_workspace_for as _common_staging_workspace_for,
 )
 from setup_run import (
     CLAUDE_API_BILLING_ENV_VARS,
+    CLAUDE_CREDENTIALS_FILE,
     CLAUDE_LAUNCH_MODES,
     copy_prompt_to_clipboard,
     create_run_directory,
+    default_claude_auth_cache_dir,
     persist_claude_auth_state,
     seed_claude_auth_state,
     normalize_context,
     normalize_harness,
     normalize_reasoning,
 )
-from setup_run import CLAUDE_CREDENTIALS_FILE, default_claude_auth_cache_dir
+from harnesses import (
+    CLAUDE_CONTAINER_CONFIG_DIR,
+    claude_cli_model_id,
+    fetch_cursor_available_models,
+    get_harness_adapter,
+    resolve_claude_code_model_and_effort,
+    resolve_cursor_model_slug,
+)
 
 DOCKER_IMAGE = "llm-frontier-evaluator-runner:latest"
 DEFAULT_DOCKERFILE = ROOT / "Dockerfile.benchmark"
 DEFAULT_ENV_FILE = ROOT / ".env"
-STAGING_PARENT = _COMMON_STAGING_PARENT
 
 DEFAULT_TIMEOUT_SECONDS: float = 3600.0
 DEFAULT_STALL_TIMEOUT_SECONDS: float = 300.0
@@ -72,9 +80,6 @@ CLAUDE_CLI_REQUIRED_FLAGS: tuple[str, ...] = (
     "--continue",
     "--dangerously-skip-permissions",
 )
-# Claude Code keeps session transcripts under CLAUDE_CONFIG_DIR. Containers run with --rm, so a per-run
-# host directory outside the staged workspace is mounted there to let `--resume <session_id>` work on retry.
-CLAUDE_CONTAINER_CONFIG_DIR = "/home/benchmark/.claude-state"
 RESUME_PROMPT = "Continue."
 
 
@@ -222,20 +227,6 @@ class _HarnessAction(argparse.Action):
 
 _SCAFFOLD_LOCK = threading.Lock()
 _FINISH_LOCK = threading.Lock()
-
-
-def normalize_cache_setting(val: bool | str | None) -> bool | None:
-    """Normalize a cache setting into True, False, or None."""
-    if val is None:
-        return None
-    if isinstance(val, bool):
-        return val
-    s = str(val).strip().lower()
-    if s in ("off", "false", "no", "0", "disable", "disabled", "no-cache", "nocache", "none"):
-        return False
-    if s in ("on", "true", "yes", "1", "enable", "enabled", "cache"):
-        return True
-    raise ValueError(f"Invalid cache setting '{val}'. Expected 'on', 'off', 'true', or 'false'.")
 
 
 def parse_run_spec(
@@ -394,93 +385,20 @@ def build_container_command(
     otherwise ``--continue`` when ``is_resume`` is set. Callers send ``RESUME_PROMPT`` on resumed attempts.
     """
     norm_harness = canonical_harness(harness)
-    norm_cache = normalize_cache_setting(cache)
-    base_flags = ["--rm", "--init", "--shm-size=2g"]
-    if norm_harness != "claude-code":
-        base_flags.insert(1, "-i")
-    cmd = ["docker", "run", *base_flags]
-    if container_name:
-        cmd.extend(["--name", container_name])
-    cmd.extend([
-        "-v",
-        f"{staging_dir.resolve()}:/workspace:rw",
-        "-w",
-        "/workspace",
-    ])
-
-    if norm_cache is False:
-        cmd.extend([
-            "-e", "DISABLE_PROMPT_CACHING=1",
-            "-e", "CURSOR_DISABLE_PROMPT_CACHING=1",
-        ])
-    elif norm_cache is True:
-        cmd.extend([
-            "-e", "DISABLE_PROMPT_CACHING=0",
-        ])
-
-    if norm_harness == "cursor" or is_cursor_harness(norm_harness):
-        if "CURSOR_API_KEY" in env:
-            cmd.extend(["-e", "CURSOR_API_KEY"])
-        resume_flags: list[str] = []
-        if resume_session_id:
-            resume_flags = ["--resume", resume_session_id]
-        elif is_resume:
-            resume_flags = ["--continue"]
-
-        cmd.extend([
-            docker_image,
-            "cursor-agent",
-            *resume_flags,
-            "-p",
-            "--workspace",
-            "/workspace",
-            "--model",
-            resolved_model,
-            "--trust",
-            "--force",
-            "--single-turn",
-            "--background-shell-timeout",
-            "5",
-            "--output-format",
-            "stream-json",
-            prompt_text,
-        ])
-    else:  # claude-code
-        # CLAUDE_CODE_OAUTH_TOKEN wins: the API key is then never forwarded, so a bad token fails the run
-        # instead of silently falling back to per-token API billing.
-        if claude_uses_oauth_token(env):
-            cmd.extend(["-e", "CLAUDE_CODE_OAUTH_TOKEN"])
-        elif "ANTHROPIC_API_KEY" in env:
-            cmd.extend(["-e", "ANTHROPIC_API_KEY"])
-        if claude_state_dir is not None:
-            cmd.extend([
-                "-v",
-                f"{claude_state_dir.resolve()}:{CLAUDE_CONTAINER_CONFIG_DIR}:rw",
-                "-e",
-                f"CLAUDE_CONFIG_DIR={CLAUDE_CONTAINER_CONFIG_DIR}",
-            ])
-        effort_flag = ["--effort", effort] if effort else []
-        resume_flags = []
-        if resume_session_id:
-            resume_flags = ["--resume", resume_session_id]
-        elif is_resume:
-            resume_flags = ["--continue"]
-
-        cmd.extend([
-            docker_image,
-            "claude",
-            *resume_flags,
-            "-p",
-            "--model",
-            resolved_model,
-            *effort_flag,
-            "--dangerously-skip-permissions",
-            "--output-format",
-            "stream-json",
-            "--verbose",
-            prompt_text,
-        ])
-    return cmd
+    adapter = get_harness_adapter(norm_harness)
+    return adapter.build_docker_run_command(
+        staging_dir=staging_dir,
+        docker_image=docker_image,
+        resolved_model=resolved_model,
+        effort=effort,
+        prompt_text=prompt_text,
+        env=env,
+        container_name=container_name,
+        cache=cache,
+        resume_session_id=resume_session_id,
+        is_resume=is_resume,
+        claude_state_dir=claude_state_dir,
+    )
 
 
 def cleanup_container(container_name: str, proc: subprocess.Popen | None = None) -> None:
@@ -500,125 +418,24 @@ def cleanup_container(container_name: str, proc: subprocess.Popen | None = None)
 
 def extract_cli_result(content: str | Path) -> dict | None:
     """Extract final JSON result event from stream-json lines."""
-    lines: list[str] = []
-    if isinstance(content, Path):
-        if not content.is_file():
-            return None
-        lines = content.read_text(encoding="utf-8").splitlines()
-    elif isinstance(content, str):
-        lines = content.splitlines()
-
-    json_records: list[dict] = []
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            parsed = json.loads(line)
-            if isinstance(parsed, dict):
-                json_records.append(parsed)
-        except json.JSONDecodeError:
-            continue
-
-    if not json_records:
-        return None
-
-    for rec in reversed(json_records):
-        if rec.get("type") in ("result", "session_summary") or rec.get("event_msg") == "session_summary":
-            return rec
-
-    return json_records[-1]
+    return get_harness_adapter("cursor").extract_cli_result(content)
 
 
-_RATE_LIMIT_MARKERS = (
-    "resource_exhausted",
-    "retriableerror",
-    "rate_limit",
-    "rate limit",
-    "status: 429",
-    "status 429",
-    "status_code: 429",
-    "\"status\": 429",
-    "\"statuscode\": 429",
-    "429 too many requests",
-    "overloaded_error",
-)
 
 
 def is_rate_limit_error(raw_line: str, parsed: dict | None = None) -> bool:
     """Check whether a line or parsed event represents a resource_exhausted or rate-limit stall."""
-    lower = raw_line.lower()
-    if any(m in lower for m in _RATE_LIMIT_MARKERS):
-        return True
-    if parsed:
-        err = parsed.get("error")
-        if isinstance(err, str) and any(m in err.lower() for m in _RATE_LIMIT_MARKERS):
-            return True
-        if isinstance(err, dict):
-            err_str = json.dumps(err).lower()
-            if any(m in err_str for m in _RATE_LIMIT_MARKERS):
-                return True
-        msg = parsed.get("message")
-        if isinstance(msg, str) and any(m in msg.lower() for m in _RATE_LIMIT_MARKERS):
-            return True
-    return False
+    return get_harness_adapter("cursor").is_rate_limit_error(raw_line, parsed=parsed)
 
 
 def is_forward_progress_event(raw_line: str, parsed: dict | None = None) -> bool:
     """Check whether a line or parsed event represents forward model/tool progress."""
-    if parsed is not None:
-        t = parsed.get("type")
-        sub = parsed.get("subtype")
-        if t in ("tool_call", "tool_use"):
-            return True
-        if t == "assistant":
-            msg = parsed.get("message")
-            if isinstance(msg, dict):
-                content = msg.get("content")
-                if content:
-                    return True
-            return True
-        if t in ("thinking", "thought"):
-            return True
-        if sub in ("started", "completed") and t == "tool_call":
-            return True
-        hook_name = parsed.get("hook_event_name")
-        if hook_name in ("afterAgentThought", "postToolUse", "beforeToolUse", "afterAgentResponse"):
-            return True
-        if t in ("result", "session_summary") or parsed.get("event_msg") == "session_summary":
-            return True
-    return False
+    return get_harness_adapter("cursor").is_forward_progress_event(raw_line, parsed=parsed)
 
 
 def extract_session_id_from_line(line: str, parsed: dict | None = None) -> str | None:
     """Extract session or conversation ID from a single line or parsed JSON object."""
-    if "\n" in line:
-        for sub in line.splitlines():
-            sid = extract_session_id_from_line(sub)
-            if sid:
-                return sid
-
-    if parsed is not None:
-        for key in ("session_id", "sessionId", "conversation_id", "conversationId"):
-            val = parsed.get(key)
-            if isinstance(val, str) and val.strip():
-                return val.strip()
-        session_obj = parsed.get("session")
-        if isinstance(session_obj, dict):
-            sid = session_obj.get("id") or session_obj.get("session_id")
-            if isinstance(sid, str) and sid.strip():
-                return sid.strip()
-        if parsed.get("type") in ("session", "init", "system", "result", "session_summary"):
-            cid = parsed.get("id")
-            if isinstance(cid, str) and cid.strip() and not cid.startswith("msg_"):
-                return cid.strip()
-    m = re.search(r'"(?:session_id|sessionId|conversation_id)"\s*:\s*"([a-zA-Z0-9_\-\.]+)"', line)
-    if m:
-        return m.group(1).strip()
-    m2 = re.search(r'"id"\s*:\s*"(sess-[a-zA-Z0-9_\-\.]+)"', line)
-    if m2:
-        return m2.group(1).strip()
-    return None
+    return get_harness_adapter("cursor").extract_session_id_from_line(line, parsed=parsed)
 
 
 def extract_session_id(
@@ -627,83 +444,16 @@ def extract_session_id(
     run_dir: Path | None = None,
 ) -> str | None:
     """Extract session ID from stream lines, staging directory, or run directory."""
-    if stream_content is not None:
-        lines: list[str] = []
-        if isinstance(stream_content, Path) and stream_content.is_file():
-            try:
-                lines = stream_content.read_text(encoding="utf-8").splitlines()
-            except Exception:
-                pass
-        elif isinstance(stream_content, str):
-            lines = stream_content.splitlines()
-        elif isinstance(stream_content, list):
-            lines = stream_content
-
-        for line in reversed(lines):
-            sid = extract_session_id_from_line(line)
-            if sid:
-                return sid
-
-    if run_dir is not None:
-        tool_events = run_dir / "tool-events"
-        if tool_events.is_dir():
-            for p in sorted(tool_events.glob("*.jsonl")):
-                if p.name != "cli-stream.jsonl" and p.stem:
-                    return p.stem
-
-    if staging_dir is not None and staging_dir.is_dir():
-        for sess_dir in (
-            staging_dir / ".cursor" / "sessions",
-            staging_dir / ".cursor-agent" / "sessions",
-            staging_dir / "sessions",
-            staging_dir / ".cursor",
-        ):
-            if sess_dir.is_dir():
-                for f in sorted(sess_dir.glob("*.json")):
-                    if f.stem:
-                        return f.stem
-
-    return None
+    return get_harness_adapter("cursor").discover_session_id(
+        stream_content=stream_content,
+        staging_dir=staging_dir,
+        run_dir=run_dir,
+    )
 
 
 def has_completion_result(content: str | Path | list[dict] | None) -> bool:
     """Check if stream content includes a final successful/completed result event."""
-    if content is None:
-        return False
-    lines: list[str] = []
-    if isinstance(content, Path):
-        if not content.is_file():
-            return False
-        try:
-            lines = content.read_text(encoding="utf-8").splitlines()
-        except Exception:
-            return False
-    elif isinstance(content, str):
-        lines = content.splitlines()
-    elif isinstance(content, list):
-        if content and isinstance(content[0], dict):
-            for rec in reversed(content):
-                if rec.get("type") in ("result", "session_summary") or rec.get("event_msg") == "session_summary":
-                    status = str(rec.get("status") or rec.get("subtype") or "").lower()
-                    if status not in ("error", "failed", "failure"):
-                        return True
-            return False
-        lines = [str(item) for item in content]
-
-    for line in reversed(lines):
-        line = line.strip()
-        if not line or not line.startswith("{"):
-            continue
-        try:
-            rec = json.loads(line)
-            if isinstance(rec, dict):
-                if rec.get("type") in ("result", "session_summary") or rec.get("event_msg") == "session_summary":
-                    status = str(rec.get("status") or rec.get("subtype") or "").lower()
-                    if status not in ("error", "failed", "failure"):
-                        return True
-        except json.JSONDecodeError:
-            continue
-    return False
+    return get_harness_adapter("cursor").has_completion_result(content)
 
 
 class StreamMonitor:
@@ -935,22 +685,16 @@ def validate_credentials_preflight(
     errors: list[str] = []
     if harness:
         norm_harness = canonical_harness(harness)
-        if norm_harness == "cursor" or is_cursor_harness(norm_harness):
-            if not env.get("CURSOR_API_KEY"):
-                errors.append(f"Missing required environment variable CURSOR_API_KEY for harness '{norm_harness}' (export CURSOR_API_KEY=...).")
-        elif norm_harness == "claude-code":
-            if subscription:
-                if not claude_oauth_credentials_available(env, home=home):
-                    errors.append(
-                        "No Claude Code subscription OAuth credentials found for an interactive run "
-                        "(run: claude setup-token and export CLAUDE_CODE_OAUTH_TOKEN=..., or sign in once with `claude /login`). "
-                        "ANTHROPIC_API_KEY is not required and is ignored."
-                    )
-            elif not claude_uses_oauth_token(env) and not env.get("ANTHROPIC_API_KEY"):
+        adapter = get_harness_adapter(norm_harness)
+        if norm_harness == "claude-code" and subscription:
+            if not claude_oauth_credentials_available(env, home=home):
                 errors.append(
-                    "Missing Claude Code credentials: set CLAUDE_CODE_OAUTH_TOKEN (subscription billing, from `claude setup-token`) "
-                    "or ANTHROPIC_API_KEY (per-token API billing)."
+                    "No Claude Code subscription OAuth credentials found for an interactive run "
+                    "(run: claude setup-token and export CLAUDE_CODE_OAUTH_TOKEN=..., or sign in once with `claude /login`). "
+                    "ANTHROPIC_API_KEY is not required and is ignored."
                 )
+        else:
+            errors.extend(adapter.validate_credentials(env, subscription=subscription))
     else:
         if not env.get("CURSOR_API_KEY") and not env.get("ANTHROPIC_API_KEY") and not claude_uses_oauth_token(env):
             errors.append("Missing required environment variable CURSOR_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, or ANTHROPIC_API_KEY.")
@@ -1031,9 +775,8 @@ def check_preflight(
 
 def detect_container_harness_version(docker_image: str, harness: str) -> str | None:
     """Detect the version of the installed harness inside the Docker container."""
-    harness = canonical_harness(harness)
-    cmd_binary = "cursor-agent" if (harness == "cursor" or is_cursor_harness(harness)) else "claude"
-    cmd = ["docker", "run", "--rm", docker_image, cmd_binary, "--version"]
+    adapter = get_harness_adapter(harness)
+    cmd = ["docker", "run", "--rm", docker_image, adapter.cli_binary, "--version"]
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, check=True)
         version = res.stdout.strip()
@@ -1056,28 +799,6 @@ def record_container_harness_version(run_dir: Path, version: str) -> None:
         run_json_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     except Exception as exc:
         print(f"Warning: Failed to write harness.version to {run_json_path}: {exc}", file=sys.stderr)
-
-
-def fetch_cursor_available_models(docker_image: str = DOCKER_IMAGE, env: dict | None = None) -> list[str]:
-    """Fetch available cursor-agent models from inside the Docker container."""
-    cmd = ["docker", "run", "--rm"]
-    if env and "CURSOR_API_KEY" in env:
-        cmd.extend(["-e", "CURSOR_API_KEY"])
-    cmd.extend([docker_image, "cursor-agent", "models"])
-    try:
-        res = subprocess.run(cmd, capture_output=True, text=True, check=True, env=env)
-        models = []
-        for line in res.stdout.splitlines():
-            line = line.strip().lstrip("-* ").strip()
-            if not line or line.lower().startswith("available"):
-                continue
-            token = line.split()[0]
-            if token and token not in models:
-                models.append(token)
-        return models
-    except Exception as exc:
-        print(f"Warning: Failed to fetch cursor-agent models from container: {exc}", file=sys.stderr)
-        return []
 
 
 def _find_pricing_entry(model_name: str) -> dict | None:
@@ -1104,142 +825,6 @@ def _find_pricing_entry(model_name: str) -> dict | None:
             if pricing_entry:
                 break
     return pricing_entry
-
-
-def resolve_cursor_model_slug(
-    model_name: str,
-    reasoning: str | None = None,
-    available_models: list[str] | None = None,
-) -> str:
-    """Resolve display model name and reasoning level to a cursor-agent model slug."""
-    r_clean = (
-        reasoning.strip().lower()
-        if reasoning and reasoning.strip().lower() not in ("unknown", "null", "")
-        else None
-    )
-
-    pricing_entry = _find_pricing_entry(model_name)
-
-    candidates: list[str] = []
-    model_slug = slugify(model_name)
-
-    if pricing_entry:
-        base_id = pricing_entry.get("id", model_slug)
-        base_id_slug = slugify(base_id)
-        pricing_names = [base_id] + list(pricing_entry.get("names") or [])
-
-        raw_names = [n.strip() for n in pricing_names if isinstance(n, str) and n.strip()]
-        slug_names = [slugify(n) for n in raw_names]
-        all_name_variants = []
-        for n in raw_names + slug_names:
-            if n and n not in all_name_variants:
-                all_name_variants.append(n)
-
-        if r_clean:
-            for nv in all_name_variants:
-                if nv.lower().endswith(f"-{r_clean}"):
-                    candidates.append(nv)
-
-            candidates.append(f"{base_id_slug}-{r_clean}")
-            candidates.append(f"{model_slug}-{r_clean}")
-
-            for nv in all_name_variants:
-                if r_clean in nv.lower().split("-") or nv.lower().endswith(f"-{r_clean}"):
-                    candidates.append(nv)
-
-            for nv in all_name_variants:
-                candidates.append(f"{nv}-{r_clean}")
-
-            candidates.append(model_slug)
-            candidates.extend(all_name_variants)
-        else:
-            candidates.append(model_slug)
-            candidates.extend(all_name_variants)
-    else:
-        if r_clean:
-            if model_slug.endswith(f"-{r_clean}"):
-                candidates.append(model_slug)
-            candidates.append(f"{model_slug}-{r_clean}")
-            candidates.append(model_slug)
-        else:
-            candidates.append(model_slug)
-
-    unique_candidates: list[str] = []
-    for c in candidates:
-        if c and c not in unique_candidates:
-            unique_candidates.append(c)
-
-    if available_models:
-        for cand in unique_candidates:
-            if cand in available_models:
-                return cand
-        attempted = ", ".join(repr(c) for c in unique_candidates)
-        avail_str = ", ".join(repr(m) for m in available_models)
-        raise ValueError(
-            f"Cursor model '{model_name}' (reasoning: '{reasoning}') resolved to candidates [{attempted}], "
-            f"none of which are available in container cursor-agent models. Available models: [{avail_str}]"
-        )
-
-    return unique_candidates[0]
-
-
-def claude_cli_model_id(name: str) -> str | None:
-    """Return ``name`` as a `claude --model` value (alias or canonical model ID), or None if it is neither."""
-    text = name.strip().lower() if isinstance(name, str) else ""
-    if text in CLAUDE_CLI_MODEL_ALIASES:
-        return text
-    suffix = ""
-    if text.endswith("[1m]"):
-        suffix, text = "[1m]", text[: -len("[1m]")]
-    candidate = f"{slugify(text)}{suffix}"
-    return candidate if CLAUDE_CLI_MODEL_ID_RE.match(candidate) else None
-
-
-def resolve_claude_code_model_and_effort(
-    model_name: str,
-    reasoning: str | None = None,
-) -> tuple[str, str | None]:
-    """Resolve a benchmark model name to a `claude --model` identifier and a reasoning level to `--effort`.
-
-    The requested name wins when it already is a CLI alias or canonical model ID, so a name that the pricing
-    catalog folds into a newer entry (``Claude Opus 4.7`` priced as ``claude-opus-5``) still runs the exact
-    model requested. Otherwise the pricing entry's ID or names supply the canonical ID. Models the catalog
-    does not offer on the claude-code harness, or names with no canonical form, raise ValueError.
-    """
-    model_id = claude_cli_model_id(model_name)
-    pricing_entry = _find_pricing_entry(model_name)
-
-    if pricing_entry is not None:
-        harnesses = pricing_entry.get("harnesses")
-        if isinstance(harnesses, list) and harnesses and "claude-code" not in harnesses:
-            raise ValueError(
-                f"Model '{model_name}' (pricing id '{pricing_entry.get('id')}') is not available on the "
-                f"claude-code harness (catalog harnesses: {harnesses})."
-            )
-        if model_id is None:
-            for cand in [pricing_entry.get("id", "")] + list(pricing_entry.get("names") or []):
-                if isinstance(cand, str) and cand:
-                    model_id = claude_cli_model_id(cand)
-                    if model_id:
-                        break
-
-    if model_id is None:
-        raise ValueError(
-            f"Cannot map model '{model_name}' to a Claude CLI model identifier. Use a canonical Anthropic "
-            f"model ID (e.g. claude-opus-5-5) or an alias ({', '.join(CLAUDE_CLI_MODEL_ALIASES)})."
-        )
-
-    effort: str | None = None
-    if reasoning and reasoning.strip().lower() not in ("unknown", "null", ""):
-        r_clean = reasoning.strip().lower()
-        allowed = reasoning_levels_for_harness("claude-code")
-        if r_clean not in allowed:
-            raise ValueError(
-                f"Invalid reasoning level '{reasoning}' for claude-code harness. Allowed levels: {allowed}"
-            )
-        effort = r_clean
-
-    return model_id, effort
 
 
 def fetch_claude_cli_help(docker_image: str = DOCKER_IMAGE) -> str | None:
@@ -1396,14 +981,15 @@ def run_benchmark_container(
                 raise RuntimeError("\n".join(errors))
 
             # Model and reasoning resolution BEFORE creating run directory
+            adapter = get_harness_adapter(scaffold_harness)
             if scaffold_harness == "cursor" or is_cursor_harness(scaffold_harness):
                 avail_models = fetch_cursor_available_models(docker_image, env) if check_models else None
-                resolved_model = resolve_cursor_model_slug(
+                resolved_model, _ = adapter.resolve_model_and_effort(
                     model, reasoning=normalized_reasoning, available_models=avail_models
                 )
                 effort = None
             else:  # claude-code
-                resolved_model, effort = resolve_claude_code_model_and_effort(
+                resolved_model, effort = adapter.resolve_model_and_effort(
                     model, reasoning=normalized_reasoning
                 )
                 if check_models:
@@ -1596,14 +1182,15 @@ def run_benchmark_container(
                 print(f"Preflight error: {err}", file=sys.stderr)
             raise RuntimeError("\n".join(errors))
 
+        adapter = get_harness_adapter(final_harness)
         if final_harness == "cursor" or is_cursor_harness(final_harness):
             avail_models = fetch_cursor_available_models(docker_image, env) if check_models else None
-            resolved_model = resolve_cursor_model_slug(
+            resolved_model, _ = adapter.resolve_model_and_effort(
                 final_model, reasoning=final_reasoning, available_models=avail_models
             )
             effort = None
         else:  # claude-code
-            resolved_model, effort = resolve_claude_code_model_and_effort(
+            resolved_model, effort = adapter.resolve_model_and_effort(
                 final_model, reasoning=final_reasoning
             )
             if check_models:
@@ -2520,6 +2107,51 @@ def main() -> int:
     except Exception as exc:
         print(f"Error executing benchmark run: {exc}", file=sys.stderr)
         return 1
+
+
+__all__ = [
+    "CLAUDE_CLI_MODEL_ALIASES",
+    "CLAUDE_CLI_MODEL_ID_RE",
+    "CLAUDE_CLI_REQUIRED_FLAGS",
+    "CLAUDE_CONTAINER_CONFIG_DIR",
+    "DEFAULT_DOCKERFILE",
+    "DEFAULT_ENV_FILE",
+    "DEFAULT_MAX_RETRIES",
+    "DEFAULT_RETRY_COOLDOWN_SECONDS",
+    "DEFAULT_STALL_TIMEOUT_SECONDS",
+    "DEFAULT_TIMEOUT_SECONDS",
+    "DOCKER_IMAGE",
+    "RESUME_PROMPT",
+    "StreamMonitor",
+    "build_container_command",
+    "build_parser",
+    "check_preflight",
+    "claude_cli_model_id",
+    "cleanup_container",
+    "detect_container_harness_version",
+    "ensure_docker_ready",
+    "extract_cli_result",
+    "extract_session_id",
+    "extract_session_id_from_line",
+    "fetch_claude_cli_help",
+    "fetch_cursor_available_models",
+    "has_completion_result",
+    "is_forward_progress_event",
+    "is_rate_limit_error",
+    "main",
+    "missing_claude_cli_flags",
+    "normalize_cache_setting",
+    "parse_run_spec",
+    "record_container_harness_version",
+    "resolve_claude_code_model_and_effort",
+    "resolve_cursor_model_slug",
+    "run_benchmark_container",
+    "run_interactive_claude",
+    "run_parallel_benchmarks",
+    "staging_workspace_for",
+    "validate_credentials_preflight",
+    "verify_claude_cli_flags",
+]
 
 
 if __name__ == "__main__":
