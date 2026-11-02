@@ -530,7 +530,11 @@ def test_claude_code_turn_curve_cache_read(tmp_path: Path) -> None:
 
 def test_real_claude_code_run_telemetry() -> None:
     real_run_dir = Path("runs/france-rail-24h-pulse/2026-10-25-claude-code-claude-sonnet-5-5-high")
-    if not real_run_dir.is_dir():
+    hook_events = list((real_run_dir / "hook-events").glob("*.jsonl")) if (real_run_dir / "hook-events").is_dir() else []
+    claude_sessions = list((real_run_dir / "claude-sessions").glob("*.jsonl")) if (real_run_dir / "claude-sessions").is_dir() else []
+    cli_stream = real_run_dir / "tool-events" / "cli-stream.jsonl"
+    if not hook_events and not claude_sessions and not cli_stream.is_file():
+        # Untracked in CI git checkout due to .gitignore on hook-events/, claude-sessions/, and tool-events/
         return
 
     calls = extract_normalized_tool_calls(real_run_dir)
