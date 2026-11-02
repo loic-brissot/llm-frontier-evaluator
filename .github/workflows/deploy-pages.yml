@@ -40,19 +40,20 @@ jobs:
 
       - name: Package web demos
         run: |
+          # Live web demos are hosted on sister repository (llm-frontier-evaluator-demos).
+          # If workspace directories exist during a manual build or test, package them;
+          # otherwise live demos resolve directly to the sister repository GitHub Pages origin.
           if find runs -maxdepth 3 -type d -name "workspace" 2>/dev/null | grep -q .; then
             uv run python3 scripts/package_web_demos.py --output-dir dashboard/demos || true
-          elif [ -f "dashboard/demos/demos.json" ]; then
-            echo "Preserving existing pre-packaged demos in dashboard/demos/."
-          elif [ -d "runs" ]; then
-            uv run python3 scripts/package_web_demos.py --output-dir dashboard/demos || true
+          else
+            echo "Hosted web demos served from sister repository (llm-frontier-evaluator-demos)."
           fi
 
       - name: Export warehouse analytical tables
         run: uv run python3 scripts/export_warehouse.py --output-dir dashboard/warehouse || true
 
       - name: Build dashboard
-        run: uv run python3 scripts/build_dashboard.py
+        run: uv run python3 scripts/build_dashboard.py --production
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

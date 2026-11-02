@@ -3,9 +3,10 @@ id: TASK-104
 title: >-
   Migrate packaged web demos to sister repository llm-frontier-evaluator-demos
   (Option 2A) and remove demo bundles from main Git tree
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-01 23:59'
+updated_date: '2026-11-02 03:00'
 labels: []
 milestone: m-9
 dependencies: []
@@ -27,7 +28,7 @@ Per the Option 2A architectural decision, migrate hosted live demos to a dedicat
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 scripts/package_web_demos.py supports exporting and syncing static demo bundles to the llm-frontier-evaluator-demos sister repository and recording canonical demo_url paths
-- [ ] #2 site/ (340.8 MB) and dashboard/demos/ (234.2 MB) are removed from git tracking in llm-frontier-evaluator and added to .gitignore
-- [ ] #3 dashboard/app.js, scripts/build_dashboard.py, scripts/compare_runs.py, and .github/workflows/deploy-pages.yml resolve live demo links and showcase iframes against llm-frontier-evaluator-demos with unit test coverage
+- [x] #1 scripts/package_web_demos.py supports exporting and syncing static demo bundles to the llm-frontier-evaluator-demos sister repository and recording canonical demo_url paths
+- [x] #2 site/ (340.8 MB) and dashboard/demos/ (234.2 MB) are removed from git tracking in llm-frontier-evaluator and added to .gitignore
+- [x] #3 dashboard/app.js, scripts/build_dashboard.py, scripts/compare_runs.py, and .github/workflows/deploy-pages.yml resolve live demo links and showcase iframes against llm-frontier-evaluator-demos with unit test coverage
 <!-- AC:END -->

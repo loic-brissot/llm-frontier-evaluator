@@ -22,6 +22,10 @@ from typing import Any
 
 from compare_runs import format_local_cost, model_display_label, model_label
 from export_warehouse import export_warehouse
+from package_web_demos import (
+    DEFAULT_DEMOS_BASE_URL,
+    resolve_demo_url,
+)
 from run_common import (
     ROOT,
     RUNS_DIR,
@@ -103,7 +107,12 @@ def extract_turns(run_dir: Path, run_data: dict[str, Any]) -> list[dict[str, Any
     return turns
 
 
-def extract_run_record(run_dir: Path) -> dict[str, Any] | None:
+def extract_run_record(
+    run_dir: Path,
+    demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
+    prefer_local: bool = True,
+    root_dir: Path = ROOT,
+) -> dict[str, Any] | None:
     """Extract a complete run record including verification artifacts and telemetry."""
     norm = extract_normalized_run_metrics(run_dir)
     if norm is None:
@@ -178,17 +187,26 @@ def extract_run_record(run_dir: Path) -> dict[str, Any] | None:
     screenshot_file = run_dir / "artifacts" / "screenshot.png"
     screenshot_rel = f"screenshots/{prompt_id}/{run_id}.png" if screenshot_file.is_file() else None
 
-    # Published demo relative URL
-    demo_url = (
+    # Published demo URL
+    raw_demo_url = (
         runtime_data.get("demo_url")
         or run.get("demo_url")
         or (run.get("verification") or {}).get("runtime", {}).get("demo_url")
     )
-    if not demo_url:
+    if not raw_demo_url:
         for prefix in ("site", "dashboard"):
-            if (ROOT / prefix / "demos" / prompt_id / run_id / "index.html").is_file():
-                demo_url = f"demos/{prompt_id}/{run_id}/index.html"
+            if (root_dir / prefix / "demos" / prompt_id / run_id / "index.html").is_file():
+                raw_demo_url = f"demos/{prompt_id}/{run_id}/index.html"
                 break
+
+    demo_url = resolve_demo_url(
+        raw_demo_url,
+        prompt_id=prompt_id,
+        run_id=run_id,
+        demos_base_url=demos_base_url,
+        prefer_local=prefer_local,
+        root_dir=root_dir,
+    )
 
     # Public static results paths
     results_base = f"results/{prompt_id}/{run_id}"
@@ -506,6 +524,9 @@ def compile_dashboard_payload(
     prompts_dir: Path = PROMPTS_DIR,
     reference_dir: Path = REFERENCE_DIR,
     generated_at: str | None = None,
+    demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
+    prefer_local: bool = True,
+    root_dir: Path = ROOT,
 ) -> dict[str, Any]:
     """Compile repository run records, probes, and telemetry into the dashboard payload."""
     run_dirs = find_run_dirs(runs_dir)
@@ -515,7 +536,12 @@ def compile_dashboard_payload(
         # Skip staging workspaces
         if (rd / ".staging_workspace").is_file():
             continue
-        rec = extract_run_record(rd)
+        rec = extract_run_record(
+            rd,
+            demos_base_url=demos_base_url,
+            prefer_local=prefer_local,
+            root_dir=root_dir,
+        )
         if rec is not None:
             runs.append(rec)
 
@@ -826,7 +852,13 @@ def embed_data_in_html(html_template_path: Path, payload: dict[str, Any], output
     output_html_path.write_text(new_content, encoding="utf-8")
 
 
-def check_dashboard_sync(runs_dir: Path, output_dir: Path) -> int:
+def check_dashboard_sync(
+    runs_dir: Path,
+    output_dir: Path,
+    demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
+    prefer_local: bool = True,
+    root_dir: Path = ROOT,
+) -> int:
     """Assert the existing dashboard payload matches current repository records."""
     data_json_path = output_dir / "data.json"
     if not data_json_path.is_file():
@@ -849,6 +881,9 @@ def check_dashboard_sync(runs_dir: Path, output_dir: Path) -> int:
     fresh_payload = compile_dashboard_payload(
         runs_dir=runs_dir,
         generated_at=existing_timestamp,
+        demos_base_url=demos_base_url,
+        prefer_local=prefer_local,
+        root_dir=root_dir,
     )
 
     existing_str = json.dumps(existing_payload, indent=2, sort_keys=True)
@@ -912,10 +947,19 @@ def build_dashboard(
     output_dir: Path = DASHBOARD_DIR,
     check: bool = False,
     serve_port: int | None = None,
+    demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
+    prefer_local: bool = True,
+    root_dir: Path = ROOT,
 ) -> int:
     """Main build workflow for compiling the dashboard."""
     if check:
-        return check_dashboard_sync(runs_dir, output_dir)
+        return check_dashboard_sync(
+            runs_dir,
+            output_dir,
+            demos_base_url=demos_base_url,
+            prefer_local=prefer_local,
+            root_dir=root_dir,
+        )
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -931,15 +975,31 @@ def build_dashboard(
             existing_generated_at = None
 
     if existing_generated_at:
-        trial_payload = compile_dashboard_payload(runs_dir=runs_dir, generated_at=existing_generated_at)
+        trial_payload = compile_dashboard_payload(
+            runs_dir=runs_dir,
+            generated_at=existing_generated_at,
+            demos_base_url=demos_base_url,
+            prefer_local=prefer_local,
+            root_dir=root_dir,
+        )
         trial_str = json.dumps(trial_payload, indent=2, sort_keys=True)
         existing_str = json.dumps(existing_payload, indent=2, sort_keys=True)
         if trial_str == existing_str:
             payload = trial_payload
         else:
-            payload = compile_dashboard_payload(runs_dir=runs_dir)
+            payload = compile_dashboard_payload(
+                runs_dir=runs_dir,
+                demos_base_url=demos_base_url,
+                prefer_local=prefer_local,
+                root_dir=root_dir,
+            )
     else:
-        payload = compile_dashboard_payload(runs_dir=runs_dir)
+        payload = compile_dashboard_payload(
+            runs_dir=runs_dir,
+            demos_base_url=demos_base_url,
+            prefer_local=prefer_local,
+            root_dir=root_dir,
+        )
 
     # 2. Validate schema
     schema_errors = validate_payload_schema(payload)
@@ -1051,6 +1111,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Assert dashboard data.json is in sync with repository records without writing.",
     )
     parser.add_argument(
+        "--demos-base-url",
+        default=DEFAULT_DEMOS_BASE_URL,
+        help=f"Base URL for hosted live demos in sister repository (default: {DEFAULT_DEMOS_BASE_URL}).",
+    )
+    parser.add_argument(
+        "--production",
+        action="store_true",
+        help="Force resolving live demo links to sister repository GitHub Pages URL even if local demo files are present.",
+    )
+    parser.add_argument(
         "--serve",
         nargs="?",
         const=8000,
@@ -1068,6 +1138,8 @@ def main() -> int:
         output_dir=args.output_dir,
         check=args.check,
         serve_port=args.serve,
+        demos_base_url=args.demos_base_url,
+        prefer_local=not args.production,
     )
 
 

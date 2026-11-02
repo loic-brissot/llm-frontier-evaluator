@@ -18,8 +18,10 @@ from unittest.mock import MagicMock, patch
 
 from build_dashboard import extract_run_record, validate_payload_schema
 from package_web_demos import (
+    DEFAULT_DEMOS_BASE_URL,
     build_parser,
     compile_workspace,
+    compute_demo_canonical_url,
     compute_demo_relative_url,
     export_static_bundle,
     find_static_source,
@@ -30,6 +32,7 @@ from package_web_demos import (
     make_html_paths_relative,
     package_run_demo,
     record_demo_url,
+    resolve_demo_url,
     sanitize_bundle_html,
     verify_packaged_bundle,
 )
@@ -389,6 +392,81 @@ class TestComputeDemoRelativeUrl:
         assert url == "demos/paris-flood/run-2/index.html"
 
 
+class TestComputeDemoCanonicalUrl:
+    """Test canonical URL calculation for sister repository (AC 1)."""
+
+    def test_default_base_url(self) -> None:
+        url = compute_demo_canonical_url("france-rail", "run-1")
+        assert url == "https://loic-brissot.github.io/llm-frontier-evaluator-demos/demos/france-rail/run-1/index.html"
+
+    def test_custom_base_url_with_trailing_slash(self) -> None:
+        url = compute_demo_canonical_url(
+            "paris-flood", "run-2", demos_base_url="https://example.com/hosted-demos/"
+        )
+        assert url == "https://example.com/hosted-demos/demos/paris-flood/run-2/index.html"
+
+    def test_base_url_ending_in_demos(self) -> None:
+        url = compute_demo_canonical_url(
+            "paris-flood", "run-2", demos_base_url="https://example.com/hosted-demos/demos"
+        )
+        assert url == "https://example.com/hosted-demos/demos/paris-flood/run-2/index.html"
+
+
+class TestResolveDemoUrl:
+    """Test resolve_demo_url local vs canonical resolution (AC 1, AC 3)."""
+
+    def test_already_absolute_url(self) -> None:
+        assert (
+            resolve_demo_url("https://external.example.com/demo.html")
+            == "https://external.example.com/demo.html"
+        )
+        assert (
+            resolve_demo_url("http://localhost:3000/demo.html")
+            == "http://localhost:3000/demo.html"
+        )
+
+    def test_missing_local_file_resolves_to_canonical(self, tmp_path: Path) -> None:
+        url = resolve_demo_url(
+            "demos/p1/r1/index.html",
+            prompt_id="p1",
+            run_id="r1",
+            root_dir=tmp_path,
+        )
+        assert url == f"{DEFAULT_DEMOS_BASE_URL}/demos/p1/r1/index.html"
+
+    def test_existing_local_file_resolves_to_relative(self, tmp_path: Path) -> None:
+        local_demo = tmp_path / "dashboard" / "demos" / "p1" / "r1" / "index.html"
+        local_demo.parent.mkdir(parents=True)
+        local_demo.write_text("<html>demo</html>", encoding="utf-8")
+
+        url = resolve_demo_url(
+            "demos/p1/r1/index.html",
+            prompt_id="p1",
+            run_id="r1",
+            prefer_local=True,
+            root_dir=tmp_path,
+        )
+        assert url == "demos/p1/r1/index.html"
+
+    def test_prefer_local_false_forces_canonical(self, tmp_path: Path) -> None:
+        local_demo = tmp_path / "dashboard" / "demos" / "p1" / "r1" / "index.html"
+        local_demo.parent.mkdir(parents=True)
+        local_demo.write_text("<html>demo</html>", encoding="utf-8")
+
+        url = resolve_demo_url(
+            "demos/p1/r1/index.html",
+            prompt_id="p1",
+            run_id="r1",
+            prefer_local=False,
+            root_dir=tmp_path,
+        )
+        assert url == f"{DEFAULT_DEMOS_BASE_URL}/demos/p1/r1/index.html"
+
+    def test_none_or_empty_inputs(self) -> None:
+        assert resolve_demo_url(None) is None
+        assert resolve_demo_url("") is None
+
+
 class TestRecordDemoUrl:
     """Test recording demo_url in runtime.json and run.json (AC 3)."""
 
@@ -488,6 +566,35 @@ class TestPackageRunDemo:
         assert rt_path.is_file()
         assert load_json(rt_path)["demo_url"] == "demos/test-prompt/test-run/index.html"
 
+    def test_package_run_demo_with_publish_repo(self, tmp_path: Path) -> None:
+        run_dir = tmp_path / "runs" / "test-prompt" / "test-run"
+        workspace = run_dir / "workspace"
+        dist = workspace / "dist"
+        dist.mkdir(parents=True)
+        (dist / "index.html").write_text("<html><body>Interactive Demo</body></html>", encoding="utf-8")
+        (dist / "app.js").write_text("console.log(1);", encoding="utf-8")
+
+        sister_repo = tmp_path / "llm-frontier-evaluator-demos"
+        sister_repo.mkdir(parents=True)
+
+        res = package_run_demo(
+            run_dir,
+            publish_repo=sister_repo,
+            demos_base_url="https://custom.github.io/my-demos",
+            skip_build=True,
+        )
+
+        assert res["prompt_id"] == "test-prompt"
+        assert res["run_id"] == "test-run"
+        assert res["demo_url"] == "https://custom.github.io/my-demos/demos/test-prompt/test-run/index.html"
+        assert res["canonical_url"] == "https://custom.github.io/my-demos/demos/test-prompt/test-run/index.html"
+        assert (sister_repo / "demos" / "test-prompt" / "test-run" / "index.html").is_file()
+
+        # Check runtime.json updated with canonical URL
+        rt_path = run_dir / "artifacts" / "runtime.json"
+        assert rt_path.is_file()
+        assert load_json(rt_path)["demo_url"] == "https://custom.github.io/my-demos/demos/test-prompt/test-run/index.html"
+
 
 class TestMultiRunShowcaseIndex:
     """Test multi-run web showcase gallery index.html and demos.json generation."""
@@ -529,6 +636,8 @@ class TestMultiRunShowcaseIndex:
         assert len(demos_list) == 2
         assert demos_list[0]["prompt_id"] == "p1"
         assert demos_list[0]["passed"] is True
+        assert "canonical_url" in demos_list[0]
+        assert demos_list[0]["canonical_url"].startswith(DEFAULT_DEMOS_BASE_URL)
 
 
 class TestDashboardIntegration:
@@ -559,9 +668,24 @@ class TestDashboardIntegration:
             encoding="utf-8",
         )
 
-        rec = extract_run_record(run_dir)
+        # 1. When local demo file is absent, resolves to canonical sister repo URL
+        rec = extract_run_record(run_dir, root_dir=tmp_path)
         assert rec is not None
-        assert rec.get("demo_url") == "demos/prompt-x/run-x/index.html"
+        assert rec.get("demo_url") == f"{DEFAULT_DEMOS_BASE_URL}/demos/prompt-x/run-x/index.html"
+
+        # 2. When local demo file is present on disk, resolves to local relative path
+        local_demo = tmp_path / "dashboard" / "demos" / "prompt-x" / "run-x" / "index.html"
+        local_demo.parent.mkdir(parents=True)
+        local_demo.write_text("<html>demo</html>", encoding="utf-8")
+
+        rec_local = extract_run_record(run_dir, root_dir=tmp_path, prefer_local=True)
+        assert rec_local is not None
+        assert rec_local.get("demo_url") == "demos/prompt-x/run-x/index.html"
+
+        # 3. In production mode (prefer_local=False), forces canonical URL even if local file exists
+        rec_prod = extract_run_record(run_dir, root_dir=tmp_path, prefer_local=False)
+        assert rec_prod is not None
+        assert rec_prod.get("demo_url") == f"{DEFAULT_DEMOS_BASE_URL}/demos/prompt-x/run-x/index.html"
 
     def test_dashboard_schema_validates_demo_url(self) -> None:
         dummy_payload = {
