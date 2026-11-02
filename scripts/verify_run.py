@@ -4,19 +4,12 @@
 from __future__ import annotations
 
 import argparse
-import functools
 import os
 import re
-import signal
-import socket
 import subprocess
 import sys
-import threading
 import time
-import urllib.request
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Callable
 
 from run_common import (
     _add_venv_site_packages,
@@ -27,377 +20,49 @@ from run_common import (
     write_json,
 )
 from probe_data import probe_run
-
-
-def is_uncompiled_source_html(html_path: Path) -> bool:
-    if not html_path.is_file():
-        return False
-    try:
-        content = html_path.read_text(encoding="utf-8", errors="ignore")
-        matches = re.findall(r'<script\b[^>]*\bsrc\s*=\s*["\']([^"\']+)["\']', content, re.IGNORECASE)
-        for src in matches:
-            src_lower = src.lower().split("?")[0]
-            if src_lower.endswith((".ts", ".tsx", ".jsx")):
-                return True
-        return False
-    except Exception:
-        return False
-
-
-COMMON_STATIC_SUBDIRS = ("web", "site", "public", "app", "www", "frontend", "client")
-
-
-def select_static_dir(workspace_dir: Path) -> Path | None:
-    if (workspace_dir / "dist" / "index.html").is_file():
-        return workspace_dir / "dist"
-    if (workspace_dir / "build" / "index.html").is_file():
-        return workspace_dir / "build"
-    root_html = workspace_dir / "index.html"
-    if root_html.is_file() and not is_uncompiled_source_html(root_html):
-        return workspace_dir
-    for sub in COMMON_STATIC_SUBDIRS:
-        sub_dir = workspace_dir / sub
-        if not sub_dir.is_dir():
-            continue
-        if (sub_dir / "dist" / "index.html").is_file():
-            return sub_dir / "dist"
-        if (sub_dir / "build" / "index.html").is_file():
-            return sub_dir / "build"
-        sub_html = sub_dir / "index.html"
-        if sub_html.is_file() and not is_uncompiled_source_html(sub_html):
-            return sub_dir
-    return None
-
-
-def extract_listening_url(text: str) -> str | None:
-    clean_text = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", text)
-    match = re.search(r"https?://(?:127\.0\.0\.1|localhost|\[::1\]|0\.0\.0\.0):\d+(?:/[^\s\x1b]*)?", clean_text)
-    if match:
-        raw_url = match.group(0)
-        return raw_url.replace("0.0.0.0", "127.0.0.1").replace("[::1]", "127.0.0.1")
-    return None
-
-
-def _start_output_collector(proc: subprocess.Popen) -> tuple[Callable[[], str], Callable[[], None]]:
-    lines: list[str] = []
-
-    def _read(stream: Any) -> None:
-        if stream is None or type(stream).__name__ == "MagicMock":
-            return
-        if not hasattr(stream, "readline"):
-            return
-        try:
-            for line in iter(stream.readline, b""):
-                if isinstance(line, bytes):
-                    line = line.decode("utf-8", errors="ignore")
-                lines.append(line)
-                if not line:
-                    break
-        except Exception:
-            pass
-
-    t1 = threading.Thread(target=_read, args=(getattr(proc, "stdout", None),), daemon=True)
-    t2 = threading.Thread(target=_read, args=(getattr(proc, "stderr", None),), daemon=True)
-    t1.start()
-    t2.start()
-
-    def get_output() -> str:
-        return "".join(lines)
-
-    def stop() -> None:
-        pass
-
-    return get_output, stop
-
-
-class EphemeralStaticServer:
-    def __init__(self, directory: Path, port: int = 0):
-        self.directory = directory
-        handler_class = functools.partial(SimpleHTTPRequestHandler, directory=str(directory))
-        self.server = ThreadingHTTPServer(("127.0.0.1", port), handler_class)
-        self.port = self.server.server_address[1]
-        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
-
-    def start(self) -> None:
-        self.thread.start()
-
-    def stop(self) -> None:
-        self.server.shutdown()
-        self.server.server_close()
-
-
-def find_free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
-def wait_for_server(url: str, timeout: float = 10.0) -> bool:
-    urls_to_try = [url]
-    if "127.0.0.1" in url:
-        urls_to_try.append(url.replace("127.0.0.1", "localhost"))
-    elif "localhost" in url:
-        urls_to_try.append(url.replace("localhost", "127.0.0.1"))
-
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        for target in urls_to_try:
-            try:
-                with urllib.request.urlopen(target, timeout=1.0) as resp:
-                    if resp.status < 500:
-                        return True
-            except Exception:
-                pass
-        time.sleep(0.2)
-    return False
-
-
-_PORT_MIN, _PORT_MAX = 1024, 65535
-_SCRIPT_PORT_PATTERNS = (
-    # --port 8080, --port=8080, -p 8080, -p8080, --listen 8080, --listen=127.0.0.1:8080, -l tcp://0.0.0.0:3000
-    re.compile(r"(?<![\w-])(?:--port|--listen|-p|-l)(?:=|\s+)?(?:\S*:)?(\d{2,5})(?!\d)"),
-    # PORT=8080 node server.js, ${PORT:-8080}
-    re.compile(r"(?<![\w$])PORT=(\d{2,5})(?!\d)"),
-    re.compile(r"\$\{PORT:-(\d{2,5})\}"),
+from workspace_discovery import (
+    COMMON_STATIC_SUBDIRS,
+    EphemeralStaticServer,
+    _port_is_listening,
+    _start_output_collector,
+    collect_script_text,
+    discover_and_start_server,
+    extract_listening_url,
+    extract_ports_from_script_text,
+    find_free_port,
+    is_uncompiled_source_html,
+    poll_for_reachable_url,
+    port_is_listening,
+    select_static_dir,
+    wait_for_server,
 )
-_HTTP_SERVER_RE = re.compile(r"(?:http\.server|SimpleHTTPServer)\b([^;&|]*)")
-_PYTHON_HTTP_SERVER_DEFAULT_PORT = 8000
-_PYTHON_HTTP_SERVER_VALUE_OPTIONS = {"--directory", "-d", "--cgi", "--protocol", "--bind", "-b"}
-_SCRIPT_REFERENCE_RE = re.compile(r"\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?([\w:.-]+)")
 
-
-def extract_ports_from_script_text(script_text: str) -> list[int]:
-    """Return candidate TCP ports spelled out in a package.json script command.
-
-    Only ports literally present in the script text are returned (plus Python's documented
-    ``http.server`` default of 8000 when it is launched without a port), never a generic list of
-    common ports, so the verifier cannot latch onto an unrelated server on the operator's machine.
-    """
-    ports: list[int] = []
-
-    def _add(raw: str | int) -> None:
-        try:
-            port = int(raw)
-        except (TypeError, ValueError):
-            return
-        if _PORT_MIN <= port <= _PORT_MAX and port not in ports:
-            ports.append(port)
-
-    for pattern in _SCRIPT_PORT_PATTERNS:
-        for match in pattern.finditer(script_text):
-            _add(match.group(1))
-
-    for match in _HTTP_SERVER_RE.finditer(script_text):
-        tokens = match.group(1).split()
-        found = False
-        for index, token in enumerate(tokens):
-            previous = tokens[index - 1] if index else ""
-            if re.fullmatch(r"\d{2,5}", token) and previous not in _PYTHON_HTTP_SERVER_VALUE_OPTIONS:
-                _add(token)
-                found = True
-                break
-        if not found:
-            _add(_PYTHON_HTTP_SERVER_DEFAULT_PORT)
-    return ports
-
-
-def collect_script_text(scripts: dict, name: str, *, _depth: int = 0, _seen: set[str] | None = None) -> str:
-    """Return the text of ``scripts[name]`` plus the scripts it delegates to (``npm run other``)."""
-    seen = _seen if _seen is not None else set()
-    body = scripts.get(name)
-    if not isinstance(body, str) or name in seen:
-        return ""
-    seen.add(name)
-    parts = [body]
-    if _depth < 3:
-        for ref in _SCRIPT_REFERENCE_RE.findall(body):
-            if ref in scripts and ref not in seen:
-                parts.append(collect_script_text(scripts, ref, _depth=_depth + 1, _seen=seen))
-    return "\n".join(p for p in parts if p)
-
-
-def _port_is_listening(port: int) -> bool:
-    try:
-        with socket.create_connection(("127.0.0.1", port), timeout=0.3):
-            return True
-    except OSError:
-        return False
-
-
-def poll_for_reachable_url(
-    target_urls: list[str],
-    get_output: Callable[[], str] | None = None,
-    timeout: float = 10.0,
-    *,
-    script_port_urls: list[str] | None = None,
-    is_alive: Callable[[], bool] | None = None,
-) -> str | None:
-    """Poll candidate URLs until one answers.
-
-    ``script_port_urls`` are ports guessed from the package script text. They are only accepted
-    while ``is_alive()`` reports that the process we started is still running, so a stray
-    server on the same port is not mistaken for ours after our process died.
-    """
-    start_time = time.time()
-    candidates = list(target_urls)
-    script_candidates = [u for u in (script_port_urls or []) if u not in candidates]
-
-    while time.time() - start_time < timeout:
-        if get_output:
-            out_text = get_output()
-            discovered = extract_listening_url(out_text)
-            if discovered and discovered not in candidates:
-                candidates.append(discovered)
-
-        for u in list(candidates):
-            if wait_for_server(u, timeout=0.2):
-                return u
-
-        if script_candidates and (is_alive is None or is_alive()):
-            for u in script_candidates:
-                if wait_for_server(u, timeout=0.2) and (is_alive is None or is_alive()):
-                    return u
-        time.sleep(0.2)
-    return None
-
-
-def discover_and_start_server(
-    workspace_dir: Path,
-    *,
-    explicit_url: str | None = None,
-    start_cmd: str | None = None,
-    port: int | None = None,
-    timeout: float = 10.0,
-) -> tuple[str | None, str, Callable[[], None]]:
-    if explicit_url:
-        return explicit_url, "external_url", lambda: None
-
-    if start_cmd:
-        proc = subprocess.Popen(
-            start_cmd,
-            shell=True,
-            cwd=workspace_dir,
-            start_new_session=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
-        )
-        get_output, _ = _start_output_collector(proc)
-
-        def cleanup_cmd() -> None:
-            if proc.poll() is None and isinstance(proc.pid, int) and proc.pid > 0:
-                try:
-                    pgid = os.getpgid(proc.pid)
-                    if pgid != os.getpgrp():
-                        os.killpg(pgid, signal.SIGTERM)
-                    else:
-                        proc.terminate()
-                    proc.wait(timeout=2)
-                except Exception:
-                    try:
-                        pgid = os.getpgid(proc.pid)
-                        if pgid != os.getpgrp():
-                            os.killpg(pgid, signal.SIGKILL)
-                        else:
-                            proc.kill()
-                    except Exception:
-                        pass
-
-        target_port = port or 3000
-        target_url = f"http://127.0.0.1:{target_port}"
-        reachable_url = poll_for_reachable_url([target_url, "http://127.0.0.1:5173"], get_output=get_output, timeout=timeout)
-        if reachable_url:
-            return reachable_url, "command", cleanup_cmd
-
-        return target_url, "command", cleanup_cmd
-
-    # Auto-detection
-    pkg_json = workspace_dir / "package.json"
-    node_modules = workspace_dir / "node_modules"
-
-    # Check static directory availability first
-    static_dir = select_static_dir(workspace_dir)
-
-    if pkg_json.is_file() and node_modules.is_dir():
-        try:
-            pkg_data = load_json(pkg_json)
-            scripts = pkg_data.get("scripts") if isinstance(pkg_data.get("scripts"), dict) else {}
-            chosen_script = None
-            for script_name in ("preview", "start", "dev"):
-                if script_name in scripts:
-                    chosen_script = script_name
-                    break
-
-            if chosen_script:
-                cmd_port = port or find_free_port()
-                if chosen_script == "preview":
-                    run_cmd = f"npm run preview -- --host 127.0.0.1 --port {cmd_port}"
-                elif chosen_script == "dev":
-                    run_cmd = f"npm run dev -- --host 127.0.0.1 --port {cmd_port}"
-                else:
-                    run_cmd = f"PORT={cmd_port} npm start"
-
-                # Scripts that hardcode a port (and ignore PORT) are discovered from their text.
-                # Ports that already answer belong to some other process, so they are not candidates.
-                script_ports = [
-                    p
-                    for p in extract_ports_from_script_text(collect_script_text(scripts, chosen_script))
-                    if p != cmd_port and not _port_is_listening(p)
-                ]
-
-                # Unbuffered output so banners such as Python's "Serving HTTP on ..." reach the pipe.
-                proc = subprocess.Popen(
-                    run_cmd,
-                    shell=True,
-                    cwd=workspace_dir,
-                    start_new_session=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    env={**os.environ, "PYTHONUNBUFFERED": "1"},
-                )
-                get_output, _ = _start_output_collector(proc)
-
-                def cleanup_pkg() -> None:
-                    if proc.poll() is None and isinstance(proc.pid, int) and proc.pid > 0:
-                        try:
-                            pgid = os.getpgid(proc.pid)
-                            if pgid != os.getpgrp():
-                                os.killpg(pgid, signal.SIGTERM)
-                            else:
-                                proc.terminate()
-                            proc.wait(timeout=2)
-                        except Exception:
-                            try:
-                                pgid = os.getpgid(proc.pid)
-                                if pgid != os.getpgrp():
-                                    os.killpg(pgid, signal.SIGKILL)
-                                else:
-                                    proc.kill()
-                            except Exception:
-                                pass
-
-                target_url = f"http://127.0.0.1:{cmd_port}"
-                reachable_url = poll_for_reachable_url(
-                    [target_url],
-                    get_output=get_output,
-                    timeout=min(timeout, 8.0),
-                    script_port_urls=[f"http://127.0.0.1:{p}" for p in script_ports],
-                    is_alive=lambda: proc.poll() is None,
-                )
-                if reachable_url:
-                    return reachable_url, "command", cleanup_pkg
-
-                cleanup_pkg()
-        except Exception:
-            pass
-
-    if static_dir is not None:
-        server = EphemeralStaticServer(static_dir, port=port or 0)
-        server.start()
-        target_url = f"http://127.0.0.1:{server.port}"
-        return target_url, "static", server.stop
-
-    return None, "none", lambda: None
+__all__ = [
+    "COMMON_STATIC_SUBDIRS",
+    "DOM_INSPECTION_SCRIPT",
+    "EphemeralStaticServer",
+    "_port_is_listening",
+    "_start_output_collector",
+    "collect_script_text",
+    "discover_and_start_server",
+    "extract_listening_url",
+    "extract_ports_from_script_text",
+    "find_free_port",
+    "identify_critical_failures",
+    "is_uncompiled_source_html",
+    "os",
+    "poll_for_reachable_url",
+    "port_is_listening",
+    "reevaluate_run",
+    "reevaluate_runtime",
+    "run_playwright_telemetry",
+    "select_run_dir",
+    "select_static_dir",
+    "serve_run",
+    "subprocess",
+    "verify_run",
+    "wait_for_server",
+]
 
 
 DOM_INSPECTION_SCRIPT = """

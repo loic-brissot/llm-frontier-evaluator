@@ -3,9 +3,10 @@ id: TASK-107
 title: >-
   Modularize harness adapters (scripts/harnesses/) and unify workspace
   static/server discovery across verify_run.py and package_web_demos.py
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-01 23:59'
+updated_date: '2026-11-02 04:24'
 labels: []
 milestone: m-9
 dependencies:
@@ -29,7 +30,7 @@ Refactor the core engine to isolate harness-specific and workspace-layout logic:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 scripts/harnesses/ defines a clean adapter interface with implementations for cursor and claude-code used by setup_run.py, run_benchmark.py, tool_events.py, and finish_run.py
-- [ ] #2 scripts/verify_run.py and scripts/package_web_demos.py share a single workspace static/server discovery implementation
-- [ ] #3 Existing unit and integration test suites pass without regressions
+- [x] #1 scripts/harnesses/ defines a clean adapter interface with implementations for cursor and claude-code used by setup_run.py, run_benchmark.py, tool_events.py, and finish_run.py
+- [x] #2 scripts/verify_run.py and scripts/package_web_demos.py share a single workspace static/server discovery implementation
+- [x] #3 Existing unit and integration test suites pass without regressions
 <!-- AC:END -->

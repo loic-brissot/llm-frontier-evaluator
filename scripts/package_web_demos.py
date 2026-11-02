@@ -15,7 +15,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -28,12 +27,42 @@ from run_common import (
     write_json,
 )
 from verify_run import (
-    COMMON_STATIC_SUBDIRS,
-    EphemeralStaticServer,
-    is_uncompiled_source_html,
     run_playwright_telemetry,
     select_run_dir,
 )
+from workspace_discovery import (
+    COMMON_STATIC_SUBDIRS,
+    EphemeralStaticServer,
+    compile_workspace,
+    find_static_source,
+    is_uncompiled_source_html,
+    select_static_dir,
+)
+
+__all__ = [
+    "COMMON_STATIC_SUBDIRS",
+    "DEFAULT_DEMOS_BASE_URL",
+    "DEFAULT_OUTPUT_DIR",
+    "EphemeralStaticServer",
+    "build_parser",
+    "compile_workspace",
+    "compute_demo_canonical_url",
+    "compute_demo_relative_url",
+    "export_static_bundle",
+    "find_static_source",
+    "generate_showcase_index",
+    "is_excluded_path",
+    "is_uncompiled_source_html",
+    "main",
+    "make_code_paths_relative",
+    "make_html_paths_relative",
+    "package_run_demo",
+    "record_demo_url",
+    "resolve_demo_url",
+    "sanitize_bundle_html",
+    "select_static_dir",
+    "verify_packaged_bundle",
+]
 
 DEFAULT_OUTPUT_DIR = ROOT / "site" / "demos"
 DEFAULT_DEMOS_BASE_URL = "https://loic-brissot.github.io/llm-frontier-evaluator-demos"
@@ -174,140 +203,6 @@ def sanitize_bundle_html(bundle_dir: Path) -> int:
             except Exception:
                 pass
     return modified_count
-
-
-def compile_workspace(
-    workspace_dir: Path,
-    *,
-    base_url: str = "./",
-    timeout: float = 120.0,
-) -> tuple[bool, str]:
-    """Compile workspace using npm run build with relative base path.
-
-    Returns (success, message).
-    """
-    pkg_json = workspace_dir / "package.json"
-    if not pkg_json.is_file():
-        return False, "No package.json found in workspace"
-
-    try:
-        pkg_data = load_json(pkg_json)
-        scripts = pkg_data.get("scripts") if isinstance(pkg_data.get("scripts"), dict) else {}
-        if "build" not in scripts:
-            return False, "No build script in package.json"
-    except Exception as exc:
-        return False, f"Failed to parse package.json: {exc}"
-
-    node_modules = workspace_dir / "node_modules"
-    if not node_modules.is_dir():
-        return False, "node_modules directory not present in workspace"
-
-    # Try building with Vite/bundler relative base flag first
-    cmd_with_base = f"npm run build -- --base={base_url}"
-    try:
-        res = subprocess.run(
-            cmd_with_base,
-            shell=True,
-            cwd=workspace_dir,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=timeout,
-        )
-        if res.returncode == 0:
-            return True, f"Compiled with '{cmd_with_base}'"
-    except subprocess.TimeoutExpired:
-        return False, f"Build timed out after {timeout}s"
-    except Exception:
-        pass
-
-    # Fallback to standard npm run build
-    try:
-        res = subprocess.run(
-            "npm run build",
-            shell=True,
-            cwd=workspace_dir,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=timeout,
-        )
-        if res.returncode == 0:
-            return True, "Compiled with 'npm run build'"
-        err_msg = res.stderr.strip() or res.stdout.strip()
-        return False, f"npm run build failed (exit {res.returncode}): {err_msg[:200]}"
-    except subprocess.TimeoutExpired:
-        return False, f"Build timed out after {timeout}s"
-    except Exception as exc:
-        return False, f"Build execution error: {exc}"
-
-
-def find_static_source(
-    workspace_dir: Path,
-    *,
-    try_compile: bool = True,
-    base_url: str = "./",
-    timeout: float = 120.0,
-) -> tuple[Path | None, str]:
-    """Locate static directory or compile workspace to create one.
-
-    Returns (source_dir, source_mode).
-    """
-    if not workspace_dir.is_dir():
-        return None, "missing_workspace"
-
-    # 1. If compilation is requested and package.json has build script, attempt build
-    if try_compile:
-        pkg_json = workspace_dir / "package.json"
-        if pkg_json.is_file():
-            compile_workspace(workspace_dir, base_url=base_url, timeout=timeout)
-
-    # 2. Check standard compiled bundle directories
-    dist_html = workspace_dir / "dist" / "index.html"
-    if dist_html.is_file():
-        return workspace_dir / "dist", "dist"
-
-    build_html = workspace_dir / "build" / "index.html"
-    if build_html.is_file():
-        return workspace_dir / "build", "build"
-
-    # 3. Check static root index.html
-    root_html = workspace_dir / "index.html"
-    if root_html.is_file() and not is_uncompiled_source_html(root_html):
-        return workspace_dir, "static_root"
-
-    # 4. If root index.html exists even if uncompiled source, check if fallback is possible
-    if root_html.is_file():
-        return workspace_dir, "raw_static"
-
-    # 5. Check common subdirectories for static apps (web/, site/, public/, app/, www/, frontend/, client/)
-    for sub in COMMON_STATIC_SUBDIRS:
-        sub_dir = workspace_dir / sub
-        if not sub_dir.is_dir():
-            continue
-        child_res, child_mode = find_static_source(
-            sub_dir,
-            try_compile=try_compile,
-            base_url=base_url,
-            timeout=timeout,
-        )
-        if child_res is not None:
-            return child_res, f"{sub}/{child_mode}"
-
-    # 6. Check remaining subdirectories for compiled or buildable apps (e.g. workspace/paris-trees)
-    for child in sorted(workspace_dir.iterdir()):
-        if not child.is_dir() or child.name.startswith((".", "node_modules")) or child.name in COMMON_STATIC_SUBDIRS:
-            continue
-        child_res, child_mode = find_static_source(
-            child,
-            try_compile=try_compile,
-            base_url=base_url,
-            timeout=timeout,
-        )
-        if child_res is not None:
-            return child_res, f"{child.name}/{child_mode}"
-
-    return None, "none"
 
 
 def export_static_bundle(
