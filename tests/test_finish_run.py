@@ -491,6 +491,47 @@ class TestFinishRun(unittest.TestCase):
         partial_call = observation_default(run, summary, include_other=True)
         self.assertEqual(partial_call, "Note 1 Note 2 other tools: custom_tool.")
 
+    def test_observation_default_replaces_stale_telemetry_and_preserves_operator_note(self):
+        summary = ToolEventSummary(
+            present=True,
+            notes=[
+                "Ignored 3 extra conversation(s) in tool-events log (c1, c2, c3).",
+                "The logged prompt bytes differ from prompt/test.txt.",
+                "Isolation audit flagged 2 potential contamination event(s): Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..').",
+            ],
+        )
+        existing_with_stale_and_duplicates = (
+            "Ignored 2 extra conversation(s) in tool-events log (c1, c2). "
+            "The logged prompt bytes differ from prompt/test.txt. "
+            "Ignored 3 extra conversation(s) in tool-events log (c1, c2, c3). "
+            "The logged prompt bytes differ from prompt/test.txt. "
+            "Isolation audit flagged 6 potential contamination event(s): Write attempted parent traversal ('..'), Shell attempted parent traversal ('..'). "
+            "Operator override (2026-10-28): verification marked passed. Smoke test false negative: the app renders."
+        )
+        run = {"observations": existing_with_stale_and_duplicates}
+        result = observation_default(run, summary, include_other=False)
+        expected = (
+            "Ignored 3 extra conversation(s) in tool-events log (c1, c2, c3). "
+            "The logged prompt bytes differ from prompt/test.txt. "
+            "Isolation audit flagged 2 potential contamination event(s): Shell attempted parent traversal ('..'), Shell attempted parent traversal ('..'). "
+            "Operator override (2026-10-28): verification marked passed. Smoke test false negative: the app renders."
+        )
+        self.assertEqual(result, expected)
+
+        # Idempotent on re-run
+        run["observations"] = result
+        self.assertEqual(observation_default(run, summary, include_other=False), expected)
+
+    def test_observation_default_preserves_human_note_prefix(self):
+        summary = ToolEventSummary(
+            present=True,
+            notes=["Note 1", "Note 2"],
+            other_tools=["custom_tool"],
+        )
+        run = {"observations": "Pre-existing human note. Note 1"}
+        result = observation_default(run, summary, include_other=True)
+        self.assertEqual(result, "Pre-existing human note. Note 1 Note 2 other tools: custom_tool.")
+
     def test_repatriate_staged_workspace(self):
         tmp_parent = ROOT / "tmp"
         tmp_parent.mkdir(exist_ok=True)

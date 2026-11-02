@@ -13,6 +13,7 @@ from run_common import (
     _file_lock,
     _readme_lock,
     allocate_run_id,
+    estimate_run_cost,
     file_lock,
     infer_provider,
     load_pricing,
@@ -377,6 +378,96 @@ class TestRunCommon(unittest.TestCase):
                 runs_dir=runs_dir,
             )
             self.assertEqual(allocated, f"{parent_id}-2-follow-up")
+
+    def test_estimate_run_cost_basic(self):
+        run = {
+            "model": {"name": "Claude Sonnet 5.5", "context": "200k"},
+            "harness": {"name": "cursor"},
+            "tokens": {
+                "reasoning_tokens": 1000,
+                "visible_tokens": 2000,
+            },
+            "context_reread": {
+                "cache_read_tokens": 50000,
+                "cache_write_tokens": 10000,
+                "uncached_input_tokens": 5000,
+            },
+        }
+        cost_usd, cost_harness, estimate = estimate_run_cost(run)
+        self.assertIsNotNone(cost_usd)
+        self.assertIsNotNone(cost_harness)
+        self.assertEqual(estimate["model_id"], "claude-sonnet-5-5")
+        self.assertEqual(estimate["cache_tier_basis"], "assumed")
+
+    def test_estimate_run_cost_with_cw_split(self):
+        run = {
+            "model": {"name": "Claude Sonnet 5.5"},
+            "harness": {"name": "claude-code"},
+            "tokens": {
+                "raw": {
+                    "output_tokens": 1000,
+                    "usage": {
+                        "cache_creation": {
+                            "ephemeral_5m_input_tokens": 8000,
+                            "ephemeral_1h_input_tokens": 2000,
+                        }
+                    },
+                }
+            },
+            "context_reread": {
+                "cache_read_tokens": 20000,
+                "cache_write_tokens": 10000,
+                "uncached_input_tokens": 1000,
+            },
+        }
+        cost_usd, cost_harness, estimate = estimate_run_cost(run)
+        self.assertIsNotNone(cost_usd)
+        self.assertEqual(estimate["cache_tier_basis"], "usage_breakdown")
+        self.assertEqual(estimate["cache_write_5m_tokens"], 8000)
+        self.assertEqual(estimate["cache_write_1h_tokens"], 2000)
+
+    def test_estimate_run_cost_cursor_cost_column_fallback(self):
+        run = {
+            "model": {"name": "Claude Sonnet 5.5"},
+            "harness": {"name": "cursor"},
+            "tokens": {
+                "raw": {
+                    "output_tokens": 1000,
+                    "usage_csv": {"cost": "0.15"},
+                }
+            },
+            "context_reread": {
+                "cache_read_tokens": 10000,
+                "cache_write_tokens": 5000,
+                "uncached_input_tokens": 1000,
+            },
+        }
+        cost_usd, cost_harness, estimate = estimate_run_cost(run)
+        self.assertIsNotNone(cost_usd)
+        self.assertEqual(estimate["cache_tier_basis"], "cursor_cost_column")
+
+    def test_estimate_run_cost_existing_pricing_fallback(self):
+        run = {
+            "tokens": {
+                "raw": {
+                    "pricing": {
+                        "estimated_cost_usd": "0.42",
+                        "estimated_cost_with_harness_usd": "0.50",
+                    }
+                }
+            }
+        }
+        cost_usd, cost_harness, estimate = estimate_run_cost(run)
+        self.assertEqual(cost_usd, 0.42)
+        self.assertEqual(cost_harness, 0.50)
+        self.assertEqual(estimate["estimated_cost_usd"], "0.42")
+
+    def test_estimate_run_cost_no_tokens(self):
+        run = {}
+        cost_usd, cost_harness, estimate = estimate_run_cost(run)
+        self.assertIsNone(cost_usd)
+        self.assertIsNone(cost_harness)
+        self.assertEqual(estimate, {})
 
 
 if __name__ == "__main__":

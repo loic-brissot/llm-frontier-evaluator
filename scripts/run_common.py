@@ -1196,3 +1196,162 @@ def estimate_token_cost(
 
     return res
 
+
+def estimate_run_cost(
+    run: dict,
+    summary: dict | None = None,
+) -> tuple[float | None, float | None, dict]:
+    """Compute public list-price cost estimate from run record and optional tool event summary.
+
+    Consolidates cw_5m / cw_1h / cache_tier_basis extraction and pricing logic shared by
+    scripts/finish_run.py and scripts/compare_runs.py.
+
+    Returns:
+        tuple of (estimated_cost_usd, estimated_cost_with_harness_usd, estimate_dict)
+        where costs are floats (or None) and estimate_dict contains the full breakdown.
+    """
+    tokens = run.get("tokens") or {}
+    raw = tokens.get("raw") if isinstance(tokens.get("raw"), dict) else {}
+    cache = run.get("context_reread") or {}
+
+    output_tokens: int | None = None
+    if (
+        isinstance(tokens.get("reasoning_tokens"), int)
+        and not isinstance(tokens.get("reasoning_tokens"), bool)
+        and isinstance(tokens.get("visible_tokens"), int)
+        and not isinstance(tokens.get("visible_tokens"), bool)
+    ):
+        output_tokens = tokens["reasoning_tokens"] + tokens["visible_tokens"]
+
+    if output_tokens is None:
+        csv_block = raw.get("usage_csv") if isinstance(raw.get("usage_csv"), dict) else {}
+        hook_block = raw.get("hook_tokens") if isinstance(raw.get("hook_tokens"), dict) else {}
+        summary_out = (
+            summary.get("output_tokens")
+            if isinstance(summary, dict)
+            else getattr(summary, "output_tokens", None)
+        )
+        for candidate in (
+            csv_block.get("output_tokens"),
+            hook_block.get("output_tokens"),
+            raw.get("output_tokens"),
+            raw.get("completion_tokens"),
+            summary_out,
+        ):
+            if isinstance(candidate, int) and not isinstance(candidate, bool):
+                output_tokens = candidate
+                break
+
+    cache_read = (
+        cache.get("cache_read_tokens")
+        if isinstance(cache.get("cache_read_tokens"), int) and not isinstance(cache.get("cache_read_tokens"), bool)
+        else 0
+    )
+    cache_write = (
+        cache.get("cache_write_tokens")
+        if isinstance(cache.get("cache_write_tokens"), int) and not isinstance(cache.get("cache_write_tokens"), bool)
+        else 0
+    )
+    uncached_input = (
+        cache.get("uncached_input_tokens")
+        if isinstance(cache.get("uncached_input_tokens"), int) and not isinstance(cache.get("uncached_input_tokens"), bool)
+        else 0
+    )
+
+    if output_tokens is None and cache_read == 0 and uncached_input == 0:
+        pricing_block = raw.get("pricing") if isinstance(raw.get("pricing"), dict) else {}
+        if pricing_block and "estimated_cost_usd" in pricing_block:
+            c_usd = float(pricing_block["estimated_cost_usd"])
+            c_harness = float(
+                pricing_block.get("estimated_cost_with_harness_usd", pricing_block["estimated_cost_usd"])
+            )
+            return (c_usd, c_harness, pricing_block)
+        return (None, None, {})
+
+    # Extract 5m / 1h cache-write token split if available
+    cache_creation = (raw.get("usage") if isinstance(raw.get("usage"), dict) else {}).get("cache_creation")
+    if not isinstance(cache_creation, dict):
+        cache_creation = {}
+    claude_code_block = raw.get("claude_code") if isinstance(raw.get("claude_code"), dict) else {}
+    hook_tokens_block = raw.get("hook_tokens") if isinstance(raw.get("hook_tokens"), dict) else {}
+
+    cw_5m = None
+    cw_1h = None
+    if "ephemeral_5m_input_tokens" in cache_creation or "ephemeral_1h_input_tokens" in cache_creation:
+        cw_5m = cache_creation.get("ephemeral_5m_input_tokens")
+        cw_1h = cache_creation.get("ephemeral_1h_input_tokens")
+    elif "cache_write_5m_tokens" in claude_code_block or "cache_write_1h_tokens" in claude_code_block:
+        cw_5m = claude_code_block.get("cache_write_5m_tokens")
+        cw_1h = claude_code_block.get("cache_write_1h_tokens")
+    elif "cache_write_5m_tokens" in hook_tokens_block or "cache_write_1h_tokens" in hook_tokens_block:
+        cw_5m = hook_tokens_block.get("cache_write_5m_tokens")
+        cw_1h = hook_tokens_block.get("cache_write_1h_tokens")
+    elif summary:
+        s_cw_5m = (
+            summary.get("cache_write_5m_tokens")
+            if isinstance(summary, dict)
+            else getattr(summary, "cache_write_5m_tokens", None)
+        )
+        s_cw_1h = (
+            summary.get("cache_write_1h_tokens")
+            if isinstance(summary, dict)
+            else getattr(summary, "cache_write_1h_tokens", None)
+        )
+        if s_cw_5m is not None or s_cw_1h is not None:
+            cw_5m = s_cw_5m
+            cw_1h = s_cw_1h
+
+    cw_5m_int = int(cw_5m) if isinstance(cw_5m, int) and not isinstance(cw_5m, bool) else None
+    cw_1h_int = int(cw_1h) if isinstance(cw_1h, int) and not isinstance(cw_1h, bool) else None
+
+    # Determine cache_tier_basis
+    csv_block = raw.get("usage_csv") if isinstance(raw.get("usage_csv"), dict) else {}
+    cost_val = csv_block.get("cost")
+    has_numeric_cost = False
+    if cost_val is not None:
+        try:
+            float(str(cost_val))
+            has_numeric_cost = True
+        except ValueError:
+            has_numeric_cost = False
+
+    if cw_5m_int is not None or cw_1h_int is not None:
+        cache_tier_basis = "usage_breakdown"
+    elif has_numeric_cost:
+        cache_tier_basis = "cursor_cost_column"
+    else:
+        cache_tier_basis = "assumed"
+
+    model_info = run.get("model") or {}
+    model_name = str(model_info.get("name") or "")
+    context = model_info.get("context")
+    harness_name = str((run.get("harness") or {}).get("name") or "")
+    model_usage = raw.get("modelUsage") or raw.get("model_usage")
+    usage_block = raw.get("usage") if isinstance(raw.get("usage"), dict) else {}
+    server_tool_use = usage_block.get("server_tool_use") or raw.get("server_tool_use")
+
+    estimate = estimate_token_cost(
+        model_name,
+        uncached_input_tokens=uncached_input,
+        cache_write_tokens=cache_write,
+        cache_read_tokens=cache_read,
+        output_tokens=output_tokens or 0,
+        context=context if isinstance(context, str) else None,
+        harness=harness_name,
+        cache_write_5m_tokens=cw_5m_int,
+        cache_write_1h_tokens=cw_1h_int,
+        cache_tier_basis=cache_tier_basis,
+        model_usage=model_usage if isinstance(model_usage, dict) else None,
+        server_tool_use=server_tool_use if isinstance(server_tool_use, dict) else None,
+    )
+    if estimate is None:
+        return (None, None, {})
+
+    cost_usd = float(estimate["estimated_cost_usd"]) if "estimated_cost_usd" in estimate else None
+    cost_with_harness = (
+        float(estimate["estimated_cost_with_harness_usd"])
+        if "estimated_cost_with_harness_usd" in estimate
+        else cost_usd
+    )
+    return (cost_usd, cost_with_harness, estimate)
+

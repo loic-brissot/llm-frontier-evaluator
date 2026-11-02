@@ -43,6 +43,7 @@ CONTENT_KEYS = {
     "contents",
     "new_string",
     "old_string",
+    "new_source",
     "streamContent",
     "patch",
     "diff",

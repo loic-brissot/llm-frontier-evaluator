@@ -194,7 +194,6 @@ def _extract_traversal_target(tool_input: object) -> str:
 
 
 def check_isolation_violation(event: dict, own_workspace: str | Path | None = None) -> str | None:
-    """Mirror of templates/cursor/hooks/log-tool-event.py: same policy for both harnesses."""
     tool_input = event.get("tool_input")
     if tool_input is None:
         return None
