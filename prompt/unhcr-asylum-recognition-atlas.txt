@@ -1,0 +1,19 @@
+Build an interactive global asylum-decision, demographic pyramid, and host-responsibility observatory joining UNHCR population stocks, asylum adjudication outcomes, durable solutions, demographic cohorts, and World Bank macroeconomic indicators.
+The goal is an exceptional visual result, as rigorous, clear and revealing as an international migration policy research atlas, not a mere technical demo.
+Expected result:
+
+* A Host Responsibility & Burden Index map and scatter matrix cross each host country's displaced population against its national population (displaced per 1,000 inhabitants) and economic capacity (displaced per $1B GDP), contrasting low- and middle-income frontline hosts against high-income economies.
+* An interactive Origin x Destination Asylum Recognition Matrix cross-tabulates major origin nationalities (`coo_iso`) against destination asylum jurisdictions (`coa_iso`), comparing total decisions (`dec_total`), Geneva Convention recognition rate (`dec_recognized`), complementary protection rate (`dec_other`), and rejection rate (`dec_rejected`) for the exact same origin group across different host countries.
+* A Demographic Cohort Pyramid panel renders the age (`0–4`, `5–11`, `12–17`, `18–59`, `60+`) and sex (`f_*` vs. `m_*`) breakdown of displaced populations for any selected country, highlighting the share of children (<18) and elderly dependents.
+* A Durable Solutions & Net Protection Balance view compares displaced stocks against voluntary repatriation returns (`returned_refugees`, `returned_idps`), third-country resettlement (`resettlement`), and local naturalization (`naturalisation`) from 2018 to 2024.
+
+Available data sources (Open Data — UNHCR & World Bank, no API key required):
+
+* UNHCR Bilateral Population Stocks (2024): https://api.unhcr.org/population/v1/population/?limit=10000&year=2024&coo_all=true&coa_all=true
+* UNHCR Bilateral Asylum Decisions (`dec_recognized`, `dec_other`, `dec_rejected`, `dec_closed`, `dec_total`): https://api.unhcr.org/population/v1/asylum-decisions/?limit=10000&year=2024&coo_all=true&coa_all=true
+* UNHCR Durable Solutions (`returned_refugees`, `resettlement`, `naturalisation`, `returned_idps`, 2018–2024): https://api.unhcr.org/population/v1/solutions/?limit=10000&yearFrom=2018&yearTo=2024&coo_all=true&coa_all=true
+* UNHCR Displaced Demographics by Age & Sex (`f_0_4`, `m_0_4`, `f_5_11`, `m_5_11`, `f_12_17`, `m_12_17`, `f_18_59`, `m_18_59`, `f_60`, `m_60`): https://api.unhcr.org/population/v1/demographics/?limit=10000&year=2024&coa_all=true
+* World Bank Total Population (`SP.POP.TOTL`) & GDP (`NY.GDP.MKTP.CD`):
+  - https://api.worldbank.org/v2/country/all/indicator/SP.POP.TOTL?format=json&per_page=1000&date=2023
+  - https://api.worldbank.org/v2/country/all/indicator/NY.GDP.MKTP.CD?format=json&per_page=1000&date=2023
+* GISCO World Countries 2024 GeoJSON boundaries: https://gisco-services.ec.europa.eu/distribution/v2/countries/geojson/CNTR_RG_20M_2024_4326.geojson

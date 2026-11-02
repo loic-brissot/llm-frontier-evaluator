@@ -283,5 +283,201 @@
       "mockVelib",
       "mockData"
     ]
+  },
+  "eu-energy-dependency-shock-simulator": {
+    "prompt_id": "eu-energy-dependency-shock-simulator",
+    "type": "open_data",
+    "description": "European Union energy security observatory and supply-shock stress-test simulator",
+    "checks": [
+      {
+        "id": "eurostat_energy_dependency_balances",
+        "description": "Eurostat energy import dependency (nrg_ind_id) and simplified energy balances (nrg_bal_s: PPRD, IMP, EXP, GAE, FC_E)",
+        "file_patterns": ["*nrg*", "*eurostat*", "*energy*", "*balance*", "*dependency*"],
+        "required_markers": ["PPRD", "IMP", "EXP", "GAE", "FC_E"],
+        "min_records": 27
+      },
+      {
+        "id": "eurostat_renewables_prices_ghg",
+        "description": "Eurostat renewable shares (nrg_ind_ren), electricity prices (nrg_pc_204), and GHG emissions (sdg_13_10)",
+        "file_patterns": ["*nrg*", "*sdg*", "*price*", "*ren*", "*ghg*", "*energy*"],
+        "required_markers": ["EUR", "KWH", "1990"],
+        "min_records": 27
+      },
+      {
+        "id": "europe_countries_boundaries",
+        "description": "GISCO Europe / EU-27 country boundaries GeoJSON",
+        "file_patterns": ["*cntr*", "*country*", "*countries*", "*europe*", "*geo*"],
+        "min_records": 27
+      }
+    ],
+    "synthetic_patterns": [
+      "generateMockEnergy",
+      "fakeEurostat",
+      "mockBalances",
+      "generateRandomCountries"
+    ]
+  },
+  "eu-renewable-energy-tracker": {
+    "prompt_id": "eu-renewable-energy-tracker",
+    "type": "open_data",
+    "description": "European Union and EEA renewable energy adoption atlas and 2030 target tracker",
+    "checks": [
+      {
+        "id": "eurostat_renewable_shares_dataset",
+        "description": "Eurostat share of energy from renewable sources (nrg_ind_ren) across sectors (REN, REN_ELC, REN_HEAT_CL, REN_TRA)",
+        "file_patterns": ["*nrg_ind_ren*", "*renewable*", "*eurostat*", "*ren*"],
+        "required_markers": ["REN", "REN_ELC", "REN_HEAT_CL", "REN_TRA"],
+        "min_records": 27
+      },
+      {
+        "id": "eu_2030_target_model",
+        "description": "EU 2030 binding 42.5% renewable target and CAGR gap calculation",
+        "required_markers": ["42.5", "2030", "CAGR"],
+        "min_records": 1
+      },
+      {
+        "id": "europe_countries_boundaries",
+        "description": "GISCO Europe / EU-27 country boundaries GeoJSON",
+        "file_patterns": ["*cntr*", "*country*", "*countries*", "*europe*", "*geo*"],
+        "min_records": 27
+      }
+    ],
+    "synthetic_patterns": [
+      "generateMockRenewables",
+      "fakeEurostat",
+      "mockRenewableData",
+      "generateRandomSeries"
+    ]
+  },
+  "unhcr-asylum-recognition-atlas": {
+    "prompt_id": "unhcr-asylum-recognition-atlas",
+    "type": "open_data",
+    "description": "Global UNHCR asylum-decision, demographic pyramid, and host-responsibility observatory",
+    "checks": [
+      {
+        "id": "unhcr_asylum_decisions_dataset",
+        "description": "UNHCR bilateral asylum decisions (dec_recognized, dec_other, dec_rejected, dec_total)",
+        "file_patterns": ["*asylum*", "*decision*", "*unhcr*", "*recognition*"],
+        "required_markers": ["dec_recognized", "dec_other", "dec_rejected", "dec_total"],
+        "min_records": 100
+      },
+      {
+        "id": "unhcr_demographics_solutions_dataset",
+        "description": "UNHCR displaced demographics by age/sex cohorts and durable solutions (returned_refugees, resettlement, naturalisation)",
+        "file_patterns": ["*demograph*", "*solution*", "*population*", "*unhcr*"],
+        "required_markers": ["returned_refugees", "resettlement", "naturalisation"],
+        "min_records": 50
+      },
+      {
+        "id": "world_bank_macro_and_boundaries",
+        "description": "World Bank population/GDP indicators (SP.POP.TOTL, NY.GDP.MKTP.CD) and GISCO world country boundaries",
+        "file_patterns": ["*worldbank*", "*gdp*", "*pop*", "*cntr*", "*countries*", "*world*"],
+        "min_records": 100
+      }
+    ],
+    "synthetic_patterns": [
+      "generateMockAsylum",
+      "fakeUNHCR",
+      "mockDecisions",
+      "generateRandomRefugees"
+    ]
+  },
+  "unhcr-global-displacement-flow": {
+    "prompt_id": "unhcr-global-displacement-flow",
+    "type": "open_data",
+    "description": "Global forced-displacement observatory and bilateral refugee corridor explorer",
+    "checks": [
+      {
+        "id": "unhcr_bilateral_corridors_dataset",
+        "description": "UNHCR bilateral origin-to-asylum displacement corridors (refugees, asylum_seekers, idps, oip)",
+        "file_patterns": ["*population*", "*corridor*", "*unhcr*", "*displacement*", "*flows*"],
+        "required_markers": ["refugees", "asylum_seekers", "idps", "oip"],
+        "min_records": 200
+      },
+      {
+        "id": "unhcr_timeseries_and_countries",
+        "description": "UNHCR 2015-2024 historical displacement time series and country reference metadata",
+        "file_patterns": ["*unhcr*", "*timeseries*", "*history*", "*countries*", "*population*"],
+        "required_markers": ["2015", "2024", "coo", "coa"],
+        "min_records": 100
+      },
+      {
+        "id": "world_countries_boundaries",
+        "description": "GISCO world countries GeoJSON boundaries",
+        "file_patterns": ["*cntr*", "*country*", "*countries*", "*world*", "*geo*"],
+        "min_records": 100
+      }
+    ],
+    "synthetic_patterns": [
+      "generateMockCorridors",
+      "fakeUNHCR",
+      "mockDisplacement",
+      "generateRandomFlows"
+    ]
+  },
+  "who-global-burden-longevity-simulator": {
+    "prompt_id": "who-global-burden-longevity-simulator",
+    "type": "open_data",
+    "description": "WHO Global Burden of Disease, HALE longevity gap, and cause-elimination life-table simulator",
+    "checks": [
+      {
+        "id": "who_ghe_disease_burden_dataset",
+        "description": "WHO Global Health Estimates (GHE_FULL_FOCUS) cause-specific deaths, DALYs, YLLs, and YLDs",
+        "file_patterns": ["*ghe*", "*burden*", "*daly*", "*disease*", "*who*", "*causes*"],
+        "required_markers": ["DALY", "YLL", "YLD"],
+        "min_records": 100
+      },
+      {
+        "id": "who_life_expectancy_hale_timeseries",
+        "description": "WHO GHO Life Expectancy (WHOSIS_000001) and Healthy Life Expectancy HALE (WHOSIS_000002) time series",
+        "file_patterns": ["*whosis*", "*hale*", "*life*", "*longevity*", "*who*", "*gho*"],
+        "required_markers": ["WHOSIS_000001", "WHOSIS_000002", "HALE"],
+        "min_records": 100
+      },
+      {
+        "id": "world_countries_boundaries",
+        "description": "GISCO world countries GeoJSON boundaries",
+        "file_patterns": ["*cntr*", "*country*", "*countries*", "*world*", "*geo*"],
+        "min_records": 100
+      }
+    ],
+    "synthetic_patterns": [
+      "generateMockBurden",
+      "fakeWHOData",
+      "mockDALYs",
+      "generateRandomLifeTable"
+    ]
+  },
+  "who-world-health-scorecard": {
+    "prompt_id": "who-world-health-scorecard",
+    "type": "open_data",
+    "description": "WHO World Health Statistics and UN SDG 3 scorecard atlas across 198 countries",
+    "checks": [
+      {
+        "id": "who_whs2026_indicators_dataset",
+        "description": "WHO World Health Statistics dataset (WHS2026_DATADOWNLOAD) across UHC, maternal/child survival, workforce, and NCD/infectious risks",
+        "file_patterns": ["*whs*", "*who*", "*health*", "*indicators*", "*scorecard*"],
+        "required_markers": ["UHC_INDEX_REPORTED", "MDG_0000000007", "HWF_0001", "NCDMORT3070"],
+        "min_records": 500
+      },
+      {
+        "id": "sdg3_target_thresholds",
+        "description": "UN SDG 3 benchmark thresholds (under-5 mortality <= 25, neonatal <= 12, maternal <= 70)",
+        "required_markers": ["25", "12", "70", "SDG"],
+        "min_records": 1
+      },
+      {
+        "id": "world_countries_boundaries",
+        "description": "GISCO world countries GeoJSON boundaries",
+        "file_patterns": ["*cntr*", "*country*", "*countries*", "*world*", "*geo*"],
+        "min_records": 100
+      }
+    ],
+    "synthetic_patterns": [
+      "generateMockWHO",
+      "fakeHealthStats",
+      "mockScorecard",
+      "generateRandomIndicators"
+    ]
   }
 }

@@ -1,0 +1,18 @@
+Build an interactive World Health Statistics & SDG 3 Scorecard Atlas across 198 countries powered by the World Health Organization (WHO) xMart Open Data API.
+The goal is an exceptional visual result, as clear, authoritative and engaging as a flagship WHO global health observatory, not a mere technical demo.
+Expected result:
+
+* An interactive world map colors 198 countries by any selected WHO World Health Statistics indicator grouped across four pillars:
+  1. Universal Health Coverage & Financial Protection (`UHC_INDEX_REPORTED` service coverage index, `FINANCIALHARDSHIP_PROPORTIONOFPOP` out-of-pocket hardship, `GHED_GGHE-DGGE_SHA2011` government health spending share),
+  2. Maternal, Newborn & Child Survival (`MDG_0000000007` under-5 mortality, `WHOSIS_000003` neonatal mortality, `MDG_0000000026` maternal mortality ratio, `MDG_0000000025` skilled birth attendance),
+  3. Health Workforce Density (`HWF_0001` medical doctors, `HWF_0006` nursing & midwifery, `HWF_0010` dentists, `HWF_0014` pharmacists per 10,000 population),
+  4. Infectious, NCD & Environmental Risks (`NCDMORT3070` premature NCD mortality, `MDG_0000000020` tuberculosis, `MALARIA_EST_INCIDENCE` malaria, `SDGAIRBODA` air pollution mortality, `WSH_WATER_SAFELY_MANAGED` safe drinking water).
+* An interactive Bivariate Correlation Scatterplot lets the viewer cross any two of the 51 WHO indicators (e.g., Medical Doctors Density vs. Under-5 Mortality, or UHC Service Coverage Index vs. Maternal Mortality) with log/linear scale toggles and Pearson/Spearman correlation readouts.
+* A SDG 3 Target Benchmark Tracker highlights countries meeting vs. lagging behind key UN SDG 3 thresholds (e.g., Under-5 mortality <= 25 per 1,000 live births, Neonatal mortality <= 12 per 1,000, Maternal mortality <= 70 per 100,000).
+* Clicking any country opens a comprehensive National Health System Dossier with radar/percentile bars comparing the country against global and regional medians across all four pillars.
+
+Available data sources (Open Data — World Health Organization xMart OData API & GISCO, no API key required):
+
+* WHO World Health Statistics 2026 Complete Dataset (`WHS2026_DATADOWNLOAD` — 8,299 records across 51 indicators and 198 countries in a single JSON payload): https://xmart-api-public.who.int/DEX_CMS/WHS2026_DATADOWNLOAD
+* WHO World Health Statistics Indicator Metadata (`REF_WHSA_IND`): https://xmart-api-public.who.int/DEX_CMS/REF_WHSA_IND
+* GISCO World Countries 2024 GeoJSON boundaries: https://gisco-services.ec.europa.eu/distribution/v2/countries/geojson/CNTR_RG_20M_2024_4326.geojson

@@ -1,0 +1,21 @@
+Build an interactive European energy security observatory and supply-shock stress-test simulator crossing energy import dependency, simplified energy balances, renewable shares, household electricity prices, and greenhouse gas emission trajectories across the European Union.
+The goal is an exceptional visual result, as insightful and rigorous as a Joint Research Centre (JRC) energy security control room, not a mere technical demo.
+Expected result:
+
+* A bivariate and single-metric map of Europe crosses net energy import dependency (%), fossil fuel vs. renewable share in gross available energy, household electricity prices (EUR/kWh), and greenhouse gas emission index (1990 = 100) across all EU-27 member states and EEA neighbors.
+* An interactive Energy Balance & Flow Explorer breaks down any selected country's simplified energy balance (primary production `PPRD`, imports `IMP`, exports `EXP`, gross available energy `GAE`, and final energy consumption `FC_E` in GWh) across fuel families (`siec`).
+* A live Geopolitical Supply-Shock & Electrification Simulator lets the viewer apply simultaneous stress parameters:
+  - Cut external natural gas or oil imports by 0% to 100%,
+  - Scale domestic renewable electricity and heat output (+0% to +150%),
+  - Shift residential heating and transport demand to electricity (0% to 50% electrification),
+  and dynamically recalculates each country's primary energy shortfall (GWh/TWh), self-sufficiency ratio, estimated retail price impact, and CO2 reduction.
+* A linked vulnerability scatter matrix plots Energy Import Dependency (x-axis) against Electricity Price or GHG Emissions Index (y-axis), sized by gross available energy (GWh), with interactive quadrant filtering.
+
+Available data sources (European Commission Open Data / CC BY 4.0):
+
+* Eurostat, "Energy imports dependency (nrg_ind_id)" (import dependency % by fuel `siec` and country `geo`): https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/nrg_ind_id?format=SDMX-CSV
+* Eurostat, "Simplified energy balances in GWh (nrg_bal_s)" (`PPRD`, `IMP`, `EXP`, `GAE`, `FC_E` from 2018 onward): https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/nrg_bal_s/.PPRD+IMP+EXP+GAE+FC_E..GWH.?format=SDMX-CSV&startPeriod=2018
+* Eurostat, "Share of energy from renewable sources (nrg_ind_ren)": https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/nrg_ind_ren?format=SDMX-CSV
+* Eurostat, "Electricity prices for household consumers (nrg_pc_204)" (EUR/kWh including taxes, medium consumption band): https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/nrg_pc_204/..KWH2500-4999.KWH.I_TAX.EUR.?format=SDMX-CSV&startPeriod=2015
+* Eurostat, "Net greenhouse gas emissions (sdg_13_10)" (index 1990=100 and tonnes per capita): https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/sdg_13_10?format=SDMX-CSV
+* GISCO (European Commission), "Countries 2024 — 1:20M GeoJSON boundaries": https://gisco-services.ec.europa.eu/distribution/v2/countries/geojson/CNTR_RG_20M_2024_4326.geojson
