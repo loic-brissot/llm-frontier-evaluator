@@ -861,14 +861,54 @@ def check_dashboard_sync(
 ) -> int:
     """Assert the existing dashboard payload matches current repository records."""
     data_json_path = output_dir / "data.json"
-    if not data_json_path.is_file():
-        print(f"Error: Dashboard data file {data_json_path} does not exist. Run build first.", file=sys.stderr)
-        return 1
-
     index_html_path = output_dir / "index.html"
     if not index_html_path.is_file():
-        print(f"Error: Dashboard index.html file {index_html_path} does not exist.", file=sys.stderr)
-        return 1
+        if (DASHBOARD_DIR / "index.html").is_file() and output_dir.resolve() == DASHBOARD_DIR.resolve():
+            index_html_path = DASHBOARD_DIR / "index.html"
+        else:
+            print(f"Error: Dashboard index.html file {index_html_path} does not exist.", file=sys.stderr)
+            return 1
+
+    # If data.json does not exist on disk, compile fresh payload and validate schema without requiring tracked data.json
+    if not data_json_path.is_file():
+        fresh_payload = compile_dashboard_payload(
+            runs_dir=runs_dir,
+            demos_base_url=demos_base_url,
+            prefer_local=prefer_local,
+            root_dir=root_dir,
+        )
+        schema_errors = validate_payload_schema(fresh_payload)
+        if schema_errors:
+            print("Error: Dashboard payload schema validation failed:", file=sys.stderr)
+            for err in schema_errors[:5]:
+                print(f"  - {err}", file=sys.stderr)
+            return 1
+
+        # Check embedded JSON in index.html if present
+        try:
+            html_text = index_html_path.read_text(encoding="utf-8")
+            match = re.search(
+                r'<script id="benchmark-data" type="application/json">\s*(.*?)\s*</script>',
+                html_text,
+                re.DOTALL,
+            )
+            if not match:
+                print("Error: Could not find <script id=\"benchmark-data\"> in index.html.", file=sys.stderr)
+                return 1
+            embedded_content = match.group(1).strip()
+            if embedded_content:
+                embedded_payload = json.loads(embedded_content)
+                fresh_str = json.dumps(fresh_payload, indent=2, sort_keys=True)
+                embedded_str = json.dumps(embedded_payload, indent=2, sort_keys=True)
+                if embedded_str != fresh_str:
+                    print("Error: Embedded index.html payload is out of sync with repository records.", file=sys.stderr)
+                    return 1
+        except Exception as exc:
+            print(f"Error: Failed to parse embedded benchmark-data in index.html: {exc}", file=sys.stderr)
+            return 1
+
+        print("Dashboard payload is in sync with repository records.")
+        return 0
 
     try:
         existing_payload = json.loads(data_json_path.read_text(encoding="utf-8"))
@@ -885,6 +925,13 @@ def check_dashboard_sync(
         prefer_local=prefer_local,
         root_dir=root_dir,
     )
+
+    schema_errors = validate_payload_schema(fresh_payload)
+    if schema_errors:
+        print("Error: Dashboard payload schema validation failed:", file=sys.stderr)
+        for err in schema_errors[:5]:
+            print(f"  - {err}", file=sys.stderr)
+        return 1
 
     existing_str = json.dumps(existing_payload, indent=2, sort_keys=True)
     fresh_str = json.dumps(fresh_payload, indent=2, sort_keys=True)
@@ -912,11 +959,13 @@ def check_dashboard_sync(
         if not match:
             print("Error: Could not find <script id=\"benchmark-data\"> in index.html.", file=sys.stderr)
             return 1
-        embedded_payload = json.loads(match.group(1))
-        embedded_str = json.dumps(embedded_payload, indent=2, sort_keys=True)
-        if embedded_str != fresh_str:
-            print("Error: Embedded index.html payload is out of sync with repository records.", file=sys.stderr)
-            return 1
+        embedded_content = match.group(1).strip()
+        if embedded_content:
+            embedded_payload = json.loads(embedded_content)
+            embedded_str = json.dumps(embedded_payload, indent=2, sort_keys=True)
+            if embedded_str != fresh_str:
+                print("Error: Embedded index.html payload is out of sync with repository records.", file=sys.stderr)
+                return 1
     except Exception as exc:
         print(f"Error: Failed to parse embedded benchmark-data in index.html: {exc}", file=sys.stderr)
         return 1
@@ -950,6 +999,7 @@ def build_dashboard(
     demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
     prefer_local: bool = True,
     root_dir: Path = ROOT,
+    in_place: bool = False,
 ) -> int:
     """Main build workflow for compiling the dashboard."""
     if check:
@@ -1012,16 +1062,18 @@ def build_dashboard(
     data_json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # 4. Copy static assets (from ROOT/dashboard if building elsewhere or keeping in sync)
-    if output_dir != DASHBOARD_DIR:
+    is_custom_output_dir = output_dir.resolve() != DASHBOARD_DIR.resolve()
+    if is_custom_output_dir:
         copy_static_assets(DASHBOARD_DIR, output_dir)
 
-    # 5. Embed payload into index.html
-    template_html = output_dir / "index.html"
-    if not template_html.is_file() and (DASHBOARD_DIR / "index.html").is_file():
+    # 5. Embed payload into index.html (for custom output dir / dist, or if in_place is requested)
+    if is_custom_output_dir or in_place:
         template_html = DASHBOARD_DIR / "index.html"
+        if not template_html.is_file() and (output_dir / "index.html").is_file():
+            template_html = output_dir / "index.html"
 
-    if template_html.is_file():
-        embed_data_in_html(template_html, payload, output_dir / "index.html")
+        if template_html.is_file():
+            embed_data_in_html(template_html, payload, output_dir / "index.html")
 
     # 6. Copy screenshots
     scr_count = copy_dashboard_screenshots(runs_dir, output_dir)
@@ -1095,6 +1147,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--output-dir",
+        "--out-dir",
+        dest="output_dir",
         type=Path,
         default=DASHBOARD_DIR,
         help=f"Directory to output dashboard static site (default: {DASHBOARD_DIR})",
@@ -1109,6 +1163,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--check",
         action="store_true",
         help="Assert dashboard data.json is in sync with repository records without writing.",
+    )
+    parser.add_argument(
+        "--in-place",
+        action="store_true",
+        help="Inject embedded JSON payload directly into source dashboard/index.html even when outputting to dashboard/.",
     )
     parser.add_argument(
         "--demos-base-url",
@@ -1140,6 +1199,7 @@ def main() -> int:
         serve_port=args.serve,
         demos_base_url=args.demos_base_url,
         prefer_local=not args.production,
+        in_place=args.in_place,
     )
 
 

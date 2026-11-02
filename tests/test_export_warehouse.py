@@ -688,6 +688,9 @@ class TestExportWarehouse(unittest.TestCase):
         self.assertTrue(args.quiet)
         self.assertEqual(args.warehouse_version, "2.1.0")
 
+        args_alias = parse_args(["--out-dir", "custom_dir", "--format", "csv"])
+        self.assertEqual(args_alias.output_dir, Path("custom_dir"))
+
         self._create_mock_run("mock-prompt-1", "run-cli")
         cli_out = self.base_dir / "cli_warehouse"
         exit_code = main(["--runs-dir", str(self.runs_dir), "--reference-dir", str(self.ref_dir), "--output-dir", str(cli_out), "--format", "csv", "--quiet"])

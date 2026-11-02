@@ -3,9 +3,10 @@ id: TASK-105
 title: >-
   Decouple compiled dashboard and warehouse build artifacts from Git tracking
   and build on demand in CI and local serve
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-01 23:59'
+updated_date: '2026-11-02 03:23'
 labels: []
 milestone: m-9
 dependencies:
@@ -28,7 +29,7 @@ Decouple source files from compiled build outputs so experiment run PRs only com
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Duplicated build outputs (dashboard/screenshots/, dashboard/warehouse/*.csv, dashboard/data.json) are removed from Git tracking and added to .gitignore while dashboard source files remain tracked
-- [ ] #2 scripts/build_dashboard.py compiles data.json, injects the HTML payload into a build artifact without dirtying tracked source files, and copies screenshots from runs/*/*/artifacts/screenshot.png
-- [ ] #3 finish_run.py, .github/workflows/ci.yml, and .github/workflows/deploy-pages.yml are updated and verified with unit tests
+- [x] #1 Duplicated build outputs (dashboard/screenshots/, dashboard/warehouse/*.csv, dashboard/data.json) are removed from Git tracking and added to .gitignore while dashboard source files remain tracked
+- [x] #2 scripts/build_dashboard.py compiles data.json, injects the HTML payload into a build artifact without dirtying tracked source files, and copies screenshots from runs/*/*/artifacts/screenshot.png
+- [x] #3 finish_run.py, .github/workflows/ci.yml, and .github/workflows/deploy-pages.yml are updated and verified with unit tests
 <!-- AC:END -->
