@@ -19,6 +19,10 @@ from contextlib import nullcontext
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
+from package_web_demos import (
+    DEFAULT_DEMOS_BASE_URL,
+    resolve_demo_url,
+)
 from run_common import (
     BUCKETS,
     CHART_BUCKETS,
@@ -788,7 +792,12 @@ def local_row(run: dict) -> tuple[list[str], list[str]]:
     return [run["prompt_id"], run["series_id"], run["harness"]["name"], label, token_cell, time_cell, tool_cell, cache_cell, cost_cell], notes
 
 
-def readme_row(run: dict) -> str:
+def readme_row(
+    run: dict,
+    demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
+    prefer_local: bool = True,
+    root_dir: Path = ROOT,
+) -> str:
     """Format one local primary run as a Markdown table row for README.md."""
     cells, _ = local_row(run)
     _prompt_id, _series_id, harness_name, label, token_cell, _time_cell, _tool_cell, cache_cell, cost_cell = cells
@@ -809,7 +818,16 @@ def readme_row(run: dict) -> str:
         or run.get("demo_url")
     )
     if demo_url:
-        ver_cell = f"{ver_cell}<br>[Live Demo]({demo_url})"
+        resolved = resolve_demo_url(
+            demo_url,
+            prompt_id=run.get("prompt_id"),
+            run_id=run.get("run_id"),
+            demos_base_url=demos_base_url,
+            prefer_local=prefer_local,
+            root_dir=root_dir,
+        )
+        if resolved:
+            ver_cell = f"{ver_cell}<br>[Live Demo]({resolved})"
     return f"| {label} | {harness_display} | {token_cell} | {time_cell} | {tool_cell} | {cache_cell} | {cost_cell} | {ver_cell} |"
 
 
@@ -826,6 +844,9 @@ def _row_key(markdown_row: str) -> tuple[str, str] | None:
 def generate_readme_comparisons(
     readme_path: Path = README_PATH,
     reference_path: Path = REFERENCE_PATH,
+    demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
+    prefer_local: bool = True,
+    root_dir: Path = ROOT,
 ) -> str:
     lines = [
         "## Comparisons",
@@ -925,7 +946,14 @@ def generate_readme_comparisons(
             lines.append(LOCAL_TABLE_RULE)
             missing_tokens = False
             for run in runs:
-                lines.append(readme_row(run))
+                lines.append(
+                    readme_row(
+                        run,
+                        demos_base_url=demos_base_url,
+                        prefer_local=prefer_local,
+                        root_dir=root_dir,
+                    )
+                )
                 if extract_output_tokens(run) is None:
                     missing_tokens = True
             lines.append("")
@@ -942,6 +970,9 @@ def sync_readme(
     check_only: bool = False,
     readme_path: Path = README_PATH,
     reference_path: Path = REFERENCE_PATH,
+    demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
+    prefer_local: bool = True,
+    root_dir: Path = ROOT,
 ) -> bool:
     if not readme_path.is_file():
         if check_only:
@@ -949,7 +980,13 @@ def sync_readme(
         return False
 
     with (nullcontext() if check_only else _readme_lock(readme_path)):
-        expected_block = generate_readme_comparisons(readme_path, reference_path)
+        expected_block = generate_readme_comparisons(
+            readme_path,
+            reference_path,
+            demos_base_url=demos_base_url,
+            prefer_local=prefer_local,
+            root_dir=root_dir,
+        )
 
         readme_content = readme_path.read_text(encoding="utf-8")
         readme_lines = readme_content.splitlines()
@@ -1080,6 +1117,16 @@ def main() -> int:
         action="store_true",
         help="Update README.md comparison tables to match run records.",
     )
+    parser.add_argument(
+        "--demos-base-url",
+        default=DEFAULT_DEMOS_BASE_URL,
+        help=f"Base URL for hosted live demos in sister repository (default: {DEFAULT_DEMOS_BASE_URL}).",
+    )
+    parser.add_argument(
+        "--production",
+        action="store_true",
+        help="Force resolving live demo links to sister repository GitHub Pages URL even if local demo files are present.",
+    )
     args = parser.parse_args()
 
     errors = check_prompt()
@@ -1141,7 +1188,11 @@ def main() -> int:
             for line in all_errors:
                 print(f"- {line}")
             return 1
-        success = sync_readme(check_only=args.check_readme)
+        success = sync_readme(
+            check_only=args.check_readme,
+            demos_base_url=args.demos_base_url,
+            prefer_local=not args.production,
+        )
         return 0 if success else 1
 
     if reference is not None and not errors:

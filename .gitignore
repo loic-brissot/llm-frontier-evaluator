@@ -34,3 +34,7 @@ dashboard/results/
 *.duckdb.wal
 *.egg-info/
 .claude/
+
+# Compiled web application demo bundles (hosted in sister repository llm-frontier-evaluator-demos)
+site/
+dashboard/demos/

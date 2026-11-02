@@ -36,6 +36,7 @@ from verify_run import (
 )
 
 DEFAULT_OUTPUT_DIR = ROOT / "site" / "demos"
+DEFAULT_DEMOS_BASE_URL = "https://loic-brissot.github.io/llm-frontier-evaluator-demos"
 
 # Directories excluded when bundling static apps
 EXCLUDED_DIR_NAMES = {
@@ -493,6 +494,80 @@ def record_demo_url(
             pass
 
 
+def compute_demo_canonical_url(
+    prompt_id: str,
+    run_id: str,
+    demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
+) -> str:
+    """Compute the canonical hosted demo URL in the sister repository."""
+    base = (demos_base_url or DEFAULT_DEMOS_BASE_URL).rstrip("/")
+    if base.endswith("/demos"):
+        return f"{base}/{prompt_id}/{run_id}/index.html"
+    return f"{base}/demos/{prompt_id}/{run_id}/index.html"
+
+
+def resolve_demo_url(
+    demo_url: str | None,
+    prompt_id: str | None = None,
+    run_id: str | None = None,
+    *,
+    demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
+    prefer_local: bool = True,
+    root_dir: Path = ROOT,
+) -> str | None:
+    """Resolve a demo URL to a local relative path if available, or canonical sister repo URL.
+
+    - If demo_url is already an absolute HTTP/HTTPS URL, return it unchanged.
+    - If prefer_local is True and the corresponding demo file exists locally on disk, return
+      the relative path.
+    - Otherwise, return the canonical sister repository URL.
+    """
+    if not demo_url and not (prompt_id and run_id):
+        return None
+
+    if demo_url and (demo_url.startswith("http://") or demo_url.startswith("https://")):
+        return demo_url
+
+    # Check local availability if prefer_local is requested
+    if prefer_local:
+        if demo_url:
+            clean_rel = demo_url.lstrip("/")
+            for candidate in (
+                root_dir / clean_rel,
+                root_dir / "dashboard" / clean_rel,
+                root_dir / "site" / clean_rel,
+            ):
+                if candidate.is_file():
+                    return clean_rel
+        if prompt_id and run_id:
+            for prefix in ("", "dashboard", "site"):
+                candidate = (
+                    (root_dir / prefix / "demos" / prompt_id / run_id / "index.html")
+                    if prefix
+                    else (root_dir / "demos" / prompt_id / run_id / "index.html")
+                )
+                if candidate.is_file():
+                    return f"demos/{prompt_id}/{run_id}/index.html"
+
+    # Fallback to canonical URL
+    if prompt_id and run_id:
+        return compute_demo_canonical_url(prompt_id, run_id, demos_base_url=demos_base_url)
+
+    if demo_url:
+        clean = demo_url.lstrip("/")
+        base = (demos_base_url or DEFAULT_DEMOS_BASE_URL).rstrip("/")
+        if base.endswith("/demos"):
+            if clean.startswith("demos/"):
+                return f"{base}/{clean[len('demos/'):]}"
+            return f"{base}/{clean}"
+        else:
+            if clean.startswith("demos/"):
+                return f"{base}/{clean}"
+            return f"{base}/demos/{clean}"
+
+    return None
+
+
 def compute_demo_relative_url(
     output_dir: Path,
     prompt_id: str,
@@ -508,6 +583,8 @@ def package_run_demo(
     run_dir: Path,
     output_dir: Path = DEFAULT_OUTPUT_DIR,
     *,
+    publish_repo: Path | None = None,
+    demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
     verify: bool = False,
     force: bool = False,
     skip_build: bool = False,
@@ -522,8 +599,16 @@ def package_run_demo(
     if not workspace_dir.is_dir():
         raise FileNotFoundError(f"Run workspace directory does not exist: {workspace_dir}")
 
-    dest_bundle_dir = output_dir / prompt_id / run_id
-    demo_url = compute_demo_relative_url(output_dir, prompt_id, run_id)
+    if publish_repo is not None:
+        pub_path = Path(publish_repo)
+        dest_demos_dir = pub_path / "demos" if pub_path.name != "demos" else pub_path
+        if output_dir == DEFAULT_OUTPUT_DIR:
+            output_dir = dest_demos_dir
+        dest_bundle_dir = output_dir / prompt_id / run_id
+        demo_url = compute_demo_canonical_url(prompt_id, run_id, demos_base_url=demos_base_url)
+    else:
+        dest_bundle_dir = output_dir / prompt_id / run_id
+        demo_url = compute_demo_relative_url(output_dir, prompt_id, run_id)
 
     # 1. Locate static source files or compile
     source_dir, source_mode = find_static_source(
@@ -565,6 +650,7 @@ def package_run_demo(
         "source_mode": source_mode,
         "dest_bundle_dir": str(dest_bundle_dir),
         "demo_url": demo_url,
+        "canonical_url": compute_demo_canonical_url(prompt_id, run_id, demos_base_url=demos_base_url),
         "file_count": bundle_meta["file_count"],
         "total_bytes": bundle_meta["total_bytes"],
         "has_entry_point": bundle_meta["has_entry_point"],
@@ -576,6 +662,8 @@ def package_run_demo(
 def generate_showcase_index(
     output_dir: Path,
     packages: list[dict[str, Any]],
+    demos_base_url: str = DEFAULT_DEMOS_BASE_URL,
+    publish_repo: Path | None = None,
 ) -> Path:
     """Generate a multi-run web showcase gallery index.html and demos.json."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -597,10 +685,12 @@ def generate_showcase_index(
 
     for pkg in packages:
         key = (str(pkg["prompt_id"]), str(pkg["run_id"]))
+        canonical_url = compute_demo_canonical_url(str(pkg["prompt_id"]), str(pkg["run_id"]), demos_base_url)
         existing_demos_map[key] = {
             "prompt_id": pkg["prompt_id"],
             "run_id": pkg["run_id"],
             "demo_url": f"{pkg['prompt_id']}/{pkg['run_id']}/index.html",
+            "canonical_url": canonical_url,
             "file_count": pkg.get("file_count", 0),
             "total_bytes": pkg.get("total_bytes", 0),
             "verified": pkg.get("verified", False),
@@ -612,6 +702,11 @@ def generate_showcase_index(
         key=lambda d: (d.get("prompt_id", ""), d.get("run_id", "")),
     )
     write_json(demos_json, {"demos": clean_manifest, "total_demos": len(clean_manifest)})
+
+    if publish_repo is not None:
+        pub_path = Path(publish_repo)
+        if pub_path.is_dir() and pub_path.resolve() != output_dir.resolve():
+            write_json(pub_path / "demos.json", {"demos": clean_manifest, "total_demos": len(clean_manifest)})
 
     # Build showcase HTML in the style of lassence.net/demos/benchmark/
     cards_html = []
@@ -848,6 +943,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Directory to output packaged web demos (default: {DEFAULT_OUTPUT_DIR}).",
     )
     parser.add_argument(
+        "--publish-repo",
+        type=Path,
+        help="Path to sister repository (llm-frontier-evaluator-demos) checkout for publishing static bundles.",
+    )
+    parser.add_argument(
+        "--demos-base-url",
+        default=DEFAULT_DEMOS_BASE_URL,
+        help=f"Base URL for hosted live demos (default: {DEFAULT_DEMOS_BASE_URL}).",
+    )
+    parser.add_argument(
         "--verify",
         action="store_true",
         help="Run Playwright smoke check on packaged static bundle served from its subpath.",
@@ -884,6 +989,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+
+    if args.publish_repo:
+        pub_path = Path(args.publish_repo)
+        pub_path.mkdir(parents=True, exist_ok=True)
+        if args.output_dir == DEFAULT_OUTPUT_DIR:
+            args.output_dir = pub_path / "demos" if pub_path.name != "demos" else pub_path
+        args.output_dir.mkdir(parents=True, exist_ok=True)
 
     # Determine which run(s) to process
     runs_to_process: list[Path] = []
@@ -952,6 +1064,8 @@ def main() -> int:
             res = package_run_demo(
                 r_dir,
                 output_dir=args.output_dir,
+                publish_repo=args.publish_repo,
+                demos_base_url=args.demos_base_url,
                 verify=args.verify,
                 force=args.force,
                 skip_build=args.skip_build,
@@ -975,14 +1089,19 @@ def main() -> int:
             failed_count += 1
 
     if packaged_results:
-        showcase_path = generate_showcase_index(args.output_dir, packaged_results)
+        showcase_path = generate_showcase_index(
+            args.output_dir,
+            packaged_results,
+            demos_base_url=args.demos_base_url,
+            publish_repo=args.publish_repo,
+        )
         print(f"Generated multi-run web showcase at: {showcase_path}")
 
     if args.update_dashboard and packaged_results:
         from build_dashboard import build_dashboard
 
         print("Updating dashboard data.json with published demo URLs...")
-        build_dashboard()
+        build_dashboard(demos_base_url=args.demos_base_url)
 
     return 1 if failed_count > 0 else 0
 

@@ -12,8 +12,10 @@ import re
 from typing import Any
 
 from build_dashboard import (
+    DEFAULT_DEMOS_BASE_URL,
     PRICING_TIERS,
     build_dashboard,
+    build_parser,
     build_pricing_catalog,
     classify_pricing_tier,
     check_dashboard_sync,
@@ -770,3 +772,70 @@ class TestDashboardScreenshotsKeyedByPromptAndRun:
         stale_flat.write_bytes(b"STALE")
         copy_dashboard_screenshots(runs_dir, out_dir)
         assert not stale_flat.exists()
+
+
+class TestDashboardDemoResolution:
+    """Test resolution of demo URLs in build_dashboard (AC 3)."""
+
+    def test_extract_run_record_sister_repo_resolution(self, tmp_path: Path) -> None:
+        run_dir = tmp_path / "prompt-demo" / "run-demo"
+        run_dir.mkdir(parents=True)
+        artifacts = run_dir / "artifacts"
+        artifacts.mkdir()
+        (artifacts / "runtime.json").write_text(
+            json.dumps({"passed": True, "demo_url": "demos/prompt-demo/run-demo/index.html"}),
+            encoding="utf-8",
+        )
+        (run_dir / "run.json").write_text(
+            json.dumps({
+                "rules_version": 2,
+                "run_id": "run-demo",
+                "prompt_id": "prompt-demo",
+                "series_id": "s-demo",
+                "model": {"name": "TestModel", "provider": "TestProvider"},
+                "harness": {"name": "cursor", "version": "1.0"},
+                "wall_clock": {"seconds": 10.0},
+                "tokens": {},
+                "model_time": {},
+                "tool_calls": {},
+            }),
+            encoding="utf-8",
+        )
+
+        # 1. Local demo not present -> canonical sister repo URL
+        rec_remote = extract_run_record(run_dir, root_dir=tmp_path)
+        assert rec_remote is not None
+        assert rec_remote["demo_url"] == f"{DEFAULT_DEMOS_BASE_URL}/demos/prompt-demo/run-demo/index.html"
+
+        # 2. Local demo present -> relative path
+        local_demo = tmp_path / "dashboard" / "demos" / "prompt-demo" / "run-demo" / "index.html"
+        local_demo.parent.mkdir(parents=True)
+        local_demo.write_text("<html>demo</html>", encoding="utf-8")
+
+        rec_local = extract_run_record(run_dir, root_dir=tmp_path, prefer_local=True)
+        assert rec_local is not None
+        assert rec_local["demo_url"] == "demos/prompt-demo/run-demo/index.html"
+
+        # 3. Production mode overrides local file
+        rec_prod = extract_run_record(run_dir, root_dir=tmp_path, prefer_local=False)
+        assert rec_prod is not None
+        assert rec_prod["demo_url"] == f"{DEFAULT_DEMOS_BASE_URL}/demos/prompt-demo/run-demo/index.html"
+
+        # 4. Custom base URL
+        rec_custom = extract_run_record(
+            run_dir,
+            root_dir=tmp_path,
+            prefer_local=False,
+            demos_base_url="https://custom.repo.org/demos",
+        )
+        assert rec_custom is not None
+        assert rec_custom["demo_url"] == "https://custom.repo.org/demos/prompt-demo/run-demo/index.html"
+
+    def test_cli_demo_flags(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args([
+            "--demos-base-url", "https://custom.url/demos",
+            "--production",
+        ])
+        assert args.demos_base_url == "https://custom.url/demos"
+        assert args.production is True

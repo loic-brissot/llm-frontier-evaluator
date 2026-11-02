@@ -588,8 +588,42 @@ class TestCompareRuns(unittest.TestCase):
                 "data_pipeline": {"passed": True, "score": 1.0, "total_records": 1000, "checks": [{"id": "c1", "passed": True}]},
             },
         }
+
+        # 1. When local demo is not on disk, resolves to canonical sister repo URL
         row = readme_row(run_with_demo)
-        self.assertIn("[Live Demo](demos/paris-1910-flood-simulator/run-1/index.html)", row)
+        self.assertIn(
+            "[Live Demo](https://loic-brissot.github.io/llm-frontier-evaluator-demos/demos/paris-1910-flood-simulator/run-1/index.html)",
+            row,
+        )
+
+        # 2. When local demo exists on disk, resolves to local relative path
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_root = Path(tmp_dir)
+            local_demo = tmp_root / "demos" / "paris-1910-flood-simulator" / "run-1" / "index.html"
+            local_demo.parent.mkdir(parents=True)
+            local_demo.write_text("<html>demo</html>", encoding="utf-8")
+
+            local_row = readme_row(run_with_demo, root_dir=tmp_root, prefer_local=True)
+            self.assertIn("[Live Demo](demos/paris-1910-flood-simulator/run-1/index.html)", local_row)
+
+            # 3. Production mode forces canonical URL even when local demo is present
+            prod_row = readme_row(run_with_demo, root_dir=tmp_root, prefer_local=False)
+            self.assertIn(
+                "[Live Demo](https://loic-brissot.github.io/llm-frontier-evaluator-demos/demos/paris-1910-flood-simulator/run-1/index.html)",
+                prod_row,
+            )
+
+            # 4. Custom base URL
+            custom_row = readme_row(
+                run_with_demo,
+                root_dir=tmp_root,
+                prefer_local=False,
+                demos_base_url="https://custom.example.org/demos",
+            )
+            self.assertIn(
+                "[Live Demo](https://custom.example.org/demos/paris-1910-flood-simulator/run-1/index.html)",
+                custom_row,
+            )
 
     def test_check_pricing_passes_on_real_pricing_file(self):
         errors = check_pricing()

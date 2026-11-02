@@ -6,6 +6,32 @@
 (function () {
   'use strict';
 
+  const SISTER_DEMOS_BASE_URL = 'https://loic-brissot.github.io/llm-frontier-evaluator-demos';
+
+  function resolveDemoUrl(rawUrl, isProduction = null) {
+    if (!rawUrl) return '';
+    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
+      return rawUrl;
+    }
+    const clean = rawUrl.startsWith('/') ? rawUrl.slice(1) : rawUrl;
+    const canonicalRel = clean.startsWith('demos/') ? clean : `demos/${clean}`;
+
+    const isProd = isProduction !== null
+      ? isProduction
+      : (typeof window !== 'undefined' &&
+         window.location &&
+         window.location.hostname !== 'localhost' &&
+         window.location.hostname !== '127.0.0.1' &&
+         window.location.protocol !== 'file:' &&
+         !window.location.hostname.endsWith('.local'));
+
+    if (isProd) {
+      return `${SISTER_DEMOS_BASE_URL.replace(/\/+$/, '')}/${canonicalRel}`;
+    }
+
+    return clean;
+  }
+
   // State
   let benchmarkData = null;
   let activeTab = 'pareto';
@@ -848,8 +874,9 @@
       const t = r.model_time.generating_seconds ?? r.wall_clock.seconds ?? 0;
       const tok = r.tokens.total_output ?? 0;
 
-      const demoBtnHtml = r.demo_url
-        ? `<a href="${escapeHtml(r.demo_url)}" target="_blank" rel="noopener noreferrer" class="btn-demo-action" title="Launch packaged demo">🚀 Demo</a>`
+      const demoUrl = resolveDemoUrl(r.demo_url);
+      const demoBtnHtml = demoUrl
+        ? `<a href="${escapeHtml(demoUrl)}" target="_blank" rel="noopener noreferrer" class="btn-demo-action" title="Launch packaged demo">🚀 Demo</a>`
         : '';
 
       tr.innerHTML = `
@@ -1655,9 +1682,12 @@
           <span style="font-size:0.75rem;color:#64748b;font-family:var(--font-mono);">${escapeHtml(run.run_id.slice(0, 22))}...</span>
           <div class="run-card-actions">
             ${
-              run.demo_url
-                ? `<a href="${escapeHtml(run.demo_url)}" target="_blank" rel="noopener noreferrer" class="btn-demo-action" title="Launch packaged live demo">🚀 Launch Demo</a>`
-                : ''
+              (() => {
+                const demoUrl = resolveDemoUrl(run.demo_url);
+                return demoUrl
+                  ? `<a href="${escapeHtml(demoUrl)}" target="_blank" rel="noopener noreferrer" class="btn-demo-action" title="Launch packaged live demo">🚀 Launch Demo</a>`
+                  : '';
+              })()
             }
             <button class="btn-inspect" data-runid="${run.run_id}">Inspect Details</button>
           </div>
@@ -1789,15 +1819,16 @@
     const fallbackPreview = document.getElementById('showcase-fallback-preview');
     const fallbackImg = document.getElementById('showcase-fallback-img');
 
-    if (activeRun.demo_url) {
-      openBtn.href = activeRun.demo_url;
+    const activeDemoUrl = resolveDemoUrl(activeRun.demo_url);
+    if (activeDemoUrl) {
+      openBtn.href = activeDemoUrl;
       openBtn.style.display = 'inline-flex';
       openBtn.target = '_blank';
       openBtn.rel = 'noopener noreferrer';
 
       // Load iframe if different
-      if (iframe.getAttribute('src') !== activeRun.demo_url) {
-        iframe.src = activeRun.demo_url;
+      if (iframe.getAttribute('src') !== activeDemoUrl) {
+        iframe.src = activeDemoUrl;
       }
       iframe.style.display = 'block';
       fallback.style.display = 'none';
@@ -2015,8 +2046,9 @@
 
     const modalDemoBtn = document.getElementById('modal-launch-demo-btn');
     if (modalDemoBtn) {
-      if (run.demo_url) {
-        modalDemoBtn.href = run.demo_url;
+      const modalDemoUrl = resolveDemoUrl(run.demo_url);
+      if (modalDemoUrl) {
+        modalDemoBtn.href = modalDemoUrl;
         modalDemoBtn.style.display = 'inline-flex';
       } else {
         modalDemoBtn.style.display = 'none';
@@ -2348,6 +2380,15 @@
       clearTimeout(timer);
       timer = setTimeout(() => fn(...args), ms);
     };
+  }
+
+  // Expose helpers for tests and parent execution environments
+  if (typeof window !== 'undefined') {
+    window.resolveDemoUrl = resolveDemoUrl;
+    window.SISTER_DEMOS_BASE_URL = SISTER_DEMOS_BASE_URL;
+  }
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { resolveDemoUrl, SISTER_DEMOS_BASE_URL };
   }
 
   // Bootstrap when DOM ready
