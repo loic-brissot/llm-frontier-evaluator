@@ -35,6 +35,9 @@ uv run pytest
 # Benchmark run consistency and RESULTS.md table validation
 uv run python3 scripts/compare_runs.py
 uv run python3 scripts/compare_runs.py --check-results
+
+# Package and push live web demos for verified runs to ../llm-frontier-evaluator-demos
+uv run python3 scripts/package_web_demos.py --prompt <prompt-id> --run-id <run-id> --publish-repo ../llm-frontier-evaluator-demos --push
 ```
 
 ## Subagent PR Review, Squash-Merge, and Release Workflow

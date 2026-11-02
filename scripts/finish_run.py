@@ -2428,6 +2428,115 @@ def sync_run_to_readme(run_dir: Path) -> None:
         print("Updated README.md under ## Comparisons.")
 
 
+def maybe_package_and_publish_demo(
+    run_dir: Path,
+    *,
+    package_demo: bool | None = None,
+    publish_repo: Path | None = None,
+    push_demo: bool = False,
+    interactive: bool = False,
+) -> dict[str, Any] | None:
+    """Package and optionally push a run's web demo bundle to the sister repository."""
+    if package_demo is False:
+        return None
+
+    workspace_dir = run_dir / "workspace"
+    if not workspace_dir.is_dir():
+        return None
+
+    from package_web_demos import (
+        DEFAULT_DEMOS_BASE_URL,
+        DEFAULT_OUTPUT_DIR,
+        DEFAULT_SISTER_REPO_DIR,
+        ensure_sister_repo_scaffold,
+        generate_showcase_index,
+        package_run_demo,
+        push_published_demos,
+    )
+
+    run_path = run_dir / "run.json"
+    run_data: dict[str, Any] = {}
+    if run_path.is_file():
+        try:
+            run_data = load_json(run_path)
+        except Exception:
+            run_data = {}
+
+    runtime_ver = (run_data.get("verification") or {}).get("runtime") or {}
+    runtime_passed = bool(
+        runtime_ver.get("passed")
+        or (runtime_ver.get("operator_override") or {}).get("passed")
+        or (run_data.get("outcome") or {}).get("operator_saw_a_page")
+    )
+
+    # Determine target sister repository if available
+    effective_publish_repo = publish_repo
+    if effective_publish_repo is None:
+        if push_demo:
+            effective_publish_repo = DEFAULT_SISTER_REPO_DIR
+        elif (
+            run_dir.resolve().is_relative_to(RUNS_DIR.resolve())
+            and DEFAULT_SISTER_REPO_DIR.is_dir()
+        ):
+            effective_publish_repo = DEFAULT_SISTER_REPO_DIR
+
+    should_package = bool(package_demo or push_demo or publish_repo is not None)
+    if package_demo is None and not should_package:
+        # Auto-package verified runs when the sister repository checkout is present
+        if runtime_passed and effective_publish_repo is not None:
+            should_package = True
+
+    if not should_package:
+        return None
+
+    output_dir = DEFAULT_OUTPUT_DIR
+    if effective_publish_repo is not None:
+        pub_path = Path(effective_publish_repo)
+        ensure_sister_repo_scaffold(pub_path, demos_base_url=DEFAULT_DEMOS_BASE_URL)
+        output_dir = pub_path / "demos" if pub_path.name != "demos" else pub_path
+
+    try:
+        pkg_res = package_run_demo(
+            run_dir,
+            output_dir=output_dir,
+            publish_repo=effective_publish_repo,
+            demos_base_url=DEFAULT_DEMOS_BASE_URL,
+        )
+        generate_showcase_index(
+            output_dir,
+            [pkg_res],
+            demos_base_url=DEFAULT_DEMOS_BASE_URL,
+            publish_repo=effective_publish_repo,
+        )
+        print(
+            f"\nPackaged live web demo for {pkg_res['prompt_id']}/{pkg_res['run_id']} "
+            f"({pkg_res['file_count']} files) -> {pkg_res['dest_bundle_dir']}"
+        )
+    except Exception as exc:
+        print(f"\nNote: Could not package web demo for {run_dir.parent.name}/{run_dir.name}: {exc}")
+        return None
+
+    if effective_publish_repo is not None and (Path(effective_publish_repo) / ".git").exists():
+        do_push = push_demo
+        if not do_push and interactive:
+            do_push = prompt_yes_no(
+                f"  Push packaged demo to sister repository ({effective_publish_repo})?",
+                default=True,
+                non_interactive=not interactive,
+            )
+        if do_push:
+            commit_msg = f"chore(demos): publish web demo for {pkg_res['prompt_id']}/{pkg_res['run_id']}"
+            push_published_demos(Path(effective_publish_repo), commit_message=commit_msg)
+        else:
+            print(
+                f"  To push demo artifacts to GitHub Pages, run:\n"
+                f"    uv run python3 scripts/package_web_demos.py --prompt {pkg_res['prompt_id']} "
+                f"--run-id {pkg_res['run_id']} --publish-repo {effective_publish_repo} --push"
+            )
+
+    return pkg_res
+
+
 def run_compare() -> int:
     script = ROOT / "scripts" / "compare_runs.py"
     result = subprocess.run([preferred_python(), str(script)], cwd=ROOT, check=False)
@@ -2435,6 +2544,8 @@ def run_compare() -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    from package_web_demos import DEFAULT_SISTER_REPO_DIR
+
     parser = argparse.ArgumentParser(description="Finish recording a LLM frontier evaluator run.")
     parser.add_argument("--prompt", dest="prompt_id", help="Prompt id (directory under runs/). Narrows --run-id lookup.")
     parser.add_argument("--run-id", help="Run directory name under runs/<prompt-id>/, or <prompt-id>/<run-id>.")
@@ -2447,6 +2558,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--compare-only", action="store_true", help="Only run compare_runs.py.")
     parser.add_argument("--verify", action="store_true", help="Run verify_run Playwright smoke test before completing run.json.")
     parser.add_argument("--skip-verify", action="store_true", help="Skip Playwright verification.")
+    parser.add_argument("--package-demo", action="store_true", help="Package the run's static web demo bundle after completion.")
+    parser.add_argument("--skip-package-demo", "--no-package-demo", dest="skip_package_demo", action="store_true", help="Skip packaging the run's static web demo bundle.")
+    parser.add_argument(
+        "--publish-repo",
+        nargs="?",
+        const=DEFAULT_SISTER_REPO_DIR,
+        type=Path,
+        default=None,
+        help=f"Sister repository path (llm-frontier-evaluator-demos) for publishing the packaged web demo (default when flag is passed without path: {DEFAULT_SISTER_REPO_DIR}).",
+    )
+    parser.add_argument("--push-demo", action="store_true", help="Commit and push the packaged web demo to the sister repository.")
     parser.add_argument("--non-interactive", action="store_true", help="Run without prompting on stdin.")
     return parser
 
@@ -2506,6 +2628,15 @@ def main() -> int:
             verify=args.verify,
             skip_verify=args.skip_verify,
         )
+
+    pkg_flag: bool | None = False if args.skip_package_demo else (True if args.package_demo else None)
+    maybe_package_and_publish_demo(
+        run_dir,
+        package_demo=pkg_flag,
+        publish_repo=args.publish_repo,
+        push_demo=args.push_demo,
+        interactive=not args.non_interactive,
+    )
 
     sync_run_to_readme(run_dir)
 

@@ -70,6 +70,40 @@ uv run python3 scripts/build_dashboard.py
 uv run python3 scripts/build_dashboard.py --check
 ```
 
+### Packaging and publishing live web demos (`llm-frontier-evaluator-demos`)
+
+Interactive web applications generated during benchmark runs are hosted in the public sister repository [`loic-brissot/llm-frontier-evaluator-demos`](https://github.com/loic-brissot/llm-frontier-evaluator-demos) and served via GitHub Pages at [`https://loic-brissot.github.io/llm-frontier-evaluator-demos/`](https://loic-brissot.github.io/llm-frontier-evaluator-demos/).
+
+- **Automatic / semi-automatic publishing on run completion (`finish_run.py`)**:
+  When a sibling checkout exists at `../llm-frontier-evaluator-demos`, `scripts/finish_run.py` automatically packages verified web applications into `../llm-frontier-evaluator-demos/demos/<prompt-id>/<run-id>/`, updates `demos.json` and the showcase `index.html`, and records `demo_url` in `run.json` and `artifacts/runtime.json`:
+  ```bash
+  # Interactive mode (prompts whether to commit & push to ../llm-frontier-evaluator-demos)
+  uv run python3 scripts/finish_run.py --prompt <prompt-id> --run-id <run-id> --verify
+
+  # Non-interactive / fully automatic commit & push of the demo bundle
+  uv run python3 scripts/finish_run.py \
+    --prompt <prompt-id> \
+    --run-id <run-id> \
+    --verify \
+    --push-demo \
+    --non-interactive
+  ```
+
+- **Standalone packaging and publishing (`package_web_demos.py`)**:
+  ```bash
+  # Package and push a single run's demo to ../llm-frontier-evaluator-demos
+  uv run python3 scripts/package_web_demos.py \
+    --prompt <prompt-id> \
+    --run-id <run-id> \
+    --publish-repo ../llm-frontier-evaluator-demos \
+    --push
+
+  # Package and push all runs with local workspaces
+  uv run python3 scripts/package_web_demos.py \
+    --publish-repo ../llm-frontier-evaluator-demos \
+    --push
+  ```
+
 ## Pull request format
 
 Every pull request description must contain the following three sections:
